@@ -69,10 +69,19 @@ function renderShell() {
             <button data-tab="setlist">Setlist</button>
           </div>
           <div id="tab-search">
-            <div class="search-wrap">
+            <form class="search-wrap" autocomplete="off" onsubmit="return false">
               <span class="search-icon">⌕</span>
-              <input id="search-input" placeholder="Search title, tags, number…" />
-            </div>
+              <input
+                id="search-input"
+                type="text"
+                name="vsb-library-query"
+                placeholder="Search title, tags, number…"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+            </form>
           </div>
           <div id="tab-key" class="hidden">
             <select id="key-select"><option value="">Select key</option></select>
@@ -169,6 +178,29 @@ function renderShell() {
   el.editor = document.getElementById("editor") as HTMLTextAreaElement;
 
   bindEvents();
+  focusSearchField();
+}
+
+function focusSearchField() {
+  requestAnimationFrame(() => {
+    el.searchInput?.focus({ preventScroll: true });
+  });
+}
+
+async function loadKeyOptions() {
+  const select = document.getElementById("key-select") as HTMLSelectElement;
+  if (select.options.length > 1) return;
+  try {
+    const keys = await api.listKeys();
+    keys.forEach((key) => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = key;
+      select.appendChild(opt);
+    });
+  } catch {
+    // Library not open yet.
+  }
 }
 
 function bindEvents() {
@@ -206,6 +238,9 @@ function bindEvents() {
       document.getElementById("tab-search")!.classList.toggle("hidden", state.activeTab !== "search");
       document.getElementById("tab-key")!.classList.toggle("hidden", state.activeTab !== "key");
       document.getElementById("setlist-panel")!.classList.toggle("hidden", state.activeTab !== "setlist");
+      if (state.activeTab === "key") {
+        await loadKeyOptions();
+      }
       await refreshSongs();
     });
   });
@@ -574,28 +609,23 @@ async function runImportMdb() {
   }
 }
 
-async function init() {
-  renderShell();
+async function bootstrapLibrary() {
   const config = await api.getConfig();
   if (!config.first_run_complete) {
     logMessage("Welcome! Select your songs folder, then import an MDB or start projecting.");
   }
   await refreshLibraryStatus();
-  const keys = new Set<string>();
-  const songs = await api.searchSongs("", false);
-  songs.forEach((s) => s.key && keys.add(s.key));
-  const select = document.getElementById("key-select") as HTMLSelectElement;
-  [...keys].sort().forEach((key) => {
-    const opt = document.createElement("option");
-    opt.value = key;
-    opt.textContent = key;
-    select.appendChild(opt);
-  });
-  select.onchange = () => refreshSongs();
-  await listen("library-changed", async () => {
-    await refreshLibraryStatus();
-    el.libraryBadge!.classList.remove("hidden");
-  });
+  try {
+    await refreshSongs();
+  } catch {
+    // Library may still be loading from the last session folder.
+  }
+  if (!state.libraryStatus?.songs_folder) {
+    logMessage("Welcome! Select your songs folder to begin.");
+  }
+}
+
+function registerGlobalShortcuts() {
   window.addEventListener("keydown", async (event) => {
     const target = event.target;
 
@@ -626,9 +656,19 @@ async function init() {
       await api.closeProjectionWindows();
     }
   });
-  if (!state.libraryStatus?.songs_folder) {
-    logMessage("Welcome! Select your songs folder to begin.");
-  }
+}
+
+async function init() {
+  renderShell();
+  void getCurrentWebviewWindow().setFocus();
+  registerGlobalShortcuts();
+  (document.getElementById("key-select") as HTMLSelectElement).onchange = () => refreshSongs();
+  listen("library-changed", async () => {
+    await refreshLibraryStatus();
+    el.libraryBadge!.classList.remove("hidden");
+    await refreshSongs();
+  }).catch(console.error);
+  void bootstrapLibrary();
 }
 
 init().catch(console.error);

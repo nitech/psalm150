@@ -275,6 +275,14 @@ select:focus {
 
 .search-wrap input {
   padding-left: 36px;
+  width: 100%;
+}
+
+.search-wrap input::-webkit-contacts-auto-fill-button,
+.search-wrap input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
 }
 
 .search-icon {
@@ -681,6 +689,61 @@ body.audience-projection {
   font-size: clamp(0.75rem, 1.2vw, 0.95rem);
   color: rgba(248, 250, 252, 0.78);
   letter-spacing: 0.02em;
+}
+
+.audience-progress {
+  pointer-events: none;
+  position: fixed;
+  top: 50%;
+  right: clamp(20px, 2.8vw, 36px);
+  z-index: 3;
+  transform: translateY(-50%);
+  padding: 6px 0;
+}
+
+.audience-progress-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 1.2vh, 12px);
+  padding: 10px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vsb-fg) 6%, transparent);
+}
+
+.audience-progress-segment {
+  flex: 0 0 auto;
+  width: 3px;
+  height: clamp(12px, 1.8vh, 16px);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vsb-fg) 32%, transparent);
+  opacity: 0.65;
+  transition:
+    opacity 0.35s ease,
+    width 0.35s ease,
+    height 0.35s ease,
+    background 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+.audience-progress-segment.past {
+  opacity: 0.55;
+  background: color-mix(in srgb, var(--vsb-fg) 45%, transparent);
+}
+
+.audience-progress-segment.current {
+  width: 4px;
+  height: clamp(14px, 2vh, 18px);
+  opacity: 1;
+  background: color-mix(in srgb, var(--vsb-fg) 88%, transparent);
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--vsb-fg) 30%, transparent),
+    0 0 3px color-mix(in srgb, var(--vsb-fg) 50%, transparent);
+}
+
+.audience-progress-segment.upcoming {
+  opacity: 0.35;
+  background: color-mix(in srgb, var(--vsb-fg) 22%, transparent);
 }
 
 body.stage-projection {

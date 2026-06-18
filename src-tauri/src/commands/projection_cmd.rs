@@ -200,13 +200,20 @@ pub fn next_slide_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionS
             return Err("No slides loaded".into());
         }
         runtime.projection.blank = false;
+        let before = runtime.projection.current_index;
         if runtime.projection.current_index + 1 < runtime.projection.slides.len() {
             runtime.projection.current_index += 1;
         }
-        let frame = build_frame(runtime, false);
+        let frame = if before != runtime.projection.current_index {
+            Some(build_frame(runtime, false))
+        } else {
+            None
+        };
         Ok((runtime.projection.clone(), frame))
     })?;
-    emit_frame(app, &frame);
+    if let Some(frame) = frame {
+        emit_frame(app, &frame);
+    }
     Ok(projection)
 }
 
@@ -218,13 +225,20 @@ pub fn previous_slide(app: AppHandle, state: State<'_, AppState>) -> Result<Proj
 pub fn previous_slide_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionState, String> {
     let (projection, frame) = with_state(state, |runtime| {
         runtime.projection.blank = false;
+        let before = runtime.projection.current_index;
         if runtime.projection.current_index > 0 {
             runtime.projection.current_index -= 1;
         }
-        let frame = build_frame(runtime, false);
+        let frame = if before != runtime.projection.current_index {
+            Some(build_frame(runtime, false))
+        } else {
+            None
+        };
         Ok((runtime.projection.clone(), frame))
     })?;
-    emit_frame(app, &frame);
+    if let Some(frame) = frame {
+        emit_frame(app, &frame);
+    }
     Ok(projection)
 }
 

@@ -98,6 +98,10 @@ pub fn run() {
 
             commands::projection_cmd::create_projection_windows(app.handle());
 
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.set_focus();
+            }
+
             let poll_handle = app.handle().clone();
             std::thread::spawn(move || loop {
                 std::thread::sleep(Duration::from_secs(1));
@@ -145,15 +149,17 @@ pub fn run() {
                 let path = PathBuf::from(folder);
                 if path.is_dir() {
                     let handle = app.handle().clone();
-                    let app_state = app.state::<AppState>();
-                    if let Err(err) = commands::library::activate_songs_folder(
-                        &handle,
-                        &app_state,
-                        path,
-                        false,
-                    ) {
-                        eprintln!("Failed to restore songs folder: {err}");
-                    }
+                    std::thread::spawn(move || {
+                        let state = handle.state::<AppState>();
+                        if let Err(err) = commands::library::activate_songs_folder(
+                            &handle,
+                            &state,
+                            path,
+                            false,
+                        ) {
+                            eprintln!("Failed to restore songs folder: {err}");
+                        }
+                    });
                 }
             }
 
@@ -168,6 +174,7 @@ pub fn run() {
             commands::library::list_conflicts,
             commands::library::search_songs,
             commands::library::list_by_key,
+            commands::library::list_keys,
             commands::library::list_categories,
             commands::library::get_history,
             commands::library::toggle_favorite,

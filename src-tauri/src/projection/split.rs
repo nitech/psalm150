@@ -8,15 +8,25 @@ const SCREEN_PADDING: u32 = 64;
 const OVERLAY_RESERVE: u32 = 88;
 
 pub fn split_section(section: &SongSection, theme: &SlideTheme) -> Vec<Vec<LyricLine>> {
+    split_section_into_stanzas(section, theme)
+        .into_iter()
+        .flatten()
+        .collect()
+}
+
+/// Each inner group is one stanza (blank-line block); each chunk within is a slide.
+pub fn split_section_into_stanzas(
+    section: &SongSection,
+    theme: &SlideTheme,
+) -> Vec<Vec<Vec<LyricLine>>> {
     if section.lines.is_empty() {
         return vec![];
     }
 
-    let mut chunks = Vec::new();
-    for block in split_into_blocks(&section.lines) {
-        chunks.extend(split_block_by_height(&block, theme));
-    }
-    chunks
+    split_into_blocks(&section.lines)
+        .into_iter()
+        .map(|block| split_block_by_height(&block, theme))
+        .collect()
 }
 
 /// Blank lines in a section mark stanza boundaries — each block becomes its own slide(s).

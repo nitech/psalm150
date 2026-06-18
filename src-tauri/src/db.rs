@@ -258,6 +258,26 @@ impl Database {
             .map_err(|e| e.to_string())
     }
 
+    pub fn list_keys(&self) -> Result<Vec<String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT key FROM songs WHERE key IS NOT NULL AND key != '' ORDER BY key",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn song_count(&self) -> Result<usize, String> {
+        self.conn
+            .query_row("SELECT COUNT(*) FROM songs", [], |row| row.get(0))
+            .map_err(|e| e.to_string())
+    }
+
     pub fn list_by_category(&self, category: &str) -> Result<Vec<SongRow>, String> {
         let mut stmt = self
             .conn

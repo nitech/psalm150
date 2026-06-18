@@ -57,16 +57,24 @@ pub fn activate_songs_folder(
     })?;
 
     emit_library_changed(app);
-    build_status(&path, false, count)
+    build_status(&path, false, count, true)
 }
 
-fn build_status(path: &PathBuf, dirty: bool, count: usize) -> Result<LibraryStatus, String> {
+fn build_status(path: &PathBuf, dirty: bool, count: usize, scan_disk: bool) -> Result<LibraryStatus, String> {
     Ok(LibraryStatus {
         songs_folder: Some(path.to_string_lossy().into()),
         song_count: count,
         library_dirty: dirty,
-        foreign_files: scan_foreign_files(path)?,
-        conflicts: scan_conflicts(path)?,
+        foreign_files: if scan_disk {
+            scan_foreign_files(path)?
+        } else {
+            vec![]
+        },
+        conflicts: if scan_disk {
+            scan_conflicts(path)?
+        } else {
+            vec![]
+        },
     })
 }
 
@@ -122,7 +130,7 @@ pub fn rescan_songs(state: State<'_, AppState>) -> Result<LibraryStatus, String>
         let count = songs.len();
         db.rebuild_from_songs(&songs)?;
         runtime.library_dirty = false;
-        build_status(&folder, false, count)
+        build_status(&folder, false, count, true)
     })
 }
 
@@ -141,9 +149,9 @@ pub fn get_library_status(state: State<'_, AppState>) -> Result<LibraryStatus, S
         let count = runtime
             .db
             .as_ref()
-            .map(|db| db.list_all(false).map(|s| s.len()).unwrap_or(0))
+            .and_then(|db| db.song_count().ok())
             .unwrap_or(0);
-        build_status(&folder, runtime.library_dirty, count)
+        build_status(&folder, runtime.library_dirty, count, false)
     })
 }
 
@@ -189,6 +197,12 @@ pub fn search_songs(
 pub fn list_by_key(state: State<'_, AppState>, key: String) -> Result<Vec<SongRow>, String> {
     require_db(&state)?;
     with_state(&state, |runtime| runtime.db.as_ref().unwrap().list_by_key(&key))
+}
+
+#[tauri::command]
+pub fn list_keys(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    require_db(&state)?;
+    with_state(&state, |runtime| runtime.db.as_ref().unwrap().list_keys())
 }
 
 #[tauri::command]

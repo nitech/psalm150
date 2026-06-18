@@ -97,46 +97,48 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
-            if let Some((directive, value)) = rest.split_once(':') {
-                let directive = directive.trim();
-                let value = value.trim().to_string();
-                match directive {
-                    "title" => title = value,
-                    "key" => key = Some(value),
-                    "artist" => artist = Some(value),
-                    "copyright" => copyright = Some(value),
-                    "start_of_verse" => {
-                        flush_section(
-                            &mut sections,
-                            &mut current_label,
-                            &mut current_kind,
-                            &mut current_lines,
-                        );
-                        current_label = "Verse".into();
-                        current_kind = SectionKind::Verse;
-                    }
-                    "start_of_chorus" => {
-                        flush_section(
-                            &mut sections,
-                            &mut current_label,
-                            &mut current_kind,
-                            &mut current_lines,
-                        );
-                        current_label = "Chorus".into();
-                        current_kind = SectionKind::Chorus;
-                    }
-                    "start_of_bridge" => {
-                        flush_section(
-                            &mut sections,
-                            &mut current_label,
-                            &mut current_kind,
-                            &mut current_lines,
-                        );
-                        current_label = "Bridge".into();
-                        current_kind = SectionKind::Bridge;
-                    }
-                    "meta" => {
-                        if let Some((k, v)) = value.split_once('=') {
+            let (directive, value) = match rest.split_once(':') {
+                Some((d, v)) => (d.trim(), Some(v.trim().to_string())),
+                None => (rest.trim(), None),
+            };
+            match directive {
+                "title" if value.is_some() => title = value.unwrap(),
+                "key" if value.is_some() => key = Some(value.unwrap()),
+                "artist" if value.is_some() => artist = Some(value.unwrap()),
+                "copyright" if value.is_some() => copyright = Some(value.unwrap()),
+                "start_of_verse" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    current_label = "Verse".into();
+                    current_kind = SectionKind::Verse;
+                }
+                "start_of_chorus" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    current_label = "Chorus".into();
+                    current_kind = SectionKind::Chorus;
+                }
+                "start_of_bridge" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    current_label = "Bridge".into();
+                    current_kind = SectionKind::Bridge;
+                }
+                "meta" => {
+                    if let Some(raw) = value {
+                        if let Some((k, v)) = raw.split_once('=') {
                             match k.trim() {
                                 "song_num" => song_num = v.trim().parse().ok(),
                                 "vsb_song_id" => vsb_song_id = v.trim().parse().ok(),
@@ -150,8 +152,8 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                             }
                         }
                     }
-                    _ => {}
                 }
+                _ => {}
             }
             continue;
         }

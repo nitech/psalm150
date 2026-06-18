@@ -37,6 +37,8 @@ export interface SlideOverlay {
 
 export interface SlidePayload {
   index: number;
+  section_index?: number;
+  stanza_index?: number;
   section_label: string;
   lines: SlideLine[];
   overlay: SlideOverlay;
@@ -115,6 +117,7 @@ export const api = {
   searchSongs: (query: string, favoritesOnly = false) =>
     invoke<SongRow[]>("search_songs", { query, favoritesOnly }),
   listByKey: (key: string) => invoke<SongRow[]>("list_by_key", { key }),
+  listKeys: () => invoke<string[]>("list_keys"),
   listCategories: () => invoke<string[]>("list_categories"),
   getHistory: (limit = 50) => invoke<[string, string, string][]>("get_history", { limit }),
   toggleFavorite: (filename: string) => invoke<boolean>("toggle_favorite", { filename }),

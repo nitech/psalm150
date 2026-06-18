@@ -4,6 +4,8 @@ use crate::projection::{SlideLine, SlidePayload};
 pub fn audience_slide(slide: &SlidePayload) -> SlidePayload {
     SlidePayload {
         index: slide.index,
+        section_index: slide.section_index,
+        stanza_index: slide.stanza_index,
         section_label: slide.section_label.clone(),
         lines: slide
             .lines

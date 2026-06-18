@@ -76,6 +76,12 @@ pub struct ProjectionState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlidePayload {
     pub index: usize,
+    /// Index of the song section this slide belongs to (verse, chorus, etc.).
+    #[serde(default)]
+    pub section_index: usize,
+    /// Index of the stanza (blank-line block) within the song.
+    #[serde(default)]
+    pub stanza_index: usize,
     pub section_label: String,
     pub lines: Vec<SlideLine>,
     pub overlay: SlideOverlay,
@@ -98,48 +104,53 @@ pub struct SlideOverlay {
 pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Vec<SlidePayload> {
     let mut slides = Vec::new();
     let mut index = 0usize;
-    for section in &song.sections {
-        let chunks = split::split_section(section, theme);
-        for chunk in chunks {
-            let overlay = SlideOverlay {
-                title: if theme.show_title_overlay {
-                    Some(song.meta.title.clone())
-                } else {
-                    None
-                },
-                key: if theme.show_key_overlay {
-                    song.meta.key.clone()
-                } else {
-                    None
-                },
-                copyright: if theme.show_copyright_overlay {
-                    song.meta.copyright.clone()
-                } else {
-                    None
-                },
-                ccli: if theme.show_ccli_overlay {
-                    song.meta.ccli.clone()
-                } else {
-                    None
-                },
-            };
-            slides.push(SlidePayload {
-                index,
-                section_label: section.label.clone(),
-                lines: chunk
-                    .into_iter()
-                    .map(|line| SlideLine {
-                        text: line.text,
-                        chords: line
-                            .chords
-                            .into_iter()
-                            .map(|c| transpose_chord(&c.chord, transpose))
-                            .collect(),
-                    })
-                    .collect(),
-                overlay,
-            });
-            index += 1;
+    let mut stanza_index = 0usize;
+    for (section_index, section) in song.sections.iter().enumerate() {
+        for stanza_slides in split::split_section_into_stanzas(section, theme) {
+            for chunk in stanza_slides {
+                let overlay = SlideOverlay {
+                    title: if theme.show_title_overlay {
+                        Some(song.meta.title.clone())
+                    } else {
+                        None
+                    },
+                    key: if theme.show_key_overlay {
+                        song.meta.key.clone()
+                    } else {
+                        None
+                    },
+                    copyright: if theme.show_copyright_overlay {
+                        song.meta.copyright.clone()
+                    } else {
+                        None
+                    },
+                    ccli: if theme.show_ccli_overlay {
+                        song.meta.ccli.clone()
+                    } else {
+                        None
+                    },
+                };
+                slides.push(SlidePayload {
+                    index,
+                    section_index,
+                    stanza_index,
+                    section_label: section.label.clone(),
+                    lines: chunk
+                        .into_iter()
+                        .map(|line| SlideLine {
+                            text: line.text,
+                            chords: line
+                                .chords
+                                .into_iter()
+                                .map(|c| transpose_chord(&c.chord, transpose))
+                                .collect(),
+                        })
+                        .collect(),
+                    overlay,
+                });
+                index += 1;
+            }
+            stanza_index += 1;
         }
     }
     slides
@@ -167,8 +178,61 @@ fn transpose_chord(chord: &str, semitones: i32) -> String {
 pub fn blank_payload() -> SlidePayload {
     SlidePayload {
         index: 0,
+        section_index: 0,
+        stanza_index: 0,
         section_label: "Blank".into(),
         lines: vec![],
         overlay: SlideOverlay::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::library::chordpro::parse_chordpro;
+
+    #[test]
+    fn build_slides_assigns_distinct_section_indices_for_repeated_labels() {
+        let content = r#"{title: Test}
+{start_of_verse}
+Line one
+{start_of_verse}
+Line two
+{start_of_chorus}
+Chorus line
+{start_of_verse}
+Line three
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
+        assert!(
+            parsed.sections.len() >= 3,
+            "expected multiple sections, got {:?}",
+            parsed.sections.iter().map(|s| &s.label).collect::<Vec<_>>()
+        );
+        assert!(slides.len() >= 3, "expected multiple slides, got {slides:?}");
+        let indices: Vec<usize> = slides.iter().map(|s| s.section_index).collect();
+        assert_eq!(
+            indices,
+            (0..parsed.sections.len()).collect::<Vec<_>>(),
+            "section_index should match section order"
+        );
+    }
+
+    #[test]
+    fn build_slides_assigns_one_stanza_index_per_blank_line_block() {
+        let content = r#"{title: Test}
+{start_of_verse}
+Stanza one line
+
+Stanza two line
+
+Stanza three line
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
+        assert_eq!(slides.len(), 3);
+        assert_eq!(slides.iter().map(|s| s.stanza_index).collect::<Vec<_>>(), vec![0, 1, 2]);
+        assert!(slides.iter().all(|s| s.section_index == 0));
     }
 }
