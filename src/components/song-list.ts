@@ -66,12 +66,16 @@ export class VsbSongList extends VsbElement {
           @click=${() => this.emit("vsb-select", song.filename)}
           @keydown=${(event: KeyboardEvent) => this.onRowKeydown(event, song.filename)}
         >
-          <span class="song-list-title">${song.title}</span>
-          <span class="song-list-meta">
-            ${song.key ? html`<span>${song.key}</span>` : nothing}
-            ${song.song_num != null ? html`<span>• #${song.song_num}</span>` : nothing}
-            ${song.favorite ? html`<span class="star">★</span>` : nothing}
+          <span class="song-list-lead">
+            ${song.song_num != null
+              ? html`<span class="song-list-num">#${song.song_num}</span>`
+              : html`<span class="song-list-num"></span>`}
+            ${song.key
+              ? html`<span class="song-list-key">${song.key}</span>`
+              : html`<span class="song-list-key"></span>`}
           </span>
+          <span class="song-list-title">${song.title}</span>
+          ${song.favorite ? html`<span class="song-list-star">★</span>` : nothing}
         </li>
       `;
     });
