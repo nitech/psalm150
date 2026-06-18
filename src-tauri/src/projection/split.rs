@@ -12,16 +12,50 @@ pub fn split_section(section: &SongSection, theme: &SlideTheme) -> Vec<Vec<Lyric
         return vec![];
     }
 
+    let mut chunks = Vec::new();
+    for block in split_into_blocks(&section.lines) {
+        chunks.extend(split_block_by_height(&block, theme));
+    }
+    chunks
+}
+
+/// Blank lines in a section mark stanza boundaries — each block becomes its own slide(s).
+fn split_into_blocks(lines: &[LyricLine]) -> Vec<Vec<LyricLine>> {
+    let mut blocks = Vec::new();
+    let mut current = Vec::new();
+
+    for line in lines {
+        if line.text.is_empty() {
+            if !current.is_empty() {
+                blocks.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(line.clone());
+        }
+    }
+
+    if !current.is_empty() {
+        blocks.push(current);
+    }
+
+    blocks
+}
+
+fn split_block_by_height(block: &[LyricLine], theme: &SlideTheme) -> Vec<Vec<LyricLine>> {
+    if block.is_empty() {
+        return vec![];
+    }
+
     let max_units = max_visual_units(theme);
-    if section_visual_units(&section.lines, theme) <= max_units {
-        return vec![section.lines.clone()];
+    if section_visual_units(block, theme) <= max_units {
+        return vec![block.to_vec()];
     }
 
     let mut chunks = Vec::new();
     let mut current = Vec::new();
     let mut current_units = 0usize;
 
-    for line in &section.lines {
+    for line in block {
         let line_units = line_visual_units(line, theme);
         if !current.is_empty() && current_units + line_units > max_units {
             chunks.push(std::mem::take(&mut current));
@@ -103,6 +137,26 @@ mod tests {
             kind: SectionKind::Verse,
             lines: lines.into_iter().map(line).collect(),
         }
+    }
+
+    #[test]
+    fn blank_lines_split_into_separate_slides() {
+        let theme = SlideTheme::default();
+        let section = section(vec![
+            "Lov min Gud, Å min sjel",
+            "",
+            "Å min sjel",
+            "",
+            "Solen står opp",
+            "og en ny dag begynner",
+        ]);
+        let chunks = split_section(&section, &theme);
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].len(), 1);
+        assert_eq!(chunks[0][0].text, "Lov min Gud, Å min sjel");
+        assert_eq!(chunks[1].len(), 1);
+        assert_eq!(chunks[1][0].text, "Å min sjel");
+        assert_eq!(chunks[2].len(), 2);
     }
 
     #[test]

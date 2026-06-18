@@ -1,4 +1,5 @@
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { api, ImportProgress, ImportReport, LibraryStatus, ProjectionState, Setlist, SongDetail, SongRow } from "./api";
 import "./styles.css";
@@ -114,7 +115,8 @@ function renderShell() {
             </div>
           </div>
           <div class="shortcuts">
-            <span><kbd>←</kbd> <kbd>→</kbd> slides</span>
+            <span><kbd>Enter</kbd> project song</span>
+            <span><kbd>↑</kbd> <kbd>↓</kbd> slides</span>
             <span><kbd>B</kbd> blank</span>
             <span><kbd>Esc</kbd> close projection</span>
           </div>
@@ -182,6 +184,20 @@ function bindEvents() {
     await refreshSongs();
   };
   el.searchInput!.oninput = () => refreshSongs();
+  el.searchInput!.addEventListener("keydown", async (event) => {
+    if (event.key === "ArrowDown") {
+      const first = state.songs[0];
+      if (!first) return;
+      event.preventDefault();
+      await selectSong(first.filename);
+      (el.songList!.querySelector("li") as HTMLElement | null)?.focus();
+      return;
+    }
+    if (event.key === "Enter" && state.currentSong) {
+      event.preventDefault();
+      await projectLoadedSong();
+    }
+  });
   document.querySelectorAll(".tabs button").forEach((btn) => {
     btn.addEventListener("click", async () => {
       document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
@@ -197,12 +213,10 @@ function bindEvents() {
   document.getElementById("audience")!.onclick = () => api.openAudienceWindow();
   document.getElementById("stage")!.onclick = () => api.openStageWindow();
   document.getElementById("next-slide")!.onclick = async () => {
-    state.projection = await api.nextSlide();
-    await updatePreview();
+    await advanceSlide("next");
   };
   document.getElementById("prev-slide")!.onclick = async () => {
-    state.projection = await api.previousSlide();
-    await updatePreview();
+    await advanceSlide("prev");
   };
   document.getElementById("blank")!.onclick = async () => {
     state.projection = await api.blankScreen();
@@ -326,14 +340,29 @@ function renderSongList() {
     )
     .join("");
   el.songList!.querySelectorAll("li").forEach((li) => {
+    li.tabIndex = 0;
     li.addEventListener("click", async () => {
-      const file = (li as HTMLElement).dataset.file!;
-      state.currentFilename = file;
-      state.currentSong = await api.loadSong(file);
-      renderCurrentSong();
-      renderSongList();
+      await selectSong((li as HTMLElement).dataset.file!);
+    });
+    li.addEventListener("keydown", async (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        const file = (li as HTMLElement).dataset.file!;
+        if (state.currentFilename !== file) {
+          await selectSong(file);
+        }
+        await projectLoadedSong();
+      }
     });
   });
+}
+
+async function selectSong(file: string) {
+  state.currentFilename = file;
+  state.currentSong = await api.loadSong(file);
+  renderCurrentSong();
+  renderSongList();
 }
 
 function escapeHtml(value: string) {
@@ -348,7 +377,8 @@ function renderCurrentSong() {
   if (!state.currentSong) return;
   document.getElementById("song-title")!.textContent = state.currentSong.parsed.meta.title as string;
   el.editor!.value = state.currentSong.parsed.raw;
-  const slide = state.currentSong.projection.slides[state.currentSong.projection.current_index];
+  const projection = state.projection ?? state.currentSong.projection;
+  const slide = projection.slides[projection.current_index];
   el.preview!.textContent =
     slide?.lines.map((l) => l.text).join("\n") ?? state.currentSong.parsed.raw.slice(0, 600);
 }
@@ -366,6 +396,27 @@ async function projectLoadedSong() {
     state.projection = await api.showSlide(0);
   }
   await api.logProjection();
+  await updatePreview();
+  renderCurrentSong();
+  await getCurrentWebviewWindow().setFocus();
+}
+
+function isTextEntryTarget(target: EventTarget | null): target is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
+
+function isProjectionActive() {
+  return Boolean(state.projection && state.projection.slides.length > 0 && !state.projection.blank);
+}
+
+async function advanceSlide(direction: "next" | "prev") {
+  if (!isProjectionActive()) return;
+  state.projection =
+    direction === "next" ? await api.nextSlide() : await api.previousSlide();
   await updatePreview();
   renderCurrentSong();
 }
@@ -546,12 +597,29 @@ async function init() {
     el.libraryBadge!.classList.remove("hidden");
   });
   window.addEventListener("keydown", async (event) => {
-    if (event.key === "ArrowRight") {
-      state.projection = await api.nextSlide();
-      await updatePreview();
-    } else if (event.key === "ArrowLeft") {
-      state.projection = await api.previousSlide();
-      await updatePreview();
+    const target = event.target;
+
+    if (event.key === "Enter" && state.currentSong) {
+      if (isTextEntryTarget(target) && target !== el.searchInput) {
+        return;
+      }
+      event.preventDefault();
+      await projectLoadedSong();
+      return;
+    }
+
+    if (isTextEntryTarget(target)) {
+      return;
+    }
+
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      if (!isProjectionActive()) return;
+      event.preventDefault();
+      await advanceSlide("next");
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      if (!isProjectionActive()) return;
+      event.preventDefault();
+      await advanceSlide("prev");
     } else if (event.key.toLowerCase() === "b") {
       state.projection = await api.blankScreen();
     } else if (event.key === "Escape") {

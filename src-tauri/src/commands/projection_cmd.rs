@@ -132,7 +132,6 @@ pub fn open_audience_window(app: AppHandle, state: State<'_, AppState>) -> Resul
         .ok_or_else(|| "Audience window is not available".to_string())?;
     let _ = window.set_fullscreen(true);
     window.show().map_err(|e| e.to_string())?;
-    let _ = window.set_focus();
     sync_projection_windows(&app, &state);
     Ok(())
 }
@@ -152,7 +151,6 @@ pub fn open_stage_window(app: AppHandle, state: State<'_, AppState>) -> Result<(
         .get_webview_window("stage")
         .ok_or_else(|| "Stage window is not available".to_string())?;
     window.show().map_err(|e| e.to_string())?;
-    let _ = window.set_focus();
     sync_projection_windows(&app, &state);
     Ok(())
 }
