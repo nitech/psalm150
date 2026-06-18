@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use visual_song_book_lib::import::mdb::read_vsb_categories;
-use visual_song_book_lib::import::import_mdb_to_folder;
+use praise_lib::import::mdb::read_vsb_categories;
+use praise_lib::import::import_mdb_to_folder;
 
 #[test]
 fn imports_temp_brattvaag_mdb_when_present() {

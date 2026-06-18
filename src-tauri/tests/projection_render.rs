@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use visual_song_book_lib::library::chordpro::parse_chordpro;
-use visual_song_book_lib::projection::modes::audience_slide;
-use visual_song_book_lib::projection::{build_slides, SlideTheme};
+use praise_lib::library::chordpro::parse_chordpro;
+use praise_lib::projection::modes::audience_slide;
+use praise_lib::projection::{build_slides, SlideTheme};
 
 #[test]
 fn imported_song_produces_audience_slides_with_lyrics() {

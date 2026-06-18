@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use visual_song_book_lib::import::mdb::{read_page_setup, read_vsb_categories, read_vsb_mdb};
+use praise_lib::import::mdb::{read_page_setup, read_vsb_categories, read_vsb_mdb};
 
 #[test]
 fn imports_brattvaag_sample_when_present() {

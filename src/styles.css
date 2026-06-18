@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Visual Song Book — Vance Biometrics Clinical Dashboard Design System
+   Praise — Vance Biometrics Clinical Dashboard Design System
    Tokens (color, type, radii, shadow, motion) mirror designsystem.json:
    near-black canvas, single muted-lime accent (#C6D88C), glassmorphic overlays.
    ───────────────────────────────────────────────────────────────────────────── */
@@ -1128,19 +1128,19 @@ body.projection {
 }
 
 body.audience-projection {
-  --vsb-font-family: "Geist", "Inter", system-ui, sans-serif;
-  --vsb-font-size: 48px;
-  --vsb-line-height: 1.28;
-  --vsb-font-weight: 500;
-  --vsb-font-style: normal;
-  --vsb-fg: #f4f4f4;
-  --vsb-bg: #060606;
-  --vsb-margin-top: 40px;
-  --vsb-margin-left: 48px;
-  --vsb-margin-right: 48px;
-  --vsb-margin-bottom: 48px;
-  background: var(--vsb-bg);
-  color: var(--vsb-fg);
+  --praise-font-family: "Geist", "Inter", system-ui, sans-serif;
+  --praise-font-size: 48px;
+  --praise-line-height: 1.28;
+  --praise-font-weight: 500;
+  --praise-font-style: normal;
+  --praise-fg: #f4f4f4;
+  --praise-bg: #060606;
+  --praise-margin-top: 40px;
+  --praise-margin-left: 48px;
+  --praise-margin-right: 48px;
+  --praise-margin-bottom: 48px;
+  background: var(--praise-bg);
+  color: var(--praise-fg);
   font-family: var(--font-ui);
 }
 
@@ -1154,13 +1154,13 @@ body.audience-projection {
   justify-content: center;
   align-items: center;
   padding:
-    max(var(--vsb-margin-top), clamp(32px, 6vw, 72px))
-    max(var(--vsb-margin-right), clamp(32px, 6vw, 72px))
-    max(var(--vsb-margin-bottom), clamp(32px, 6vw, 72px))
-    max(var(--vsb-margin-left), clamp(32px, 6vw, 72px));
+    max(var(--praise-margin-top), clamp(32px, 6vw, 72px))
+    max(var(--praise-margin-right), clamp(32px, 6vw, 72px))
+    max(var(--praise-margin-bottom), clamp(32px, 6vw, 72px))
+    max(var(--praise-margin-left), clamp(32px, 6vw, 72px));
   text-align: center;
-  background: var(--vsb-bg);
-  color: var(--vsb-fg);
+  background: var(--praise-bg);
+  color: var(--praise-fg);
   overflow: hidden;
 }
 
@@ -1176,16 +1176,16 @@ body.audience-projection {
 .audience-content {
   position: relative;
   z-index: 1;
-  max-width: min(92vw, calc(100% - 2 * var(--vsb-margin-left, 48px)));
+  max-width: min(92vw, calc(100% - 2 * var(--praise-margin-left, 48px)));
   will-change: transform;
 }
 
 .audience-line {
-  font-family: var(--vsb-font-family);
-  font-size: var(--vsb-font-size);
-  line-height: var(--vsb-line-height);
-  font-weight: var(--vsb-font-weight);
-  font-style: var(--vsb-font-style);
+  font-family: var(--praise-font-family);
+  font-size: var(--praise-font-size);
+  line-height: var(--praise-line-height);
+  font-weight: var(--praise-font-weight);
+  font-style: var(--praise-font-style);
   letter-spacing: -0.02em;
   white-space: pre-wrap;
   text-wrap: balance;

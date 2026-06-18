@@ -128,7 +128,7 @@ Tauri documents three safe ways to create secondary windows on Windows ([Webview
 
 | Pattern | When to use |
 |---------|-------------|
-| **Create in `setup()`** (what VSB uses) | Fixed windows opened often — projection, overlays, tray companions |
+| **Create in `setup()`** (what Praise uses) | Fixed windows opened often — projection, overlays, tray companions |
 | **`async` command + `build()`** | Occasional windows — settings, about, one-off dialogs |
 | **Separate thread from `setup()`** | Deferred creation when startup must not block |
 

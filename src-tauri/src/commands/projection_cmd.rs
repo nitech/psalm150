@@ -57,7 +57,7 @@ fn build_frame(runtime: &RuntimeState, blank: bool) -> ProjectionFrame {
 fn push_audience_slide(window: &WebviewWindow, slide: &SlidePayload) {
     if let Ok(json) = serde_json::to_string(slide) {
         let script = format!(
-            "try{{if(window.__VSB_RENDER__)window.__VSB_RENDER__({json});}}catch(e){{console.error(e)}}"
+            "try{{if(window.__PRAISE_RENDER__)window.__PRAISE_RENDER__({json});}}catch(e){{console.error(e)}}"
         );
         let _ = window.eval(&script);
     }
@@ -66,7 +66,7 @@ fn push_audience_slide(window: &WebviewWindow, slide: &SlidePayload) {
 fn push_stage_slide(window: &WebviewWindow, slide: &StageSlide) {
     if let Ok(json) = serde_json::to_string(slide) {
         let script = format!(
-            "try{{window.dispatchEvent(new CustomEvent('vsb-stage-slide',{{detail:{json}}}));}}catch(e){{console.error(e)}}"
+            "try{{window.dispatchEvent(new CustomEvent('praise-stage-slide',{{detail:{json}}}));}}catch(e){{console.error(e)}}"
         );
         let _ = window.eval(&script);
     }

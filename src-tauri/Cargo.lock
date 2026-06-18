@@ -2588,6 +2588,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
+name = "praise"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "jetdb",
+ "notify",
+ "parking_lot",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "slug",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-global-shortcut",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tiny_http",
+ "uuid",
+]
+
+[[package]]
 name = "precomputed-hash"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4215,31 +4240,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "visual-song-book"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "jetdb",
- "notify",
- "parking_lot",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "slug",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-global-shortcut",
- "tempfile",
- "thiserror 2.0.18",
- "tiny_http",
- "uuid",
-]
 
 [[package]]
 name = "vswhom"

@@ -12,7 +12,7 @@ import {
   type SongDetail,
   type SongRow,
 } from "../api";
-import { VsbElement } from "./base";
+import { PraiseElement } from "./base";
 import "./modal";
 import "./song-list";
 
@@ -21,10 +21,10 @@ type ToastTone = "info" | "success" | "error";
 
 /**
  * Root component for the main window. Owns all application state and IPC
- * orchestration, and composes the presentational components (`vsb-song-list`,
- * `vsb-modal`).
+ * orchestration, and composes the presentational components (`praise-song-list`,
+ * `praise-modal`).
  */
-export class VsbApp extends VsbElement {
+export class PraiseApp extends PraiseElement {
   static properties = {
     songs: { state: true },
     currentSong: { state: true },
@@ -546,7 +546,7 @@ export class VsbApp extends VsbElement {
       event.preventDefault();
       await this.selectSong(first.filename);
       await this.updateComplete;
-      this.querySelector<HTMLElement>("vsb-song-list li")?.focus();
+      this.querySelector<HTMLElement>("praise-song-list li")?.focus();
       return;
     }
     if (event.key === "Enter" && this.currentSong) {
@@ -565,25 +565,25 @@ export class VsbApp extends VsbElement {
         ${this.renderBrowsePane()}
         ${this.renderSongPane()}
       </main>
-      <vsb-modal
+      <praise-modal
         heading="Settings"
         variant="wide"
         ?open=${this.settingsOpen}
         .content=${this.renderSettingsContent()}
-        @vsb-close=${() => (this.settingsOpen = false)}
-      ></vsb-modal>
-      <vsb-modal
+        @praise-close=${() => (this.settingsOpen = false)}
+      ></praise-modal>
+      <praise-modal
         heading=${(this.currentSong?.parsed.meta.title as string) || "Edit song"}
         variant="tall"
         ?open=${this.editOpen}
         .content=${this.renderEditContent()}
-        @vsb-close=${() => (this.editOpen = false)}
-      ></vsb-modal>
-      <vsb-modal
+        @praise-close=${() => (this.editOpen = false)}
+      ></praise-modal>
+      <praise-modal
         heading="Importing songbook"
         ?open=${this.importOpen}
         .content=${this.renderImportContent()}
-      ></vsb-modal>
+      ></praise-modal>
     `;
   }
 
@@ -607,7 +607,7 @@ export class VsbApp extends VsbElement {
               <circle cx="18" cy="16" r="3" />
             </svg>
           </div>
-          <strong class="brand-name">Visual Song Book</strong>
+          <strong class="brand-name">Praise</strong>
         </div>
         <div class="live-bar">
           <button class="primary compact" @click=${() => this.projectLoadedSong()}>Project</button>
@@ -700,7 +700,7 @@ export class VsbApp extends VsbElement {
                   <input
                     id="search-input"
                     type="text"
-                    name="vsb-library-query"
+                    name="praise-library-query"
                     placeholder="Search songs, tags, or numbers..."
                     autocomplete="off"
                     autocorrect="off"
@@ -755,17 +755,17 @@ export class VsbApp extends VsbElement {
               </div>
             `
           : nothing}
-        <vsb-song-list
+        <praise-song-list
           class="song-list scroll-region"
           role="listbox"
           .songs=${this.songs}
           .currentFile=${this.currentFilename}
-          @vsb-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
-          @vsb-project=${async (e: CustomEvent<string>) => {
+          @praise-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
+          @praise-project=${async (e: CustomEvent<string>) => {
             if (this.currentFilename !== e.detail) await this.selectSong(e.detail);
             await this.projectLoadedSong();
           }}
-        ></vsb-song-list>
+        ></praise-song-list>
       </aside>
     `;
   }
@@ -933,10 +933,10 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-customElements.define("vsb-app", VsbApp);
+customElements.define("praise-app", PraiseApp);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "vsb-app": VsbApp;
+    "praise-app": PraiseApp;
   }
 }

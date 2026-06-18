@@ -1,12 +1,12 @@
 import { html, nothing } from "lit";
-import { VsbElement } from "./base";
+import { PraiseElement } from "./base";
 import type { SongRow } from "../api";
 
 /**
- * Library song list. Presentational: it renders rows and emits `vsb-select`
- * (single click / focus) and `vsb-project` (Enter on a focused row) events.
+ * Library song list. Presentational: it renders rows and emits `praise-select`
+ * (single click / focus) and `praise-project` (Enter on a focused row) events.
  */
-export class VsbSongList extends VsbElement {
+export class PraiseSongList extends PraiseElement {
   static properties = {
     songs: { attribute: false },
     currentFile: {},
@@ -21,7 +21,7 @@ export class VsbSongList extends VsbElement {
     this.currentFile = null;
   }
 
-  private emit(name: "vsb-select" | "vsb-project", file: string) {
+  private emit(name: "praise-select" | "praise-project", file: string) {
     this.dispatchEvent(new CustomEvent(name, { detail: file, bubbles: true, composed: true }));
   }
 
@@ -29,8 +29,8 @@ export class VsbSongList extends VsbElement {
     if (event.key !== "Enter") return;
     event.preventDefault();
     event.stopPropagation();
-    if (this.currentFile !== file) this.emit("vsb-select", file);
-    this.emit("vsb-project", file);
+    if (this.currentFile !== file) this.emit("praise-select", file);
+    this.emit("praise-project", file);
   }
 
   render() {
@@ -63,7 +63,7 @@ export class VsbSongList extends VsbElement {
           role="option"
           tabindex="0"
           aria-selected=${active ? "true" : "false"}
-          @click=${() => this.emit("vsb-select", song.filename)}
+          @click=${() => this.emit("praise-select", song.filename)}
           @keydown=${(event: KeyboardEvent) => this.onRowKeydown(event, song.filename)}
         >
           <span class="song-list-lead">
@@ -82,10 +82,10 @@ export class VsbSongList extends VsbElement {
   }
 }
 
-customElements.define("vsb-song-list", VsbSongList);
+customElements.define("praise-song-list", PraiseSongList);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "vsb-song-list": VsbSongList;
+    "praise-song-list": PraiseSongList;
   }
 }

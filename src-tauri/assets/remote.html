@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VSB Remote</title>
+  <title>Praise Remote</title>
   <style>
     body { font-family: sans-serif; display: grid; gap: 12px; padding: 24px; }
     button { font-size: 1.2rem; padding: 16px; }
   </style>
 </head>
 <body>
-  <h1>Visual Song Book Remote</h1>
-  <p>Enter PIN in request header X-VSB-PIN when using API.</p>
+  <h1>Praise Remote</h1>
+  <p>Enter PIN in request header X-Praise-PIN when using API.</p>
   <button onclick="send('/next')">Next</button>
   <button onclick="send('/prev')">Previous</button>
   <button onclick="send('/blank')">Blank</button>
   <script>
     async function send(path) {
       const pin = prompt('PIN');
-      await fetch(path, { method: 'POST', headers: { 'X-VSB-PIN': pin || '' } });
+      await fetch(path, { method: 'POST', headers: { 'X-Praise-PIN': pin || '' } });
     }
   </script>
 </body>

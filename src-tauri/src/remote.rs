@@ -41,7 +41,7 @@ impl RemoteServer {
                     let pin_ok = request
                         .headers()
                         .iter()
-                        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case("x-vsb-pin"))
+                        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case("x-praise-pin"))
                         .map(|h| h.value.as_str() == pin_clone)
                         .unwrap_or(false);
                     if !pin_ok && request.method() != &Method::Get {

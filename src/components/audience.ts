@@ -9,7 +9,7 @@ import {
   listenAudienceSlide,
 } from "../projection-client";
 import type { ProjectionState, SlidePayload, SlideTheme } from "../api";
-import { VsbElement } from "./base";
+import { PraiseElement } from "./base";
 
 interface StanzaMarker {
   stanzaIndex: number;
@@ -48,7 +48,7 @@ function stripChords(slide: SlidePayload): SlidePayload {
 }
 
 /** Audience-facing projection window. */
-export class VsbAudience extends VsbElement {
+export class PraiseAudience extends PraiseElement {
   static properties = {
     slide: { state: true },
     projection: { state: true },
@@ -148,16 +148,16 @@ export class VsbAudience extends VsbElement {
 
   private applyTheme(theme: SlideTheme) {
     const style = document.documentElement.style;
-    style.setProperty("--vsb-font-family", theme.font_name);
-    style.setProperty("--vsb-font-size", `${theme.font_size}px`);
-    style.setProperty("--vsb-font-weight", theme.font_bold ? "700" : "500");
-    style.setProperty("--vsb-font-style", theme.font_italic ? "italic" : "normal");
-    style.setProperty("--vsb-fg", theme.foreground);
-    style.setProperty("--vsb-bg", theme.background);
-    style.setProperty("--vsb-margin-top", `${theme.margin_top}px`);
-    style.setProperty("--vsb-margin-left", `${theme.margin_left}px`);
-    style.setProperty("--vsb-margin-right", `${theme.margin_right}px`);
-    style.setProperty("--vsb-margin-bottom", `${theme.margin_bottom}px`);
+    style.setProperty("--praise-font-family", theme.font_name);
+    style.setProperty("--praise-font-size", `${theme.font_size}px`);
+    style.setProperty("--praise-font-weight", theme.font_bold ? "700" : "500");
+    style.setProperty("--praise-font-style", theme.font_italic ? "italic" : "normal");
+    style.setProperty("--praise-fg", theme.foreground);
+    style.setProperty("--praise-bg", theme.background);
+    style.setProperty("--praise-margin-top", `${theme.margin_top}px`);
+    style.setProperty("--praise-margin-left", `${theme.margin_left}px`);
+    style.setProperty("--praise-margin-right", `${theme.margin_right}px`);
+    style.setProperty("--praise-margin-bottom", `${theme.margin_bottom}px`);
     document.body.style.background = theme.background;
     document.body.style.color = theme.foreground;
   }
@@ -242,10 +242,10 @@ export class VsbAudience extends VsbElement {
   }
 }
 
-customElements.define("vsb-audience", VsbAudience);
+customElements.define("praise-audience", PraiseAudience);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "vsb-audience": VsbAudience;
+    "praise-audience": PraiseAudience;
   }
 }

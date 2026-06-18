@@ -1,6 +1,6 @@
-# Visual Song Book
+# Praise
 
-Cross-platform rewrite of Visual Song Book using Tauri 2 (Rust + TypeScript).
+Cross-platform church worship projection app built with Tauri 2 (Rust + TypeScript).
 
 ## Requirements
 
@@ -19,7 +19,7 @@ npm run tauri dev
 
 1. Launch the app
 2. **Open Songs Folder** — select a directory that will contain only `.pro` / `.cho` files (e.g. a Dropbox folder)
-3. **Import MDB** — convert a legacy VSB `.mdb` songbook into ChordPro files in that folder
+3. **Import MDB** — convert a legacy Visual Song Book `.mdb` songbook into ChordPro files in that folder
 4. Search, project to the audience window, manage setlists locally
 
 ## Architecture

@@ -1,6 +1,6 @@
 # ChordPro metadata
 
-Visual Song Book reads and writes these directives in `.pro` files:
+Praise reads and writes these directives in `.pro` files:
 
 | Directive | Example | Purpose |
 |-----------|---------|---------|

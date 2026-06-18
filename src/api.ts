@@ -136,8 +136,8 @@ export const api = {
   cancelImport: () => invoke<void>("cancel_import"),
   importMdb: async () => {
     const selected = await open({
-      title: "Import VSB Songbook",
-      filters: [{ name: "Visual Song Book", extensions: ["mdb"] }],
+      title: "Import legacy songbook",
+      filters: [{ name: "Visual Song Book database", extensions: ["mdb"] }],
       multiple: false,
     });
     if (selected === null) {

@@ -2,7 +2,7 @@ import { html, nothing } from "lit";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { closeProjectionWindows } from "../projection-client";
-import { VsbElement } from "./base";
+import { PraiseElement } from "./base";
 
 export interface StageSlide {
   section_label: string;
@@ -12,7 +12,7 @@ export interface StageSlide {
 }
 
 /** Musician-facing stage window: lyrics with chords above each line. */
-export class VsbStage extends VsbElement {
+export class PraiseStage extends PraiseElement {
   static properties = {
     slide: { state: true },
   };
@@ -30,13 +30,13 @@ export class VsbStage extends VsbElement {
     getCurrentWebviewWindow()
       .listen<StageSlide>("stage-slide", (event) => (this.slide = event.payload))
       .catch(console.error);
-    window.addEventListener("vsb-stage-slide", this.onCustomSlide);
+    window.addEventListener("praise-stage-slide", this.onCustomSlide);
     window.addEventListener("keydown", this.onKeydown);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener("vsb-stage-slide", this.onCustomSlide);
+    window.removeEventListener("praise-stage-slide", this.onCustomSlide);
     window.removeEventListener("keydown", this.onKeydown);
   }
 
@@ -78,10 +78,10 @@ export class VsbStage extends VsbElement {
   }
 }
 
-customElements.define("vsb-stage", VsbStage);
+customElements.define("praise-stage", PraiseStage);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "vsb-stage": VsbStage;
+    "praise-stage": PraiseStage;
   }
 }

@@ -1,12 +1,12 @@
 [package]
-name = "visual-song-book"
+name = "praise"
 version = "0.1.0"
-description = "Visual Song Book — cross-platform worship song projection"
+description = "Praise — cross-platform church worship projection"
 authors = ["Sevenfold"]
 edition = "2021"
 
 [lib]
-name = "visual_song_book_lib"
+name = "praise_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

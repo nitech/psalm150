@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Visual Song Book",
+  "productName": "Praise",
   "version": "0.1.0",
-  "identifier": "com.sevenfold.visual-song-book",
+  "identifier": "com.sevenfold.praise",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Visual Song Book",
+        "title": "Praise",
         "width": 1280,
         "height": 900,
         "resizable": true
