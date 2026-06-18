@@ -110,6 +110,10 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
         let line = lines[i];
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            current_lines.push(crate::library::chordpro::LyricLine {
+                text: String::new(),
+                chords: vec![],
+            });
             i += 1;
             continue;
         }
@@ -162,9 +166,12 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
             lines: body
                 .split("\r\n")
                 .flat_map(|block| block.lines())
-                .filter(|l| !l.trim().is_empty())
                 .map(|l| crate::library::chordpro::LyricLine {
-                    text: l.trim().to_string(),
+                    text: if l.trim().is_empty() {
+                        String::new()
+                    } else {
+                        l.trim().to_string()
+                    },
                     chords: vec![],
                 })
                 .collect(),
@@ -223,7 +230,50 @@ mod tests {
         let body = "Line one\nLine two\n\nLine three";
         let sections = parse_vsb_body(body);
         assert!(!sections.is_empty());
-        assert!(sections[0].lines.len() >= 2);
+        assert_eq!(sections[0].lines.len(), 4);
+        assert_eq!(sections[0].lines[0].text, "Line one");
+        assert_eq!(sections[0].lines[1].text, "Line two");
+        assert_eq!(sections[0].lines[2].text, "");
+        assert_eq!(sections[0].lines[3].text, "Line three");
+    }
+
+    #[test]
+    fn preserves_blank_lines_in_chordpro_round_trip() {
+        let body = "verse 1\nFirst line\n\nSecond stanza line";
+        let sections = parse_vsb_body(body);
+        let song = ParsedSong {
+            meta: crate::library::chordpro::SongMeta {
+                filename: "test.pro".into(),
+                title: "Test".into(),
+                song_num: None,
+                vsb_song_id: None,
+                key: None,
+                alt_keys: None,
+                category: None,
+                artist: None,
+                copyright: None,
+                ccli: None,
+                tags: None,
+                arrangement: None,
+                base_song: None,
+                modified_at: None,
+            },
+            raw: body.into(),
+            sections,
+        };
+        let content = serialize_chordpro(&song);
+        assert!(content.contains("First line\n\nSecond stanza line"));
+        let reparsed = parse_chordpro(&content, "test.pro");
+        let verse = reparsed
+            .sections
+            .iter()
+            .find(|s| s.kind == SectionKind::Verse)
+            .expect("verse section");
+        let texts: Vec<&str> = verse.lines.iter().map(|l| l.text.as_str()).collect();
+        assert!(
+            texts.windows(3).any(|w| w[0] == "First line" && w[1].is_empty() && w[2] == "Second stanza line"),
+            "expected blank line between stanzas, got {texts:?}"
+        );
     }
 
     #[test]

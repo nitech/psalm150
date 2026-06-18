@@ -84,6 +84,13 @@ export interface ImportReport {
   written: number;
   skipped: number;
   warnings: string[];
+  cancelled: boolean;
+}
+
+export interface ImportProgress {
+  current: number;
+  total: number;
+  song_title: string;
 }
 
 export interface Setlist {
@@ -112,6 +119,7 @@ export const api = {
   getHistory: (limit = 50) => invoke<[string, string, string][]>("get_history", { limit }),
   toggleFavorite: (filename: string) => invoke<boolean>("toggle_favorite", { filename }),
   importMdbPath: (mdbPath: string) => invoke<ImportReport>("import_mdb_path", { mdbPath }),
+  cancelImport: () => invoke<void>("cancel_import"),
   importMdb: async () => {
     const selected = await open({
       title: "Import VSB Songbook",

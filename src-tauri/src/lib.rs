@@ -16,11 +16,13 @@ use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use parking_lot::Mutex;
+use std::sync::atomic::AtomicBool;
 use tauri::{Emitter, Manager};
 
 pub struct AppState {
     pub inner: Mutex<state::RuntimeState>,
     pub remote_actions: Mutex<Option<Receiver<remote::RemoteAction>>>,
+    pub import_cancel: AtomicBool,
 }
 
 pub mod state {
@@ -91,6 +93,7 @@ pub fn run() {
             app.manage(AppState {
                 inner: Mutex::new(runtime),
                 remote_actions: Mutex::new(None),
+                import_cancel: AtomicBool::new(false),
             });
 
             commands::projection_cmd::create_projection_windows(app.handle());
@@ -170,6 +173,7 @@ pub fn run() {
             commands::library::toggle_favorite,
             commands::library::list_favorites,
             commands::import_cmd::import_mdb_path,
+            commands::import_cmd::cancel_import,
             commands::import_cmd::check_duplicates,
             commands::song::load_song,
             commands::song::save_song,

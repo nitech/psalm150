@@ -1,5 +1,6 @@
-import { listen } from "@tauri-apps/api/event";
-import { api, LibraryStatus, ProjectionState, Setlist, SongDetail, SongRow } from "./api";
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { confirm } from "@tauri-apps/plugin-dialog";
+import { api, ImportProgress, ImportReport, LibraryStatus, ProjectionState, Setlist, SongDetail, SongRow } from "./api";
 import "./styles.css";
 
 const state = {
@@ -21,6 +22,15 @@ const el = {
   nextPreview: null as HTMLElement | null,
   searchInput: null as HTMLInputElement | null,
   editor: null as HTMLTextAreaElement | null,
+};
+
+const importModal = {
+  root: null as HTMLElement | null,
+  fill: null as HTMLElement | null,
+  count: null as HTMLElement | null,
+  song: null as HTMLElement | null,
+  unlistenProgress: null as UnlistenFn | null,
+  active: false,
 };
 
 function renderShell() {
@@ -165,23 +175,7 @@ function bindEvents() {
     updateLibraryStatus();
     await refreshSongs();
   };
-  document.getElementById("import-mdb")!.onclick = async () => {
-    try {
-      if (!state.libraryStatus?.songs_folder) {
-        logMessage("Select a songs folder before importing an MDB.", "error");
-        return;
-      }
-      logMessage("Choose a VSB .mdb file to import…");
-      const report = await api.importMdb();
-      const warningNote =
-        report.warnings.length > 0 ? ` (${report.warnings.length} warnings)` : "";
-      logMessage(`Imported ${report.written} songs (${report.skipped} skipped)${warningNote}.`, "success");
-      await refreshLibraryStatus();
-      await refreshSongs();
-    } catch (err) {
-      logMessage(err instanceof Error ? err.message : String(err), "error");
-    }
-  };
+  document.getElementById("import-mdb")!.onclick = () => void runImportMdb();
   document.getElementById("rescan")!.onclick = async () => {
     state.libraryStatus = await api.rescanSongs();
     updateLibraryStatus();
@@ -398,6 +392,135 @@ function logMessage(msg: string, tone: "info" | "success" | "error" = "info") {
   target.classList.remove("success", "error");
   if (tone === "success") target.classList.add("success");
   if (tone === "error") target.classList.add("error");
+}
+
+async function ensureSongsFolder(): Promise<boolean> {
+  if (state.libraryStatus?.songs_folder) {
+    return true;
+  }
+
+  const proceed = await confirm(
+    "Choose a folder where ChordPro (.pro) song files will be stored before importing.",
+    {
+      title: "Select songs folder",
+      kind: "info",
+      okLabel: "Choose folder",
+      cancelLabel: "Cancel",
+    },
+  );
+  if (!proceed) {
+    return false;
+  }
+
+  state.libraryStatus = await api.pickSongsFolder();
+  updateLibraryStatus();
+  if (!state.libraryStatus?.songs_folder) {
+    logMessage("Import cancelled — no songs folder selected.", "error");
+    return false;
+  }
+  await refreshSongs();
+  return true;
+}
+
+function showImportModal() {
+  if (!importModal.root) {
+    const backdrop = document.createElement("div");
+    backdrop.id = "import-modal";
+    backdrop.className = "modal-backdrop hidden";
+    backdrop.innerHTML = `
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+        <h2 id="import-modal-title">Importing songbook</h2>
+        <p>Converting songs from the MDB file into ChordPro files.</p>
+        <div class="progress-track" aria-hidden="true">
+          <div id="import-progress-fill" class="progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="progress-meta">
+          <span id="import-progress-count">0 / 0 songs</span>
+          <span id="import-progress-percent">0%</span>
+        </div>
+        <div id="import-progress-song" class="progress-song">Preparing…</div>
+        <div class="modal-actions">
+          <button id="import-cancel" class="secondary" type="button">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    importModal.root = backdrop;
+    importModal.fill = backdrop.querySelector("#import-progress-fill");
+    importModal.count = backdrop.querySelector("#import-progress-count");
+    importModal.song = backdrop.querySelector("#import-progress-song");
+    backdrop.querySelector("#import-cancel")!.addEventListener("click", () => {
+      void api.cancelImport();
+      importModal.song!.textContent = "Cancelling…";
+    });
+  }
+
+  importModal.active = true;
+  updateImportProgress({ current: 0, total: 0, song_title: "Preparing…" });
+  importModal.root!.classList.remove("hidden");
+}
+
+function updateImportProgress(progress: ImportProgress) {
+  if (!importModal.fill || !importModal.count || !importModal.song) return;
+  const total = Math.max(progress.total, 1);
+  const pct = progress.total > 0 ? Math.round((progress.current / total) * 100) : 0;
+  importModal.fill.style.width = `${pct}%`;
+  importModal.count.textContent =
+    progress.total > 0
+      ? `${progress.current} / ${progress.total} songs`
+      : "Reading songbook…";
+  const percent = document.getElementById("import-progress-percent");
+  if (percent) {
+    percent.textContent = progress.total > 0 ? `${pct}%` : "…";
+  }
+  importModal.song.textContent = progress.song_title || "Preparing…";
+}
+
+async function hideImportModal() {
+  importModal.active = false;
+  if (importModal.unlistenProgress) {
+    await importModal.unlistenProgress();
+    importModal.unlistenProgress = null;
+  }
+  importModal.root?.classList.add("hidden");
+}
+
+function formatImportReport(report: ImportReport): string {
+  const warningNote = report.warnings.length > 0 ? ` (${report.warnings.length} warnings)` : "";
+  if (report.cancelled) {
+    return `Import cancelled after ${report.written} songs (${report.skipped} skipped)${warningNote}.`;
+  }
+  return `Imported ${report.written} songs (${report.skipped} skipped)${warningNote}.`;
+}
+
+async function runImportMdb() {
+  if (importModal.active) {
+    return;
+  }
+
+  try {
+    if (!(await ensureSongsFolder())) {
+      return;
+    }
+
+    importModal.unlistenProgress = await listen<ImportProgress>("import-progress", (event) => {
+      updateImportProgress(event.payload);
+    });
+    showImportModal();
+
+    const report = await api.importMdb();
+    await hideImportModal();
+
+    logMessage(formatImportReport(report), report.cancelled ? "info" : "success");
+    await refreshLibraryStatus();
+    await refreshSongs();
+  } catch (err) {
+    await hideImportModal();
+    const message = err instanceof Error ? err.message : String(err);
+    if (message !== "Import cancelled") {
+      logMessage(message, "error");
+    }
+  }
 }
 
 async function init() {

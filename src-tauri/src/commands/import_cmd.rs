@@ -1,13 +1,21 @@
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::config::save_theme;
 use crate::duplicates::find_duplicates;
-use crate::import::{import_mdb_to_folder, ImportReport};
+use crate::import::{
+    import_mdb_to_folder_with_callbacks, ImportCallbacks, ImportProgress, ImportReport,
+};
 use crate::import::mdb::{read_page_setup, read_vsb_categories};
 use crate::library::scan_songs_folder;
 use crate::{with_state, AppState};
+
+#[tauri::command]
+pub fn cancel_import(state: State<'_, AppState>) {
+    state.import_cancel.store(true, Ordering::SeqCst);
+}
 
 #[tauri::command]
 pub fn import_mdb_path(
@@ -27,8 +35,22 @@ pub fn import_mdb_path(
             .ok_or_else(|| "Select a songs folder before importing".to_string())
     })?;
 
+    state.import_cancel.store(false, Ordering::SeqCst);
+
     let categories = read_vsb_categories(&mdb_path)?;
-    let report = import_mdb_to_folder(&mdb_path, &songs_folder, &categories)?;
+    let cancel_flag = &state.import_cancel;
+    let app_handle = app.clone();
+    let report = import_mdb_to_folder_with_callbacks(
+        &mdb_path,
+        &songs_folder,
+        &categories,
+        ImportCallbacks {
+            on_progress: Some(&|progress: ImportProgress| {
+                let _ = app_handle.emit("import-progress", &progress);
+            }),
+            should_cancel: Some(&|| cancel_flag.load(Ordering::SeqCst)),
+        },
+    )?;
 
     if let Ok(theme) = read_page_setup(&mdb_path) {
         let hash = with_state(&state, |runtime| {
@@ -49,6 +71,7 @@ pub fn import_mdb_path(
         Ok(())
     })?;
 
+    let _ = app.emit("import-complete", &report);
     Ok(report)
 }
 

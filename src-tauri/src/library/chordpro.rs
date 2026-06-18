@@ -90,6 +90,10 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            current_lines.push(LyricLine {
+                text: String::new(),
+                chords: vec![],
+            });
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
