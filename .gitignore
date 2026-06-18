@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+src-tauri/target/
+.DS_Store
+*.log
+.env
+
+# Local test library output
+test-library/
+songs-export/
+
+# Keep sample mdb
+!brattvaag-2018-12-28.mdb

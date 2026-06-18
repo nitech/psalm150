@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capabilities for Visual Song Book","local":true,"windows":["main","audience","stage"],"permissions":["core:default","core:event:default","core:window:default","core:webview:default","global-shortcut:default","dialog:default","fs:default"]}}
