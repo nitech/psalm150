@@ -19,6 +19,18 @@ pub fn set_read_only(app: AppHandle, state: State<'_, AppState>, read_only: bool
 }
 
 #[tauri::command]
+pub fn set_project_to_stage(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_to_stage: bool,
+) -> Result<(), String> {
+    with_state(&state, |runtime| {
+        runtime.config.project_to_stage = project_to_stage;
+        runtime.config.save(&app)
+    })
+}
+
+#[tauri::command]
 pub fn save_theme(app: AppHandle, state: State<'_, AppState>, theme: SlideTheme) -> Result<(), String> {
     with_state(&state, |runtime| {
         let hash = runtime

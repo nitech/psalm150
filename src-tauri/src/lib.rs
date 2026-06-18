@@ -168,6 +168,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::library::get_songs_folder,
             commands::library::pick_songs_folder,
+            commands::library::set_songs_folder,
             commands::library::rescan_songs,
             commands::library::get_library_status,
             commands::library::list_foreign_files,
@@ -211,6 +212,7 @@ pub fn run() {
             commands::setlist_cmd::list_hold_slides,
             commands::config_cmd::get_config,
             commands::config_cmd::set_read_only,
+            commands::config_cmd::set_project_to_stage,
             commands::config_cmd::save_theme,
             commands::config_cmd::get_theme,
             commands::config_cmd::save_shortcuts,

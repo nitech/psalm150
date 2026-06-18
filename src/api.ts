@@ -111,7 +111,18 @@ export interface SetlistItem {
 }
 
 export const api = {
-  pickSongsFolder: () => invoke<LibraryStatus>("pick_songs_folder"),
+  pickSongsFolder: async () => {
+    const selected = await open({
+      title: "Select Songs Folder",
+      directory: true,
+      multiple: false,
+    });
+    if (selected === null) {
+      return invoke<LibraryStatus>("get_library_status");
+    }
+    const path = Array.isArray(selected) ? selected[0] : selected;
+    return invoke<LibraryStatus>("set_songs_folder", { path });
+  },
   getLibraryStatus: () => invoke<LibraryStatus>("get_library_status"),
   rescanSongs: () => invoke<LibraryStatus>("rescan_songs"),
   searchSongs: (query: string, favoritesOnly = false) =>
@@ -163,6 +174,8 @@ export const api = {
   setlistAdvance: () => invoke<SetlistItem | null>("setlist_advance"),
   setlistPrevious: () => invoke<SetlistItem | null>("setlist_previous"),
   setReadOnly: (readOnly: boolean) => invoke<void>("set_read_only", { readOnly }),
+  setProjectToStage: (projectToStage: boolean) =>
+    invoke<void>("set_project_to_stage", { projectToStage }),
   getConfig: () => invoke<Record<string, unknown>>("get_config"),
   exportCcliReport: (from: string, to: string) =>
     invoke<string>("export_ccli_report", { from, to }),

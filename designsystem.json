@@ -1,0 +1,632 @@
+{
+    "$schema": "https://schemas.local/design-tokens/v1",
+    "meta": {
+      "name": "Vance Biometrics — Clinical Dashboard Design System",
+      "version": "1.0.0",
+      "description": "Design tokens and component specs reverse-engineered from a dark, data-dense clinical/biometrics dashboard featuring a 3D anatomical viewer, glassmorphic overlays, and a single lime accent over a near-black canvas.",
+      "source": "Derived from 6 provided UI renders. Color values were sampled from the images; because the renders use depth-of-field blur and glow, accent values are normalized to clean, production-ready equivalents and may differ by a few units from any original source file.",
+      "tokenModel": "Flat token model. References use the alias syntax \"{path.to.token}\". Semantic tokens alias the raw palette; component tokens alias semantic (or palette) tokens. Resolve one or two hops to get the literal value. rgba()-based tokens (borders, glass, glows) are stored as literals.",
+      "designPrinciples": [
+        "Near-black canvas with layered dark surfaces; the data is the light source.",
+        "A single lime/chartreuse accent (#C6D88C) signals active state, selection, and 'optimal'. Used sparingly.",
+        "Semaphore status system: lime/green = good, amber/gold = caution, red = alert. Surfaced as a 3px indicator bar on every metric.",
+        "Glassmorphism for floating layers (detail popups, anatomy tags, image folders): translucent dark fill + backdrop blur + soft hairline border.",
+        "Depth communicated through blur and colored glow (danger = red radial glow) rather than heavy shadows.",
+        "Generous corner radii (16–24px on surfaces, full pills on controls).",
+        "Light-weight numerals (weight 300) at large sizes for metric values, with units in muted secondary gray.",
+        "Quiet UI chrome (low-contrast labels, hairline borders) so anomalies and accents read instantly."
+      ]
+    },
+  
+    "color": {
+      "palette": {
+        "neutral": {
+          "black": "#060606",
+          "950": "#0C0C0C",
+          "900": "#141414",
+          "850": "#1A1A1A",
+          "800": "#1E1E1E",
+          "750": "#242424",
+          "700": "#2C2C2C",
+          "600": "#3A3A3A",
+          "500": "#555555",
+          "400": "#6A6A6A",
+          "300": "#8A8A8A",
+          "200": "#9A9A9A",
+          "100": "#C8C8C8",
+          "50": "#F4F4F4",
+          "white": "#FFFFFF"
+        },
+        "lime": {
+          "50": "#F2F6E2",
+          "100": "#E6EFC8",
+          "200": "#D9E8AC",
+          "300": "#CFE09B",
+          "400": "#C6D88C",
+          "500": "#B3C977",
+          "600": "#96AC58",
+          "700": "#6E7F3E",
+          "800": "#465227",
+          "900": "#2C3419"
+        },
+        "red": {
+          "50": "#F9DEDF",
+          "100": "#F3BDBE",
+          "200": "#EC9296",
+          "300": "#E36F75",
+          "400": "#E0545B",
+          "500": "#E0454C",
+          "600": "#C9434F",
+          "700": "#A1343E",
+          "800": "#5E1F25",
+          "900": "#3A1518"
+        },
+        "amber": {
+          "100": "#F6EEBE",
+          "200": "#EEDF8A",
+          "300": "#ECD23A",
+          "400": "#E0C84A",
+          "500": "#D0C24C",
+          "600": "#B8A75A",
+          "700": "#857A38",
+          "900": "#2E2A12"
+        },
+        "green": {
+          "300": "#6FD6A0",
+          "400": "#46C081",
+          "500": "#2EA56B",
+          "600": "#1E7A4E",
+          "700": "#16553A",
+          "900": "#0F2E20"
+        }
+      },
+  
+      "semantic": {
+        "background": {
+          "canvas": "{color.palette.neutral.black}",
+          "surface": "{color.palette.neutral.800}",
+          "surfaceRaised": "{color.palette.neutral.750}",
+          "surfaceSunken": "{color.palette.neutral.950}",
+          "surfaceInactive": "{color.palette.neutral.800}",
+          "scrim": "rgba(0, 0, 0, 0.55)"
+        },
+        "text": {
+          "primary": "{color.palette.neutral.white}",
+          "strong": "{color.palette.neutral.50}",
+          "secondary": "{color.palette.neutral.200}",
+          "muted": "{color.palette.neutral.400}",
+          "disabled": "{color.palette.neutral.500}",
+          "onAccent": "{color.palette.neutral.850}",
+          "danger": "{color.palette.red.500}",
+          "accent": "{color.palette.lime.400}"
+        },
+        "accent": {
+          "default": "{color.palette.lime.400}",
+          "hover": "{color.palette.lime.300}",
+          "pressed": "{color.palette.lime.500}",
+          "subtle": "{color.palette.lime.900}",
+          "onAccent": "{color.palette.neutral.850}"
+        },
+        "status": {
+          "optimal": "{color.palette.lime.400}",
+          "positive": "{color.palette.green.400}",
+          "caution": "{color.palette.amber.500}",
+          "warning": "{color.palette.amber.500}",
+          "danger": "{color.palette.red.500}",
+          "dangerStrong": "{color.palette.red.600}",
+          "neutral": "{color.palette.neutral.200}"
+        },
+        "border": {
+          "hairline": "rgba(255, 255, 255, 0.08)",
+          "subtle": "rgba(255, 255, 255, 0.06)",
+          "strong": "rgba(255, 255, 255, 0.14)",
+          "accent": "rgba(198, 216, 140, 0.40)",
+          "danger": "rgba(224, 69, 76, 0.45)",
+          "focus": "{color.palette.lime.400}"
+        },
+        "anatomy": {
+          "bone": "rgba(255, 255, 255, 0.85)",
+          "wireframe": "rgba(255, 255, 255, 0.30)",
+          "highlightGold": "{color.palette.amber.400}",
+          "alertRed": "{color.palette.red.600}",
+          "node": "{color.palette.neutral.white}"
+        }
+      }
+    },
+  
+    "gradient": {
+      "profileCard": {
+        "type": "linear",
+        "angle": "180deg",
+        "stops": [
+          { "color": "rgba(198, 216, 140, 0.16)", "position": "0%" },
+          { "color": "rgba(70, 82, 39, 0.10)", "position": "35%" },
+          { "color": "rgba(30, 30, 30, 0.00)", "position": "100%" }
+        ],
+        "description": "Accent-tinted wash over the patient profile card; lime glow at the top fading to the surface color."
+      },
+      "dangerGlow": {
+        "type": "radial",
+        "shape": "circle",
+        "stops": [
+          { "color": "rgba(224, 69, 76, 0.40)", "position": "0%" },
+          { "color": "rgba(224, 69, 76, 0.00)", "position": "70%" }
+        ],
+        "description": "Red radial glow behind high-risk anatomy regions and the detail popup."
+      },
+      "chartFillDanger": {
+        "type": "linear",
+        "angle": "180deg",
+        "stops": [
+          { "color": "rgba(224, 69, 76, 0.14)", "position": "0%" },
+          { "color": "rgba(224, 69, 76, 0.04)", "position": "100%" }
+        ],
+        "description": "Subtle red wash behind a mini scatter chart in an alert state (e.g. eAG out of range)."
+      },
+      "chartFillOptimal": {
+        "type": "linear",
+        "angle": "180deg",
+        "stops": [
+          { "color": "rgba(198, 216, 140, 0.10)", "position": "0%" },
+          { "color": "rgba(198, 216, 140, 0.03)", "position": "100%" }
+        ],
+        "description": "Subtle lime wash behind a mini scatter chart in an optimal state (e.g. HbA1c, Testosterone)."
+      }
+    },
+  
+    "effect": {
+      "blur": {
+        "sm": "12px",
+        "md": "16px",
+        "lg": "20px",
+        "xl": "28px"
+      },
+      "glass": {
+        "card": {
+          "fill": "rgba(28, 28, 28, 0.72)",
+          "backdropBlur": "{effect.blur.lg}",
+          "border": "{color.semantic.border.hairline}",
+          "description": "Default frosted dark surface for floating cards."
+        },
+        "popup": {
+          "fill": "rgba(34, 30, 30, 0.55)",
+          "backdropBlur": "{effect.blur.xl}",
+          "border": "rgba(255, 255, 255, 0.10)",
+          "innerGlow": "{gradient.dangerGlow}",
+          "description": "Detail/inspector popup (e.g. Aortic Valve) — heavily blurred glass with a contextual color glow."
+        },
+        "tag": {
+          "fill": "rgba(40, 40, 40, 0.55)",
+          "backdropBlur": "{effect.blur.md}",
+          "border": "rgba(255, 255, 255, 0.08)",
+          "description": "Floating anatomy annotation pills (Mild Inflammation, Reduced Density)."
+        },
+        "imageFolder": {
+          "fill": "rgba(255, 255, 255, 0.06)",
+          "backdropBlur": "{effect.blur.xl}",
+          "border": "rgba(255, 255, 255, 0.10)",
+          "description": "Translucent 'pocket' that holds thumbnail stacks in the Tomography/Radiography cards."
+        }
+      },
+      "shadow": {
+        "subtle": "0 2px 8px rgba(0, 0, 0, 0.40)",
+        "card": "0 8px 24px rgba(0, 0, 0, 0.45)",
+        "raised": "0 12px 32px rgba(0, 0, 0, 0.50)",
+        "popup": "0 24px 60px rgba(0, 0, 0, 0.60)"
+      },
+      "glow": {
+        "accent": "0 0 24px rgba(198, 216, 140, 0.25)",
+        "danger": "0 0 40px rgba(224, 69, 76, 0.35)",
+        "dangerStrong": "0 0 64px rgba(224, 69, 76, 0.45)"
+      }
+    },
+  
+    "elevation": {
+      "0": { "name": "canvas", "surface": "{color.semantic.background.canvas}", "shadow": "none" },
+      "1": { "name": "card", "surface": "{color.semantic.background.surface}", "shadow": "{effect.shadow.card}" },
+      "2": { "name": "raised", "surface": "{color.semantic.background.surfaceRaised}", "shadow": "{effect.shadow.raised}" },
+      "3": { "name": "overlay", "surface": "glass", "shadow": "{effect.shadow.popup}" }
+    },
+  
+    "typography": {
+      "fontFamily": {
+        "sans": "'Suisse Int'l', 'Geist', 'Inter', 'Helvetica Neue', Arial, sans-serif",
+        "_note": "The original face is an unconfirmed neo-grotesque/geometric sans with low-contrast, light-weight numerals (note the flat-topped '1'). Substitute any clean grotesque; the stack above is a close, freely-available fallback chain."
+      },
+      "fontWeight": {
+        "light": 300,
+        "regular": 400,
+        "medium": 500,
+        "semibold": 600
+      },
+      "letterSpacing": {
+        "tight": "-0.02em",
+        "snug": "-0.01em",
+        "normal": "0em",
+        "wide": "0.02em",
+        "wider": "0.04em"
+      },
+      "scale": {
+        "display2xl": { "fontSize": "56px", "lineHeight": "1.0", "fontWeight": 300, "letterSpacing": "-0.02em" },
+        "displayXl": { "fontSize": "48px", "lineHeight": "1.0", "fontWeight": 300, "letterSpacing": "-0.02em", "usage": "Primary metric values (113.1, 97.5)" },
+        "displayLg": { "fontSize": "40px", "lineHeight": "1.05", "fontWeight": 300, "letterSpacing": "-0.01em", "usage": "Secondary metric values (5.7, 6.9, 20.5)" },
+        "titleLg": { "fontSize": "32px", "lineHeight": "1.1", "fontWeight": 400, "letterSpacing": "-0.01em", "usage": "Patient name / view title" },
+        "titleMd": { "fontSize": "24px", "lineHeight": "1.2", "fontWeight": 400 },
+        "heading": { "fontSize": "20px", "lineHeight": "1.3", "fontWeight": 500, "usage": "Card / popup headers (Aortic Valve, Tomography)" },
+        "subheading": { "fontSize": "18px", "lineHeight": "1.3", "fontWeight": 500 },
+        "bodyLg": { "fontSize": "16px", "lineHeight": "1.4", "fontWeight": 400 },
+        "body": { "fontSize": "14px", "lineHeight": "1.45", "fontWeight": 400, "usage": "Metric labels, nav items, dropdown text" },
+        "caption": { "fontSize": "13px", "lineHeight": "1.4", "fontWeight": 400, "color": "{color.semantic.text.secondary}", "usage": "Units, sublabels, footnotes" },
+        "labelSm": { "fontSize": "12px", "lineHeight": "1.3", "fontWeight": 500, "usage": "Status badges, delta values, counts" },
+        "micro": { "fontSize": "11px", "lineHeight": "1.2", "fontWeight": 500, "letterSpacing": "0.02em", "usage": "Timeline dates, notification badge" }
+      },
+      "composite": {
+        "metricValue": {
+          "value": { "ref": "{typography.scale.displayXl}", "color": "{color.semantic.text.strong}" },
+          "unit": { "fontSize": "16px", "fontWeight": 400, "color": "{color.semantic.text.muted}", "baseline": "aligned to value baseline, no space before unit" }
+        }
+      }
+    },
+  
+    "space": {
+      "0": "0px",
+      "1": "2px",
+      "2": "4px",
+      "3": "8px",
+      "4": "12px",
+      "5": "16px",
+      "6": "20px",
+      "7": "24px",
+      "8": "32px",
+      "9": "40px",
+      "10": "48px",
+      "12": "64px",
+      "14": "80px",
+      "_base": "4px"
+    },
+  
+    "radius": {
+      "xs": "8px",
+      "sm": "12px",
+      "md": "16px",
+      "lg": "20px",
+      "xl": "24px",
+      "2xl": "28px",
+      "pill": "9999px"
+    },
+  
+    "border": {
+      "width": {
+        "hairline": "1px",
+        "regular": "1.5px",
+        "thick": "2px"
+      }
+    },
+  
+    "iconography": {
+      "style": "Thin outlined line icons",
+      "strokeWidth": "1.5px",
+      "lineCap": "round",
+      "lineJoin": "round",
+      "defaultColor": "{color.semantic.text.primary}",
+      "mutedColor": "{color.semantic.text.secondary}",
+      "sizes": { "sm": "16px", "md": "20px", "lg": "24px" },
+      "filledExceptions": {
+        "warningTriangle": "{color.semantic.status.warning}",
+        "statusDot": "varies by status",
+        "notificationBadge": "{color.semantic.status.danger}"
+      },
+      "inventory": [
+        "search", "chevron-down", "chevron-left", "sliders", "save", "bell",
+        "plus", "minus", "close", "arrow-right", "arrow-down-right", "arrow-up-right",
+        "heart", "user", "target-concentric", "activity", "3d-toggle"
+      ],
+      "trendArrows": {
+        "stable": { "icon": "arrow-right", "meaning": "value steady", "color": "{color.semantic.text.secondary}" },
+        "declining": { "icon": "arrow-down-right", "meaning": "value trending down", "color": "{color.semantic.text.secondary}" },
+        "rising": { "icon": "arrow-up-right", "meaning": "value trending up", "color": "{color.semantic.text.secondary}" },
+        "_note": "The arrow encodes direction only; good/bad is conveyed by the colored delta badge, not the arrow color."
+      }
+    },
+  
+    "components": {
+      "button": {
+        "primary": {
+          "description": "Lime pill — active filter, selected doctor, primary action.",
+          "background": "{color.semantic.accent.default}",
+          "color": "{color.semantic.accent.onAccent}",
+          "radius": "{radius.pill}",
+          "paddingX": "{space.6}",
+          "paddingY": "{space.4}",
+          "font": "{typography.scale.body}",
+          "fontWeight": 500,
+          "states": {
+            "hover": { "background": "{color.semantic.accent.hover}" },
+            "pressed": { "background": "{color.semantic.accent.pressed}" }
+          }
+        },
+        "ghost": {
+          "description": "Dark chip for inactive controls and secondary actions.",
+          "background": "{color.semantic.background.surface}",
+          "color": "{color.semantic.text.secondary}",
+          "radius": "{radius.pill}",
+          "paddingX": "{space.6}",
+          "paddingY": "{space.4}",
+          "border": "{color.semantic.border.hairline}",
+          "font": "{typography.scale.body}",
+          "states": {
+            "hover": { "background": "{color.semantic.background.surfaceRaised}", "color": "{color.semantic.text.primary}" }
+          }
+        },
+        "icon": {
+          "description": "Square-ish icon button (settings, save, bell, zoom).",
+          "size": "44px",
+          "radius": "{radius.md}",
+          "background": "{color.semantic.background.surface}",
+          "iconColor": "{color.semantic.text.primary}",
+          "iconSize": "{iconography.sizes.md}",
+          "border": "{color.semantic.border.hairline}",
+          "states": {
+            "hover": { "background": "{color.semantic.background.surfaceRaised}" }
+          }
+        }
+      },
+  
+      "navItem": {
+        "description": "Top navigation pills (Overview, Biometrics, Reports).",
+        "default": {
+          "background": "transparent",
+          "color": "{color.semantic.text.secondary}",
+          "radius": "{radius.pill}",
+          "paddingX": "{space.5}",
+          "paddingY": "{space.4}",
+          "font": "{typography.scale.body}"
+        },
+        "active": {
+          "background": "{color.semantic.accent.default}",
+          "color": "{color.semantic.accent.onAccent}"
+        }
+      },
+  
+      "tab": {
+        "description": "Category/system tabs (Hormone, Circulatory, Immune, Digestive, Urinary).",
+        "shape": "rounded rectangle (squircle)",
+        "default": {
+          "background": "{color.semantic.background.surface}",
+          "color": "{color.semantic.text.secondary}",
+          "radius": "{radius.lg}",
+          "paddingX": "{space.6}",
+          "paddingY": "{space.5}",
+          "border": "{color.semantic.border.hairline}",
+          "font": "{typography.scale.body}"
+        },
+        "active": {
+          "background": "{color.semantic.accent.default}",
+          "color": "{color.semantic.accent.onAccent}",
+          "border": "none"
+        },
+        "addButton": {
+          "icon": "plus",
+          "background": "{color.semantic.background.surface}",
+          "color": "{color.semantic.text.secondary}",
+          "radius": "{radius.lg}"
+        }
+      },
+  
+      "dropdown": {
+        "description": "Labeled selectors (Category, Department, Protocol).",
+        "background": "{color.semantic.background.surface}",
+        "radius": "{radius.pill}",
+        "paddingX": "{space.5}",
+        "paddingY": "{space.4}",
+        "labelColor": "{color.semantic.text.muted}",
+        "valueColor": "{color.semantic.text.strong}",
+        "labelFont": "{typography.scale.caption}",
+        "valueFont": "{typography.scale.body}",
+        "chevron": { "icon": "chevron-down", "color": "{color.semantic.text.secondary}" }
+      },
+  
+      "statusIndicatorBar": {
+        "description": "3px vertical bar to the left of each metric label acting as a quick health semaphore.",
+        "width": "3px",
+        "height": "14px",
+        "radius": "{radius.pill}",
+        "colorByStatus": {
+          "good": "{color.semantic.status.positive}",
+          "optimal": "{color.semantic.status.optimal}",
+          "caution": "{color.semantic.status.caution}",
+          "alert": "{color.semantic.status.danger}"
+        }
+      },
+  
+      "metricCard": {
+        "description": "Biometric tile: indicator bar + label, large value + unit, trend arrow, optional delta badge, mini scatter chart, optional footnote.",
+        "background": "{color.semantic.background.surface}",
+        "radius": "{radius.lg}",
+        "padding": "{space.6}",
+        "gap": "{space.5}",
+        "border": "{color.semantic.border.hairline}",
+        "shadow": "{effect.shadow.card}",
+        "minWidth": "200px",
+        "anatomy": {
+          "header": {
+            "indicatorBar": "{components.statusIndicatorBar}",
+            "label": { "font": "{typography.scale.body}", "color": "{color.semantic.text.secondary}" }
+          },
+          "value": "{typography.composite.metricValue}",
+          "trendArrow": { "ref": "{iconography.trendArrows}", "placement": "right of value, top-aligned" },
+          "deltaBadge": { "ref": "{components.deltaBadge}", "placement": "below value" },
+          "miniChart": { "ref": "{components.scatterMini}" },
+          "footnote": { "font": "{typography.scale.caption}", "color": "{color.semantic.text.muted}", "examples": ["Approaching upper reference limit", "Higher than previous baseline", "Within optimal reference range"] }
+        }
+      },
+  
+      "profileCard": {
+        "description": "Patient profile / biological age panel with accent-tinted gradient.",
+        "background": "{color.semantic.background.surface}",
+        "backgroundOverlay": "{gradient.profileCard}",
+        "radius": "{radius.xl}",
+        "padding": "{space.7}",
+        "border": "{color.semantic.border.hairline}"
+      },
+  
+      "imageFolderCard": {
+        "description": "Scan record card (Tomography, Radiography) with a glass thumbnail pocket.",
+        "background": "{color.semantic.background.surface}",
+        "radius": "{radius.lg}",
+        "padding": "{space.6}",
+        "title": { "font": "{typography.scale.heading}", "color": "{color.semantic.text.primary}" },
+        "date": { "font": "{typography.scale.caption}", "color": "{color.semantic.text.muted}" },
+        "externalLinkIcon": { "icon": "arrow-up-right", "color": "{color.semantic.text.secondary}" },
+        "pocket": { "ref": "{effect.glass.imageFolder}", "radius": "{radius.md}" },
+        "count": { "font": "{typography.scale.labelSm}", "color": "{color.semantic.text.secondary}", "format": "image: {n}" }
+      },
+  
+      "statusBadge": {
+        "optimal": {
+          "description": "Inline 'Optimal' state with a leading dot.",
+          "dot": { "size": "8px", "color": "{color.semantic.status.optimal}" },
+          "text": { "font": "{typography.scale.body}", "color": "{color.semantic.text.primary}", "label": "Optimal" }
+        },
+        "highRisk": {
+          "description": "High-risk pill in popup headers.",
+          "background": "{color.palette.red.900}",
+          "color": "{color.semantic.status.danger}",
+          "radius": "{radius.pill}",
+          "paddingX": "{space.4}",
+          "paddingY": "{space.1}",
+          "font": "{typography.scale.labelSm}",
+          "label": "High Risk"
+        }
+      },
+  
+      "deltaBadge": {
+        "description": "Small pill showing change vs baseline.",
+        "positive": {
+          "background": "rgba(198, 216, 140, 0.15)",
+          "color": "{color.semantic.accent.default}",
+          "radius": "{radius.pill}",
+          "paddingX": "{space.3}",
+          "paddingY": "{space.1}",
+          "font": "{typography.scale.micro}",
+          "example": "+1.2 pg/ml"
+        },
+        "negative": {
+          "background": "rgba(224, 69, 76, 0.15)",
+          "color": "{color.semantic.status.danger}",
+          "radius": "{radius.pill}",
+          "paddingX": "{space.3}",
+          "paddingY": "{space.1}",
+          "font": "{typography.scale.micro}",
+          "example": "+5.1 uiu/ml (out of range)"
+        }
+      },
+  
+      "anomalyTag": {
+        "description": "Floating annotation pill anchored to anatomy regions.",
+        "background": "{effect.glass.tag.fill}",
+        "backdropBlur": "{effect.glass.tag.backdropBlur}",
+        "border": "{effect.glass.tag.border}",
+        "radius": "{radius.pill}",
+        "paddingX": "{space.5}",
+        "paddingY": "{space.3}",
+        "icon": { "icon": "warning-triangle", "color": "{color.semantic.status.warning}", "size": "{iconography.sizes.sm}" },
+        "text": { "font": "{typography.scale.body}", "color": "{color.semantic.text.strong}" },
+        "examples": ["Mild Inflammation", "Reduced Density"]
+      },
+  
+      "anatomyLabel": {
+        "description": "Plain text label pointing at an anatomical landmark (Right Clavicle, Lower Ribs, Turbine H1).",
+        "text": { "font": "{typography.scale.caption}", "color": "{color.semantic.text.primary}" },
+        "leaderDot": { "size": "6px", "color": "{color.semantic.anatomy.node}" },
+        "alertMarker": { "dot": { "size": "8px", "color": "{color.semantic.status.danger}" }, "ring": { "stroke": "1px", "color": "rgba(224, 69, 76, 0.6)", "radius": "circular pulse ring" } }
+      },
+  
+      "detailPopup": {
+        "description": "Inspector overlay (Aortic Valve) — frosted glass with a contextual color glow.",
+        "background": "{effect.glass.popup.fill}",
+        "backdropBlur": "{effect.glass.popup.backdropBlur}",
+        "border": "{effect.glass.popup.border}",
+        "radius": "{radius.xl}",
+        "padding": "{space.6}",
+        "shadow": "{effect.shadow.popup}",
+        "innerGlow": "{gradient.dangerGlow}",
+        "header": {
+          "title": { "font": "{typography.scale.heading}", "color": "{color.semantic.text.primary}" },
+          "riskBadge": "{components.statusBadge.highRisk}",
+          "closeIcon": { "icon": "close", "color": "{color.semantic.text.secondary}" }
+        },
+        "row": {
+          "label": { "font": "{typography.scale.body}", "color": "{color.semantic.text.muted}" },
+          "value": { "font": "{typography.scale.body}", "color": "{color.semantic.text.strong}" },
+          "gap": "{space.4}",
+          "examples": [
+            { "label": "Flow", "value": "Severely Restricted" },
+            { "label": "Pressure", "value": "Highly Elevated" },
+            { "label": "Rhythm", "value": "Irregular" }
+          ]
+        }
+      },
+  
+      "scatterMini": {
+        "description": "Small scatter/trend chart inside metric cards.",
+        "height": "64px",
+        "radius": "{radius.sm}",
+        "padding": "{space.3}",
+        "fill": { "optimal": "{gradient.chartFillOptimal}", "alert": "{gradient.chartFillDanger}", "neutral": "transparent" },
+        "referenceLine": { "stroke": "1px", "color": "{color.semantic.text.secondary}", "placement": "threshold / upper reference limit", "style": "solid" },
+        "dataPoint": { "size": "4px", "color": "{color.semantic.text.strong}" },
+        "alertPoint": { "size": "5px", "color": "{color.semantic.status.danger}", "usage": "point breaching the reference line" },
+        "focusMarker": {
+          "type": "concentric circles (target)",
+          "outerStroke": "1.5px",
+          "outerColor": "{color.semantic.text.strong}",
+          "innerDotColor": "{color.semantic.accent.default}",
+          "usage": "highlights the current/selected reading"
+        }
+      },
+  
+      "timelineScrubber": {
+        "description": "Bottom temporal scrubber stepping through scan dates with per-node status.",
+        "track": { "color": "{color.semantic.border.subtle}", "height": "1px" },
+        "node": {
+          "dateLabel": { "year": { "font": "{typography.scale.caption}", "color": "{color.semantic.text.primary}" }, "month": { "font": "{typography.scale.caption}", "color": "{color.semantic.text.muted}" } },
+          "statusLabel": { "font": "{typography.scale.body}", "color": "{color.semantic.text.secondary}", "example": "Optimal" },
+          "progressDots": { "dotSize": "4px", "activeColor": "{color.semantic.text.primary}", "inactiveColor": "{color.semantic.text.muted}" },
+          "selectedMarker": "{components.scatterMini.focusMarker}"
+        },
+        "controls": {
+          "zoomIn": { "icon": "plus", "ref": "{components.button.icon}" },
+          "zoomOut": { "icon": "minus", "ref": "{components.button.icon}" },
+          "favorite": { "icon": "heart", "color": "{color.semantic.text.secondary}" },
+          "viewToggle3d": { "label": "3D", "ref": "{components.button.icon}" }
+        }
+      },
+  
+      "notificationBadge": {
+        "description": "Count badge on the bell icon.",
+        "size": "18px",
+        "background": "{color.semantic.status.danger}",
+        "color": "{color.palette.neutral.white}",
+        "radius": "{radius.pill}",
+        "font": "{typography.scale.micro}",
+        "placement": "top-right overlap of icon button"
+      }
+    },
+  
+    "motion": {
+      "_note": "Not observable in static renders; these are recommended defaults consistent with the UI's calm, precise feel.",
+      "duration": { "instant": "80ms", "fast": "120ms", "base": "200ms", "slow": "320ms", "deliberate": "480ms" },
+      "easing": {
+        "standard": "cubic-bezier(0.2, 0, 0, 1)",
+        "decelerate": "cubic-bezier(0, 0, 0, 1)",
+        "accelerate": "cubic-bezier(0.3, 0, 1, 1)",
+        "emphasized": "cubic-bezier(0.2, 0, 0, 1.2)"
+      },
+      "patterns": {
+        "tabSelect": { "property": "background-color, color", "duration": "{motion.duration.fast}", "easing": "{motion.easing.standard}" },
+        "popupEnter": { "property": "opacity, transform, backdrop-filter", "duration": "{motion.duration.base}", "easing": "{motion.easing.decelerate}" },
+        "alertPulse": { "property": "opacity, scale", "duration": "1600ms", "easing": "ease-in-out", "loop": true, "target": "anatomy alert marker ring" }
+      }
+    }
+  }

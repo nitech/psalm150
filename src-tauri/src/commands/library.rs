@@ -115,6 +115,17 @@ pub async fn pick_songs_folder(
     activate_songs_folder(&app, &state, path, true)
 }
 
+/// Activate a songs folder chosen via the frontend dialog plugin and persist it
+/// so it is restored on the next launch.
+#[tauri::command]
+pub fn set_songs_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<LibraryStatus, String> {
+    activate_songs_folder(&app, &state, PathBuf::from(path), true)
+}
+
 #[tauri::command]
 pub fn rescan_songs(state: State<'_, AppState>) -> Result<LibraryStatus, String> {
     with_state(&state, |runtime| {

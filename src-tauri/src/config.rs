@@ -11,6 +11,9 @@ use crate::projection::SlideTheme;
 pub struct AppConfig {
     pub last_songs_folder: Option<String>,
     pub read_only: bool,
+    /// When projecting a song, also show the stage window (musician chords).
+    #[serde(default)]
+    pub project_to_stage: bool,
     pub audience_monitor: Option<String>,
     pub stage_monitor: Option<String>,
     pub remote_enabled: bool,
@@ -27,6 +30,7 @@ impl Default for AppConfig {
         Self {
             last_songs_folder: None,
             read_only: false,
+            project_to_stage: false,
             audience_monitor: None,
             stage_monitor: None,
             remote_enabled: false,
