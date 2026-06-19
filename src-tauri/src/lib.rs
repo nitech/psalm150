@@ -149,6 +149,14 @@ pub fn run() {
                 let path = PathBuf::from(folder);
                 if path.is_dir() {
                     let handle = app.handle().clone();
+                    let state = app.state::<AppState>();
+                    if let Err(err) =
+                        commands::library::stage_songs_folder(&handle, &state, path.clone())
+                    {
+                        eprintln!("Failed to stage songs folder: {err}");
+                    } else {
+                        emit_library_changed(&handle);
+                    }
                     std::thread::spawn(move || {
                         let state = handle.state::<AppState>();
                         if let Err(err) = commands::library::activate_songs_folder(
@@ -160,6 +168,11 @@ pub fn run() {
                             eprintln!("Failed to restore songs folder: {err}");
                         }
                     });
+                } else {
+                    eprintln!(
+                        "Configured songs folder is unavailable: {}",
+                        path.display()
+                    );
                 }
             }
 

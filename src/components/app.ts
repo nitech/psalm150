@@ -84,6 +84,7 @@ export class PraiseApp extends PraiseElement {
   private unlistenLibrary: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
+  private songsRefreshGeneration = 0;
 
   constructor() {
     super();
@@ -120,13 +121,19 @@ export class PraiseApp extends PraiseElement {
     super.connectedCallback();
     window.addEventListener("keydown", this.onGlobalKeydown);
     void getCurrentWebviewWindow().setFocus();
-    listen("library-changed", async () => {
-      await this.refreshLibraryStatus();
-      await this.refreshSongs();
-    })
-      .then((un) => (this.unlistenLibrary = un))
-      .catch(console.error);
-    void this.bootstrapLibrary();
+    void this.init();
+  }
+
+  private async init() {
+    try {
+      this.unlistenLibrary = await listen("library-changed", async () => {
+        await this.refreshLibraryStatus();
+        await this.refreshSongs();
+      });
+    } catch (err) {
+      console.error(err);
+    }
+    await this.bootstrapLibrary();
   }
 
   disconnectedCallback() {
@@ -177,14 +184,16 @@ export class PraiseApp extends PraiseElement {
   }
 
   private async refreshSongs() {
+    const generation = ++this.songsRefreshGeneration;
     try {
+      let songs: SongRow[];
       if (this.activeTab === "search") {
-        this.songs = await api.searchSongs(this.query, false);
+        songs = await api.searchSongs(this.query.trim(), false);
       } else if (this.activeTab === "favorites") {
-        this.songs = await api.searchSongs("", true);
+        songs = await api.searchSongs("", true);
       } else if (this.activeTab === "history") {
         const history = await api.getHistory(50);
-        this.songs = history.map(([filename, title], index) => ({
+        songs = history.map(([filename, title], index) => ({
           id: index,
           filename,
           title,
@@ -198,9 +207,9 @@ export class PraiseApp extends PraiseElement {
           favorite: false,
         }));
       } else if (this.activeTab === "key") {
-        this.songs = this.keySelected ? await api.listByKey(this.keySelected) : [];
+        songs = this.keySelected ? await api.listByKey(this.keySelected) : [];
       } else if (this.activeTab === "setlist") {
-        this.songs =
+        songs =
           this.currentSetlist?.items
             .filter((item) => item.type === "song" && item.file)
             .map((item, index) => ({
@@ -217,10 +226,13 @@ export class PraiseApp extends PraiseElement {
               favorite: false,
             })) ?? [];
       } else {
-        this.songs = await api.searchSongs("", false);
+        songs = await api.searchSongs("", false);
       }
+      if (generation !== this.songsRefreshGeneration) return;
+      this.songs = songs;
     } catch {
       // Library may not be open yet (no songs folder selected, or still loading).
+      if (generation !== this.songsRefreshGeneration) return;
       this.songs = [];
     }
   }
@@ -241,9 +253,16 @@ export class PraiseApp extends PraiseElement {
   }
 
   private async pickFolder() {
-    this.libraryStatus = await api.pickSongsFolder();
-    await this.refreshSongs();
-    this.showToast("Songs folder updated");
+    try {
+      this.libraryStatus = await api.pickSongsFolder();
+      await this.refreshSongs();
+      if (this.libraryStatus?.songs_folder) {
+        this.showToast("Songs folder updated");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.showToast(message, "error");
+    }
   }
 
   private async rescan() {
@@ -467,16 +486,17 @@ export class PraiseApp extends PraiseElement {
   private async bootstrapLibrary() {
     const config = await api.getConfig();
     this.projectToStage = Boolean(config.project_to_stage);
-    const hasConfiguredFolder = Boolean(config.last_songs_folder);
+    const configuredFolder =
+      typeof config.last_songs_folder === "string" ? config.last_songs_folder : null;
 
     await this.refreshLibraryStatus();
     await this.refreshSongs();
 
-    // The backend restores the previous songs folder on a background thread and
-    // emits "library-changed" when ready. That event can fire before the JS
-    // listener is subscribed, so poll until the library becomes available.
-    if (hasConfiguredFolder && !this.libraryStatus?.songs_folder) {
-      for (let attempt = 0; attempt < 40; attempt++) {
+    // The backend attaches the remembered folder immediately, then rescans on a
+    // background thread (large libraries can take 15s+). Poll until the folder or
+    // song index is ready, and keep listening for library-changed in init().
+    if (configuredFolder && !this.libraryStatus?.songs_folder) {
+      for (let attempt = 0; attempt < 120; attempt++) {
         await delay(250);
         await this.refreshLibraryStatus();
         if (this.libraryStatus?.songs_folder) {
@@ -486,12 +506,27 @@ export class PraiseApp extends PraiseElement {
       }
     }
 
+    if (this.libraryStatus?.songs_folder && this.libraryStatus.song_count === 0) {
+      for (let attempt = 0; attempt < 120; attempt++) {
+        await delay(250);
+        await this.refreshLibraryStatus();
+        if ((this.libraryStatus?.song_count ?? 0) > 0) {
+          await this.refreshSongs();
+          break;
+        }
+      }
+    } else if (this.libraryStatus?.songs_folder) {
+      await this.refreshSongs();
+    }
+
     if (!this.libraryStatus?.songs_folder) {
       this.showToast(
-        config.first_run_complete
-          ? "Open Settings to select your songs folder"
-          : "Welcome! Open Settings to select your songs folder",
-        config.first_run_complete ? "info" : "success",
+        configuredFolder
+          ? "Could not reopen your songs folder — choose it again in Settings"
+          : config.first_run_complete
+            ? "Open Settings to select your songs folder"
+            : "Welcome! Open Settings to select your songs folder",
+        configuredFolder ? "error" : config.first_run_complete ? "info" : "success",
       );
     }
   }
@@ -827,11 +862,13 @@ export class PraiseApp extends PraiseElement {
   }
 
   private renderSettingsContent(): TemplateResult {
+    const folderLabel = this.libraryStatus?.songs_folder ?? "No folder selected";
     return html`
       <div class="settings-section">
         <h3>Library</h3>
+        <p class="settings-path">${folderLabel}</p>
         <div class="settings-actions">
-          <button class="secondary" @click=${() => this.pickFolder()}>Open Songs Folder</button>
+          <button class="secondary" @click=${() => this.pickFolder()}>Choose Songs Folder</button>
           <button class="secondary" @click=${() => this.runImportMdb()}>Import MDB</button>
           <button class="ghost" @click=${() => this.rescan()}>Rescan library</button>
         </div>

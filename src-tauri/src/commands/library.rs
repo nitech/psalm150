@@ -22,6 +22,38 @@ pub struct LibraryStatus {
     pub conflicts: Vec<String>,
 }
 
+/// Attach the configured songs folder to runtime state and reuse a cached index when
+/// available. This is fast enough to run during app startup so the UI can show the
+/// remembered folder before a full rescan finishes.
+pub fn stage_songs_folder(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    path: PathBuf,
+) -> Result<(), String> {
+    crate::library::chordpro::validate_songs_folder(&path)?;
+    let folder_hash = hash_folder(&path);
+    ensure_library_layout(app, &folder_hash)?;
+
+    let index_path = config::library_root(app, &folder_hash)?.join("index.sqlite");
+    let db = if index_path.exists() {
+        Some(Database::open(index_path)?)
+    } else {
+        None
+    };
+    let setlist_root = config::library_root(app, &folder_hash)?.join("setlists");
+    let watcher = LibraryWatcher::new(&path).ok();
+
+    with_state(state, |runtime| {
+        runtime.songs_folder = Some(path);
+        runtime.folder_hash = Some(folder_hash);
+        runtime.db = db;
+        runtime.setlists = Some(SetlistStore::new(setlist_root));
+        runtime.watcher = watcher;
+        runtime.library_dirty = false;
+        Ok(())
+    })
+}
+
 pub fn activate_songs_folder(
     app: &AppHandle,
     state: &State<'_, AppState>,
