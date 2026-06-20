@@ -664,29 +664,32 @@ body.workspace-resizing {
 
 .song-section-label {
   margin: 0 0 0.75rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-muted);
 }
 
-.song-section.chorus .song-section-label {
-  color: var(--accent-lime);
-  padding: 4px 10px;
-  background: var(--accent-lime-soft);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(198, 216, 140, 0.2);
-  display: inline-block;
+/* statusIndicatorBar pattern — 3px semaphore, accent used sparingly */
+.song-section.chorus .song-section-label::before,
+.song-section.bridge .song-section-label::before {
+  content: "";
+  display: block;
+  width: 3px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
 }
 
-.song-section.chorus {
-  padding-left: 12px;
-  border-left: 3px solid var(--accent-lime);
+.song-section.chorus .song-section-label::before {
+  background: var(--accent-lime);
 }
 
-.song-section.bridge .song-section-label {
-  color: var(--accent-secondary);
+.song-section.bridge .song-section-label::before {
+  background: var(--accent-secondary);
 }
 
 .song-line {
