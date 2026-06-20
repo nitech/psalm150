@@ -51,6 +51,7 @@ export class PraiseApp extends PraiseElement {
     toastMsg: { state: true },
     toastTone: { state: true },
     toastVisible: { state: true },
+    windowMaximized: { state: true },
   };
 
   declare songs: SongRow[];
@@ -78,10 +79,12 @@ export class PraiseApp extends PraiseElement {
   declare toastMsg: string;
   declare toastTone: ToastTone;
   declare toastVisible: boolean;
+  declare windowMaximized: boolean;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private unlistenImport: UnlistenFn | null = null;
   private unlistenLibrary: UnlistenFn | null = null;
+  private unlistenWindowResize: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
   private songsRefreshGeneration = 0;
@@ -113,6 +116,7 @@ export class PraiseApp extends PraiseElement {
     this.toastMsg = "";
     this.toastTone = "info";
     this.toastVisible = false;
+    this.windowMaximized = false;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -121,7 +125,39 @@ export class PraiseApp extends PraiseElement {
     super.connectedCallback();
     window.addEventListener("keydown", this.onGlobalKeydown);
     void getCurrentWebviewWindow().setFocus();
+    void this.initWindowChrome();
     void this.init();
+  }
+
+  private async initWindowChrome() {
+    const win = getCurrentWebviewWindow();
+    try {
+      this.windowMaximized = await win.isMaximized();
+      this.unlistenWindowResize = await win.onResized(async () => {
+        this.windowMaximized = await win.isMaximized();
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  private onTitlebarDblClick = async (event: MouseEvent) => {
+    if ((event.target as HTMLElement).closest(".app-no-drag")) return;
+    await this.toggleWindowMaximize();
+  };
+
+  private async minimizeWindow() {
+    await getCurrentWebviewWindow().minimize();
+  }
+
+  private async toggleWindowMaximize() {
+    const win = getCurrentWebviewWindow();
+    await win.toggleMaximize();
+    this.windowMaximized = await win.isMaximized();
+  }
+
+  private async closeWindow() {
+    await getCurrentWebviewWindow().close();
   }
 
   private async init() {
@@ -140,6 +176,7 @@ export class PraiseApp extends PraiseElement {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this.onGlobalKeydown);
     this.unlistenLibrary?.();
+    this.unlistenWindowResize?.();
     void this.unlistenImport?.();
   }
 
@@ -148,13 +185,6 @@ export class PraiseApp extends PraiseElement {
   }
 
   // ── Derived helpers ────────────────────────────────────────────────────
-
-  private get folderStatusText(): string {
-    const status = this.libraryStatus;
-    if (!status?.songs_folder) return "No songs folder";
-    const folder = status.songs_folder.split(/[/\\]/).pop() || status.songs_folder;
-    return `${status.song_count} songs · ${folder}`;
-  }
 
   private get nowPreviewText(): string {
     const projection = this.projection ?? this.currentSong?.projection ?? null;
@@ -624,7 +654,7 @@ export class PraiseApp extends PraiseElement {
 
   private renderHeader() {
     return html`
-      <header class="app-header">
+      <header class="app-header" data-tauri-drag-region @dblclick=${this.onTitlebarDblClick}>
         <div class="brand">
           <div class="brand-mark">
             <svg
@@ -644,7 +674,7 @@ export class PraiseApp extends PraiseElement {
           </div>
           <strong class="brand-name">Praise</strong>
         </div>
-        <div class="live-bar">
+        <div class="live-bar app-no-drag">
           <button class="primary compact" @click=${() => this.projectLoadedSong()}>Project</button>
           <button class="secondary compact" @click=${() => this.advanceSlide("prev")}>Prev</button>
           <button class="secondary compact" @click=${() => this.advanceSlide("next")}>Next</button>
@@ -661,11 +691,10 @@ export class PraiseApp extends PraiseElement {
             Edit
           </button>
         </div>
-        <div class="header-end">
+        <div class="header-end app-no-drag">
           <span class="toast ${this.toastTone} ${this.toastVisible ? "" : "hidden"}" role="status">
             ${this.toastMsg}
           </span>
-          <span class="status-pill">${this.folderStatusText}</span>
           <span class="badge ${this.libraryStatus?.library_dirty ? "" : "hidden"}">Changed</span>
           <button
             class="icon-btn"
@@ -689,6 +718,71 @@ export class PraiseApp extends PraiseElement {
                 d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
               />
               <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
+        <div class="window-controls app-no-drag">
+          <button
+            class="window-control"
+            type="button"
+            title="Minimize"
+            aria-label="Minimize"
+            @click=${() => void this.minimizeWindow()}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <path d="M0 5h10" stroke="currentColor" stroke-width="1" />
+            </svg>
+          </button>
+          <button
+            class="window-control"
+            type="button"
+            title=${this.windowMaximized ? "Restore" : "Maximize"}
+            aria-label=${this.windowMaximized ? "Restore" : "Maximize"}
+            @click=${() => void this.toggleWindowMaximize()}
+          >
+            ${this.windowMaximized
+              ? html`
+                  <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                    <path
+                      d="M1 1h5v4H2V2H1V1"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1"
+                    />
+                    <rect
+                      x="4"
+                      y="4"
+                      width="5"
+                      height="5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1"
+                    />
+                  </svg>
+                `
+              : html`
+                  <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                    <rect
+                      x="0.5"
+                      y="0.5"
+                      width="9"
+                      height="9"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1"
+                    />
+                  </svg>
+                `}
+          </button>
+          <button
+            class="window-control close"
+            type="button"
+            title="Close"
+            aria-label="Close"
+            @click=${() => void this.closeWindow()}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.2" />
             </svg>
           </button>
         </div>

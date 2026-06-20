@@ -185,6 +185,44 @@ body {
   min-width: 0;
 }
 
+.app-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.window-controls {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  margin: -14px -24px -14px 4px;
+}
+
+.window-control {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  min-height: 52px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: default;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+
+.window-control:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.window-control.close:hover {
+  background: var(--error);
+  color: #fff;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Status & Badges
    ───────────────────────────────────────────────────────────────────────────── */
@@ -1117,6 +1155,10 @@ select option {
   .app-header {
     flex-wrap: wrap;
     padding: 10px 16px;
+  }
+
+  .window-controls {
+    margin: -10px -16px -10px 4px;
   }
 
   .brand-name {

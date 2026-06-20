@@ -16,7 +16,9 @@
         "title": "Praise",
         "width": 1280,
         "height": 900,
-        "resizable": true
+        "resizable": true,
+        "decorations": false,
+        "shadow": true
       }
     ],
     "security": {
