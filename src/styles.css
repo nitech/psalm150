@@ -283,14 +283,49 @@ body {
    ───────────────────────────────────────────────────────────────────────────── */
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(300px, 380px) 1fr;
+  position: relative;
+  display: flex;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  gap: 0;
   padding: 12px;
   gap: 12px;
+}
+
+.workspace-splitter {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: calc(12px + var(--browse-pane-width, 340px) + 6px);
+  width: 12px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+}
+
+.workspace-splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: var(--border-strong);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.workspace-splitter:hover::after,
+body.workspace-resizing .workspace-splitter::after {
+  opacity: 1;
+}
+
+body.workspace-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -300,6 +335,8 @@ body {
 .browse-pane {
   display: flex;
   flex-direction: column;
+  flex: 0 0 auto;
+  min-width: 0;
   min-height: 0;
   background: var(--bg-glass);
   backdrop-filter: var(--blur-glass);
@@ -310,13 +347,47 @@ body {
   position: relative;
 }
 
-/* Tabs — pill style */
+/* Tabs — segmented control with sliding indicator */
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   padding: 14px 14px 0;
   flex-shrink: 0;
-  flex-wrap: wrap;
+}
+
+.tabs.segmented {
+  --segmented-inset: 4px;
+  position: relative;
+  margin: 14px 14px 0;
+  padding: var(--segmented-inset);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs.segmented::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs-indicator {
+  position: absolute;
+  top: var(--segmented-inset);
+  left: 0;
+  height: calc(100% - 2 * var(--segmented-inset));
+  border-radius: var(--radius-full);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-xs);
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    width var(--dur-fast) var(--ease-standard);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .tabs button {
@@ -327,17 +398,29 @@ body {
   color: var(--text-secondary);
   border: 1px solid transparent;
   border-radius: var(--radius-full);
-  transition:
-    background-color var(--dur-fast) var(--ease-standard),
-    color var(--dur-fast) var(--ease-standard),
-    border-color var(--dur-fast) var(--ease-standard);
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.tabs.segmented button {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  border: none;
 }
 
 .tabs button:hover {
   transform: none;
-  color: var(--text-secondary);
-  background: var(--bg-elevated);
-  border-color: var(--border-subtle);
+  color: var(--text-strong);
+  background: transparent;
+  border-color: transparent;
+}
+
+.tabs.segmented button:hover {
+  color: var(--text-strong);
 }
 
 .tabs button.active {
@@ -346,6 +429,14 @@ body {
   border-color: var(--accent-lime);
   font-weight: 500;
   box-shadow: 0 2px 12px var(--accent-lime-glow);
+}
+
+.tabs.segmented button.active {
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font-weight: 600;
 }
 
 /* Toolbar */
@@ -503,6 +594,8 @@ body {
 .song-pane {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--bg-glass);
@@ -555,10 +648,69 @@ body {
 
 .song-content {
   padding: 24px 32px 32px;
-  font-family: var(--font-mono);
-  font-size: 0.88rem;
-  line-height: 1.7;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  line-height: 1.55;
   color: var(--text-secondary);
+}
+
+.song-section {
+  margin-bottom: 1.75rem;
+}
+
+.song-section:last-child {
+  margin-bottom: 0;
+}
+
+.song-section-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.song-section.chorus .song-section-label {
+  color: var(--accent-lime);
+  padding: 4px 10px;
+  background: var(--accent-lime-soft);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(198, 216, 140, 0.2);
+  display: inline-block;
+}
+
+.song-section.chorus {
+  padding-left: 12px;
+  border-left: 3px solid var(--accent-lime);
+}
+
+.song-section.bridge .song-section-label {
+  color: var(--accent-secondary);
+}
+
+.song-line {
+  margin-bottom: 0.35rem;
+}
+
+.song-line-spacer {
+  height: 0.65rem;
+}
+
+.song-chords {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--accent-lime);
+  letter-spacing: 0.06em;
+  min-height: 1.2em;
+  opacity: 0.85;
+}
+
+.song-lyrics {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  color: var(--text-strong);
 }
 
 .chordpro-section {
@@ -1138,9 +1290,23 @@ select option {
 
 @media (max-width: 900px) {
   .workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(200px, 40vh) 1fr;
+    flex-direction: column;
     padding: 8px;
+  }
+
+  .workspace-splitter {
+    display: none;
+  }
+
+  .browse-pane {
+    width: auto !important;
+    flex: 0 0 auto;
+    max-height: 40vh;
+  }
+
+  .song-pane {
+    flex: 1 1 0;
+    min-height: 0;
   }
 
   .live-preview {

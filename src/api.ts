@@ -73,11 +73,29 @@ export interface ProjectionState {
   hold_slide_id?: string | null;
 }
 
+export type SectionKind = "verse" | "chorus" | "bridge" | "other";
+
+export interface ChordPlacement {
+  chord: string;
+  position: number;
+}
+
+export interface LyricLine {
+  text: string;
+  chords: ChordPlacement[];
+}
+
+export interface SongSection {
+  label: string;
+  kind: SectionKind;
+  lines: LyricLine[];
+}
+
 export interface SongDetail {
   parsed: {
     meta: Record<string, unknown>;
     raw: string;
-    sections: unknown[];
+    sections: SongSection[];
   };
   projection: ProjectionState;
 }

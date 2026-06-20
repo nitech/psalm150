@@ -7,6 +7,7 @@ import {
   type ImportProgress,
   type ImportReport,
   type LibraryStatus,
+  type LyricLine,
   type ProjectionState,
   type Setlist,
   type SongDetail,
@@ -18,6 +19,19 @@ import "./song-list";
 
 type Tab = "search" | "key" | "history" | "favorites" | "setlist";
 type ToastTone = "info" | "success" | "error";
+
+const TAB_LABELS: Record<Tab, string> = {
+  search: "Search",
+  key: "Key",
+  history: "History",
+  favorites: "Favourites",
+  setlist: "Setlist",
+};
+
+const BROWSE_PANE_WIDTH_KEY = "praise-browse-pane-width";
+const BROWSE_PANE_MIN = 280;
+const BROWSE_PANE_MAX = 720;
+const BROWSE_PANE_DEFAULT = 340;
 
 /**
  * Root component for the main window. Owns all application state and IPC
@@ -52,6 +66,8 @@ export class PraiseApp extends PraiseElement {
     toastTone: { state: true },
     toastVisible: { state: true },
     windowMaximized: { state: true },
+    projecting: { state: true },
+    browsePaneWidth: { state: true },
   };
 
   declare songs: SongRow[];
@@ -80,6 +96,8 @@ export class PraiseApp extends PraiseElement {
   declare toastTone: ToastTone;
   declare toastVisible: boolean;
   declare windowMaximized: boolean;
+  declare projecting: boolean;
+  declare browsePaneWidth: number;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private unlistenImport: UnlistenFn | null = null;
@@ -88,6 +106,8 @@ export class PraiseApp extends PraiseElement {
   private importBusy = false;
   private keysLoaded = false;
   private songsRefreshGeneration = 0;
+  private splitterDragging = false;
+  private tabIndicatorObserver: ResizeObserver | null = null;
 
   constructor() {
     super();
@@ -117,6 +137,11 @@ export class PraiseApp extends PraiseElement {
     this.toastTone = "info";
     this.toastVisible = false;
     this.windowMaximized = false;
+    this.projecting = false;
+    const savedWidth = localStorage.getItem(BROWSE_PANE_WIDTH_KEY);
+    const parsed = savedWidth ? Number.parseInt(savedWidth, 10) : Number.NaN;
+    this.browsePaneWidth =
+      Number.isFinite(parsed) && parsed >= BROWSE_PANE_MIN ? parsed : BROWSE_PANE_DEFAULT;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -135,6 +160,7 @@ export class PraiseApp extends PraiseElement {
       this.windowMaximized = await win.isMaximized();
       this.unlistenWindowResize = await win.onResized(async () => {
         this.windowMaximized = await win.isMaximized();
+        requestAnimationFrame(() => this.updateTabIndicator());
       });
     } catch (err) {
       console.error(err);
@@ -177,29 +203,105 @@ export class PraiseApp extends PraiseElement {
     window.removeEventListener("keydown", this.onGlobalKeydown);
     this.unlistenLibrary?.();
     this.unlistenWindowResize?.();
+    this.tabIndicatorObserver?.disconnect();
     void this.unlistenImport?.();
   }
 
   firstUpdated() {
     this.focusSearchField();
+    this.updateTabIndicator();
+    this.observeTabIndicator();
+  }
+
+  private observeTabIndicator() {
+    const nav = this.querySelector<HTMLElement>(".tabs.segmented");
+    if (!nav) return;
+    this.tabIndicatorObserver?.disconnect();
+    this.tabIndicatorObserver = new ResizeObserver(() => {
+      requestAnimationFrame(() => this.updateTabIndicator());
+    });
+    this.tabIndicatorObserver.observe(nav);
+    for (const button of nav.querySelectorAll("button")) {
+      this.tabIndicatorObserver.observe(button);
+    }
+  }
+
+  updated(changed: Map<string, unknown>) {
+    if (changed.has("activeTab")) {
+      requestAnimationFrame(() => {
+        this.updateTabIndicator();
+        this.observeTabIndicator();
+      });
+    }
   }
 
   // ── Derived helpers ────────────────────────────────────────────────────
 
   private get nowPreviewText(): string {
-    const projection = this.projection ?? this.currentSong?.projection ?? null;
-    if (projection && projection.slides.length > 0) {
-      const slide = projection.slides[projection.current_index];
-      if (slide) return slide.lines.map((l) => l.text).join("\n");
-    }
-    return "—";
+    if (!this.projecting || !this.projection) return "—";
+    if (this.projection.blank) return "Blank";
+    if (this.projection.slides.length === 0) return "—";
+    const slide = this.projection.slides[this.projection.current_index];
+    if (!slide) return "—";
+    return slide.lines.map((l) => l.text).join("\n");
   }
 
   private isProjectionActive(): boolean {
     return Boolean(
-      this.projection && this.projection.slides.length > 0 && !this.projection.blank,
+      this.projecting &&
+        this.projection &&
+        this.projection.slides.length > 0 &&
+        !this.projection.blank,
     );
   }
+
+  private updateTabIndicator() {
+    const nav = this.querySelector<HTMLElement>(".tabs.segmented");
+    const active = nav?.querySelector<HTMLElement>("button.active");
+    const indicator = nav?.querySelector<HTMLElement>(".tabs-indicator");
+    if (!nav || !active || !indicator) return;
+    const navRect = nav.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    indicator.style.width = `${activeRect.width}px`;
+    indicator.style.transform = `translateX(${activeRect.left - navRect.left}px)`;
+  }
+
+  private onSplitterPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const splitter = event.currentTarget as HTMLElement;
+    splitter.setPointerCapture(event.pointerId);
+    this.splitterDragging = true;
+    document.body.classList.add("workspace-resizing");
+  };
+
+  private onSplitterPointerMove = (event: PointerEvent) => {
+    if (!this.splitterDragging) return;
+    const workspace = this.querySelector<HTMLElement>(".workspace");
+    if (!workspace) return;
+    const rect = workspace.getBoundingClientRect();
+    const padLeft = Number.parseFloat(getComputedStyle(workspace).paddingLeft) || 0;
+    const width = Math.round(
+      Math.min(
+        BROWSE_PANE_MAX,
+        Math.max(BROWSE_PANE_MIN, event.clientX - rect.left - padLeft),
+      ),
+    );
+    this.browsePaneWidth = width;
+    requestAnimationFrame(() => this.updateTabIndicator());
+  };
+
+  private onSplitterPointerUp = (event: PointerEvent) => {
+    if (!this.splitterDragging) return;
+    this.splitterDragging = false;
+    document.body.classList.remove("workspace-resizing");
+    const splitter = event.currentTarget as HTMLElement;
+    if (splitter.hasPointerCapture(event.pointerId)) {
+      splitter.releasePointerCapture(event.pointerId);
+    }
+    localStorage.setItem(BROWSE_PANE_WIDTH_KEY, String(this.browsePaneWidth));
+    requestAnimationFrame(() => this.updateTabIndicator());
+  };
 
   private focusSearchField() {
     requestAnimationFrame(() => {
@@ -305,6 +407,7 @@ export class PraiseApp extends PraiseElement {
 
   private async projectLoadedSong() {
     if (!this.currentSong) return;
+    this.projecting = true;
     this.projection = this.currentSong.projection;
     await api.openAudienceWindow();
     if (this.projectToStage) {
@@ -499,6 +602,7 @@ export class PraiseApp extends PraiseElement {
     this.activeTab = tab;
     if (tab === "key") await this.loadKeyOptions();
     await this.refreshSongs();
+    requestAnimationFrame(() => this.updateTabIndicator());
   }
 
   // ── Toast ──────────────────────────────────────────────────────────────
@@ -576,6 +680,8 @@ export class PraiseApp extends PraiseElement {
         return;
       }
       await api.closeProjectionWindows();
+      this.projecting = false;
+      this.nextPreviewText = "—";
       return;
     }
 
@@ -626,9 +732,19 @@ export class PraiseApp extends PraiseElement {
   render() {
     return html`
       ${this.renderHeader()}
-      <main class="workspace">
+      <main class="workspace" style="--browse-pane-width: ${this.browsePaneWidth}px">
         ${this.renderBrowsePane()}
         ${this.renderSongPane()}
+        <div
+          class="workspace-splitter"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize song list"
+          @pointerdown=${this.onSplitterPointerDown}
+          @pointermove=${this.onSplitterPointerMove}
+          @pointerup=${this.onSplitterPointerUp}
+          @pointercancel=${this.onSplitterPointerUp}
+        ></div>
       </main>
       <praise-modal
         heading="Settings"
@@ -793,16 +909,18 @@ export class PraiseApp extends PraiseElement {
   private renderBrowsePane() {
     const tabs: Tab[] = ["search", "key", "history", "favorites", "setlist"];
     return html`
-      <aside class="browse-pane">
-        <nav class="tabs" role="tablist">
+      <aside class="browse-pane" style="width: ${this.browsePaneWidth}px">
+        <nav class="tabs segmented" role="tablist">
+          <div class="tabs-indicator" aria-hidden="true"></div>
           ${tabs.map(
             (tab) => html`
               <button
                 class=${this.activeTab === tab ? "active" : ""}
                 role="tab"
+                aria-selected=${this.activeTab === tab ? "true" : "false"}
                 @click=${() => this.selectTab(tab)}
               >
-                ${tab.charAt(0).toUpperCase() + tab.slice(1)}
+                ${TAB_LABELS[tab]}
               </button>
             `,
           )}
@@ -913,16 +1031,20 @@ export class PraiseApp extends PraiseElement {
         <div class="song-body scroll-region">
           <div class="song-content">${this.renderSongContent()}</div>
         </div>
-        <footer class="live-preview">
-          <div class="slide-preview">
-            <span class="preview-label">Now</span>
-            <div class="preview-text">${this.nowPreviewText}</div>
-          </div>
-          <div class="slide-preview next">
-            <span class="preview-label">Next</span>
-            <div class="preview-text">${this.nextPreviewText}</div>
-          </div>
-        </footer>
+        ${this.projecting
+          ? html`
+              <footer class="live-preview">
+                <div class="slide-preview">
+                  <span class="preview-label">Now</span>
+                  <div class="preview-text">${this.nowPreviewText}</div>
+                </div>
+                <div class="slide-preview next">
+                  <span class="preview-label">Next</span>
+                  <div class="preview-text">${this.nextPreviewText}</div>
+                </div>
+              </footer>
+            `
+          : nothing}
       </section>
     `;
   }
@@ -944,15 +1066,31 @@ export class PraiseApp extends PraiseElement {
         Choose a song from the library to view the full lyrics here.
       </p>`;
     }
-    return this.currentSong.parsed.raw.split("\n").map((line) => {
-      if (line.startsWith("{")) {
-        return html`<div class="chordpro-directive">${line}</div>`;
-      }
-      if (/^\[.+\]$/.test(line.trim())) {
-        return html`<div class="chordpro-section">${line}</div>`;
-      }
-      return html`<div class="chordpro-line">${line}</div>`;
-    });
+    const sections = this.currentSong.parsed.sections;
+    if (!sections.length) {
+      return html`<p class="empty-state">This song has no parsed content.</p>`;
+    }
+    return sections.map(
+      (section) => html`
+        <section class="song-section ${section.kind}">
+          <h3 class="song-section-label">${section.label}</h3>
+          ${section.lines.map((line) => this.renderLyricLine(line))}
+        </section>
+      `,
+    );
+  }
+
+  private renderLyricLine(line: LyricLine) {
+    if (!line.text && line.chords.length === 0) {
+      return html`<div class="song-line-spacer" aria-hidden="true"></div>`;
+    }
+    const chordStr = line.chords.map((c) => c.chord).join("  ");
+    return html`
+      <div class="song-line">
+        ${chordStr ? html`<div class="song-chords">${chordStr}</div>` : nothing}
+        <div class="song-lyrics">${line.text || "\u00a0"}</div>
+      </div>
+    `;
   }
 
   private renderSettingsContent(): TemplateResult {
