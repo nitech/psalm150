@@ -353,10 +353,17 @@ export class PraiseApp extends PraiseElement {
     requestAnimationFrame(() => this.updateTabIndicator());
   };
 
+  private focusSearchField(selectAll = false) {
+    const input = this.querySelector<HTMLInputElement>("#search-input");
+    if (!input) return;
+    input.focus({ preventScroll: true });
+    if (selectAll) input.select();
+  }
+
   private focusActiveBrowseField() {
     requestAnimationFrame(() => {
       if (this.activeTab === "search") {
-        this.querySelector<HTMLInputElement>("#search-input")?.focus({ preventScroll: true });
+        this.focusSearchField();
       } else if (this.activeTab === "key") {
         this.querySelector<PraiseCombobox>("praise-combobox")?.focusInput();
       }
@@ -773,6 +780,15 @@ export class PraiseApp extends PraiseElement {
       return;
     }
 
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      if (this.activeTab !== "search") {
+        await this.selectTab("search");
+      }
+      requestAnimationFrame(() => this.focusSearchField(true));
+      return;
+    }
+
     if (event.key === "Enter" && this.currentSong) {
       if (isTextEntryTarget(target) && !(target as HTMLElement).matches("#search-input")) {
         return;
@@ -828,9 +844,14 @@ export class PraiseApp extends PraiseElement {
       rows[rows.length - 1]?.scrollIntoView({ block: "nearest" });
       return;
     }
-    if (event.key === "Enter" && this.currentSong) {
+    if (event.key === "Enter") {
+      const first = this.songs[0];
+      if (!first) return;
       event.preventDefault();
       event.stopPropagation();
+      if (this.currentFilename !== first.filename) {
+        await this.selectSong(first.filename);
+      }
       await this.projectLoadedSong();
     }
   }
@@ -1170,12 +1191,17 @@ export class PraiseApp extends PraiseElement {
     return html`
       <section class="song-pane ${this.projecting ? "projecting" : ""}">
         <header class="song-pane-header">
-          <h1 class="song-title">
+          <div class="song-pane-header-row">
+            <h1 class="song-title">
+              ${this.currentSong
+                ? (this.currentSong.parsed.meta.title as string) || "Untitled"
+                : "Select a song"}
+            </h1>
             ${this.currentSong
-              ? (this.currentSong.parsed.meta.title as string) || "Untitled"
-              : "Select a song"}
-          </h1>
-          <div class="song-meta-bar">${this.renderSongMeta()}</div>
+              ? html`<div class="song-title-meta">${this.renderSongTitleMeta()}</div>`
+              : nothing}
+          </div>
+          ${this.renderSongSecondaryMeta()}
         </header>
         <div class="song-body scroll-region">
           <div class="song-body-layout ${this.projecting ? "projecting" : ""}">
@@ -1187,15 +1213,26 @@ export class PraiseApp extends PraiseElement {
     `;
   }
 
-  private renderSongMeta() {
+  private renderSongTitleMeta() {
+    if (!this.currentSong) return nothing;
+    const meta = this.currentSong.parsed.meta;
+    const hasNum = meta.song_num != null && meta.song_num !== "";
+    const hasKey = Boolean(meta.key);
+    if (!hasNum && !hasKey) return nothing;
+    return html`
+      ${hasNum ? html`<span class="song-title-meta-num">#${meta.song_num}</span>` : nothing}
+      ${hasKey ? html`<span class="song-title-meta-key">${meta.key}</span>` : nothing}
+    `;
+  }
+
+  private renderSongSecondaryMeta() {
     if (!this.currentSong) return nothing;
     const meta = this.currentSong.parsed.meta;
     const parts: string[] = [];
-    if (meta.key) parts.push(String(meta.key));
-    if (meta.song_num) parts.push(`#${meta.song_num}`);
     if (meta.category) parts.push(String(meta.category));
     if (meta.ccli) parts.push(`CCLI ${meta.ccli}`);
-    return parts.join(" · ");
+    if (!parts.length) return nothing;
+    return html`<div class="song-meta-bar">${parts.join(" · ")}</div>`;
   }
 
   private renderSongContent() {

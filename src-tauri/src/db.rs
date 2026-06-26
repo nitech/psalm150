@@ -185,25 +185,30 @@ impl Database {
         if query.trim().is_empty() {
             return self.list_all(favorites_only);
         }
-        let like = format!("%{query}%");
+        let trimmed = query.trim();
+        let like = format!("%{trimmed}%");
+        let num_like = format!(
+            "%{}%",
+            trimmed.strip_prefix('#').unwrap_or(trimmed)
+        );
         let sql = if favorites_only {
             "SELECT s.id, s.filename, s.title, s.title_sort, s.song_num, s.key, s.category, s.tags, s.ccli, s.modified_at,
                     1 as favorite
              FROM songs s
              INNER JOIN favorites f ON f.filename = s.filename
-             WHERE s.title LIKE ?1 OR s.body_plain LIKE ?1 OR s.tags LIKE ?1
+             WHERE s.title LIKE ?1 OR s.body_plain LIKE ?1 OR s.tags LIKE ?1 OR CAST(s.song_num AS TEXT) LIKE ?2
              ORDER BY s.title_sort"
         } else {
             "SELECT s.id, s.filename, s.title, s.title_sort, s.song_num, s.key, s.category, s.tags, s.ccli, s.modified_at,
                     CASE WHEN f.filename IS NOT NULL THEN 1 ELSE 0 END as favorite
              FROM songs s
              LEFT JOIN favorites f ON f.filename = s.filename
-             WHERE s.title LIKE ?1 OR s.body_plain LIKE ?1 OR s.tags LIKE ?1
+             WHERE s.title LIKE ?1 OR s.body_plain LIKE ?1 OR s.tags LIKE ?1 OR CAST(s.song_num AS TEXT) LIKE ?2
              ORDER BY s.title_sort"
         };
         let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map(params![like], map_song_row)
+            .query_map(params![like, num_like], map_song_row)
             .map_err(|e| e.to_string())?;
         collect_rows(rows)
     }
