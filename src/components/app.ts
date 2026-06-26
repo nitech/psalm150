@@ -5,6 +5,7 @@ import { confirm } from "@tauri-apps/plugin-dialog";
 import {
   api,
   type AppConfig,
+  SIMULATED_DISPLAY_ID,
   type DisplayInfo,
   type ImportProgress,
   type ImportReport,
@@ -12,9 +13,11 @@ import {
   type LyricLine,
   type ProjectionState,
   type Setlist,
+  type SectionKind,
   type SongDetail,
   type SongRow,
 } from "../api";
+import { activeStanzaIndex, buildStanzaMarkers, stanzaStepSlideIndex } from "../stanza-markers";
 import { PraiseElement } from "./base";
 import type { PraiseCombobox } from "./combobox";
 import "./combobox";
@@ -64,7 +67,6 @@ export class PraiseApp extends PraiseElement {
     setlistName: { state: true },
     setlistDate: { state: true },
     editorValue: { state: true },
-    nextPreviewText: { state: true },
     settingsOpen: { state: true },
     editOpen: { state: true },
     importOpen: { state: true },
@@ -97,7 +99,6 @@ export class PraiseApp extends PraiseElement {
   declare setlistName: string;
   declare setlistDate: string;
   declare editorValue: string;
-  declare nextPreviewText: string;
   declare settingsOpen: boolean;
   declare editOpen: boolean;
   declare importOpen: boolean;
@@ -114,6 +115,7 @@ export class PraiseApp extends PraiseElement {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private unlistenImport: UnlistenFn | null = null;
   private unlistenLibrary: UnlistenFn | null = null;
+  private unlistenProjection: UnlistenFn | null = null;
   private unlistenWindowResize: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
@@ -141,7 +143,6 @@ export class PraiseApp extends PraiseElement {
     this.setlistName = "";
     this.setlistDate = "";
     this.editorValue = "";
-    this.nextPreviewText = "—";
     this.settingsOpen = false;
     this.editOpen = false;
     this.importOpen = false;
@@ -207,6 +208,9 @@ export class PraiseApp extends PraiseElement {
         await this.refreshLibraryStatus();
         await this.refreshSongs();
       });
+      this.unlistenProjection = await listen("projection-closed", () => {
+        this.projecting = false;
+      });
     } catch (err) {
       console.error(err);
     }
@@ -217,6 +221,7 @@ export class PraiseApp extends PraiseElement {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this.onGlobalKeydown);
     this.unlistenLibrary?.();
+    this.unlistenProjection?.();
     this.unlistenWindowResize?.();
     this.tabIndicatorObserver?.disconnect();
     void this.unlistenImport?.();
@@ -248,18 +253,48 @@ export class PraiseApp extends PraiseElement {
         this.observeTabIndicator();
       });
     }
+    if (changed.has("projection") || changed.has("projecting")) {
+      requestAnimationFrame(() => this.syncMinimapState());
+    }
+  }
+
+  private focusActiveMinimapItem(): boolean {
+    if (!this.isProjectionActive()) return false;
+    this.querySelector<HTMLElement>("praise-song-list li:focus")?.blur();
+    const active = this.querySelector<HTMLElement>(".song-minimap-item.active");
+    if (!active) return false;
+    active.focus({ preventScroll: true });
+    active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    return document.activeElement === active;
+  }
+
+  private async focusActiveMinimapAfterProject() {
+    await this.updateComplete;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (this.focusActiveMinimapItem()) return;
+    }
+  }
+
+  private syncMinimapState() {
+    if (!this.projecting) return;
+    const active = this.querySelector<HTMLElement>(".song-minimap-item.active");
+    if (!active) return;
+    const focused = document.activeElement;
+    const focusedListRow =
+      focused instanceof HTMLElement && Boolean(focused.closest("praise-song-list li"));
+    const focusedWrongMinimap =
+      focused instanceof HTMLElement &&
+      focused.classList.contains("song-minimap-item") &&
+      focused !== active;
+    if (focusedListRow || focusedWrongMinimap) {
+      this.focusActiveMinimapItem();
+      return;
+    }
+    active.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   // ── Derived helpers ────────────────────────────────────────────────────
-
-  private get nowPreviewText(): string {
-    if (!this.projecting || !this.projection) return "—";
-    if (this.projection.blank) return "Blank";
-    if (this.projection.slides.length === 0) return "—";
-    const slide = this.projection.slides[this.projection.current_index];
-    if (!slide) return "—";
-    return slide.lines.map((l) => l.text).join("\n");
-  }
 
   private isProjectionActive(): boolean {
     return Boolean(
@@ -427,6 +462,8 @@ export class PraiseApp extends PraiseElement {
   private async projectLoadedSong() {
     if (!this.currentSong) return;
     this.projecting = true;
+    this.querySelector<HTMLElement>("praise-song-list li:focus")?.blur();
+    await this.updateComplete;
     this.projection = this.currentSong.projection;
     await api.openAudienceWindow();
     if (this.projectToStage) {
@@ -436,20 +473,31 @@ export class PraiseApp extends PraiseElement {
       this.projection = await api.showSlide(0);
     }
     await api.logProjection();
-    await this.updatePreview();
     await getCurrentWebviewWindow().setFocus();
+    await this.focusActiveMinimapAfterProject();
   }
 
   private async advanceSlide(direction: "next" | "prev") {
     if (!this.isProjectionActive()) return;
     this.projection =
       direction === "next" ? await api.nextSlide() : await api.previousSlide();
-    await this.updatePreview();
   }
 
-  private async updatePreview() {
-    const next = await api.getNextSlidePreview();
-    this.nextPreviewText = next ? next.lines.map((l) => l.text).join("\n") : "End of song";
+  private async advanceStanza(direction: "next" | "prev") {
+    if (!this.isProjectionActive() || !this.projection) return;
+    const markers = buildStanzaMarkers(this.projection.slides);
+    const slideIndex = stanzaStepSlideIndex(
+      markers,
+      this.projection.current_index,
+      direction,
+    );
+    if (slideIndex === null) return;
+    await this.jumpToStanza(slideIndex);
+  }
+
+  private async jumpToStanza(slideIndex: number) {
+    if (!this.isProjectionActive()) return;
+    this.projection = await api.showSlide(slideIndex);
   }
 
   // ── Editing ────────────────────────────────────────────────────────────
@@ -489,7 +537,6 @@ export class PraiseApp extends PraiseElement {
 
   private async transpose(delta: number) {
     this.projection = await api.setTranspose((this.projection?.transpose_semitones ?? 0) + delta);
-    await this.updatePreview();
   }
 
   // ── Import ─────────────────────────────────────────────────────────────
@@ -705,6 +752,11 @@ export class PraiseApp extends PraiseElement {
 
   // ── Keyboard ───────────────────────────────────────────────────────────
 
+  private async stopProjection() {
+    await api.closeProjectionWindows();
+    this.projecting = false;
+  }
+
   private onGlobalKeydown = async (event: KeyboardEvent) => {
     const target = event.target;
 
@@ -717,9 +769,7 @@ export class PraiseApp extends PraiseElement {
         this.settingsOpen = false;
         return;
       }
-      await api.closeProjectionWindows();
-      this.projecting = false;
-      this.nextPreviewText = "—";
+      await this.stopProjection();
       return;
     }
 
@@ -734,17 +784,24 @@ export class PraiseApp extends PraiseElement {
 
     if (isTextEntryTarget(target)) return;
 
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+    if (event.key === "ArrowRight") {
       if (!this.isProjectionActive()) return;
       event.preventDefault();
       await this.advanceSlide("next");
-    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+    } else if (event.key === "ArrowLeft") {
       if (!this.isProjectionActive()) return;
       event.preventDefault();
       await this.advanceSlide("prev");
+    } else if (event.key === "ArrowDown") {
+      if (!this.isProjectionActive()) return;
+      event.preventDefault();
+      await this.advanceStanza("next");
+    } else if (event.key === "ArrowUp") {
+      if (!this.isProjectionActive()) return;
+      event.preventDefault();
+      await this.advanceStanza("prev");
     } else if (event.key.toLowerCase() === "b") {
       this.projection = await api.blankScreen();
-      await this.updatePreview();
     }
   };
 
@@ -849,7 +906,6 @@ export class PraiseApp extends PraiseElement {
             class="secondary compact"
             @click=${async () => {
               this.projection = await api.blankScreen();
-              await this.updatePreview();
             }}
           >
             Blank
@@ -1057,6 +1113,7 @@ export class PraiseApp extends PraiseElement {
           role="listbox"
           .songs=${this.songs}
           .currentFile=${this.currentFilename}
+          .projecting=${this.projecting}
           @praise-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
           @praise-focus-search=${() => this.focusActiveBrowseField()}
           @praise-project=${async (e: CustomEvent<string>) => {
@@ -1068,9 +1125,50 @@ export class PraiseApp extends PraiseElement {
     `;
   }
 
+  private sectionKind(sectionIndex: number): SectionKind {
+    return this.currentSong?.parsed.sections[sectionIndex]?.kind ?? "other";
+  }
+
+  private renderSongMinimap() {
+    if (!this.projecting || !this.isProjectionActive()) return nothing;
+    const markers = buildStanzaMarkers(this.projection!.slides);
+    const active = activeStanzaIndex(markers, this.projection!.current_index);
+    return html`
+      <div class="song-minimap" aria-label="Song sections">
+        <div class="song-minimap-toolbar">
+          <button type="button" class="secondary compact" @click=${() => this.stopProjection()}>
+            Stop
+            <kbd class="song-minimap-shortcut">Esc</kbd>
+          </button>
+        </div>
+        ${markers.length > 0
+          ? html`
+              <div class="song-minimap-list">
+                ${markers.map((marker, index) => {
+                  const isActive = index === active;
+                  const kind = this.sectionKind(marker.sectionIndex);
+                  return html`
+                    <button
+                      type="button"
+                      class="song-minimap-item ${isActive ? `active ${kind}` : ""}"
+                      aria-current=${isActive ? "true" : "false"}
+                      aria-label=${marker.fullText || `Section ${index + 1}`}
+                      @click=${() => this.jumpToStanza(marker.slideIndices[0])}
+                    >
+                      <span class="song-minimap-text">${marker.fullText || "\u00a0"}</span>
+                    </button>
+                  `;
+                })}
+              </div>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
   private renderSongPane() {
     return html`
-      <section class="song-pane">
+      <section class="song-pane ${this.projecting ? "projecting" : ""}">
         <header class="song-pane-header">
           <h1 class="song-title">
             ${this.currentSong
@@ -1080,22 +1178,11 @@ export class PraiseApp extends PraiseElement {
           <div class="song-meta-bar">${this.renderSongMeta()}</div>
         </header>
         <div class="song-body scroll-region">
-          <div class="song-content">${this.renderSongContent()}</div>
+          <div class="song-body-layout ${this.projecting ? "projecting" : ""}">
+            <div class="song-content">${this.renderSongContent()}</div>
+            ${this.renderSongMinimap()}
+          </div>
         </div>
-        ${this.projecting
-          ? html`
-              <footer class="live-preview">
-                <div class="slide-preview">
-                  <span class="preview-label">Now</span>
-                  <div class="preview-text">${this.nowPreviewText}</div>
-                </div>
-                <div class="slide-preview next">
-                  <span class="preview-label">Next</span>
-                  <div class="preview-text">${this.nextPreviewText}</div>
-                </div>
-              </footer>
-            `
-          : nothing}
       </section>
     `;
   }
@@ -1147,6 +1234,7 @@ export class PraiseApp extends PraiseElement {
   private audienceDisplayOptions(): SelectOption[] {
     return [
       { value: "", label: "Primary display" },
+      { value: SIMULATED_DISPLAY_ID, label: "Simulated display (window)" },
       ...this.displays.map((display) => ({ value: display.id, label: display.label })),
     ];
   }
@@ -1154,6 +1242,7 @@ export class PraiseApp extends PraiseElement {
   private stageDisplayOptions(): SelectOption[] {
     return [
       { value: "", label: "Default window" },
+      { value: SIMULATED_DISPLAY_ID, label: "Simulated display (window)" },
       ...this.displays.map((display) => ({ value: display.id, label: display.label })),
     ];
   }
@@ -1214,7 +1303,8 @@ export class PraiseApp extends PraiseElement {
       </div>
       <div class="shortcuts">
         <span><kbd>Enter</kbd> project</span>
-        <span><kbd>↑</kbd> <kbd>↓</kbd> slides</span>
+        <span><kbd>↑</kbd> <kbd>↓</kbd> stanzas</span>
+        <span><kbd>←</kbd> <kbd>→</kbd> slides</span>
         <span><kbd>B</kbd> blank</span>
         <span><kbd>Esc</kbd> close projection</span>
       </div>

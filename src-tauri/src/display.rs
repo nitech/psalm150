@@ -1,6 +1,9 @@
 use serde::Serialize;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow};
 use tauri::window::Monitor;
+
+/// Saved in config when the user picks "Simulated display" instead of a physical monitor.
+pub const SIMULATED_DISPLAY_ID: &str = "__simulated__";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -66,7 +69,14 @@ pub fn find_monitor(app: &AppHandle, monitor_id: &str) -> Result<Option<Monitor>
         .find(|monitor| display_id(monitor) == monitor_id))
 }
 
+pub fn is_simulated_display(monitor_id: Option<&str>) -> bool {
+    monitor_id == Some(SIMULATED_DISPLAY_ID)
+}
+
 pub fn resolve_monitor(app: &AppHandle, monitor_id: Option<&str>) -> Result<Option<Monitor>, String> {
+    if is_simulated_display(monitor_id) {
+        return Ok(None);
+    }
     match monitor_id {
         Some(id) if !id.is_empty() => find_monitor(app, id),
         _ => {
@@ -106,6 +116,65 @@ pub fn place_window_on_monitor(
     Ok(())
 }
 
+fn simulated_origin(app: &AppHandle, cascade: i32) -> PhysicalPosition<i32> {
+    if let Some(main) = app.get_webview_window("main") {
+        if let Ok(pos) = main.outer_position() {
+            let offset = 40 + cascade * 32;
+            return PhysicalPosition {
+                x: pos.x + offset,
+                y: pos.y + offset,
+            };
+        }
+    }
+    PhysicalPosition {
+        x: 80 + cascade * 32,
+        y: 80 + cascade * 32,
+    }
+}
+
+fn apply_simulated_display(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    window_label: &str,
+) -> Result<(), String> {
+    let cascade = match window_label {
+        "stage" => 1,
+        _ => 0,
+    };
+    let (title, width, height) = match window_label {
+        "stage" => ("Stage (Simulated Display)", 900.0, 640.0),
+        _ => ("Congregation (Simulated Display)", 960.0, 540.0),
+    };
+
+    let _ = window.set_fullscreen(false);
+    window.set_decorations(true).map_err(|e| e.to_string())?;
+    window.set_always_on_top(false).map_err(|e| e.to_string())?;
+    window.set_resizable(true).map_err(|e| e.to_string())?;
+    window.set_title(title).map_err(|e| e.to_string())?;
+    window
+        .set_size(Size::Logical(LogicalSize { width, height }))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_position(Position::Physical(simulated_origin(app, cascade)))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn restore_projection_window_chrome(window: &WebviewWindow, window_label: &str) -> Result<(), String> {
+    match window_label {
+        "audience" => {
+            window.set_decorations(false).map_err(|e| e.to_string())?;
+            window.set_always_on_top(true).map_err(|e| e.to_string())?;
+            window.set_title("Audience").map_err(|e| e.to_string())?;
+        }
+        "stage" => {
+            window.set_title("Stage").map_err(|e| e.to_string())?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 pub fn apply_monitor_to_window(
     app: &AppHandle,
     window_label: &str,
@@ -115,6 +184,13 @@ pub fn apply_monitor_to_window(
     let window = app
         .get_webview_window(window_label)
         .ok_or_else(|| format!("{window_label} window is not available"))?;
+
+    if is_simulated_display(monitor_id) {
+        return apply_simulated_display(app, &window, window_label);
+    }
+
+    restore_projection_window_chrome(&window, window_label)?;
+
     if let Some(monitor) = resolve_monitor(app, monitor_id)? {
         place_window_on_monitor(&window, &monitor, fullscreen)?;
     }

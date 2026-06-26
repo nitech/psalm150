@@ -128,6 +128,9 @@ export interface SetlistItem {
   id?: string | null;
 }
 
+/** Config value for projection on a resizable test window instead of a physical monitor. */
+export const SIMULATED_DISPLAY_ID = "__simulated__";
+
 export interface DisplayInfo {
   id: string;
   label: string;

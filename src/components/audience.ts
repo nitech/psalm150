@@ -9,35 +9,8 @@ import {
   listenAudienceSlide,
 } from "../projection-client";
 import type { ProjectionState, SlidePayload, SlideTheme } from "../api";
+import { activeStanzaIndex, buildStanzaMarkers } from "../stanza-markers";
 import { PraiseElement } from "./base";
-
-interface StanzaMarker {
-  stanzaIndex: number;
-  slideIndices: number[];
-}
-
-function stanzaKey(slide: SlidePayload): number {
-  return slide.stanza_index ?? slide.section_index ?? slide.index;
-}
-
-function buildStanzaMarkers(slides: SlidePayload[]): StanzaMarker[] {
-  const markers: StanzaMarker[] = [];
-  for (const slide of slides) {
-    const stanzaIndex = stanzaKey(slide);
-    const last = markers[markers.length - 1];
-    if (last && last.stanzaIndex === stanzaIndex) {
-      last.slideIndices.push(slide.index);
-    } else {
-      markers.push({ stanzaIndex, slideIndices: [slide.index] });
-    }
-  }
-  return markers;
-}
-
-function activeStanzaIndex(markers: StanzaMarker[], currentIndex: number): number {
-  const idx = markers.findIndex((marker) => marker.slideIndices.includes(currentIndex));
-  return idx >= 0 ? idx : 0;
-}
 
 function slideSignature(slide: SlidePayload): string {
   return `${slide.index}:${slide.stanza_index ?? 0}:${slide.lines.map((line) => line.text).join("\n")}`;

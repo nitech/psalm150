@@ -150,7 +150,7 @@ pub fn close_audience_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn open_stage_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let monitor_id = with_state(&state, |runtime| Ok(runtime.config.stage_monitor.clone()))?;
-    if monitor_id.is_some() {
+    if monitor_id.as_deref().is_some_and(|id| !id.is_empty()) {
         display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref(), false)?;
     }
     let window = app
@@ -172,7 +172,8 @@ pub fn close_stage_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn close_projection_windows(app: AppHandle) -> Result<(), String> {
     close_audience_window(app.clone())?;
-    close_stage_window(app)?;
+    close_stage_window(app.clone())?;
+    let _ = app.emit("projection-closed", ());
     Ok(())
 }
 

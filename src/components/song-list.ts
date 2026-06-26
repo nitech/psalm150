@@ -10,10 +10,12 @@ export class PraiseSongList extends PraiseElement {
   static properties = {
     songs: { attribute: false },
     currentFile: {},
+    projecting: { type: Boolean },
   };
 
   declare songs: SongRow[];
   declare currentFile: string | null;
+  declare projecting: boolean;
 
   private pendingFocus: string | null = null;
 
@@ -21,6 +23,7 @@ export class PraiseSongList extends PraiseElement {
     super();
     this.songs = [];
     this.currentFile = null;
+    this.projecting = false;
   }
 
   protected updated(changed: Map<PropertyKey, unknown>) {
@@ -43,6 +46,10 @@ export class PraiseSongList extends PraiseElement {
   }
 
   private onRowKeydown(event: KeyboardEvent, file: string) {
+    if (this.projecting && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      return;
+    }
+
     const index = this.songs.findIndex((song) => song.filename === file);
 
     if (event.key === "ArrowDown") {
@@ -101,7 +108,7 @@ export class PraiseSongList extends PraiseElement {
           data-file=${song.filename}
           class=${active ? "active" : ""}
           role="option"
-          tabindex="0"
+          tabindex=${this.projecting ? "-1" : "0"}
           aria-selected=${active ? "true" : "false"}
           @click=${() => this.emit("praise-select", song.filename)}
           @keydown=${(event: KeyboardEvent) => this.onRowKeydown(event, song.filename)}
