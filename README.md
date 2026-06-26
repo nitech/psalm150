@@ -13,6 +13,7 @@ Cross-platform church worship projection app built with Tauri 2 (Rust + TypeScri
 ```bash
 npm install
 npm run tauri dev
+npm run tauri 
 ```
 
 ## Usage

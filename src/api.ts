@@ -128,6 +128,29 @@ export interface SetlistItem {
   id?: string | null;
 }
 
+export interface DisplayInfo {
+  id: string;
+  label: string;
+  name?: string | null;
+  width: number;
+  height: number;
+  isPrimary: boolean;
+}
+
+export interface AppConfig {
+  last_songs_folder?: string | null;
+  read_only: boolean;
+  project_to_stage: boolean;
+  audience_monitor?: string | null;
+  stage_monitor?: string | null;
+  remote_enabled: boolean;
+  remote_pin?: string | null;
+  remote_port: number;
+  key_format_compressed: boolean;
+  history_days: number;
+  first_run_complete: boolean;
+}
+
 export const api = {
   pickSongsFolder: async () => {
     const selected = await open({
@@ -194,7 +217,12 @@ export const api = {
   setReadOnly: (readOnly: boolean) => invoke<void>("set_read_only", { readOnly }),
   setProjectToStage: (projectToStage: boolean) =>
     invoke<void>("set_project_to_stage", { projectToStage }),
-  getConfig: () => invoke<Record<string, unknown>>("get_config"),
+  getConfig: () => invoke<AppConfig>("get_config"),
+  listDisplays: () => invoke<DisplayInfo[]>("list_displays"),
+  setAudienceMonitor: (monitorId: string | null) =>
+    invoke<void>("set_audience_monitor", { monitorId }),
+  setStageMonitor: (monitorId: string | null) =>
+    invoke<void>("set_stage_monitor", { monitorId }),
   exportCcliReport: (from: string, to: string) =>
     invoke<string>("export_ccli_report", { from, to }),
   printSongbookHtml: (title: string, includeIndexes: boolean) =>

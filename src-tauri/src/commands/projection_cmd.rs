@@ -1,6 +1,7 @@
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::config::load_theme;
+use crate::display;
 use crate::library::chordpro::{parse_chordpro, ParsedSong, SongMeta};
 use crate::projection::modes::{audience_slide, stage_slide, StageSlide};
 use crate::projection::{blank_payload, build_slides, ProjectionState, SlidePayload};
@@ -127,10 +128,11 @@ pub fn create_projection_windows(app: &AppHandle) {
 
 #[tauri::command]
 pub fn open_audience_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let monitor_id = with_state(&state, |runtime| Ok(runtime.config.audience_monitor.clone()))?;
+    display::apply_monitor_to_window(&app, "audience", monitor_id.as_deref(), true)?;
     let window = app
         .get_webview_window("audience")
         .ok_or_else(|| "Audience window is not available".to_string())?;
-    let _ = window.set_fullscreen(true);
     window.show().map_err(|e| e.to_string())?;
     sync_projection_windows(&app, &state);
     Ok(())
@@ -147,6 +149,10 @@ pub fn close_audience_window(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn open_stage_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let monitor_id = with_state(&state, |runtime| Ok(runtime.config.stage_monitor.clone()))?;
+    if monitor_id.is_some() {
+        display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref(), false)?;
+    }
     let window = app
         .get_webview_window("stage")
         .ok_or_else(|| "Stage window is not available".to_string())?;

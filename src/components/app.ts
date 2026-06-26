@@ -4,6 +4,8 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import {
   api,
+  type AppConfig,
+  type DisplayInfo,
   type ImportProgress,
   type ImportReport,
   type LibraryStatus,
@@ -14,6 +16,10 @@ import {
   type SongRow,
 } from "../api";
 import { PraiseElement } from "./base";
+import type { PraiseCombobox } from "./combobox";
+import "./combobox";
+import type { SelectOption } from "./select";
+import "./select";
 import "./modal";
 import "./song-list";
 
@@ -49,6 +55,9 @@ export class PraiseApp extends PraiseElement {
     currentSetlist: { state: true },
     projectToStage: { state: true },
     readOnly: { state: true },
+    displays: { state: true },
+    audienceMonitor: { state: true },
+    stageMonitor: { state: true },
     keys: { state: true },
     query: { state: true },
     keySelected: { state: true },
@@ -79,6 +88,9 @@ export class PraiseApp extends PraiseElement {
   declare currentSetlist: Setlist | null;
   declare projectToStage: boolean;
   declare readOnly: boolean;
+  declare displays: DisplayInfo[];
+  declare audienceMonitor: string;
+  declare stageMonitor: string;
   declare keys: string[];
   declare query: string;
   declare keySelected: string;
@@ -120,6 +132,9 @@ export class PraiseApp extends PraiseElement {
     this.currentSetlist = null;
     this.projectToStage = false;
     this.readOnly = false;
+    this.displays = [];
+    this.audienceMonitor = "";
+    this.stageMonitor = "";
     this.keys = [];
     this.query = "";
     this.keySelected = "";
@@ -208,7 +223,7 @@ export class PraiseApp extends PraiseElement {
   }
 
   firstUpdated() {
-    this.focusSearchField();
+    this.focusActiveBrowseField();
     this.updateTabIndicator();
     this.observeTabIndicator();
   }
@@ -303,9 +318,13 @@ export class PraiseApp extends PraiseElement {
     requestAnimationFrame(() => this.updateTabIndicator());
   };
 
-  private focusSearchField() {
+  private focusActiveBrowseField() {
     requestAnimationFrame(() => {
-      this.querySelector<HTMLInputElement>("#search-input")?.focus({ preventScroll: true });
+      if (this.activeTab === "search") {
+        this.querySelector<HTMLInputElement>("#search-input")?.focus({ preventScroll: true });
+      } else if (this.activeTab === "key") {
+        this.querySelector<PraiseCombobox>("praise-combobox")?.focusInput();
+      }
     });
   }
 
@@ -547,12 +566,29 @@ export class PraiseApp extends PraiseElement {
   private async openSettings() {
     this.settingsOpen = true;
     try {
-      const config = await api.getConfig();
-      this.projectToStage = Boolean(config.project_to_stage);
-      this.readOnly = Boolean(config.read_only);
+      const [config, displays] = await Promise.all([api.getConfig(), api.listDisplays()]);
+      this.applyConfig(config);
+      this.displays = displays;
     } catch {
       // Config not loaded yet.
     }
+  }
+
+  private applyConfig(config: AppConfig) {
+    this.projectToStage = Boolean(config.project_to_stage);
+    this.readOnly = Boolean(config.read_only);
+    this.audienceMonitor = config.audience_monitor ?? "";
+    this.stageMonitor = config.stage_monitor ?? "";
+  }
+
+  private async onAudienceMonitorChange(monitorId: string) {
+    this.audienceMonitor = monitorId;
+    await api.setAudienceMonitor(monitorId || null);
+  }
+
+  private async onStageMonitorChange(monitorId: string) {
+    this.stageMonitor = monitorId;
+    await api.setStageMonitor(monitorId || null);
   }
 
   private async onProjectToStageChange(checked: boolean) {
@@ -602,6 +638,8 @@ export class PraiseApp extends PraiseElement {
     this.activeTab = tab;
     if (tab === "key") await this.loadKeyOptions();
     await this.refreshSongs();
+    await this.updateComplete;
+    if (tab === "search" || tab === "key") this.focusActiveBrowseField();
     requestAnimationFrame(() => this.updateTabIndicator());
   }
 
@@ -619,7 +657,7 @@ export class PraiseApp extends PraiseElement {
 
   private async bootstrapLibrary() {
     const config = await api.getConfig();
-    this.projectToStage = Boolean(config.project_to_stage);
+    this.applyConfig(config);
     const configuredFolder =
       typeof config.last_songs_folder === "string" ? config.last_songs_folder : null;
 
@@ -717,7 +755,20 @@ export class PraiseApp extends PraiseElement {
       event.preventDefault();
       await this.selectSong(first.filename);
       await this.updateComplete;
-      this.querySelector<HTMLElement>("praise-song-list li")?.focus();
+      const row = this.querySelector<HTMLElement>("praise-song-list li[data-file]");
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      const last = this.songs[this.songs.length - 1];
+      if (!last) return;
+      event.preventDefault();
+      await this.selectSong(last.filename);
+      await this.updateComplete;
+      const rows = this.querySelectorAll<HTMLElement>("praise-song-list li[data-file]");
+      rows[rows.length - 1]?.focus({ preventScroll: true });
+      rows[rows.length - 1]?.scrollIntoView({ block: "nearest" });
       return;
     }
     if (event.key === "Enter" && this.currentSong) {
@@ -967,16 +1018,15 @@ export class PraiseApp extends PraiseElement {
         ${this.activeTab === "key"
           ? html`
               <div class="browse-toolbar">
-                <select
+                <praise-combobox
+                  placeholder="Select key"
+                  .options=${this.keys}
                   .value=${this.keySelected}
-                  @change=${(e: Event) => {
-                    this.keySelected = (e.target as HTMLSelectElement).value;
+                  @praise-change=${(e: CustomEvent<string>) => {
+                    this.keySelected = e.detail;
                     void this.refreshSongs();
                   }}
-                >
-                  <option value="">Select key</option>
-                  ${this.keys.map((key) => html`<option value=${key}>${key}</option>`)}
-                </select>
+                ></praise-combobox>
               </div>
             `
           : nothing}
@@ -1008,6 +1058,7 @@ export class PraiseApp extends PraiseElement {
           .songs=${this.songs}
           .currentFile=${this.currentFilename}
           @praise-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
+          @praise-focus-search=${() => this.focusActiveBrowseField()}
           @praise-project=${async (e: CustomEvent<string>) => {
             if (this.currentFilename !== e.detail) await this.selectSong(e.detail);
             await this.projectLoadedSong();
@@ -1093,6 +1144,20 @@ export class PraiseApp extends PraiseElement {
     `;
   }
 
+  private audienceDisplayOptions(): SelectOption[] {
+    return [
+      { value: "", label: "Primary display" },
+      ...this.displays.map((display) => ({ value: display.id, label: display.label })),
+    ];
+  }
+
+  private stageDisplayOptions(): SelectOption[] {
+    return [
+      { value: "", label: "Default window" },
+      ...this.displays.map((display) => ({ value: display.id, label: display.label })),
+    ];
+  }
+
   private renderSettingsContent(): TemplateResult {
     const folderLabel = this.libraryStatus?.songs_folder ?? "No folder selected";
     return html`
@@ -1107,6 +1172,22 @@ export class PraiseApp extends PraiseElement {
       </div>
       <div class="settings-section">
         <h3>Projection</h3>
+        <div class="settings-row">
+          <span class="settings-row-label">Congregation</span>
+          <praise-select
+            .options=${this.audienceDisplayOptions()}
+            .value=${this.audienceMonitor}
+            @praise-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}
+          ></praise-select>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row-label">Stage</span>
+          <praise-select
+            .options=${this.stageDisplayOptions()}
+            .value=${this.stageMonitor}
+            @praise-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}
+          ></praise-select>
+        </div>
         <label class="settings-check">
           <input
             type="checkbox"

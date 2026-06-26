@@ -342,7 +342,7 @@ body.workspace-resizing {
   backdrop-filter: var(--blur-glass);
   -webkit-backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   position: relative;
 }
@@ -481,6 +481,92 @@ body.workspace-resizing {
   color: var(--text-placeholder);
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Combobox (typeahead)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.combobox {
+  position: relative;
+}
+
+.combobox input {
+  width: 100%;
+  height: 44px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  font-size: 0.88rem;
+  transition: all 0.2s ease;
+}
+
+.combobox input:hover {
+  border-color: var(--border-default);
+  background: var(--bg-elevated);
+}
+
+.combobox input:focus {
+  outline: none;
+  border-color: rgba(198, 216, 140, 0.45);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 3px var(--accent-lime-soft);
+}
+
+.combobox-list,
+.select-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.select-list {
+  z-index: 30;
+}
+
+.dropdown-scroll {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.dropdown-scroll:hover,
+.dropdown-scroll.is-scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.combobox-list .dropdown-scroll {
+  max-height: 240px;
+}
+
+.select-list .dropdown-scroll {
+  max-height: 220px;
+}
+
+.combobox-list li {
+  margin: 3px 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.combobox-list li.highlighted,
+.combobox-list li:hover {
+  background: var(--accent-lime-soft);
+  color: var(--text-primary);
+}
+
 .search-icon {
   position: absolute;
   left: 14px;
@@ -521,34 +607,44 @@ body.workspace-resizing {
   border-color: var(--border-subtle);
 }
 
+.song-list li:focus {
+  outline: none;
+}
+
+.song-list li:focus-visible {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
 .song-list li.active {
   background: var(--accent-lime-soft);
-  border-color: rgba(198, 216, 140, 0.25);
-  box-shadow: inset 0 0 0 1px rgba(198, 216, 140, 0.1);
+  border-color: rgba(198, 216, 140, 0.12);
+}
+
+.song-list li.active:hover,
+.song-list li.active:focus-visible {
+  background: rgba(198, 216, 140, 0.16);
+  border-color: rgba(198, 216, 140, 0.16);
 }
 
 .song-list li.active .song-list-title {
-  color: var(--accent-lime);
-  font-weight: 600;
-}
-
-.song-list-lead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  font-size: 0.7rem;
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 .song-list-num {
+  flex-shrink: 0;
   min-width: 2.2em;
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
 .song-list-key {
+  flex-shrink: 0;
   min-width: 1.4em;
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
   text-align: center;
 }
 
@@ -602,7 +698,7 @@ body.workspace-resizing {
   backdrop-filter: var(--blur-glass);
   -webkit-backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-lg);
 }
 
 .song-pane-header {
@@ -1057,6 +1153,125 @@ select option {
   color: var(--text-tertiary);
 }
 
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.settings-row-label {
+  flex: 0 0 auto;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+
+.settings-row praise-select {
+  flex: 0 1 240px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Select (custom dropdown)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.select {
+  position: relative;
+  width: 100%;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  text-align: left;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    border-color var(--dur-base) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard);
+}
+
+.select-trigger:hover {
+  border-color: var(--border-default);
+  background: var(--bg-elevated);
+}
+
+.select-trigger:focus {
+  outline: none;
+  border-color: rgba(198, 216, 140, 0.45);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 3px var(--accent-lime-soft);
+}
+
+.select.open .select-trigger {
+  border-color: rgba(198, 216, 140, 0.45);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 3px var(--accent-lime-soft);
+}
+
+.select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-chevron {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%239a9a9a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.select.open .select-chevron {
+  transform: rotate(180deg);
+}
+
+.select-list li {
+  margin: 3px 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+
+.select-list li.selected {
+  color: var(--text-primary);
+}
+
+.select-list li.highlighted,
+.select-list li:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.select-list li.selected.highlighted,
+.select-list li.selected:hover {
+  background: var(--accent-lime-soft);
+  color: var(--text-primary);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Modals
    ───────────────────────────────────────────────────────────────────────────── */
@@ -1266,7 +1481,15 @@ select option {
   width: 6px;
 }
 
+.dropdown-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
 .scroll-region::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dropdown-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -1275,8 +1498,28 @@ select option {
   border-radius: var(--radius-full);
 }
 
+.dropdown-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background-clip: padding-box;
+  transition: background var(--dur-base) var(--ease-standard);
+}
+
+.dropdown-scroll:hover::-webkit-scrollbar-thumb,
+.dropdown-scroll.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  background-clip: padding-box;
+}
+
 .scroll-region::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.dropdown-scroll:hover::-webkit-scrollbar-thumb:hover,
+.dropdown-scroll.is-scrolling::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+  background-clip: padding-box;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

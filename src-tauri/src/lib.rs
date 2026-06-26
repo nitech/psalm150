@@ -1,6 +1,7 @@
 pub mod ccli;
 pub mod commands;
 pub mod config;
+pub mod display;
 pub mod db;
 pub mod duplicates;
 pub mod import;
@@ -230,6 +231,9 @@ pub fn run() {
             commands::config_cmd::get_theme,
             commands::config_cmd::save_shortcuts,
             commands::config_cmd::get_shortcuts,
+            commands::config_cmd::list_displays,
+            commands::config_cmd::set_audience_monitor,
+            commands::config_cmd::set_stage_monitor,
             commands::ccli_cmd::export_ccli_report,
             commands::print_cmd::print_songbook_html,
             commands::remote_cmd::start_remote,

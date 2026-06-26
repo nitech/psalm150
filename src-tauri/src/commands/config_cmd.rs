@@ -1,6 +1,7 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::config::{self, AppConfig};
+use crate::display::{self, DisplayInfo};
 use crate::projection::SlideTheme;
 use crate::{with_state, AppState};
 
@@ -63,4 +64,45 @@ pub fn save_shortcuts(app: AppHandle, state: State<'_, AppState>, shortcuts: con
 #[tauri::command]
 pub fn get_shortcuts(state: State<'_, AppState>) -> Result<config::ShortcutConfig, String> {
     with_state(&state, |runtime| Ok(runtime.config.shortcuts.clone()))
+}
+
+#[tauri::command]
+pub fn list_displays(app: AppHandle) -> Result<Vec<DisplayInfo>, String> {
+    display::list_displays(&app)
+}
+
+#[tauri::command]
+pub fn set_audience_monitor(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    monitor_id: Option<String>,
+) -> Result<(), String> {
+    with_state(&state, |runtime| {
+        runtime.config.audience_monitor = monitor_id.clone();
+        runtime.config.save(&app)
+    })?;
+    if let Some(window) = app.get_webview_window("audience") {
+        if window.is_visible().unwrap_or(false) {
+            display::apply_monitor_to_window(&app, "audience", monitor_id.as_deref(), true)?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_stage_monitor(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    monitor_id: Option<String>,
+) -> Result<(), String> {
+    with_state(&state, |runtime| {
+        runtime.config.stage_monitor = monitor_id.clone();
+        runtime.config.save(&app)
+    })?;
+    if let Some(window) = app.get_webview_window("stage") {
+        if window.is_visible().unwrap_or(false) {
+            display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref(), false)?;
+        }
+    }
+    Ok(())
 }
