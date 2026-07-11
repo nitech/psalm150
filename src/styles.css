@@ -78,9 +78,6 @@
   --dur-fast: 120ms;
   --dur-base: 200ms;
 
-  --app-header-height: 69px;
-  --projection-minimap-width: min(300px, 30vw);
-
   /* Typography — neo-grotesque with light-weight numerals */
   --font-ui: "Geist", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-display: "Geist", "Inter", system-ui, sans-serif;
@@ -735,131 +732,6 @@ body.workspace-resizing {
   border-radius: var(--radius-lg);
 }
 
-.projection-minimap {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  width: var(--projection-minimap-width);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0 0 20px 12px;
-  background: var(--bg-glass);
-  backdrop-filter: var(--blur-glass);
-  -webkit-backdrop-filter: var(--blur-glass);
-  border-left: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-lg);
-  transform: translateX(100%);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform var(--dur-base) var(--ease-decelerate),
-    opacity var(--dur-base) var(--ease-decelerate);
-}
-
-.projection-minimap-toolbar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 36px;
-  padding: 8px 8px 0 0;
-}
-
-.projection-minimap-close {
-  position: relative;
-  z-index: 41;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition:
-    background var(--dur-fast) var(--ease-standard),
-    color var(--dur-fast) var(--ease-standard);
-}
-
-.projection-minimap-close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
-}
-
-.projection-minimap-close:focus {
-  outline: none;
-}
-
-.projection-minimap-close:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.12);
-  outline-offset: 2px;
-}
-
-.song-minimap-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.projection-minimap.is-open {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.song-minimap-item {
-  position: relative;
-  width: 100%;
-  text-align: left;
-  padding: 6px 12px 6px 15px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.song-minimap-item.active::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: 3px;
-  background: var(--accent-secondary);
-}
-
-.song-minimap-item:hover .song-lyrics {
-  color: var(--text-strong);
-}
-
-.song-minimap-item:focus {
-  outline: none;
-}
-
-.song-minimap-item:focus-visible:not(.active) {
-  outline: 1px solid rgba(255, 255, 255, 0.12);
-  outline-offset: 2px;
-}
-
-.projection-minimap .song-minimap-stanza {
-  zoom: var(--song-fit-zoom, 1);
-}
-
-.projection-minimap .song-lyrics {
-  color: var(--text-secondary);
-}
-
-.projection-minimap .song-minimap-item.active .song-lyrics {
-  color: var(--text-strong);
-}
-
 .song-pane-header {
   padding: 20px 32px 14px;
   flex-shrink: 0;
@@ -943,13 +815,34 @@ body.workspace-resizing {
   color: var(--text-secondary);
 }
 
-.song-content.projecting {
-  zoom: var(--song-fit-zoom, 1);
-  padding-block: 16px 24px;
+.song-content.projecting .song-stanza {
+  position: relative;
+  margin: 0;
+  cursor: pointer;
 }
 
-praise-app {
-  --song-fit-zoom: 1;
+.song-content.projecting .song-stanza + .song-stanza {
+  margin-top: calc(0.9rem + 0.15rem);
+}
+
+.song-content.projecting .song-stanza:not(.active) .song-lyrics {
+  opacity: 0.45;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.song-content.projecting .song-stanza.active .song-lyrics {
+  opacity: 1;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.song-content.projecting .song-stanza.active::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: -15px;
+  width: 3px;
+  background: var(--accent-lime);
+  border-radius: var(--radius-full);
 }
 
 .song-section + .song-section {
@@ -1756,14 +1649,6 @@ select option {
   .song-pane {
     flex: 1 1 0;
     min-height: 0;
-  }
-
-  .projection-minimap {
-    width: min(100vw, 320px);
-  }
-
-  .projection-minimap-toolbar {
-    padding-right: 8px;
   }
 
   .app-header {
