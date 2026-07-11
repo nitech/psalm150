@@ -1,4 +1,7 @@
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent,
+};
 
 use crate::config::load_theme;
 use crate::display;
@@ -104,39 +107,76 @@ fn sync_projection_windows(app: &AppHandle, state: &AppState) {
     }
 }
 
+fn build_audience_window(app: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
+    WebviewWindowBuilder::new(app, "audience", WebviewUrl::App("audience.html".into()))
+        .title("Audience")
+        .decorations(false)
+        .always_on_top(true)
+        .visible(false)
+        .build()
+}
+
+fn build_stage_window(app: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
+    WebviewWindowBuilder::new(app, "stage", WebviewUrl::App("stage.html".into()))
+        .title("Stage")
+        .inner_size(900.0, 640.0)
+        .visible(false)
+        .build()
+}
+
+/// Intercept the title-bar close button so projection windows are hidden, not
+/// destroyed. Simulated-display mode enables decorations; destroying a window
+/// makes later `open_*` calls fail because sync rebuild deadlocks on Windows.
+fn attach_projection_close_handler(window: &WebviewWindow, app: AppHandle) {
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = close_projection_windows(app.clone());
+        }
+    });
+}
+
+fn ensure_projection_window(app: &AppHandle, label: &str) -> Result<(), String> {
+    if app.get_webview_window(label).is_some() {
+        return Ok(());
+    }
+    let window = match label {
+        "audience" => build_audience_window(app),
+        "stage" => build_stage_window(app),
+        _ => return Err(format!("Unknown projection window: {label}")),
+    }
+    .map_err(|e| e.to_string())?;
+    attach_projection_close_handler(&window, app.clone());
+    Ok(())
+}
+
 /// Create the audience and stage windows once, hidden, during app startup.
 ///
 /// Building windows here (on the main thread during `setup`) is safe; building
 /// them later from inside a command can deadlock the event loop on Windows.
 pub fn create_projection_windows(app: &AppHandle) {
     if app.get_webview_window("audience").is_none() {
-        if let Err(e) =
-            WebviewWindowBuilder::new(app, "audience", WebviewUrl::App("audience.html".into()))
-                .title("Audience")
-                .decorations(false)
-                .always_on_top(true)
-                .visible(false)
-                .build()
-        {
-            eprintln!("[projection] failed to create audience window: {e}");
+        match build_audience_window(app) {
+            Ok(window) => attach_projection_close_handler(&window, app.clone()),
+            Err(e) => eprintln!("[projection] failed to create audience window: {e}"),
         }
+    } else if let Some(window) = app.get_webview_window("audience") {
+        attach_projection_close_handler(&window, app.clone());
     }
 
     if app.get_webview_window("stage").is_none() {
-        if let Err(e) =
-            WebviewWindowBuilder::new(app, "stage", WebviewUrl::App("stage.html".into()))
-                .title("Stage")
-                .inner_size(900.0, 640.0)
-                .visible(false)
-                .build()
-        {
-            eprintln!("[projection] failed to create stage window: {e}");
+        match build_stage_window(app) {
+            Ok(window) => attach_projection_close_handler(&window, app.clone()),
+            Err(e) => eprintln!("[projection] failed to create stage window: {e}"),
         }
+    } else if let Some(window) = app.get_webview_window("stage") {
+        attach_projection_close_handler(&window, app.clone());
     }
 }
 
 #[tauri::command]
-pub fn open_audience_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn open_audience_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    ensure_projection_window(&app, "audience")?;
     let monitor_id = with_state(&state, |runtime| {
         Ok(runtime.config.audience_monitor.clone())
     })?;
@@ -162,7 +202,8 @@ pub fn close_audience_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_stage_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn open_stage_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    ensure_projection_window(&app, "stage")?;
     let monitor_id = with_state(&state, |runtime| Ok(runtime.config.stage_monitor.clone()))?;
     if monitor_id.as_deref().is_some_and(|id| !id.is_empty()) {
         display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref(), false)?;

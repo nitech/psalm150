@@ -83,8 +83,11 @@ pub fn run() {
                 .global_shortcut()
                 .on_shortcut("Escape", |app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
-                        let projecting = app.get_webview_window("audience").is_some()
-                            || app.get_webview_window("stage").is_some();
+                        let projecting = ["audience", "stage"].iter().any(|label| {
+                            app.get_webview_window(label)
+                                .and_then(|window| window.is_visible().ok())
+                                .unwrap_or(false)
+                        });
                         if projecting {
                             let _ = commands::projection_cmd::close_projection_windows(app.clone());
                         }
