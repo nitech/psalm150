@@ -4,7 +4,11 @@ use crate::print::{render_indexes_html, render_songbook_html};
 use crate::{with_state, AppState};
 
 #[tauri::command]
-pub fn print_songbook_html(state: State<'_, AppState>, title: String, include_indexes: bool) -> Result<String, String> {
+pub fn print_songbook_html(
+    state: State<'_, AppState>,
+    title: String,
+    include_indexes: bool,
+) -> Result<String, String> {
     with_state(&state, |runtime| {
         let db = runtime
             .db

@@ -79,9 +79,14 @@ impl Database {
     }
 
     pub fn rebuild_from_songs(&self, songs: &[ParsedSong]) -> Result<(), String> {
-        let tx = self.conn.unchecked_transaction().map_err(|e| e.to_string())?;
-        tx.execute("DELETE FROM songs", []).map_err(|e| e.to_string())?;
-        tx.execute("DELETE FROM song_search", []).map_err(|e| e.to_string())?;
+        let tx = self
+            .conn
+            .unchecked_transaction()
+            .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM songs", [])
+            .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM song_search", [])
+            .map_err(|e| e.to_string())?;
 
         for song in songs {
             let body_plain = plain_body(song);
@@ -187,10 +192,7 @@ impl Database {
         }
         let trimmed = query.trim();
         let like = format!("%{trimmed}%");
-        let num_like = format!(
-            "%{}%",
-            trimmed.strip_prefix('#').unwrap_or(trimmed)
-        );
+        let num_like = format!("%{}%", trimmed.strip_prefix('#').unwrap_or(trimmed));
         let sql = if favorites_only {
             "SELECT s.id, s.filename, s.title, s.title_sort, s.song_num, s.key, s.category, s.tags, s.ccli, s.modified_at,
                     1 as favorite
@@ -227,7 +229,9 @@ impl Database {
              ORDER BY s.title_sort"
         };
         let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([], map_song_row).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], map_song_row)
+            .map_err(|e| e.to_string())?;
         collect_rows(rows)
     }
 
@@ -343,7 +347,10 @@ impl Database {
             .map_err(|e| e.to_string())?;
         if exists > 0 {
             self.conn
-                .execute("DELETE FROM favorites WHERE filename = ?1", params![filename])
+                .execute(
+                    "DELETE FROM favorites WHERE filename = ?1",
+                    params![filename],
+                )
                 .map_err(|e| e.to_string())?;
             Ok(false)
         } else {

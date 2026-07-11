@@ -38,10 +38,7 @@ pub fn read_vsb_mdb(path: &Path) -> Result<Vec<VsbSongRow>, String> {
             .get("Copyright")
             .and_then(value_as_string)
             .filter(|s| !s.is_empty());
-        let category_id = cols
-            .get("CategoryId")
-            .and_then(value_as_i64)
-            .unwrap_or(0);
+        let category_id = cols.get("CategoryId").and_then(value_as_i64).unwrap_or(0);
 
         if title.trim().is_empty() {
             return None;
@@ -82,38 +79,17 @@ pub fn read_page_setup(path: &Path) -> Result<SlideTheme, String> {
             .get("FontName")
             .and_then(value_as_string)
             .unwrap_or_else(|| "Arial".into());
-        let font_size = row
-            .get("FontSize")
-            .and_then(value_as_f64)
-            .unwrap_or(24.0) as f32;
-        let font_bold = row
-            .get("FontBold")
-            .and_then(value_as_bool)
-            .unwrap_or(true);
+        let font_size = row.get("FontSize").and_then(value_as_f64).unwrap_or(24.0) as f32;
+        let font_bold = row.get("FontBold").and_then(value_as_bool).unwrap_or(true);
         let fore = row
             .get("ForeColor")
             .and_then(value_as_i64)
             .unwrap_or(0xFFFFFF) as u32;
-        let back = row
-            .get("BackColor")
-            .and_then(value_as_i64)
-            .unwrap_or(0) as u32;
-        let margin_top = row
-            .get("MarginTop")
-            .and_then(value_as_i64)
-            .unwrap_or(0) as u32;
-        let margin_left = row
-            .get("MarginLeft")
-            .and_then(value_as_i64)
-            .unwrap_or(48) as u32;
-        let margin_right = row
-            .get("MarginRight")
-            .and_then(value_as_i64)
-            .unwrap_or(48) as u32;
-        let margin_bottom = row
-            .get("MarginBottom")
-            .and_then(value_as_i64)
-            .unwrap_or(48) as u32;
+        let back = row.get("BackColor").and_then(value_as_i64).unwrap_or(0) as u32;
+        let margin_top = row.get("MarginTop").and_then(value_as_i64).unwrap_or(0) as u32;
+        let margin_left = row.get("MarginLeft").and_then(value_as_i64).unwrap_or(48) as u32;
+        let margin_right = row.get("MarginRight").and_then(value_as_i64).unwrap_or(48) as u32;
+        let margin_bottom = row.get("MarginBottom").and_then(value_as_i64).unwrap_or(48) as u32;
 
         return Ok(SlideTheme {
             font_name,

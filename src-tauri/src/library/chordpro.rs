@@ -39,6 +39,7 @@ pub struct SongSection {
 pub enum SectionKind {
     Verse,
     Chorus,
+    Chorus2,
     Bridge,
     Other,
 }
@@ -78,7 +79,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                              label: &mut String,
                              kind: &mut SectionKind,
                              lines: &mut Vec<LyricLine>| {
-        if !lines.is_empty() {
+        if !lines.is_empty() || *kind == SectionKind::Chorus {
             sections.push(SongSection {
                 label: label.clone(),
                 kind: kind.clone(),
@@ -125,6 +126,16 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                     );
                     current_label = "Chorus".into();
                     current_kind = SectionKind::Chorus;
+                }
+                "start_of_chorus2" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    current_label = "Chorus 2".into();
+                    current_kind = SectionKind::Chorus2;
                 }
                 "start_of_bridge" => {
                     flush_section(
@@ -265,6 +276,7 @@ pub fn serialize_chordpro(song: &ParsedSong) -> String {
         let directive = match section.kind {
             SectionKind::Verse => "start_of_verse",
             SectionKind::Chorus => "start_of_chorus",
+            SectionKind::Chorus2 => "start_of_chorus2",
             SectionKind::Bridge => "start_of_bridge",
             SectionKind::Other => "start_of_verse",
         };

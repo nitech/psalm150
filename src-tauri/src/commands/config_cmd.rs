@@ -11,7 +11,11 @@ pub fn get_config(state: State<'_, AppState>) -> Result<AppConfig, String> {
 }
 
 #[tauri::command]
-pub fn set_read_only(app: AppHandle, state: State<'_, AppState>, read_only: bool) -> Result<(), String> {
+pub fn set_read_only(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    read_only: bool,
+) -> Result<(), String> {
     with_state(&state, |runtime| {
         runtime.read_only = read_only;
         runtime.config.read_only = read_only;
@@ -32,7 +36,23 @@ pub fn set_project_to_stage(
 }
 
 #[tauri::command]
-pub fn save_theme(app: AppHandle, state: State<'_, AppState>, theme: SlideTheme) -> Result<(), String> {
+pub fn set_web_search_enabled(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    with_state(&state, |runtime| {
+        runtime.config.web_search_enabled = enabled;
+        runtime.config.save(&app)
+    })
+}
+
+#[tauri::command]
+pub fn save_theme(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    theme: SlideTheme,
+) -> Result<(), String> {
     with_state(&state, |runtime| {
         let hash = runtime
             .folder_hash
@@ -54,7 +74,11 @@ pub fn get_theme(app: AppHandle, state: State<'_, AppState>) -> Result<SlideThem
 }
 
 #[tauri::command]
-pub fn save_shortcuts(app: AppHandle, state: State<'_, AppState>, shortcuts: config::ShortcutConfig) -> Result<(), String> {
+pub fn save_shortcuts(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    shortcuts: config::ShortcutConfig,
+) -> Result<(), String> {
     with_state(&state, |runtime| {
         runtime.config.shortcuts = shortcuts;
         runtime.config.save(&app)

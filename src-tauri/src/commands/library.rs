@@ -92,7 +92,12 @@ pub fn activate_songs_folder(
     build_status(&path, false, count, true)
 }
 
-fn build_status(path: &PathBuf, dirty: bool, count: usize, scan_disk: bool) -> Result<LibraryStatus, String> {
+fn build_status(
+    path: &PathBuf,
+    dirty: bool,
+    count: usize,
+    scan_disk: bool,
+) -> Result<LibraryStatus, String> {
     Ok(LibraryStatus {
         songs_folder: Some(path.to_string_lossy().into()),
         song_count: count,
@@ -228,18 +233,16 @@ pub fn search_songs(
 ) -> Result<Vec<SongRow>, String> {
     require_db(&state)?;
     with_state(&state, |runtime| {
-        runtime
-            .db
-            .as_ref()
-            .unwrap()
-            .search(&query, favorites_only)
+        runtime.db.as_ref().unwrap().search(&query, favorites_only)
     })
 }
 
 #[tauri::command]
 pub fn list_by_key(state: State<'_, AppState>, key: String) -> Result<Vec<SongRow>, String> {
     require_db(&state)?;
-    with_state(&state, |runtime| runtime.db.as_ref().unwrap().list_by_key(&key))
+    with_state(&state, |runtime| {
+        runtime.db.as_ref().unwrap().list_by_key(&key)
+    })
 }
 
 #[tauri::command]
@@ -251,23 +254,34 @@ pub fn list_keys(state: State<'_, AppState>) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn list_categories(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     require_db(&state)?;
-    with_state(&state, |runtime| runtime.db.as_ref().unwrap().list_categories())
+    with_state(&state, |runtime| {
+        runtime.db.as_ref().unwrap().list_categories()
+    })
 }
 
 #[tauri::command]
-pub fn get_history(state: State<'_, AppState>, limit: i64) -> Result<Vec<(String, String, String)>, String> {
+pub fn get_history(
+    state: State<'_, AppState>,
+    limit: i64,
+) -> Result<Vec<(String, String, String)>, String> {
     require_db(&state)?;
-    with_state(&state, |runtime| runtime.db.as_ref().unwrap().get_history(limit))
+    with_state(&state, |runtime| {
+        runtime.db.as_ref().unwrap().get_history(limit)
+    })
 }
 
 #[tauri::command]
 pub fn toggle_favorite(state: State<'_, AppState>, filename: String) -> Result<bool, String> {
     require_db(&state)?;
-    with_state(&state, |runtime| runtime.db.as_ref().unwrap().toggle_favorite(&filename))
+    with_state(&state, |runtime| {
+        runtime.db.as_ref().unwrap().toggle_favorite(&filename)
+    })
 }
 
 #[tauri::command]
 pub fn list_favorites(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     require_db(&state)?;
-    with_state(&state, |runtime| runtime.db.as_ref().unwrap().list_favorites())
+    with_state(&state, |runtime| {
+        runtime.db.as_ref().unwrap().list_favorites()
+    })
 }

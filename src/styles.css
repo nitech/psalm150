@@ -683,6 +683,35 @@ body.workspace-resizing {
   border-color: transparent;
 }
 
+.web-results-header {
+  padding: 12px 16px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: default;
+  background: transparent;
+  border: none;
+  list-style: none;
+}
+
+.web-results-header:hover {
+  background: transparent;
+}
+
+.web-results-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.web-results-loading {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Song Pane (Right Content Area)
    ───────────────────────────────────────────────────────────────────────────── */
@@ -790,6 +819,13 @@ body.workspace-resizing {
   box-shadow: 0 0 0 1px rgba(198, 216, 140, 0.12);
 }
 
+.song-minimap-item.active.chorus2 {
+  background: rgba(140, 180, 216, 0.28);
+  border-color: rgba(140, 180, 216, 0.48);
+  color: #a8cce8;
+  box-shadow: 0 0 0 1px rgba(140, 180, 216, 0.14);
+}
+
 .song-minimap-item.active.bridge {
   background: rgba(70, 192, 129, 0.2);
   border-color: rgba(70, 192, 129, 0.42);
@@ -819,8 +855,13 @@ body.workspace-resizing {
 
 .song-pane-header-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
+}
+
+.song-pane-save {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .song-title {
@@ -923,6 +964,7 @@ body.workspace-resizing {
 
 /* statusIndicatorBar pattern — 3px semaphore, accent used sparingly */
 .song-section.chorus .song-section-label::before,
+.song-section.chorus2 .song-section-label::before,
 .song-section.bridge .song-section-label::before {
   content: "";
   display: block;
@@ -934,6 +976,10 @@ body.workspace-resizing {
 
 .song-section.chorus .song-section-label::before {
   background: var(--accent-lime);
+}
+
+.song-section.chorus2 .song-section-label::before {
+  background: #8cb4d8;
 }
 
 .song-section.bridge .song-section-label::before {
@@ -1804,7 +1850,6 @@ body.audience-projection {
   font-style: var(--praise-font-style);
   letter-spacing: -0.02em;
   white-space: pre-wrap;
-  text-wrap: balance;
   animation: audience-in 0.45s ease-out both;
 }
 
@@ -1838,6 +1883,41 @@ body.audience-projection {
   font-size: clamp(0.8rem, 1.2vw, 1rem);
   color: rgba(255, 255, 255, 0.75);
   letter-spacing: 0.02em;
+}
+
+.audience-stanza-counter {
+  position: fixed;
+  right: clamp(20px, 3vw, 40px);
+  bottom: clamp(20px, 3vw, 36px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.5vw, 16px);
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: clamp(0.85rem, 1.3vw, 1.05rem);
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+}
+
+.audience-stanza-arrow {
+  font-size: 0.9em;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.audience-stanza-arrow.dim {
+  opacity: 0.25;
+}
+
+.audience-stanza-count {
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5em;
+  text-align: center;
 }
 
 .audience-progress {

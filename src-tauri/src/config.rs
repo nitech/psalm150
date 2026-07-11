@@ -14,6 +14,9 @@ pub struct AppConfig {
     /// When projecting a song, also show the stage window (musician chords).
     #[serde(default)]
     pub project_to_stage: bool,
+    /// Search the web for songs when local library has no matches.
+    #[serde(default = "default_web_search_enabled")]
+    pub web_search_enabled: bool,
     pub audience_monitor: Option<String>,
     pub stage_monitor: Option<String>,
     pub remote_enabled: bool,
@@ -25,12 +28,17 @@ pub struct AppConfig {
     pub first_run_complete: bool,
 }
 
+fn default_web_search_enabled() -> bool {
+    true
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             last_songs_folder: None,
             read_only: false,
             project_to_stage: false,
+            web_search_enabled: default_web_search_enabled(),
             audience_monitor: None,
             stage_monitor: None,
             remote_enabled: false,

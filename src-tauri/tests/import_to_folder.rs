@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use praise_lib::import::mdb::read_vsb_categories;
 use praise_lib::import::import_mdb_to_folder;
+use praise_lib::import::mdb::read_vsb_categories;
 
 #[test]
 fn imports_temp_brattvaag_mdb_when_present() {
@@ -16,6 +16,14 @@ fn imports_temp_brattvaag_mdb_when_present() {
     let categories = read_vsb_categories(&mdb).expect("read categories");
     let report = import_mdb_to_folder(&mdb, &out, &categories).expect("import");
 
-    assert!(report.written > 900, "expected ~963 songs, got {}", report.written);
-    assert!(out.read_dir().unwrap().any(|e| e.unwrap().path().extension().is_some_and(|x| x == "pro")));
+    assert!(
+        report.written > 900,
+        "expected ~963 songs, got {}",
+        report.written
+    );
+    assert!(out.read_dir().unwrap().any(|e| e
+        .unwrap()
+        .path()
+        .extension()
+        .is_some_and(|x| x == "pro")));
 }

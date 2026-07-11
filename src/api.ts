@@ -31,6 +31,7 @@ export interface SlideLine {
 export interface SlideOverlay {
   title?: string | null;
   key?: string | null;
+  song_num?: number | null;
   copyright?: string | null;
   ccli?: string | null;
 }
@@ -73,7 +74,7 @@ export interface ProjectionState {
   hold_slide_id?: string | null;
 }
 
-export type SectionKind = "verse" | "chorus" | "bridge" | "other";
+export type SectionKind = "verse" | "chorus" | "chorus2" | "bridge" | "other";
 
 export interface ChordPlacement {
   chord: string;
@@ -98,6 +99,13 @@ export interface SongDetail {
     sections: SongSection[];
   };
   projection: ProjectionState;
+}
+
+export interface WebSearchCandidate {
+  title: string;
+  source_name: string;
+  source_url: string;
+  chordpro_content: string;
 }
 
 export interface ImportReport {
@@ -143,6 +151,7 @@ export interface DisplayInfo {
 export interface AppConfig {
   last_songs_folder?: string | null;
   read_only: boolean;
+  web_search_enabled: boolean;
   project_to_stage: boolean;
   audience_monitor?: string | null;
   stage_monitor?: string | null;
@@ -171,6 +180,8 @@ export const api = {
   rescanSongs: () => invoke<LibraryStatus>("rescan_songs"),
   searchSongs: (query: string, favoritesOnly = false) =>
     invoke<SongRow[]>("search_songs", { query, favoritesOnly }),
+  searchWebSongs: (query: string) =>
+    invoke<WebSearchCandidate[]>("search_web_songs", { query }),
   listByKey: (key: string) => invoke<SongRow[]>("list_by_key", { key }),
   listKeys: () => invoke<string[]>("list_keys"),
   listCategories: () => invoke<string[]>("list_categories"),
@@ -218,6 +229,8 @@ export const api = {
   setlistAdvance: () => invoke<SetlistItem | null>("setlist_advance"),
   setlistPrevious: () => invoke<SetlistItem | null>("setlist_previous"),
   setReadOnly: (readOnly: boolean) => invoke<void>("set_read_only", { readOnly }),
+  setWebSearchEnabled: (enabled: boolean) =>
+    invoke<void>("set_web_search_enabled", { enabled }),
   setProjectToStage: (projectToStage: boolean) =>
     invoke<void>("set_project_to_stage", { projectToStage }),
   getConfig: () => invoke<AppConfig>("get_config"),

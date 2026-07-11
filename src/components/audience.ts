@@ -147,10 +147,12 @@ export class PraiseAudience extends PraiseElement {
     const padX = parseFloat(screenStyle.paddingLeft) + parseFloat(screenStyle.paddingRight);
     const padY = parseFloat(screenStyle.paddingTop) + parseFloat(screenStyle.paddingBottom);
     const overlay = this.querySelector<HTMLElement>(".audience-overlay");
+    const counter = this.querySelector<HTMLElement>(".audience-stanza-counter");
     const overlayReserve = overlay && overlay.textContent?.trim() ? overlay.offsetHeight + 24 : 0;
+    const counterReserve = counter ? counter.offsetHeight + 24 : 0;
 
     const availableWidth = Math.max(1, screen.clientWidth - padX);
-    const availableHeight = Math.max(1, screen.clientHeight - padY - overlayReserve);
+    const availableHeight = Math.max(1, screen.clientHeight - padY - overlayReserve - counterReserve);
 
     const scale = Math.min(
       availableWidth / content.scrollWidth,
@@ -164,30 +166,32 @@ export class PraiseAudience extends PraiseElement {
 
   private overlayText(slide: SlidePayload): string {
     const theme = this.theme;
-    return [
-      theme?.show_title_overlay !== false ? slide.overlay.title : null,
-      theme?.show_key_overlay !== false && slide.overlay.key ? `Key: ${slide.overlay.key}` : null,
-      theme?.show_copyright_overlay !== false ? slide.overlay.copyright : null,
-      theme?.show_ccli_overlay && slide.overlay.ccli ? `CCLI ${slide.overlay.ccli}` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    const parts: string[] = [];
+    if (theme?.show_title_overlay !== false && slide.overlay.title) {
+      parts.push(slide.overlay.title);
+    }
+    if (theme?.show_key_overlay !== false && slide.overlay.key) {
+      parts.push(slide.overlay.key);
+    }
+    if (slide.overlay.song_num != null) {
+      parts.push(String(slide.overlay.song_num));
+    }
+    return parts.join(" - ");
   }
 
-  private renderProgressRail() {
+  private renderStanzaCounter() {
     const projection = this.projection;
     if (!projection || projection.blank) return nothing;
     const markers = buildStanzaMarkers(projection.slides);
     if (markers.length <= 1) return nothing;
     const active = activeStanzaIndex(markers, projection.current_index);
+    const hasPrev = active > 0;
+    const hasNext = active < markers.length - 1;
     return html`
-      <div class="audience-progress" aria-hidden="true">
-        <div class="audience-progress-rail">
-          ${markers.map((_marker, index) => {
-            const state = index < active ? "past" : index === active ? "current" : "upcoming";
-            return html`<div class="audience-progress-segment ${state}"></div>`;
-          })}
-        </div>
+      <div class="audience-stanza-counter" aria-label="Stanza ${active + 1} of ${markers.length}">
+        <span class="audience-stanza-arrow ${hasPrev ? "" : "dim"}">↑</span>
+        <span class="audience-stanza-count">${active + 1} / ${markers.length}</span>
+        <span class="audience-stanza-arrow ${hasNext ? "" : "dim"}">↓</span>
       </div>
     `;
   }
@@ -209,7 +213,7 @@ export class PraiseAudience extends PraiseElement {
           </div>`,
         )}
         ${overlay ? html`<div class="audience-overlay">${overlay}</div>` : nothing}
-        ${this.renderProgressRail()}
+        ${this.renderStanzaCounter()}
       </div>
     `;
   }

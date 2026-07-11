@@ -1,6 +1,8 @@
 use serde::Serialize;
-use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow};
 use tauri::window::Monitor;
+use tauri::{
+    AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow,
+};
 
 /// Saved in config when the user picks "Simulated display" instead of a physical monitor.
 pub const SIMULATED_DISPLAY_ID: &str = "__simulated__";
@@ -73,7 +75,10 @@ pub fn is_simulated_display(monitor_id: Option<&str>) -> bool {
     monitor_id == Some(SIMULATED_DISPLAY_ID)
 }
 
-pub fn resolve_monitor(app: &AppHandle, monitor_id: Option<&str>) -> Result<Option<Monitor>, String> {
+pub fn resolve_monitor(
+    app: &AppHandle,
+    monitor_id: Option<&str>,
+) -> Result<Option<Monitor>, String> {
     if is_simulated_display(monitor_id) {
         return Ok(None);
     }
@@ -96,10 +101,7 @@ pub fn place_window_on_monitor(
     let pos = monitor.position();
     let _ = window.set_fullscreen(false);
     window
-        .set_position(Position::Physical(PhysicalPosition {
-            x: pos.x,
-            y: pos.y,
-        }))
+        .set_position(Position::Physical(PhysicalPosition { x: pos.x, y: pos.y }))
         .map_err(|e| e.to_string())?;
 
     if fullscreen {
@@ -160,7 +162,10 @@ fn apply_simulated_display(
     Ok(())
 }
 
-fn restore_projection_window_chrome(window: &WebviewWindow, window_label: &str) -> Result<(), String> {
+fn restore_projection_window_chrome(
+    window: &WebviewWindow,
+    window_label: &str,
+) -> Result<(), String> {
     match window_label {
         "audience" => {
             window.set_decorations(false).map_err(|e| e.to_string())?;

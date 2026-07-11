@@ -1,8 +1,8 @@
 pub mod ccli;
 pub mod commands;
 pub mod config;
-pub mod display;
 pub mod db;
+pub mod display;
 pub mod duplicates;
 pub mod import;
 pub mod library;
@@ -11,6 +11,7 @@ pub mod projection;
 pub mod remote;
 pub mod setlist;
 pub mod stage;
+pub mod web_search;
 
 use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
@@ -70,6 +71,8 @@ pub mod state {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -160,20 +163,14 @@ pub fn run() {
                     }
                     std::thread::spawn(move || {
                         let state = handle.state::<AppState>();
-                        if let Err(err) = commands::library::activate_songs_folder(
-                            &handle,
-                            &state,
-                            path,
-                            false,
-                        ) {
+                        if let Err(err) =
+                            commands::library::activate_songs_folder(&handle, &state, path, false)
+                        {
                             eprintln!("Failed to restore songs folder: {err}");
                         }
                     });
                 } else {
-                    eprintln!(
-                        "Configured songs folder is unavailable: {}",
-                        path.display()
-                    );
+                    eprintln!("Configured songs folder is unavailable: {}", path.display());
                 }
             }
 
@@ -227,6 +224,7 @@ pub fn run() {
             commands::config_cmd::get_config,
             commands::config_cmd::set_read_only,
             commands::config_cmd::set_project_to_stage,
+            commands::config_cmd::set_web_search_enabled,
             commands::config_cmd::save_theme,
             commands::config_cmd::get_theme,
             commands::config_cmd::save_shortcuts,
@@ -239,6 +237,7 @@ pub fn run() {
             commands::remote_cmd::start_remote,
             commands::remote_cmd::stop_remote,
             commands::remote_cmd::get_remote_status,
+            commands::web_search_cmd::search_web_songs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

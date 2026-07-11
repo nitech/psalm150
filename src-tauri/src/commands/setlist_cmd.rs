@@ -15,7 +15,11 @@ pub fn list_setlists(state: State<'_, AppState>) -> Result<Vec<Setlist>, String>
 }
 
 #[tauri::command]
-pub fn create_setlist(state: State<'_, AppState>, name: String, date: String) -> Result<Setlist, String> {
+pub fn create_setlist(
+    state: State<'_, AppState>,
+    name: String,
+    date: String,
+) -> Result<Setlist, String> {
     with_state(&state, |runtime| {
         runtime
             .setlists
@@ -84,7 +88,10 @@ pub fn setlist_previous(state: State<'_, AppState>) -> Result<Option<SetlistItem
 }
 
 #[tauri::command]
-pub fn list_hold_slides(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Vec<String>, String> {
+pub fn list_hold_slides(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
     with_state(&state, |runtime| {
         let hash = runtime
             .folder_hash

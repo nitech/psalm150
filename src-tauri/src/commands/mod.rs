@@ -7,3 +7,4 @@ pub mod projection_cmd;
 pub mod remote_cmd;
 pub mod setlist_cmd;
 pub mod song;
+pub mod web_search_cmd;

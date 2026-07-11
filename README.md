@@ -4,16 +4,16 @@ Cross-platform church worship projection app built with Tauri 2 (Rust + TypeScri
 
 ## Requirements
 
-- Node.js 20+
+- [Bun](https://bun.sh) 1.2+
 - Rust stable (`rustup`)
 - Windows: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with C++ workload (for linking)
 
 ## Development
 
 ```bash
-npm install
-npm run tauri dev
-npm run tauri 
+bun install
+bun run tauri dev
+bun run tauri
 ```
 
 ## Usage
@@ -37,5 +37,32 @@ See [docs/songs-folder-contract.md](docs/songs-folder-contract.md).
 ## Tests
 
 ```bash
-npm run test:rust
+bun run test:rust
 ```
+
+## Releasing & auto-updates
+
+Installed copies check for updates on startup via [Tauri updater](https://v2.tauri.app/plugin/updater/), using `latest.json` from GitHub Releases.
+
+### One-time setup
+
+1. **Signing keys** (already generated for this project):
+   - Private key: `%USERPROFILE%\.tauri\praise.key` — keep secret, never commit
+   - Public key: embedded in `src-tauri/tauri.conf.json`
+
+2. **GitHub repository secrets** (Settings → Secrets → Actions):
+   - `TAURI_SIGNING_PRIVATE_KEY` — paste the full contents of `praise.key`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — leave empty if the key has no password
+
+### Publish a new version
+
+1. Bump `version` in `package.json` and `src-tauri/tauri.conf.json` (and `src-tauri/Cargo.toml`)
+2. Commit, tag, and push:
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+3. GitHub Actions builds installers for Windows, macOS, and Linux and creates a **draft** release with `latest.json`
+4. Review the draft release on GitHub and publish it — installed apps will pick up the update on next launch
+
+First-time users still download an installer from the GitHub release; the updater handles subsequent versions.

@@ -4,7 +4,11 @@ use crate::remote::RemoteStatus;
 use crate::{with_state, AppState};
 
 #[tauri::command]
-pub fn start_remote(app: AppHandle, state: State<'_, AppState>, port: Option<u16>) -> Result<RemoteStatus, String> {
+pub fn start_remote(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    port: Option<u16>,
+) -> Result<RemoteStatus, String> {
     with_state(&state, |runtime| {
         let port = port.unwrap_or(runtime.config.remote_port);
         let pin = runtime

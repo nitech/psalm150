@@ -30,11 +30,7 @@ pub fn render_indexes_html(songs: &[SongRow]) -> String {
     }
     html.push_str("</ul><h2>Numeric Index</h2><ul>");
     for song in numeric {
-        html.push_str(&format!(
-            "<li>{:?} — {}</li>",
-            song.song_num,
-            song.title
-        ));
+        html.push_str(&format!("<li>{:?} — {}</li>", song.song_num, song.title));
     }
     html.push_str("</ul>");
     html

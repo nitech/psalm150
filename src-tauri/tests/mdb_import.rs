@@ -12,7 +12,11 @@ fn imports_brattvaag_sample_when_present() {
     }
 
     let songs = read_vsb_mdb(&path).expect("read songs");
-    assert!(songs.len() > 900, "expected ~963 songs, got {}", songs.len());
+    assert!(
+        songs.len() > 900,
+        "expected ~963 songs, got {}",
+        songs.len()
+    );
 
     let categories = read_vsb_categories(&path).expect("read categories");
     assert!(!categories.is_empty());

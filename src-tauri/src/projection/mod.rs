@@ -97,15 +97,17 @@ pub struct SlideLine {
 pub struct SlideOverlay {
     pub title: Option<String>,
     pub key: Option<String>,
+    pub song_num: Option<i64>,
     pub copyright: Option<String>,
     pub ccli: Option<String>,
 }
 
 pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Vec<SlidePayload> {
+    let sections = expand_chorus_sections(&song.sections);
     let mut slides = Vec::new();
     let mut index = 0usize;
     let mut stanza_index = 0usize;
-    for (section_index, section) in song.sections.iter().enumerate() {
+    for (section_index, section) in sections.iter().enumerate() {
         for stanza_slides in split::split_section_into_stanzas(section, theme) {
             for chunk in stanza_slides {
                 let overlay = SlideOverlay {
@@ -116,6 +118,11 @@ pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Ve
                     },
                     key: if theme.show_key_overlay {
                         song.meta.key.clone()
+                    } else {
+                        None
+                    },
+                    song_num: if theme.show_title_overlay {
+                        song.meta.song_num
                     } else {
                         None
                     },
@@ -156,18 +163,78 @@ pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Ve
     slides
 }
 
+/// Chorus2 sections are alternate-chorus templates. When a song defines chorus2,
+/// the main chorus block before it is also a template; performance slots after
+/// chorus2 alternate between main and alternate content.
+fn expand_chorus_sections(sections: &[crate::library::chordpro::SongSection]) -> Vec<crate::library::chordpro::SongSection> {
+    use crate::library::chordpro::{SectionKind, SongSection};
+
+    let chorus2_idx = sections.iter().position(|s| s.kind == SectionKind::Chorus2);
+    let Some(alt_idx) = chorus2_idx else {
+        return sections.to_vec();
+    };
+
+    let main_chorus = sections
+        .iter()
+        .take(alt_idx)
+        .find(|s| s.kind == SectionKind::Chorus)
+        .cloned();
+    let alt_chorus = sections.get(alt_idx).cloned();
+
+    let mut use_alt = false;
+    let mut result = Vec::new();
+
+    for (idx, section) in sections.iter().enumerate() {
+        match section.kind {
+            SectionKind::Chorus2 => {}
+            SectionKind::Chorus if idx < alt_idx => {}
+            SectionKind::Chorus => {
+                let source = if use_alt {
+                    alt_chorus.as_ref().or(main_chorus.as_ref())
+                } else {
+                    main_chorus.as_ref()
+                };
+                if let Some(src) = source {
+                    let lines = if section.lines.iter().any(|l| !l.text.is_empty()) {
+                        section.lines.clone()
+                    } else {
+                        src.lines.clone()
+                    };
+                    result.push(SongSection {
+                        label: section.label.clone(),
+                        kind: if use_alt && alt_chorus.is_some() {
+                            SectionKind::Chorus2
+                        } else {
+                            SectionKind::Chorus
+                        },
+                        lines,
+                    });
+                }
+                use_alt = !use_alt;
+            }
+            _ => result.push(section.clone()),
+        }
+    }
+
+    result
+}
+
 fn transpose_chord(chord: &str, semitones: i32) -> String {
     if semitones == 0 {
         return chord.to_string();
     }
-    let notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    let notes = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
     let re = regex::Regex::new(r"^([A-G](?:#|b)?)(.*)$").unwrap();
     if let Some(cap) = re.captures(chord) {
         let root = cap.get(1).map(|m| m.as_str()).unwrap_or("C");
         let suffix = cap.get(2).map(|m| m.as_str()).unwrap_or("");
         let idx = notes
             .iter()
-            .position(|n| *n == root || (*n == "C#" && root == "Db") || (*n == "D#" && root == "Eb"))
+            .position(|n| {
+                *n == root || (*n == "C#" && root == "Db") || (*n == "D#" && root == "Eb")
+            })
             .unwrap_or(0) as i32;
         let new_idx = (idx + semitones).rem_euclid(12) as usize;
         return format!("{}{}", notes[new_idx], suffix);
@@ -189,7 +256,8 @@ pub fn blank_payload() -> SlidePayload {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::library::chordpro::parse_chordpro;
+    use crate::library::chordpro::{parse_chordpro, SectionKind};
+    use crate::projection::modes::{audience_slide, stage_slide};
 
     #[test]
     fn build_slides_assigns_distinct_section_indices_for_repeated_labels() {
@@ -210,7 +278,10 @@ Line three
             "expected multiple sections, got {:?}",
             parsed.sections.iter().map(|s| &s.label).collect::<Vec<_>>()
         );
-        assert!(slides.len() >= 3, "expected multiple slides, got {slides:?}");
+        assert!(
+            slides.len() >= 3,
+            "expected multiple slides, got {slides:?}"
+        );
         let indices: Vec<usize> = slides.iter().map(|s| s.section_index).collect();
         assert_eq!(
             indices,
@@ -232,7 +303,100 @@ Stanza three line
         let parsed = parse_chordpro(content, "test.pro");
         let slides = build_slides(&parsed, &SlideTheme::default(), 0);
         assert_eq!(slides.len(), 3);
-        assert_eq!(slides.iter().map(|s| s.stanza_index).collect::<Vec<_>>(), vec![0, 1, 2]);
+        assert_eq!(
+            slides.iter().map(|s| s.stanza_index).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
         assert!(slides.iter().all(|s| s.section_index == 0));
+    }
+
+    #[test]
+    fn expand_chorus_alternates_main_and_alt_after_chorus2_defined() {
+        let content = r#"{title: Alt Chorus Test}
+{start_of_verse}
+Verse one
+{start_of_chorus}
+Main chorus line
+{start_of_chorus2}
+Alt chorus line
+{start_of_verse}
+Verse two
+{start_of_chorus}
+{start_of_chorus}
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
+        let chorus_texts: Vec<String> = slides
+            .iter()
+            .filter(|s| s.section_label.starts_with("Chorus"))
+            .map(|s| s.lines[0].text.clone())
+            .collect();
+        assert_eq!(chorus_texts, vec!["Main chorus line", "Alt chorus line"]);
+    }
+
+    #[test]
+    fn chorus2_definition_does_not_produce_slides() {
+        let content = r#"{title: Test}
+{start_of_chorus}
+Main only
+{start_of_chorus2}
+Alt template only
+{start_of_verse}
+Verse
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        let expanded = expand_chorus_sections(&parsed.sections);
+        assert!(
+            !expanded.iter().any(|s| s.kind == SectionKind::Chorus2 && s.lines.iter().any(|l| l.text.contains("Alt template")))
+                || expanded.len() < parsed.sections.len(),
+            "chorus2 template should not appear as its own performance section before a chorus slot"
+        );
+        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
+        let texts: Vec<&str> = slides
+            .iter()
+            .flat_map(|s| s.lines.iter().map(|l| l.text.as_str()))
+            .collect();
+        assert!(!texts.contains(&"Alt template only"));
+    }
+
+    #[test]
+    fn audience_strips_chords_stage_keeps_them() {
+        let content = r#"{title: Chord Test}
+{start_of_verse}
+[Am]Hello [G]world
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
+        let slide = &slides[0];
+        let audience = audience_slide(slide);
+        assert!(
+            audience.lines.iter().all(|l| l.chords.is_empty()),
+            "audience should have no chords"
+        );
+        assert_eq!(audience.lines[0].text, "Hello world");
+        assert!(
+            !audience.lines[0].text.contains('['),
+            "audience text should not contain chord brackets"
+        );
+        let stage = stage_slide(slide, &parsed, None, false);
+        assert!(
+            !stage.lines[0].chords.is_empty(),
+            "stage should retain chords"
+        );
+    }
+
+    #[test]
+    fn overlay_includes_song_num() {
+        let content = r#"{title: Numbered}
+{meta: song_num=227}
+{key: G}
+{start_of_verse}
+Line
+"#;
+        let parsed = parse_chordpro(content, "227.pro");
+        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
+        assert_eq!(slides[0].overlay.song_num, Some(227));
+        assert_eq!(slides[0].overlay.title.as_deref(), Some("Numbered"));
+        assert_eq!(slides[0].overlay.key.as_deref(), Some("G"));
     }
 }

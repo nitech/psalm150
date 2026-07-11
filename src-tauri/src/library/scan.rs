@@ -66,10 +66,11 @@ pub fn scan_songs_folder(folder: &Path) -> Result<Vec<ParsedSong>, String> {
         if let Ok(meta) = fs::metadata(&path) {
             if let Ok(modified) = meta.modified() {
                 if let Ok(datetime) = modified.duration_since(std::time::UNIX_EPOCH) {
-                    parsed.meta.modified_at =
-                        Some(chrono::DateTime::from_timestamp(datetime.as_secs() as i64, 0)
+                    parsed.meta.modified_at = Some(
+                        chrono::DateTime::from_timestamp(datetime.as_secs() as i64, 0)
                             .map(|d| d.to_rfc3339())
-                            .unwrap_or_default());
+                            .unwrap_or_default(),
+                    );
                 }
             }
         }

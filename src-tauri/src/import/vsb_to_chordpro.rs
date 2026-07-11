@@ -2,7 +2,9 @@ use regex::Regex;
 use slug::slugify;
 
 use super::mdb::VsbSongRow;
-use crate::library::chordpro::{parse_chordpro, serialize_chordpro, ParsedSong, SectionKind, SongSection};
+use crate::library::chordpro::{
+    parse_chordpro, serialize_chordpro, ParsedSong, SectionKind, SongSection,
+};
 
 pub fn convert_song(
     row: &VsbSongRow,
@@ -14,18 +16,14 @@ pub fn convert_song(
         .map(|(_, name)| name.clone());
 
     let (key, alt_keys) = parse_keys(row.key.as_deref());
-    let filename = format!(
-        "{:04}-{}.pro",
-        row.song_num,
-        {
-            let slug = slugify(&row.title);
-            if slug.is_empty() {
-                "song".into()
-            } else {
-                slug
-            }
+    let filename = format!("{:04}-{}.pro", row.song_num, {
+        let slug = slugify(&row.title);
+        if slug.is_empty() {
+            "song".into()
+        } else {
+            slug
         }
-    );
+    });
 
     let sections = parse_vsb_body(&row.body);
     let mut song = ParsedSong {
@@ -69,10 +67,7 @@ fn parse_keys(raw: Option<&str>) -> (Option<String>, Option<String>) {
     }
     let parts: Vec<&str> = trimmed.split('/').map(str::trim).collect();
     if parts.len() > 1 {
-        (
-            Some(parts[0].to_string()),
-            Some(parts[1..].join(", ")),
-        )
+        (Some(parts[0].to_string()), Some(parts[1..].join(", ")))
     } else {
         (Some(trimmed.to_string()), None)
     }
@@ -84,8 +79,7 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
         r"^[A-G][#b]?(?:m|maj|min|sus|add|dim|aug|\d)*(?:[\s/]+[A-G][#b]?(?:m|maj|min|sus|add|dim|aug|\d)*)*$",
     )
     .ok();
-    let section_re =
-        Regex::new(r"(?i)^(verse\s*\d*|chorus\s*\d*|bridge|intro|outro)\s*$").unwrap();
+    let section_re = Regex::new(r"(?i)^(verse\s*\d*|chorus\s*\d*|bridge|intro|outro)\s*$").unwrap();
 
     let mut sections = Vec::new();
     let mut current_label = "Verse".to_string();
@@ -182,6 +176,13 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
 }
 
 fn parse_vsb_chord_pair(chord_line: &str, lyric_line: &str) -> crate::library::chordpro::LyricLine {
+    parse_scraped_chord_pair(chord_line, lyric_line)
+}
+
+pub(crate) fn parse_scraped_chord_pair(
+    chord_line: &str,
+    lyric_line: &str,
+) -> crate::library::chordpro::LyricLine {
     let chord_token = Regex::new(r"[A-G](#|b)?[^ \t]*").unwrap();
     let mut chords = Vec::new();
     for mat in chord_token.find_iter(chord_line) {
@@ -195,18 +196,24 @@ fn parse_vsb_chord_pair(chord_line: &str, lyric_line: &str) -> crate::library::c
         });
     }
     crate::library::chordpro::LyricLine {
-        text: lyric_line.to_string(),
+        text: lyric_line.trim().to_string(),
         chords,
     }
 }
 
 fn classify_section(label: &str) -> SectionKind {
+    classify_section_for_scrape(label)
+}
+
+pub(crate) fn classify_section_for_scrape(label: &str) -> SectionKind {
     let lower = label.to_lowercase();
-    if lower.starts_with("chorus") {
+    if lower.starts_with("chorus 2") || lower.starts_with("chorus2") {
+        SectionKind::Chorus2
+    } else if lower.starts_with("chorus") {
         SectionKind::Chorus
     } else if lower.starts_with("bridge") {
         SectionKind::Bridge
-    } else if lower.starts_with("verse") {
+    } else if lower.starts_with("verse") || lower.starts_with("first verse") {
         SectionKind::Verse
     } else {
         SectionKind::Other
@@ -271,7 +278,9 @@ mod tests {
             .expect("verse section");
         let texts: Vec<&str> = verse.lines.iter().map(|l| l.text.as_str()).collect();
         assert!(
-            texts.windows(3).any(|w| w[0] == "First line" && w[1].is_empty() && w[2] == "Second stanza line"),
+            texts
+                .windows(3)
+                .any(|w| w[0] == "First line" && w[1].is_empty() && w[2] == "Second stanza line"),
             "expected blank line between stanzas, got {texts:?}"
         );
     }
@@ -286,12 +295,22 @@ mod tests {
     }
 
     #[test]
+    fn parses_chorus2_section() {
+        let body = "chorus\nMain line\nchorus 2\nAlt line";
+        let sections = parse_vsb_body(body);
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].kind, SectionKind::Chorus);
+        assert_eq!(sections[1].kind, SectionKind::Chorus2);
+    }
+
+    #[test]
     fn golden_chord_chart_conversion() {
         let row = VsbSongRow {
             song_id: 4711,
             song_num: 1016,
             title: "Worthy is the Lamb".into(),
-            body: "chorus\n         Dm                    A\nFall til ro og kjenn at jeg er Herre".into(),
+            body: "chorus\n         Dm                    A\nFall til ro og kjenn at jeg er Herre"
+                .into(),
             key: Some("D / E".into()),
             author: Some("Author".into()),
             copyright: Some("© Test".into()),

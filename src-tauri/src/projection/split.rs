@@ -3,9 +3,10 @@ use crate::projection::SlideTheme;
 
 const LINE_HEIGHT_RATIO: f32 = 1.28;
 const LINE_GAP_RATIO: f32 = 0.35;
-const CHAR_WIDTH_RATIO: f32 = 0.55;
+const CHAR_WIDTH_RATIO: f32 = 0.52;
 const SCREEN_PADDING: u32 = 64;
 const OVERLAY_RESERVE: u32 = 88;
+const STANZA_COUNTER_RESERVE: u32 = 56;
 
 pub fn split_section(section: &SongSection, theme: &SlideTheme) -> Vec<Vec<LyricLine>> {
     split_section_into_stanzas(section, theme)
@@ -25,7 +26,73 @@ pub fn split_section_into_stanzas(
 
     split_into_blocks(&section.lines)
         .into_iter()
-        .map(|block| split_block_by_height(&block, theme))
+        .map(|block| {
+            let wrapped = wrap_block_lines(&block, theme);
+            split_block_by_height(&wrapped, theme)
+        })
+        .collect()
+}
+
+/// Split long lyric lines at word boundaries so each row fits the projection width.
+fn wrap_block_lines(block: &[LyricLine], theme: &SlideTheme) -> Vec<LyricLine> {
+    let chars_per_row = max_chars_per_row(theme);
+    block
+        .iter()
+        .flat_map(|line| wrap_line_at_words(line, chars_per_row))
+        .collect()
+}
+
+pub fn max_chars_per_row(theme: &SlideTheme) -> usize {
+    let font = theme.font_size.max(12.0);
+    let available_width = theme
+        .projection_width
+        .saturating_sub(theme.margin_left)
+        .saturating_sub(theme.margin_right)
+        .saturating_sub(SCREEN_PADDING * 2) as f32;
+    ((available_width / (font * CHAR_WIDTH_RATIO)).floor() as usize).max(8)
+}
+
+fn wrap_line_at_words(line: &LyricLine, max_chars: usize) -> Vec<LyricLine> {
+    if line.text.chars().count() <= max_chars {
+        return vec![line.clone()];
+    }
+
+    let words: Vec<&str> = line.text.split_whitespace().collect();
+    if words.is_empty() {
+        return vec![line.clone()];
+    }
+
+    let mut row_texts: Vec<String> = Vec::new();
+    let mut current = String::new();
+
+    for word in words {
+        let candidate = if current.is_empty() {
+            word.to_string()
+        } else {
+            format!("{current} {word}")
+        };
+        if candidate.chars().count() > max_chars && !current.is_empty() {
+            row_texts.push(std::mem::take(&mut current));
+            current = word.to_string();
+        } else {
+            current = candidate;
+        }
+    }
+    if !current.is_empty() {
+        row_texts.push(current);
+    }
+
+    if row_texts.len() <= 1 {
+        return vec![line.clone()];
+    }
+
+    row_texts
+        .into_iter()
+        .enumerate()
+        .map(|(i, text)| LyricLine {
+            text,
+            chords: if i == 0 { line.chords.clone() } else { vec![] },
+        })
         .collect()
 }
 
@@ -99,7 +166,8 @@ fn max_visual_units(theme: &SlideTheme) -> usize {
         .saturating_sub(theme.margin_top)
         .saturating_sub(theme.margin_bottom)
         .saturating_sub(SCREEN_PADDING * 2)
-        .saturating_sub(overlay) as f32;
+        .saturating_sub(overlay)
+        .saturating_sub(STANZA_COUNTER_RESERVE) as f32;
 
     let unit_height = font * (LINE_HEIGHT_RATIO + LINE_GAP_RATIO);
     if unit_height <= 0.0 {
@@ -118,13 +186,7 @@ fn section_visual_units(lines: &[LyricLine], theme: &SlideTheme) -> usize {
 }
 
 fn line_visual_units(line: &LyricLine, theme: &SlideTheme) -> usize {
-    let font = theme.font_size.max(12.0);
-    let available_width = theme
-        .projection_width
-        .saturating_sub(theme.margin_left)
-        .saturating_sub(theme.margin_right)
-        .saturating_sub(SCREEN_PADDING * 2) as f32;
-    let chars_per_row = ((available_width / (font * CHAR_WIDTH_RATIO)).floor() as usize).max(8);
+    let chars_per_row = max_chars_per_row(theme);
     let text_len = line.text.chars().count().max(1);
     (text_len + chars_per_row - 1) / chars_per_row
 }
@@ -173,7 +235,10 @@ mod tests {
     fn short_section_stays_on_one_slide() {
         let theme = SlideTheme::default();
         let chunks = split_section(
-            &section(vec!["Give thanks with a grateful heart", "Give thanks to the Holy One"]),
+            &section(vec![
+                "Give thanks with a grateful heart",
+                "Give thanks to the Holy One",
+            ]),
             &theme,
         );
         assert_eq!(chunks.len(), 1);
@@ -197,12 +262,49 @@ mod tests {
         };
 
         let chunks = split_section(&section, &theme);
-        assert!(chunks.len() > 1, "expected overflow split, got {} chunk(s)", chunks.len());
+        assert!(
+            chunks.len() > 1,
+            "expected overflow split, got {} chunk(s)",
+            chunks.len()
+        );
 
         for chunk in &chunks {
             assert!(
                 section_visual_units(chunk, &theme) <= max_visual_units(&theme) + 2,
                 "chunk exceeded visual budget"
+            );
+        }
+    }
+
+    #[test]
+    fn long_line_splits_at_word_boundaries() {
+        let theme = SlideTheme {
+            font_size: 48.0,
+            projection_width: 1280,
+            projection_height: 720,
+            ..SlideTheme::default()
+        };
+        let long = "Lov min Gud, Å min sjel, lov Herren min sjel og all min innerlighet ";
+        let section = SongSection {
+            label: "Verse".into(),
+            kind: SectionKind::Verse,
+            lines: vec![line(long)],
+        };
+        let stanzas = split_section_into_stanzas(&section, &theme);
+        let all_lines: Vec<&str> = stanzas
+            .iter()
+            .flat_map(|s| s.iter())
+            .flat_map(|c| c.iter())
+            .map(|l| l.text.as_str())
+            .collect();
+        assert!(
+            all_lines.len() >= 2,
+            "expected word-wrapped rows, got {all_lines:?}"
+        );
+        for row in &all_lines {
+            assert!(
+                row.chars().count() <= max_chars_per_row(&theme) + 5,
+                "row too long: {row}"
             );
         }
     }
@@ -217,6 +319,9 @@ mod tests {
         };
         let long = "word ".repeat(40);
         let units = line_visual_units(&line(&long), &theme);
-        assert!(units >= 3, "expected wrapped line to consume multiple units, got {units}");
+        assert!(
+            units >= 3,
+            "expected wrapped line to consume multiple units, got {units}"
+        );
     }
 }

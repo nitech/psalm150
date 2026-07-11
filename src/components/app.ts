@@ -16,6 +16,7 @@ import {
   type SectionKind,
   type SongDetail,
   type SongRow,
+  type WebSearchCandidate,
 } from "../api";
 import { activeStanzaIndex, buildStanzaMarkers, stanzaStepSlideIndex } from "../stanza-markers";
 import { PraiseElement } from "./base";
@@ -25,6 +26,7 @@ import type { SelectOption } from "./select";
 import "./select";
 import "./modal";
 import "./song-list";
+import { isWebResultId, webResultId, webResultIndex } from "./song-list-ids";
 
 type Tab = "search" | "key" | "history" | "favorites" | "setlist";
 type ToastTone = "info" | "success" | "error";
@@ -41,6 +43,7 @@ const BROWSE_PANE_WIDTH_KEY = "praise-browse-pane-width";
 const BROWSE_PANE_MIN = 280;
 const BROWSE_PANE_MAX = 720;
 const BROWSE_PANE_DEFAULT = 340;
+const WEB_SEARCH_DEBOUNCE_MS = 650;
 
 /**
  * Root component for the main window. Owns all application state and IPC
@@ -58,6 +61,7 @@ export class PraiseApp extends PraiseElement {
     currentSetlist: { state: true },
     projectToStage: { state: true },
     readOnly: { state: true },
+    webSearchEnabled: { state: true },
     displays: { state: true },
     audienceMonitor: { state: true },
     stageMonitor: { state: true },
@@ -79,6 +83,8 @@ export class PraiseApp extends PraiseElement {
     windowMaximized: { state: true },
     projecting: { state: true },
     browsePaneWidth: { state: true },
+    webResults: { state: true },
+    webSearchLoading: { state: true },
   };
 
   declare songs: SongRow[];
@@ -90,6 +96,7 @@ export class PraiseApp extends PraiseElement {
   declare currentSetlist: Setlist | null;
   declare projectToStage: boolean;
   declare readOnly: boolean;
+  declare webSearchEnabled: boolean;
   declare displays: DisplayInfo[];
   declare audienceMonitor: string;
   declare stageMonitor: string;
@@ -111,8 +118,12 @@ export class PraiseApp extends PraiseElement {
   declare windowMaximized: boolean;
   declare projecting: boolean;
   declare browsePaneWidth: number;
+  declare webResults: WebSearchCandidate[];
+  declare webSearchLoading: boolean;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  private webSearchGeneration = 0;
   private unlistenImport: UnlistenFn | null = null;
   private unlistenLibrary: UnlistenFn | null = null;
   private unlistenProjection: UnlistenFn | null = null;
@@ -134,6 +145,7 @@ export class PraiseApp extends PraiseElement {
     this.currentSetlist = null;
     this.projectToStage = false;
     this.readOnly = false;
+    this.webSearchEnabled = true;
     this.displays = [];
     this.audienceMonitor = "";
     this.stageMonitor = "";
@@ -158,6 +170,8 @@ export class PraiseApp extends PraiseElement {
     const parsed = savedWidth ? Number.parseInt(savedWidth, 10) : Number.NaN;
     this.browsePaneWidth =
       Number.isFinite(parsed) && parsed >= BROWSE_PANE_MIN ? parsed : BROWSE_PANE_DEFAULT;
+    this.webResults = [];
+    this.webSearchLoading = false;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -423,10 +437,118 @@ export class PraiseApp extends PraiseElement {
       }
       if (generation !== this.songsRefreshGeneration) return;
       this.songs = songs;
+      if (this.activeTab === "search") {
+        void this.maybeSearchWeb(generation);
+      } else {
+        this.webResults = [];
+        this.webSearchLoading = false;
+      }
     } catch {
       // Library may not be open yet (no songs folder selected, or still loading).
       if (generation !== this.songsRefreshGeneration) return;
       this.songs = [];
+      if (this.activeTab === "search") {
+        void this.maybeSearchWeb(generation);
+      }
+    }
+  }
+
+  private cancelWebSearch() {
+    if (this.webSearchTimer) {
+      clearTimeout(this.webSearchTimer);
+      this.webSearchTimer = null;
+    }
+    this.webSearchGeneration += 1;
+    this.webResults = [];
+    this.webSearchLoading = false;
+    if (this.currentFilename && isWebResultId(this.currentFilename)) {
+      this.currentFilename = null;
+      this.currentSong = null;
+    }
+  }
+
+  private maybeSearchWeb(songsGeneration: number) {
+    if (!this.webSearchEnabled) {
+      this.cancelWebSearch();
+      return;
+    }
+    if (this.webSearchTimer) {
+      clearTimeout(this.webSearchTimer);
+      this.webSearchTimer = null;
+    }
+    this.webSearchGeneration += 1;
+    const searchGeneration = this.webSearchGeneration;
+
+    const q = this.query.trim();
+    if (q.length < 3 || this.songs.length > 0) {
+      this.webResults = [];
+      this.webSearchLoading = false;
+      if (this.currentFilename && isWebResultId(this.currentFilename)) {
+        this.currentFilename = null;
+        this.currentSong = null;
+      }
+      return;
+    }
+
+    this.webSearchLoading = false;
+    this.webSearchTimer = setTimeout(() => {
+      this.webSearchTimer = null;
+      void this.runWebSearch(searchGeneration, songsGeneration);
+    }, WEB_SEARCH_DEBOUNCE_MS);
+  }
+
+  private async runWebSearch(searchGeneration: number, songsGeneration: number) {
+    if (searchGeneration !== this.webSearchGeneration) return;
+    if (songsGeneration !== this.songsRefreshGeneration) return;
+
+    const q = this.query.trim();
+    if (q.length < 3 || this.songs.length > 0) return;
+
+    this.webSearchLoading = true;
+    try {
+      const results = await api.searchWebSongs(q);
+      if (searchGeneration !== this.webSearchGeneration) return;
+      if (songsGeneration !== this.songsRefreshGeneration) return;
+      this.webResults = results;
+      if (results.length > 0) {
+        await this.selectSong(webResultId(0));
+      } else if (this.currentFilename && isWebResultId(this.currentFilename)) {
+        this.currentFilename = null;
+        this.currentSong = null;
+      }
+    } catch {
+      if (searchGeneration !== this.webSearchGeneration) return;
+      if (songsGeneration !== this.songsRefreshGeneration) return;
+      this.webResults = [];
+      this.showToast("Web search failed", "error");
+    } finally {
+      if (searchGeneration === this.webSearchGeneration) {
+        this.webSearchLoading = false;
+      }
+    }
+  }
+
+  private async saveWebResult() {
+    if (!this.currentFilename || !isWebResultId(this.currentFilename)) return;
+    const candidate = this.webResults[webResultIndex(this.currentFilename)];
+    if (!candidate) return;
+    if (this.readOnly) {
+      this.showToast("Library is read-only", "error");
+      return;
+    }
+    const ok = await confirm(`Save "${candidate.title}" to your songs folder?`, {
+      title: "Save song",
+      kind: "info",
+    });
+    if (!ok) return;
+    try {
+      this.currentSong = await api.quickProject(candidate.chordpro_content, true);
+      await this.refreshLibraryStatus();
+      await this.refreshSongs();
+      this.showToast(`Saved ${candidate.title}`, "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.showToast(message, "error");
     }
   }
 
@@ -442,6 +564,15 @@ export class PraiseApp extends PraiseElement {
 
   private async selectSong(file: string) {
     this.currentFilename = file;
+    if (isWebResultId(file)) {
+      const candidate = this.webResults[webResultIndex(file)];
+      if (!candidate) {
+        this.currentSong = null;
+        return;
+      }
+      this.currentSong = await api.quickProject(candidate.chordpro_content, false);
+      return;
+    }
     this.currentSong = await api.loadSong(file);
   }
 
@@ -631,8 +762,12 @@ export class PraiseApp extends PraiseElement {
   private applyConfig(config: AppConfig) {
     this.projectToStage = Boolean(config.project_to_stage);
     this.readOnly = Boolean(config.read_only);
+    this.webSearchEnabled = config.web_search_enabled !== false;
     this.audienceMonitor = config.audience_monitor ?? "";
     this.stageMonitor = config.stage_monitor ?? "";
+    if (!this.webSearchEnabled) {
+      this.cancelWebSearch();
+    }
   }
 
   private async onAudienceMonitorChange(monitorId: string) {
@@ -654,6 +789,16 @@ export class PraiseApp extends PraiseElement {
     this.readOnly = checked;
     await api.setReadOnly(checked);
     this.showToast(checked ? "Library is read-only" : "Edits enabled");
+  }
+
+  private async onWebSearchEnabledChange(checked: boolean) {
+    this.webSearchEnabled = checked;
+    await api.setWebSearchEnabled(checked);
+    if (!checked) {
+      this.cancelWebSearch();
+    } else if (this.activeTab === "search" && this.songs.length === 0) {
+      void this.maybeSearchWeb(this.songsRefreshGeneration);
+    }
   }
 
   private async printSongbook() {
@@ -1133,6 +1278,8 @@ export class PraiseApp extends PraiseElement {
           class="song-list scroll-region"
           role="listbox"
           .songs=${this.songs}
+          .webResults=${this.webResults}
+          .webSearchLoading=${this.webSearchLoading}
           .currentFile=${this.currentFilename}
           .projecting=${this.projecting}
           @praise-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
@@ -1200,6 +1347,7 @@ export class PraiseApp extends PraiseElement {
             ${this.currentSong
               ? html`<div class="song-title-meta">${this.renderSongTitleMeta()}</div>`
               : nothing}
+            ${this.renderSongPaneSaveButton()}
           </div>
           ${this.renderSongSecondaryMeta()}
         </header>
@@ -1225,8 +1373,28 @@ export class PraiseApp extends PraiseElement {
     `;
   }
 
+  private renderSongPaneSaveButton() {
+    if (!this.currentFilename || !isWebResultId(this.currentFilename) || !this.webSearchEnabled) {
+      return nothing;
+    }
+    return html`
+      <button
+        type="button"
+        class="secondary compact song-pane-save"
+        @click=${() => this.saveWebResult()}
+      >
+        Save to library
+      </button>
+    `;
+  }
+
   private renderSongSecondaryMeta() {
     if (!this.currentSong) return nothing;
+    if (this.currentFilename && isWebResultId(this.currentFilename)) {
+      const candidate = this.webResults[webResultIndex(this.currentFilename)];
+      if (!candidate) return nothing;
+      return html`<div class="song-meta-bar">${candidate.source_name} · Web result</div>`;
+    }
     const meta = this.currentSong.parsed.meta;
     const parts: string[] = [];
     if (meta.category) parts.push(String(meta.category));
@@ -1259,10 +1427,8 @@ export class PraiseApp extends PraiseElement {
     if (!line.text && line.chords.length === 0) {
       return html`<div class="song-line-spacer" aria-hidden="true"></div>`;
     }
-    const chordStr = line.chords.map((c) => c.chord).join("  ");
     return html`
       <div class="song-line">
-        ${chordStr ? html`<div class="song-chords">${chordStr}</div>` : nothing}
         <div class="song-lyrics">${line.text || "\u00a0"}</div>
       </div>
     `;
@@ -1329,6 +1495,18 @@ export class PraiseApp extends PraiseElement {
             @change=${(e: Event) => this.onReadOnlyChange((e.target as HTMLInputElement).checked)}
           />
           <span>Read-only library (prevent edits and deletes)</span>
+        </label>
+      </div>
+      <div class="settings-section">
+        <h3>Search</h3>
+        <label class="settings-check">
+          <input
+            type="checkbox"
+            .checked=${this.webSearchEnabled}
+            @change=${(e: Event) =>
+              this.onWebSearchEnabledChange((e.target as HTMLInputElement).checked)}
+          />
+          <span>Search the web when no local songs match</span>
         </label>
       </div>
       <div class="settings-section">

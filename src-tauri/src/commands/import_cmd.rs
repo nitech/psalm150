@@ -5,10 +5,10 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::config::save_theme;
 use crate::duplicates::find_duplicates;
+use crate::import::mdb::{read_page_setup, read_vsb_categories};
 use crate::import::{
     import_mdb_to_folder_with_callbacks, ImportCallbacks, ImportProgress, ImportReport,
 };
-use crate::import::mdb::{read_page_setup, read_vsb_categories};
 use crate::library::scan_songs_folder;
 use crate::{with_state, AppState};
 
@@ -76,7 +76,9 @@ pub fn import_mdb_path(
 }
 
 #[tauri::command]
-pub fn check_duplicates(state: State<'_, AppState>) -> Result<Vec<crate::duplicates::DuplicateWarning>, String> {
+pub fn check_duplicates(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::duplicates::DuplicateWarning>, String> {
     with_state(&state, |runtime| {
         let folder = runtime
             .songs_folder

@@ -26,7 +26,10 @@ pub struct RemoteServer {
 }
 
 impl RemoteServer {
-    pub fn start(port: u16, pin: String) -> Result<(Self, std::sync::mpsc::Receiver<RemoteAction>), String> {
+    pub fn start(
+        port: u16,
+        pin: String,
+    ) -> Result<(Self, std::sync::mpsc::Receiver<RemoteAction>), String> {
         let (action_tx, rx) = channel();
         let stop = Arc::new(Mutex::new(false));
         let stop_flag = stop.clone();
@@ -41,11 +44,17 @@ impl RemoteServer {
                     let pin_ok = request
                         .headers()
                         .iter()
-                        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case("x-praise-pin"))
+                        .find(|h| {
+                            h.field
+                                .as_str()
+                                .as_str()
+                                .eq_ignore_ascii_case("x-praise-pin")
+                        })
                         .map(|h| h.value.as_str() == pin_clone)
                         .unwrap_or(false);
                     if !pin_ok && request.method() != &Method::Get {
-                        let _ = request.respond(Response::from_string("Unauthorized").with_status_code(401));
+                        let _ = request
+                            .respond(Response::from_string("Unauthorized").with_status_code(401));
                         continue;
                     }
                     let body = match (request.method(), request.url()) {

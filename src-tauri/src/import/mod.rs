@@ -45,7 +45,12 @@ pub fn import_mdb_to_folder(
     songs_folder: &Path,
     categories: &[(i64, String)],
 ) -> Result<ImportReport, String> {
-    import_mdb_to_folder_with_callbacks(mdb_path, songs_folder, categories, ImportCallbacks::default())
+    import_mdb_to_folder_with_callbacks(
+        mdb_path,
+        songs_folder,
+        categories,
+        ImportCallbacks::default(),
+    )
 }
 
 pub fn import_mdb_to_folder_with_callbacks(

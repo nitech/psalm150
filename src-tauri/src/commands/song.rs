@@ -16,7 +16,10 @@ pub struct SongDetail {
     pub projection: ProjectionState,
 }
 
-fn theme_for_runtime(app: &AppHandle, folder_hash: &Option<String>) -> crate::projection::SlideTheme {
+fn theme_for_runtime(
+    app: &AppHandle,
+    folder_hash: &Option<String>,
+) -> crate::projection::SlideTheme {
     folder_hash
         .as_ref()
         .and_then(|hash| load_theme(app, hash).ok())
@@ -24,7 +27,11 @@ fn theme_for_runtime(app: &AppHandle, folder_hash: &Option<String>) -> crate::pr
 }
 
 #[tauri::command]
-pub fn load_song(app: AppHandle, state: State<'_, AppState>, filename: String) -> Result<SongDetail, String> {
+pub fn load_song(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    filename: String,
+) -> Result<SongDetail, String> {
     with_state(&state, |runtime| {
         let folder = runtime
             .songs_folder
@@ -112,7 +119,10 @@ pub struct RenumberPlan {
 }
 
 #[tauri::command]
-pub fn renumber_songs(state: State<'_, AppState>, plans: Vec<RenumberPlan>) -> Result<Vec<String>, String> {
+pub fn renumber_songs(
+    state: State<'_, AppState>,
+    plans: Vec<RenumberPlan>,
+) -> Result<Vec<String>, String> {
     with_state(&state, |runtime| {
         if runtime.read_only {
             return Err("Library is in read-only mode".into());
@@ -133,11 +143,7 @@ pub fn renumber_songs(state: State<'_, AppState>, plans: Vec<RenumberPlan>) -> R
                 let old_path = folder.join(&song.filename);
                 let slug = slugify(&song.title);
                 let slug = if slug.is_empty() { "song".into() } else { slug };
-                let new_name = format!(
-                    "{:04}-{}.pro",
-                    plan.to,
-                    slug
-                );
+                let new_name = format!("{:04}-{}.pro", plan.to, slug);
                 let new_path = folder.join(&new_name);
                 fs::rename(&old_path, &new_path).map_err(|e| e.to_string())?;
                 let content = fs::read_to_string(&new_path).map_err(|e| e.to_string())?;

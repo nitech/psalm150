@@ -1,6 +1,9 @@
 import { html, nothing } from "lit";
 import { PraiseElement } from "./base";
-import type { SongRow } from "../api";
+import type { SongRow, WebSearchCandidate } from "../api";
+import { webResultId } from "./song-list-ids";
+
+export { WEB_RESULT_PREFIX, isWebResultId, webResultId } from "./song-list-ids";
 
 /**
  * Library song list. Presentational: it renders rows and emits `praise-select`
@@ -9,11 +12,15 @@ import type { SongRow } from "../api";
 export class PraiseSongList extends PraiseElement {
   static properties = {
     songs: { attribute: false },
+    webResults: { attribute: false },
+    webSearchLoading: { type: Boolean },
     currentFile: {},
     projecting: { type: Boolean },
   };
 
   declare songs: SongRow[];
+  declare webResults: WebSearchCandidate[];
+  declare webSearchLoading: boolean;
   declare currentFile: string | null;
   declare projecting: boolean;
 
@@ -22,6 +29,8 @@ export class PraiseSongList extends PraiseElement {
   constructor() {
     super();
     this.songs = [];
+    this.webResults = [];
+    this.webSearchLoading = false;
     this.currentFile = null;
     this.projecting = false;
   }
@@ -40,6 +49,13 @@ export class PraiseSongList extends PraiseElement {
     this.dispatchEvent(new CustomEvent(name, { detail: file, bubbles: true, composed: true }));
   }
 
+  private allSelectableFiles(): string[] {
+    return [
+      ...this.songs.map((song) => song.filename),
+      ...this.webResults.map((_, index) => webResultId(index)),
+    ];
+  }
+
   private navigateTo(file: string) {
     this.pendingFocus = file;
     this.emit("praise-select", file);
@@ -50,23 +66,24 @@ export class PraiseSongList extends PraiseElement {
       return;
     }
 
-    const index = this.songs.findIndex((song) => song.filename === file);
+    const files = this.allSelectableFiles();
+    const index = files.indexOf(file);
 
     if (event.key === "ArrowDown") {
-      const next = this.songs[index + 1];
+      const next = files[index + 1];
       if (!next) return;
       event.preventDefault();
       event.stopPropagation();
-      this.navigateTo(next.filename);
+      this.navigateTo(next);
       return;
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
       event.stopPropagation();
-      const prev = this.songs[index - 1];
+      const prev = files[index - 1];
       if (prev) {
-        this.navigateTo(prev.filename);
+        this.navigateTo(prev);
       } else {
         this.dispatchEvent(new CustomEvent("praise-focus-search", { bubbles: true, composed: true }));
       }
@@ -80,8 +97,52 @@ export class PraiseSongList extends PraiseElement {
     this.emit("praise-project", file);
   }
 
+  private renderSongRow(file: string, title: string, key: string | null, favorite = false) {
+    const active = this.currentFile === file;
+    return html`
+      <li
+        data-file=${file}
+        class=${active ? "active" : ""}
+        role="option"
+        tabindex=${this.projecting ? "-1" : "0"}
+        aria-selected=${active ? "true" : "false"}
+        @click=${() => this.emit("praise-select", file)}
+        @keydown=${(event: KeyboardEvent) => this.onRowKeydown(event, file)}
+      >
+        <span class="song-list-title">${title}</span>
+        <span class="song-list-num"></span>
+        ${key ? html`<span class="song-list-key">${key}</span>` : html`<span class="song-list-key"></span>`}
+        ${favorite ? html`<span class="song-list-star">★</span>` : nothing}
+      </li>
+    `;
+  }
+
+  private renderWebResults() {
+    if (this.webSearchLoading) {
+      return html`
+        <li class="web-results-header">
+          <span class="web-results-label">Web results</span>
+          <span class="web-results-loading">Searching…</span>
+        </li>
+      `;
+    }
+    if (this.webResults.length === 0) return nothing;
+
+    return html`
+      <li class="web-results-header">
+        <span class="web-results-label">Web results</span>
+      </li>
+      ${this.webResults.map((result, index) =>
+        this.renderSongRow(webResultId(index), result.title, result.source_name),
+      )}
+    `;
+  }
+
   render() {
-    if (this.songs.length === 0) {
+    const hasLocal = this.songs.length > 0;
+    const hasWeb = this.webSearchLoading || this.webResults.length > 0;
+
+    if (!hasLocal && !hasWeb) {
       return html`
         <li class="empty-list">
           <svg
@@ -101,29 +162,14 @@ export class PraiseSongList extends PraiseElement {
       `;
     }
 
-    return this.songs.map((song) => {
-      const active = this.currentFile === song.filename;
-      return html`
-        <li
-          data-file=${song.filename}
-          class=${active ? "active" : ""}
-          role="option"
-          tabindex=${this.projecting ? "-1" : "0"}
-          aria-selected=${active ? "true" : "false"}
-          @click=${() => this.emit("praise-select", song.filename)}
-          @keydown=${(event: KeyboardEvent) => this.onRowKeydown(event, song.filename)}
-        >
-          <span class="song-list-title">${song.title}</span>
-          ${song.song_num != null
-            ? html`<span class="song-list-num">${song.song_num}</span>`
-            : html`<span class="song-list-num"></span>`}
-          ${song.key
-            ? html`<span class="song-list-key">${song.key}</span>`
-            : html`<span class="song-list-key"></span>`}
-          ${song.favorite ? html`<span class="song-list-star">★</span>` : nothing}
-        </li>
-      `;
-    });
+    return html`
+      ${hasLocal
+        ? this.songs.map((song) =>
+            this.renderSongRow(song.filename, song.title, song.key, song.favorite),
+          )
+        : nothing}
+      ${this.renderWebResults()}
+    `;
   }
 }
 

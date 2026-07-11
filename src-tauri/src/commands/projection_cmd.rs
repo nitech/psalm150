@@ -48,7 +48,12 @@ fn build_frame(runtime: &RuntimeState, blank: bool) -> ProjectionFrame {
         .slides
         .get(idx + 1)
         .map(|s| s.section_label.clone());
-    let stage = stage_slide(&slide, &song_stub(runtime), next_label, runtime.projection.nashville);
+    let stage = stage_slide(
+        &slide,
+        &song_stub(runtime),
+        next_label,
+        runtime.projection.nashville,
+    );
     ProjectionFrame {
         audience: audience_slide(&slide),
         stage: Some(stage),
@@ -91,7 +96,9 @@ fn emit_frame(app: &AppHandle, frame: &ProjectionFrame) {
 
 /// Re-send the current slide to whatever projection windows exist.
 fn sync_projection_windows(app: &AppHandle, state: &AppState) {
-    let frame = with_state(state, |runtime| Ok(build_frame(runtime, runtime.projection.blank)));
+    let frame = with_state(state, |runtime| {
+        Ok(build_frame(runtime, runtime.projection.blank))
+    });
     if let Ok(frame) = frame {
         emit_frame(app, &frame);
     }
@@ -103,23 +110,25 @@ fn sync_projection_windows(app: &AppHandle, state: &AppState) {
 /// them later from inside a command can deadlock the event loop on Windows.
 pub fn create_projection_windows(app: &AppHandle) {
     if app.get_webview_window("audience").is_none() {
-        if let Err(e) = WebviewWindowBuilder::new(app, "audience", WebviewUrl::App("audience.html".into()))
-            .title("Audience")
-            .decorations(false)
-            .always_on_top(true)
-            .visible(false)
-            .build()
+        if let Err(e) =
+            WebviewWindowBuilder::new(app, "audience", WebviewUrl::App("audience.html".into()))
+                .title("Audience")
+                .decorations(false)
+                .always_on_top(true)
+                .visible(false)
+                .build()
         {
             eprintln!("[projection] failed to create audience window: {e}");
         }
     }
 
     if app.get_webview_window("stage").is_none() {
-        if let Err(e) = WebviewWindowBuilder::new(app, "stage", WebviewUrl::App("stage.html".into()))
-            .title("Stage")
-            .inner_size(900.0, 640.0)
-            .visible(false)
-            .build()
+        if let Err(e) =
+            WebviewWindowBuilder::new(app, "stage", WebviewUrl::App("stage.html".into()))
+                .title("Stage")
+                .inner_size(900.0, 640.0)
+                .visible(false)
+                .build()
         {
             eprintln!("[projection] failed to create stage window: {e}");
         }
@@ -128,7 +137,9 @@ pub fn create_projection_windows(app: &AppHandle) {
 
 #[tauri::command]
 pub fn open_audience_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    let monitor_id = with_state(&state, |runtime| Ok(runtime.config.audience_monitor.clone()))?;
+    let monitor_id = with_state(&state, |runtime| {
+        Ok(runtime.config.audience_monitor.clone())
+    })?;
     display::apply_monitor_to_window(&app, "audience", monitor_id.as_deref(), true)?;
     let window = app
         .get_webview_window("audience")
@@ -178,11 +189,19 @@ pub fn close_projection_windows(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn show_slide(app: AppHandle, state: State<'_, AppState>, index: usize) -> Result<ProjectionState, String> {
+pub fn show_slide(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    index: usize,
+) -> Result<ProjectionState, String> {
     show_slide_inner(&app, &state, index)
 }
 
-pub fn show_slide_inner(app: &AppHandle, state: &AppState, index: usize) -> Result<ProjectionState, String> {
+pub fn show_slide_inner(
+    app: &AppHandle,
+    state: &AppState,
+    index: usize,
+) -> Result<ProjectionState, String> {
     let (projection, frame) = with_state(state, |runtime| {
         if index >= runtime.projection.slides.len() {
             return Err("Slide index out of range".into());
@@ -225,7 +244,10 @@ pub fn next_slide_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionS
 }
 
 #[tauri::command]
-pub fn previous_slide(app: AppHandle, state: State<'_, AppState>) -> Result<ProjectionState, String> {
+pub fn previous_slide(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ProjectionState, String> {
     previous_slide_inner(&app, &state)
 }
 
@@ -278,7 +300,11 @@ pub fn get_next_slide_preview(state: State<'_, AppState>) -> Result<Option<Slide
 }
 
 #[tauri::command]
-pub fn set_transpose(app: AppHandle, state: State<'_, AppState>, semitones: i32) -> Result<ProjectionState, String> {
+pub fn set_transpose(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    semitones: i32,
+) -> Result<ProjectionState, String> {
     with_state(&state, |runtime| {
         runtime.projection.transpose_semitones = semitones;
         let filename = runtime
@@ -291,7 +317,10 @@ pub fn set_transpose(app: AppHandle, state: State<'_, AppState>, semitones: i32)
             .as_ref()
             .ok_or_else(|| "No songs folder".to_string())?;
         let content = std::fs::read_to_string(folder.join(filename)).map_err(|e| e.to_string())?;
-        let parsed = parse_chordpro(&content, &runtime.projection.filename.clone().unwrap_or_default());
+        let parsed = parse_chordpro(
+            &content,
+            &runtime.projection.filename.clone().unwrap_or_default(),
+        );
         let theme = load_theme(&app, runtime.folder_hash.as_ref().unwrap()).unwrap_or_default();
         runtime.projection.slides = build_slides(&parsed, &theme, semitones);
         Ok(runtime.projection.clone())
