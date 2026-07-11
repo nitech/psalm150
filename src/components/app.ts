@@ -18,7 +18,12 @@ import {
   type SongRow,
   type WebSearchCandidate,
 } from "../api";
-import { activeStanzaIndex, buildStanzaMarkers, stanzaStepSlideIndex } from "../stanza-markers";
+import {
+  activeStanzaIndex,
+  buildPreviewStanzaBlocks,
+  buildStanzaMarkers,
+  stanzaStepSlideIndex,
+} from "../stanza-markers";
 import { PraiseElement } from "./base";
 import type { PraiseCombobox } from "./combobox";
 import "./combobox";
@@ -82,6 +87,7 @@ export class PraiseApp extends PraiseElement {
     toastVisible: { state: true },
     windowMaximized: { state: true },
     projecting: { state: true },
+    minimapOpen: { state: true },
     browsePaneWidth: { state: true },
     webResults: { state: true },
     webSearchLoading: { state: true },
@@ -117,6 +123,7 @@ export class PraiseApp extends PraiseElement {
   declare toastVisible: boolean;
   declare windowMaximized: boolean;
   declare projecting: boolean;
+  declare minimapOpen: boolean;
   declare browsePaneWidth: number;
   declare webResults: WebSearchCandidate[];
   declare webSearchLoading: boolean;
@@ -133,6 +140,7 @@ export class PraiseApp extends PraiseElement {
   private songsRefreshGeneration = 0;
   private splitterDragging = false;
   private tabIndicatorObserver: ResizeObserver | null = null;
+  private songFitObserver: ResizeObserver | null = null;
 
   constructor() {
     super();
@@ -166,6 +174,7 @@ export class PraiseApp extends PraiseElement {
     this.toastVisible = false;
     this.windowMaximized = false;
     this.projecting = false;
+    this.minimapOpen = false;
     const savedWidth = localStorage.getItem(BROWSE_PANE_WIDTH_KEY);
     const parsed = savedWidth ? Number.parseInt(savedWidth, 10) : Number.NaN;
     this.browsePaneWidth =
@@ -190,7 +199,10 @@ export class PraiseApp extends PraiseElement {
       this.windowMaximized = await win.isMaximized();
       this.unlistenWindowResize = await win.onResized(async () => {
         this.windowMaximized = await win.isMaximized();
-        requestAnimationFrame(() => this.updateTabIndicator());
+        requestAnimationFrame(() => {
+          this.updateTabIndicator();
+          this.fitSongContentToViewport();
+        });
       });
     } catch (err) {
       console.error(err);
@@ -223,7 +235,9 @@ export class PraiseApp extends PraiseElement {
         await this.refreshSongs();
       });
       this.unlistenProjection = await listen("projection-closed", () => {
+        this.minimapOpen = false;
         this.projecting = false;
+        this.resetSongContentFit();
       });
     } catch (err) {
       console.error(err);
@@ -238,6 +252,7 @@ export class PraiseApp extends PraiseElement {
     this.unlistenProjection?.();
     this.unlistenWindowResize?.();
     this.tabIndicatorObserver?.disconnect();
+    this.songFitObserver?.disconnect();
     void this.unlistenImport?.();
   }
 
@@ -268,7 +283,87 @@ export class PraiseApp extends PraiseElement {
       });
     }
     if (changed.has("projection") || changed.has("projecting")) {
-      requestAnimationFrame(() => this.syncMinimapState());
+      const shouldOpen = this.projecting && this.isProjectionActive();
+      if (shouldOpen) {
+        if (!this.minimapOpen) {
+          requestAnimationFrame(() => {
+            this.minimapOpen = true;
+            requestAnimationFrame(() => {
+              this.syncMinimapState();
+              this.fitSongContentToViewport();
+              this.observeSongFit();
+            });
+          });
+        } else {
+          requestAnimationFrame(() => {
+            this.syncMinimapState();
+            this.fitSongContentToViewport();
+            this.observeSongFit();
+          });
+        }
+      } else if (this.minimapOpen) {
+        this.minimapOpen = false;
+        requestAnimationFrame(() => this.fitSongContentToViewport());
+      } else {
+        requestAnimationFrame(() => {
+          this.fitSongContentToViewport();
+          if (!this.projecting) this.resetSongContentFit();
+        });
+      }
+    }
+    if (changed.has("currentSong") && this.projecting) {
+      requestAnimationFrame(() => this.fitSongContentToViewport());
+    }
+  }
+
+  private observeSongFit() {
+    const body = this.querySelector<HTMLElement>(".song-body");
+    if (!body) return;
+    this.songFitObserver?.disconnect();
+    if (!this.projecting) return;
+    this.songFitObserver = new ResizeObserver(() => {
+      requestAnimationFrame(() => this.fitSongContentToViewport());
+    });
+    this.songFitObserver.observe(body);
+  }
+
+  private fitSongContentToViewport() {
+    const body = this.querySelector<HTMLElement>(".song-body");
+    const content = this.querySelector<HTMLElement>(".song-content");
+    if (!body || !content) return;
+
+    if (!this.projecting) {
+      this.style.removeProperty("--song-fit-zoom");
+      return;
+    }
+
+    this.style.setProperty("--song-fit-zoom", "1");
+    const available = body.clientHeight;
+    const natural = content.scrollHeight;
+    if (available <= 0 || natural <= 0) return;
+
+    const zoom = Math.min(1, available / natural);
+    this.style.setProperty("--song-fit-zoom", String(Math.max(0.45, zoom)));
+  }
+
+  private resetSongContentFit() {
+    this.songFitObserver?.disconnect();
+    this.songFitObserver = null;
+    this.style.removeProperty("--song-fit-zoom");
+  }
+
+  private scrollActiveMinimapItemIntoView(behavior: ScrollBehavior = "smooth") {
+    const active = this.querySelector<HTMLElement>(".song-minimap-item.active");
+    const list = this.querySelector<HTMLElement>(".song-minimap-list");
+    if (!active || !list) return;
+
+    const listRect = list.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+
+    if (activeRect.top < listRect.top) {
+      list.scrollTo({ top: list.scrollTop - (listRect.top - activeRect.top), behavior });
+    } else if (activeRect.bottom > listRect.bottom) {
+      list.scrollTo({ top: list.scrollTop + (activeRect.bottom - listRect.bottom), behavior });
     }
   }
 
@@ -278,7 +373,7 @@ export class PraiseApp extends PraiseElement {
     const active = this.querySelector<HTMLElement>(".song-minimap-item.active");
     if (!active) return false;
     active.focus({ preventScroll: true });
-    active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    this.scrollActiveMinimapItemIntoView();
     return document.activeElement === active;
   }
 
@@ -305,7 +400,7 @@ export class PraiseApp extends PraiseElement {
       this.focusActiveMinimapItem();
       return;
     }
-    active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    this.scrollActiveMinimapItemIntoView();
   }
 
   // ── Derived helpers ────────────────────────────────────────────────────
@@ -905,8 +1000,12 @@ export class PraiseApp extends PraiseElement {
   // ── Keyboard ───────────────────────────────────────────────────────────
 
   private async stopProjection() {
+    if (!this.projecting) return;
+    this.minimapOpen = false;
+    await delay(200);
     await api.closeProjectionWindows();
     this.projecting = false;
+    this.resetSongContentFit();
   }
 
   private onGlobalKeydown = async (event: KeyboardEvent) => {
@@ -1020,6 +1119,7 @@ export class PraiseApp extends PraiseElement {
           @pointercancel=${this.onSplitterPointerUp}
         ></div>
       </main>
+      ${this.renderProjectionMinimap()}
       <praise-modal
         heading="Settings"
         variant="wide"
@@ -1297,16 +1397,36 @@ export class PraiseApp extends PraiseElement {
     return this.currentSong?.parsed.sections[sectionIndex]?.kind ?? "other";
   }
 
-  private renderSongMinimap() {
-    if (!this.projecting || !this.isProjectionActive()) return nothing;
-    const markers = buildStanzaMarkers(this.projection!.slides);
-    const active = activeStanzaIndex(markers, this.projection!.current_index);
+  private renderMinimapStanza(lines: LyricLine[]) {
     return html`
-      <div class="song-minimap" aria-label="Song sections">
-        <div class="song-minimap-toolbar">
-          <button type="button" class="secondary compact" @click=${() => this.stopProjection()}>
-            Stop
-            <kbd class="song-minimap-shortcut">Esc</kbd>
+      <div class="song-minimap-stanza">
+        ${lines.map((line) => this.renderLyricLine(line))}
+      </div>
+    `;
+  }
+
+  private renderProjectionMinimap() {
+    if (!this.projecting) return nothing;
+    const markers = buildStanzaMarkers(this.projection?.slides ?? []);
+    const previewBlocks = buildPreviewStanzaBlocks(this.currentSong?.parsed.sections ?? []);
+    const active = activeStanzaIndex(markers, this.projection?.current_index ?? 0);
+    return html`
+      <aside
+        class="projection-minimap ${this.minimapOpen ? "is-open" : ""}"
+        aria-label="Song sections"
+        aria-hidden=${this.minimapOpen ? "false" : "true"}
+      >
+        <div class="projection-minimap-toolbar">
+          <button
+            type="button"
+            class="projection-minimap-close"
+            aria-label="Stop projection"
+            title="Stop projection"
+            @click=${() => this.stopProjection()}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.2" />
+            </svg>
           </button>
         </div>
         ${markers.length > 0
@@ -1314,23 +1434,26 @@ export class PraiseApp extends PraiseElement {
               <div class="song-minimap-list">
                 ${markers.map((marker, index) => {
                   const isActive = index === active;
-                  const kind = this.sectionKind(marker.sectionIndex);
+                  const kind = this.sectionKind(
+                    previewBlocks[index]?.sectionIndex ?? marker.sectionIndex,
+                  );
+                  const lines = previewBlocks[index]?.lines ?? marker.lines;
                   return html`
                     <button
                       type="button"
-                      class="song-minimap-item ${isActive ? `active ${kind}` : ""}"
+                      class="song-minimap-item ${kind} ${isActive ? "active" : ""}"
                       aria-current=${isActive ? "true" : "false"}
                       aria-label=${marker.fullText || `Section ${index + 1}`}
                       @click=${() => this.jumpToStanza(marker.slideIndices[0])}
                     >
-                      <span class="song-minimap-text">${marker.fullText || "\u00a0"}</span>
+                      ${this.renderMinimapStanza(lines)}
                     </button>
                   `;
                 })}
               </div>
             `
           : nothing}
-      </div>
+      </aside>
     `;
   }
 
@@ -1352,9 +1475,8 @@ export class PraiseApp extends PraiseElement {
           ${this.renderSongSecondaryMeta()}
         </header>
         <div class="song-body scroll-region">
-          <div class="song-body-layout ${this.projecting ? "projecting" : ""}">
-            <div class="song-content">${this.renderSongContent()}</div>
-            ${this.renderSongMinimap()}
+          <div class="song-content ${this.projecting ? "projecting" : ""}">
+            ${this.renderSongContent()}
           </div>
         </div>
       </section>

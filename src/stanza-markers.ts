@@ -1,10 +1,16 @@
-import type { SlidePayload } from "./api";
+import type { LyricLine, SlidePayload, SongSection } from "./api";
 
 export interface StanzaMarker {
   stanzaIndex: number;
   slideIndices: number[];
   sectionIndex: number;
   fullText: string;
+  lines: LyricLine[];
+}
+
+export interface PreviewStanzaBlock {
+  sectionIndex: number;
+  lines: LyricLine[];
 }
 
 function stanzaKey(slide: SlidePayload): number {
@@ -25,6 +31,40 @@ function appendSlideText(existing: string, slide: SlidePayload): string {
   return `${existing}\n${addition}`;
 }
 
+function slideToLyricLines(slide: SlidePayload): LyricLine[] {
+  return slide.lines.map((line) => ({ text: line.text, chords: [] }));
+}
+
+function appendSlideLines(existing: LyricLine[], slide: SlidePayload): LyricLine[] {
+  const addition = slideToLyricLines(slide);
+  if (addition.length === 0) return existing;
+  if (existing.length === 0) return addition;
+  return existing.concat(addition);
+}
+
+/** Blank-line blocks from parsed sections — matches song preview layout. */
+export function buildPreviewStanzaBlocks(sections: SongSection[]): PreviewStanzaBlock[] {
+  const blocks: PreviewStanzaBlock[] = [];
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
+    const section = sections[sectionIndex];
+    let current: LyricLine[] = [];
+    for (const line of section.lines) {
+      if (!line.text && line.chords.length === 0) {
+        if (current.length > 0) {
+          blocks.push({ sectionIndex, lines: current });
+          current = [];
+        }
+      } else {
+        current.push(line);
+      }
+    }
+    if (current.length > 0) {
+      blocks.push({ sectionIndex, lines: current });
+    }
+  }
+  return blocks;
+}
+
 export function buildStanzaMarkers(slides: SlidePayload[]): StanzaMarker[] {
   const markers: StanzaMarker[] = [];
   for (const slide of slides) {
@@ -33,12 +73,14 @@ export function buildStanzaMarkers(slides: SlidePayload[]): StanzaMarker[] {
     if (last && last.stanzaIndex === stanzaIndex) {
       last.slideIndices.push(slide.index);
       last.fullText = appendSlideText(last.fullText, slide);
+      last.lines = appendSlideLines(last.lines, slide);
     } else {
       markers.push({
         stanzaIndex,
         slideIndices: [slide.index],
         sectionIndex: slide.section_index ?? 0,
         fullText: slideLinesToText(slide),
+        lines: slideToLyricLines(slide),
       });
     }
   }
