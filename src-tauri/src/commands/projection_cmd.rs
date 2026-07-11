@@ -146,6 +146,9 @@ pub fn open_audience_window(app: AppHandle, state: State<'_, AppState>) -> Resul
         .ok_or_else(|| "Audience window is not available".to_string())?;
     window.show().map_err(|e| e.to_string())?;
     sync_projection_windows(&app, &state);
+    if display::is_simulated_display(monitor_id.as_deref()) {
+        let _ = window.set_focus();
+    }
     Ok(())
 }
 

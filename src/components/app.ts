@@ -692,21 +692,46 @@ export class PraiseApp extends PraiseElement {
 
   // ── Projection ─────────────────────────────────────────────────────────
 
+  /** Reload the selected song on the backend so projection state matches before opening windows. */
+  private async ensureCurrentSongLoaded(): Promise<boolean> {
+    if (!this.currentFilename) return false;
+
+    if (isWebResultId(this.currentFilename)) {
+      const candidate = this.webResults[webResultIndex(this.currentFilename)];
+      if (!candidate) {
+        this.currentSong = null;
+        return false;
+      }
+      this.currentSong = await api.quickProject(candidate.chordpro_content, false);
+      return true;
+    }
+
+    this.currentSong = await api.loadSong(this.currentFilename);
+    return true;
+  }
+
   private async projectLoadedSong() {
-    if (!this.currentSong) return;
+    if (!this.currentFilename) return;
+    if (!(await this.ensureCurrentSongLoaded())) return;
+
     this.projecting = true;
     this.querySelector<HTMLElement>("praise-song-list li:focus")?.blur();
     await this.updateComplete;
-    this.projection = this.currentSong.projection;
+
+    if (this.currentSong!.projection.slides.length > 0) {
+      this.projection = await api.showSlide(0);
+    } else {
+      this.projection = this.currentSong!.projection;
+    }
+
     await api.openAudienceWindow();
     if (this.projectToStage) {
       await api.openStageWindow();
     }
-    if (this.projection.slides.length > 0) {
-      this.projection = await api.showSlide(0);
-    }
     await api.logProjection();
-    await getCurrentWebviewWindow().setFocus();
+    if (this.audienceMonitor !== SIMULATED_DISPLAY_ID) {
+      await getCurrentWebviewWindow().setFocus();
+    }
     await this.focusActiveMinimapAfterProject();
   }
 
@@ -999,6 +1024,52 @@ export class PraiseApp extends PraiseElement {
 
   // ── Keyboard ───────────────────────────────────────────────────────────
 
+  private allSelectableFiles(): string[] {
+    return [
+      ...this.songs.map((song) => song.filename),
+      ...this.webResults.map((_, index) => webResultId(index)),
+    ];
+  }
+
+  private async focusSongListRow(file: string) {
+    await this.updateComplete;
+    const row = this.querySelector<HTMLElement>(
+      `praise-song-list li[data-file="${CSS.escape(file)}"]`,
+    );
+    row?.focus({ preventScroll: true });
+    row?.scrollIntoView({ block: "nearest" });
+  }
+
+  private async navigateFilteredSongs(direction: "next" | "prev") {
+    const files = this.allSelectableFiles();
+    if (files.length === 0) return;
+
+    const index = this.currentFilename ? files.indexOf(this.currentFilename) : -1;
+
+    if (direction === "next") {
+      const next = index < 0 ? files[0] : files[index + 1];
+      if (!next) return;
+      await this.selectSong(next);
+      await this.focusSongListRow(next);
+      return;
+    }
+
+    if (index <= 0) {
+      if (index === 0) {
+        this.focusActiveBrowseField();
+        return;
+      }
+      const last = files[files.length - 1];
+      await this.selectSong(last);
+      await this.focusSongListRow(last);
+      return;
+    }
+
+    const prev = files[index - 1];
+    await this.selectSong(prev);
+    await this.focusSongListRow(prev);
+  }
+
   private async stopProjection() {
     if (!this.projecting) return;
     this.minimapOpen = false;
@@ -1053,13 +1124,19 @@ export class PraiseApp extends PraiseElement {
       event.preventDefault();
       await this.advanceSlide("prev");
     } else if (event.key === "ArrowDown") {
-      if (!this.isProjectionActive()) return;
       event.preventDefault();
-      await this.advanceStanza("next");
+      if (this.isProjectionActive()) {
+        await this.advanceStanza("next");
+      } else if (!this.projecting) {
+        await this.navigateFilteredSongs("next");
+      }
     } else if (event.key === "ArrowUp") {
-      if (!this.isProjectionActive()) return;
       event.preventDefault();
-      await this.advanceStanza("prev");
+      if (this.isProjectionActive()) {
+        await this.advanceStanza("prev");
+      } else if (!this.projecting) {
+        await this.navigateFilteredSongs("prev");
+      }
     } else if (event.key.toLowerCase() === "b") {
       this.projection = await api.blankScreen();
     }
