@@ -56,6 +56,21 @@ pub struct ChordPlacement {
     pub position: usize,
 }
 
+fn is_blank_line(line: &LyricLine) -> bool {
+    line.text.is_empty() && line.chords.is_empty()
+}
+
+/// Drop blank lines at section edges — ChordPro files often have an extra newline
+/// before the next `{start_of_*}` directive, which would otherwise double the gap in the UI.
+fn trim_section_boundary_lines(lines: &mut Vec<LyricLine>) {
+    while lines.first().is_some_and(is_blank_line) {
+        lines.remove(0);
+    }
+    while lines.last().is_some_and(is_blank_line) {
+        lines.pop();
+    }
+}
+
 pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
     let mut title = filename.to_string();
     let mut key = None;
@@ -79,6 +94,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                              label: &mut String,
                              kind: &mut SectionKind,
                              lines: &mut Vec<LyricLine>| {
+        trim_section_boundary_lines(lines);
         if !lines.is_empty() || *kind == SectionKind::Chorus {
             sections.push(SongSection {
                 label: label.clone(),

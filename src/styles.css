@@ -939,20 +939,16 @@ body.workspace-resizing {
   padding: 24px 32px 32px;
   font-family: var(--font-ui);
   font-size: 0.95rem;
-  line-height: 1.55;
+  line-height: 1.32;
   color: var(--text-secondary);
 }
 
-.song-section {
-  margin-bottom: 1.75rem;
-}
-
-.song-section:last-child {
-  margin-bottom: 0;
+.song-section + .song-section {
+  margin-top: 0.85rem;
 }
 
 .song-section-label {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.4rem;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -987,11 +983,11 @@ body.workspace-resizing {
 }
 
 .song-line {
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.15rem;
 }
 
 .song-line-spacer {
-  height: 0.65rem;
+  height: 0.9rem;
 }
 
 .song-chords {
@@ -1005,7 +1001,7 @@ body.workspace-resizing {
 
 .song-lyrics {
   font-size: 0.95rem;
-  line-height: 1.55;
+  line-height: 1.32;
   white-space: pre-wrap;
   color: var(--text-strong);
 }
