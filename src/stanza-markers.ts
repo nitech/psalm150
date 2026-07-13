@@ -1,4 +1,5 @@
 import type { LyricLine, SlidePayload, SongSection } from "./api";
+import type { LineProvenance } from "./performance-sections";
 
 export interface StanzaMarker {
   stanzaIndex: number;
@@ -10,7 +11,9 @@ export interface StanzaMarker {
 
 export interface PreviewStanzaBlock {
   sectionIndex: number;
+  stanzaIndexInSection: number;
   lines: LyricLine[];
+  lineProvenance: LineProvenance[];
 }
 
 function stanzaKey(slide: SlidePayload): number {
@@ -42,25 +45,61 @@ function appendSlideLines(existing: LyricLine[], slide: SlidePayload): LyricLine
   return existing.concat(addition);
 }
 
+interface SectionWithProvenance {
+  lines: LyricLine[];
+  lineProvenance?: LineProvenance[];
+}
+
 /** Blank-line blocks from parsed sections — matches song preview layout. */
 export function buildPreviewStanzaBlocks(sections: SongSection[]): PreviewStanzaBlock[] {
+  return buildPreviewStanzaBlocksFromSections(
+    sections.map((section, sectionIndex) => ({
+      lines: section.lines,
+      lineProvenance: section.lines.map((_, lineIndex) => ({
+        sectionIndex,
+        lineIndex,
+      })),
+    })),
+  );
+}
+
+export function buildPreviewStanzaBlocksFromSections(
+  sections: SectionWithProvenance[],
+): PreviewStanzaBlock[] {
   const blocks: PreviewStanzaBlock[] = [];
   for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
     const section = sections[sectionIndex];
-    let current: LyricLine[] = [];
-    for (const line of section.lines) {
+    let currentLines: LyricLine[] = [];
+    let currentProvenance: LineProvenance[] = [];
+    let stanzaIndexInSection = 0;
+
+    const flush = () => {
+      if (currentLines.length === 0) return;
+      blocks.push({
+        sectionIndex,
+        stanzaIndexInSection,
+        lines: currentLines,
+        lineProvenance: currentProvenance,
+      });
+      stanzaIndexInSection += 1;
+      currentLines = [];
+      currentProvenance = [];
+    };
+
+    for (let lineIndex = 0; lineIndex < section.lines.length; lineIndex++) {
+      const line = section.lines[lineIndex];
+      const provenance = section.lineProvenance?.[lineIndex] ?? {
+        sectionIndex,
+        lineIndex,
+      };
       if (!line.text && line.chords.length === 0) {
-        if (current.length > 0) {
-          blocks.push({ sectionIndex, lines: current });
-          current = [];
-        }
+        flush();
       } else {
-        current.push(line);
+        currentLines.push(line);
+        currentProvenance.push(provenance);
       }
     }
-    if (current.length > 0) {
-      blocks.push({ sectionIndex, lines: current });
-    }
+    flush();
   }
   return blocks;
 }

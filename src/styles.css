@@ -888,6 +888,15 @@ body.workspace-resizing {
   margin-bottom: 0.15rem;
 }
 
+.song-line.editable-line {
+  cursor: text;
+}
+
+.song-line.editable-line:not(:has(.song-lyric-editable)):hover .song-lyrics {
+  background: rgba(198, 216, 140, 0.06);
+  border-radius: var(--radius-sm);
+}
+
 .song-line-spacer {
   height: 0.9rem;
 }
@@ -906,6 +915,72 @@ body.workspace-resizing {
   line-height: 1.32;
   white-space: pre-wrap;
   color: var(--text-strong);
+}
+
+.adhoc-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(198, 216, 140, 0.08);
+  border: 1px solid rgba(198, 216, 140, 0.22);
+}
+
+.adhoc-edit-bar.active {
+  background: rgba(198, 216, 140, 0.14);
+  border-color: rgba(198, 216, 140, 0.38);
+  box-shadow: 0 0 0 1px rgba(198, 216, 140, 0.08);
+}
+
+.adhoc-edit-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-lime);
+}
+
+.adhoc-save-btn {
+  margin-left: auto;
+}
+
+.song-stanza.editable {
+  cursor: text;
+}
+
+.song-stanza.editable:not(.editing):hover .song-lyrics {
+  background: rgba(198, 216, 140, 0.06);
+  border-radius: var(--radius-sm);
+}
+
+.song-stanza.editing {
+  cursor: text;
+  outline: 1px dashed rgba(198, 216, 140, 0.45);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.song-lyric-editable {
+  min-height: 1.32em;
+  outline: none;
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+  background: rgba(198, 216, 140, 0.1);
+}
+
+.song-lyric-editable:focus {
+  background: rgba(198, 216, 140, 0.16);
+  box-shadow: 0 0 0 1px rgba(198, 216, 140, 0.35);
+}
+
+.adhoc-changed-line .adhoc-changed,
+.song-lyrics .adhoc-changed {
+  color: #f0c060;
+  background: rgba(240, 192, 96, 0.14);
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 .chordpro-section {

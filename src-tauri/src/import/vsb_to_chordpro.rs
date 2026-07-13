@@ -104,6 +104,22 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
         let line = lines[i];
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            if is_single_stanza_section_kind(&current_kind) {
+                if let Some(next) = next_non_empty_line(&lines, i + 1) {
+                    if !section_re.is_match(next) {
+                        flush(
+                            &mut sections,
+                            &mut current_label,
+                            &mut current_kind,
+                            &mut current_lines,
+                        );
+                        current_kind = section_kind_after_stanza_break(&current_kind);
+                        current_label = "Verse".into();
+                        i += 1;
+                        continue;
+                    }
+                }
+            }
             current_lines.push(crate::library::chordpro::LyricLine {
                 text: String::new(),
                 chords: vec![],
@@ -228,6 +244,32 @@ fn capitalize_label(label: &str) -> String {
     }
 }
 
+pub(crate) fn is_single_stanza_section_kind(kind: &SectionKind) -> bool {
+    matches!(
+        kind,
+        SectionKind::Verse
+            | SectionKind::Chorus
+            | SectionKind::Chorus2
+            | SectionKind::Bridge
+            | SectionKind::Other
+    )
+}
+
+pub(crate) fn section_kind_after_stanza_break(kind: &SectionKind) -> SectionKind {
+    match kind {
+        SectionKind::Chorus | SectionKind::Chorus2 | SectionKind::Bridge => SectionKind::Verse,
+        other => other.clone(),
+    }
+}
+
+pub(crate) fn next_non_empty_line<'a>(lines: &[&'a str], start: usize) -> Option<&'a str> {
+    lines
+        .iter()
+        .skip(start)
+        .map(|line| line.trim())
+        .find(|line| !line.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,18 +278,23 @@ mod tests {
     fn converts_lyrics_only_body() {
         let body = "Line one\nLine two\n\nLine three";
         let sections = parse_vsb_body(body);
-        assert!(!sections.is_empty());
-        assert_eq!(sections[0].lines.len(), 4);
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].lines.len(), 2);
         assert_eq!(sections[0].lines[0].text, "Line one");
         assert_eq!(sections[0].lines[1].text, "Line two");
-        assert_eq!(sections[0].lines[2].text, "");
-        assert_eq!(sections[0].lines[3].text, "Line three");
+        assert_eq!(sections[1].lines[0].text, "Line three");
     }
 
     #[test]
-    fn preserves_blank_lines_in_chordpro_round_trip() {
+    fn blank_lines_split_verses_into_separate_sections() {
         let body = "verse 1\nFirst line\n\nSecond stanza line";
         let sections = parse_vsb_body(body);
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].kind, SectionKind::Verse);
+        assert_eq!(sections[0].lines[0].text, "First line");
+        assert_eq!(sections[1].kind, SectionKind::Verse);
+        assert_eq!(sections[1].lines[0].text, "Second stanza line");
+
         let song = ParsedSong {
             meta: crate::library::chordpro::SongMeta {
                 filename: "test.pro".into(),
@@ -269,20 +316,11 @@ mod tests {
             sections,
         };
         let content = serialize_chordpro(&song);
-        assert!(content.contains("First line\n\nSecond stanza line"));
         let reparsed = parse_chordpro(&content, "test.pro");
-        let verse = reparsed
-            .sections
-            .iter()
-            .find(|s| s.kind == SectionKind::Verse)
-            .expect("verse section");
-        let texts: Vec<&str> = verse.lines.iter().map(|l| l.text.as_str()).collect();
-        assert!(
-            texts
-                .windows(3)
-                .any(|w| w[0] == "First line" && w[1].is_empty() && w[2] == "Second stanza line"),
-            "expected blank line between stanzas, got {texts:?}"
-        );
+        let verses: Vec<_> = reparsed.sections.iter().filter(|s| s.kind == SectionKind::Verse).collect();
+        assert_eq!(verses.len(), 2);
+        assert_eq!(verses[0].lines[0].text, "First line");
+        assert_eq!(verses[1].lines[0].text, "Second stanza line");
     }
 
     #[test]
@@ -301,6 +339,42 @@ mod tests {
         assert_eq!(sections.len(), 2);
         assert_eq!(sections[0].kind, SectionKind::Chorus);
         assert_eq!(sections[1].kind, SectionKind::Chorus2);
+    }
+
+    #[test]
+    fn chorus_label_applies_to_one_stanza_only() {
+        let body = "chorus\nLov min Gud, Å min sjel\nÅ min sjel\n\nSolen står opp\nog en ny dag begynner";
+        let sections = parse_vsb_body(body);
+        assert_eq!(sections.len(), 2, "sections: {:?}", sections.iter().map(|s| (&s.kind, s.lines.len())).collect::<Vec<_>>());
+        assert_eq!(sections[0].kind, SectionKind::Chorus);
+        assert_eq!(sections[1].kind, SectionKind::Verse);
+        assert_eq!(sections[1].lines[0].text, "Solen står opp");
+
+        let song = ParsedSong {
+            meta: crate::library::chordpro::SongMeta {
+                filename: "test.pro".into(),
+                title: "Test".into(),
+                song_num: None,
+                vsb_song_id: None,
+                key: None,
+                alt_keys: None,
+                category: None,
+                artist: None,
+                copyright: None,
+                ccli: None,
+                tags: None,
+                arrangement: None,
+                base_song: None,
+                modified_at: None,
+            },
+            raw: body.into(),
+            sections,
+        };
+        let content = serialize_chordpro(&song);
+        assert!(content.contains("{end_of_chorus}\n"));
+        let reparsed = parse_chordpro(&content, "test.pro");
+        assert_eq!(reparsed.sections[0].kind, SectionKind::Chorus);
+        assert_eq!(reparsed.sections[1].kind, SectionKind::Verse);
     }
 
     #[test]

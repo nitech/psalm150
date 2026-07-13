@@ -18,9 +18,23 @@ import {
   type WebSearchCandidate,
 } from "../api";
 import {
+  applyPendingEditsToLineText,
+  diffLineSegments,
+  hasPendingEdits,
+  lineIsBlank,
+  patchChordProRaw,
+  type PendingEdits,
+} from "../adhoc-edit";
+import {
+  buildPerformanceSections,
+  stanzaBlockKey,
+  sourceLineKey,
+} from "../performance-sections";
+import {
   activeStanzaIndex,
-  buildPreviewStanzaBlocks,
+  buildPreviewStanzaBlocksFromSections,
   buildStanzaMarkers,
+  type PreviewStanzaBlock,
   stanzaStepSlideIndex,
 } from "../stanza-markers";
 import { PraiseElement } from "./base";
@@ -89,6 +103,8 @@ export class PraiseApp extends PraiseElement {
     browsePaneWidth: { state: true },
     webResults: { state: true },
     webSearchLoading: { state: true },
+    adhocEditingBlockKey: { state: true },
+    adhocPendingEdits: { state: true },
   };
 
   declare songs: SongRow[];
@@ -124,6 +140,8 @@ export class PraiseApp extends PraiseElement {
   declare browsePaneWidth: number;
   declare webResults: WebSearchCandidate[];
   declare webSearchLoading: boolean;
+  declare adhocEditingBlockKey: string | null;
+  declare adhocPendingEdits: PendingEdits;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -176,6 +194,8 @@ export class PraiseApp extends PraiseElement {
       Number.isFinite(parsed) && parsed >= BROWSE_PANE_MIN ? parsed : BROWSE_PANE_DEFAULT;
     this.webResults = [];
     this.webSearchLoading = false;
+    this.adhocEditingBlockKey = null;
+    this.adhocPendingEdits = new Map();
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -538,7 +558,20 @@ export class PraiseApp extends PraiseElement {
     }
   }
 
+  private resetAdhocEdits() {
+    this.adhocEditingBlockKey = null;
+    this.adhocPendingEdits = new Map();
+  }
+
+  private canAdhocEdit(): boolean {
+    if (this.readOnly) return false;
+    if (!this.currentSong) return false;
+    if (this.currentFilename && isWebResultId(this.currentFilename)) return false;
+    return Boolean(this.currentSong.projection.filename);
+  }
+
   private async selectSong(file: string) {
+    this.resetAdhocEdits();
     this.currentFilename = file;
     if (isWebResultId(file)) {
       const candidate = this.webResults[webResultIndex(file)];
@@ -657,6 +690,73 @@ export class PraiseApp extends PraiseElement {
     );
     this.showToast("Song saved");
     await this.refreshSongs();
+  }
+
+  private enterAdhocEdit(blockKey: string, event?: Event) {
+    if (!this.canAdhocEdit()) return;
+    event?.stopPropagation();
+    this.adhocEditingBlockKey = blockKey;
+  }
+
+  private exitAdhocEdit() {
+    this.adhocEditingBlockKey = null;
+  }
+
+  private onAdhocLineInput(
+    provenance: { sectionIndex: number; lineIndex: number },
+    originalText: string,
+    event: Event,
+  ) {
+    const text = (event.target as HTMLElement).textContent ?? "";
+    const key = sourceLineKey(provenance.sectionIndex, provenance.lineIndex);
+    const existing = this.adhocPendingEdits.get(key);
+    const original = existing?.original ?? originalText;
+    const next = new Map(this.adhocPendingEdits);
+    if (text === original) {
+      next.delete(key);
+    } else {
+      next.set(key, { original, text });
+    }
+    this.adhocPendingEdits = next;
+  }
+
+  private async saveAdhocEdits() {
+    if (!this.currentSong?.projection.filename || !hasPendingEdits(this.adhocPendingEdits)) {
+      return;
+    }
+    const filename = this.currentSong.projection.filename;
+    const raw = this.currentSong.parsed.raw;
+    const sections = this.currentSong.parsed.sections;
+    const patched = patchChordProRaw(raw, sections, this.adhocPendingEdits);
+    try {
+      this.currentSong = await api.saveSong(filename, patched);
+      this.projection = this.currentSong.projection;
+      this.resetAdhocEdits();
+      this.showToast("Corrections saved", "success");
+      await this.refreshSongs();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.showToast(message, "error");
+    }
+  }
+
+  private displayLineText(
+    provenance: { sectionIndex: number; lineIndex: number },
+    originalText: string,
+  ): string {
+    return applyPendingEditsToLineText(
+      provenance.sectionIndex,
+      provenance.lineIndex,
+      originalText,
+      this.adhocPendingEdits,
+    );
+  }
+
+  private lineHasPendingEdit(provenance: { sectionIndex: number; lineIndex: number }): boolean {
+    const edit = this.adhocPendingEdits.get(
+      sourceLineKey(provenance.sectionIndex, provenance.lineIndex),
+    );
+    return Boolean(edit && edit.text !== edit.original);
   }
 
   private async deleteSong() {
@@ -962,6 +1062,10 @@ export class PraiseApp extends PraiseElement {
     const target = event.target;
 
     if (event.key === "Escape") {
+      if (this.adhocEditingBlockKey) {
+        this.exitAdhocEdit();
+        return;
+      }
       if (this.editOpen) {
         this.editOpen = false;
         return;
@@ -992,7 +1096,7 @@ export class PraiseApp extends PraiseElement {
       return;
     }
 
-    if (isTextEntryTarget(target)) return;
+    if (isTextEntryTarget(target) || isContentEditableTarget(target)) return;
 
     if (event.key === "ArrowRight") {
       if (!this.isProjectionActive()) return;
@@ -1364,9 +1468,10 @@ export class PraiseApp extends PraiseElement {
             ${this.renderSongPaneSaveButton()}
           </div>
           ${this.renderSongSecondaryMeta()}
+          ${this.renderAdhocEditBar()}
         </header>
         <div class="song-body scroll-region">
-          <div class="song-content ${this.projecting ? "projecting" : ""}">
+          <div class="song-content ${this.isProjectionActive() ? "projecting" : ""}">
             ${this.renderSongContent()}
           </div>
         </div>
@@ -1401,6 +1506,35 @@ export class PraiseApp extends PraiseElement {
     `;
   }
 
+  private renderAdhocEditBar() {
+    const editing = this.adhocEditingBlockKey != null;
+    const changed = hasPendingEdits(this.adhocPendingEdits);
+    if (!editing && !changed) return nothing;
+    return html`
+      <div class="adhoc-edit-bar ${editing ? "active" : ""}">
+        <span class="adhoc-edit-label">${editing ? "Ad hoc editing" : "Unsaved corrections"}</span>
+        ${changed && this.canAdhocEdit()
+          ? html`
+              <button
+                type="button"
+                class="primary compact adhoc-save-btn"
+                @click=${() => this.saveAdhocEdits()}
+              >
+                Save corrections
+              </button>
+            `
+          : nothing}
+        ${editing
+          ? html`
+              <button type="button" class="ghost compact" @click=${() => this.exitAdhocEdit()}>
+                Done
+              </button>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
   private renderSongSecondaryMeta() {
     if (!this.currentSong) return nothing;
     if (this.currentFilename && isWebResultId(this.currentFilename)) {
@@ -1422,45 +1556,116 @@ export class PraiseApp extends PraiseElement {
         Choose a song from the library to view the full lyrics here.
       </p>`;
     }
-    const sections = this.currentSong.parsed.sections;
-    if (!sections.length) {
+    const performanceSections = buildPerformanceSections(this.currentSong.parsed.sections);
+    if (!performanceSections.length) {
       return html`<p class="empty-state">This song has no parsed content.</p>`;
     }
+    const blocks = buildPreviewStanzaBlocksFromSections(performanceSections);
     if (this.isProjectionActive()) {
-      return this.renderProjectingSongContent(sections);
+      return this.renderStanzaPerformanceContent(performanceSections, blocks);
     }
-    return sections.map(
-      (section) => html`
-        <section class="song-section ${section.kind}">
-          <h3 class="song-section-label">${section.label}</h3>
-          ${section.lines.map((line) => this.renderLyricLine(line))}
-        </section>
-      `,
-    );
+    return this.renderFlatPerformanceContent(performanceSections);
   }
 
-  private renderProjectingSongContent(sections: SongDetail["parsed"]["sections"]) {
-    const blocks = buildPreviewStanzaBlocks(sections);
+  private lineBlockKeys(sectionIndex: number, lines: LyricLine[]): (string | null)[] {
+    const keys: (string | null)[] = [];
+    let stanzaInSection = 0;
+    let inStanza = false;
+
+    for (const line of lines) {
+      if (lineIsBlank(line)) {
+        if (inStanza) {
+          stanzaInSection += 1;
+          inStanza = false;
+        }
+        keys.push(null);
+        continue;
+      }
+      if (!inStanza) inStanza = true;
+      keys.push(stanzaBlockKey(sectionIndex, stanzaInSection));
+    }
+    return keys;
+  }
+
+  private renderFlatPerformanceContent(
+    performanceSections: ReturnType<typeof buildPerformanceSections>,
+  ) {
+    return performanceSections.map((section, sectionIndex) => {
+      const blockKeys = this.lineBlockKeys(sectionIndex, section.lines);
+      let previousBlockKey: string | null = null;
+
+      return html`
+        <section class="song-section ${section.kind}">
+          <h3 class="song-section-label">${section.label}</h3>
+          ${section.lines.map((line, lineIndex) => {
+            const provenance = section.lineProvenance[lineIndex];
+            if (!provenance || lineIsBlank(line)) {
+              previousBlockKey = null;
+              return nothing;
+            }
+
+            const blockKey = blockKeys[lineIndex]!;
+            const isEditing = this.adhocEditingBlockKey === blockKey;
+            const focusOnMount = isEditing && previousBlockKey !== blockKey;
+            previousBlockKey = blockKey;
+
+            return this.renderInteractiveLyricLine(
+              line,
+              provenance,
+              blockKey,
+              isEditing,
+              this.canAdhocEdit(),
+              focusOnMount,
+              false,
+            );
+          })}
+        </section>
+      `;
+    });
+  }
+
+  private renderStanzaPerformanceContent(
+    performanceSections: ReturnType<typeof buildPerformanceSections>,
+    blocks: PreviewStanzaBlock[],
+  ) {
     const markers = buildStanzaMarkers(this.projection!.slides);
     const activeBlock = activeStanzaIndex(markers, this.projection!.current_index);
-    const blocksWithIndex = blocks.map((block, index) => ({ block, index }));
 
-    return sections.map((section, sectionIndex) => {
-      const sectionBlocks = blocksWithIndex.filter(({ block }) => block.sectionIndex === sectionIndex);
+    return performanceSections.map((section, sectionIndex) => {
+      const sectionBlocks = blocks
+        .map((block, index) => ({ block, index }))
+        .filter(({ block }) => block.sectionIndex === sectionIndex);
       if (!sectionBlocks.length) return nothing;
+
       return html`
         <section class="song-section ${section.kind}">
           <h3 class="song-section-label">${section.label}</h3>
           ${sectionBlocks.map(({ block, index }) => {
+            const blockKey = stanzaBlockKey(sectionIndex, block.stanzaIndexInSection);
             const isActive = index === activeBlock;
             const slideIndex = markers[index]?.slideIndices[0];
+            const isEditing = this.adhocEditingBlockKey === blockKey;
+            const canEdit = this.canAdhocEdit() && isActive;
+
             return html`
               <div
-                class="song-stanza ${isActive ? "active" : ""}"
+                class="song-stanza ${isActive ? "active" : ""} ${isEditing ? "editing" : ""} ${canEdit ? "editable" : ""}"
                 aria-current=${isActive ? "true" : "false"}
-                @click=${() => slideIndex != null && this.jumpToStanza(slideIndex)}
+                @click=${(event: Event) => {
+                  if (slideIndex == null || isEditing) return;
+                  if (!this.canAdhocEdit() || !isActive) {
+                    void this.jumpToStanza(slideIndex);
+                    return;
+                  }
+                  const target = event.target as HTMLElement;
+                  if (target.closest(".song-lyrics, .song-lyric-editable")) {
+                    this.enterAdhocEdit(blockKey, event);
+                    return;
+                  }
+                  void this.jumpToStanza(slideIndex);
+                }}
               >
-                ${block.lines.map((line) => this.renderLyricLine(line))}
+                ${this.renderStanzaLines(block, isEditing, canEdit && isActive)}
               </div>
             `;
           })}
@@ -1469,15 +1674,92 @@ export class PraiseApp extends PraiseElement {
     });
   }
 
-  private renderLyricLine(line: LyricLine) {
-    if (!line.text && line.chords.length === 0) {
-      return html`<div class="song-line-spacer" aria-hidden="true"></div>`;
+  private renderStanzaLines(block: PreviewStanzaBlock, editing: boolean, focusOnMount: boolean) {
+    return block.lines.map((line, lineIndex) => {
+      const provenance = block.lineProvenance[lineIndex];
+      if (!provenance || lineIsBlank(line)) return nothing;
+
+      return this.renderInteractiveLyricLine(
+        line,
+        provenance,
+        stanzaBlockKey(block.sectionIndex, block.stanzaIndexInSection),
+        editing,
+        this.canAdhocEdit(),
+        focusOnMount && lineIndex === 0,
+        true,
+      );
+    });
+  }
+
+  private renderInteractiveLyricLine(
+    line: LyricLine,
+    provenance: { sectionIndex: number; lineIndex: number },
+    blockKey: string,
+    editing: boolean,
+    canEdit: boolean,
+    focusOnMount: boolean,
+    inStanza: boolean,
+  ) {
+    const originalText = line.text;
+    const displayText = this.displayLineText(provenance, originalText);
+    const changed = this.lineHasPendingEdit(provenance);
+
+    if (editing) {
+      return html`
+        <div class="song-line">
+          <div
+            class="song-lyrics song-lyric-editable"
+            contenteditable="plaintext-only"
+            spellcheck="false"
+            @input=${(event: Event) => this.onAdhocLineInput(provenance, originalText, event)}
+            @keydown=${(event: KeyboardEvent) => event.stopPropagation()}
+            ${(el: HTMLElement) => this.bindEditableLine(el, displayText, focusOnMount)}>${displayText || "\u00a0"}</div>
+        </div>
+      `;
     }
+
     return html`
-      <div class="song-line">
-        <div class="song-lyrics">${line.text || "\u00a0"}</div>
+      <div
+        class="song-line ${canEdit ? "editable-line" : ""}"
+        @click=${(event: Event) => {
+          if (!canEdit || inStanza) return;
+          this.enterAdhocEdit(blockKey, event);
+        }}
+      >
+        <div
+          class="song-lyrics ${changed ? "adhoc-changed-line" : ""}"
+          @click=${(event: Event) => {
+            if (!canEdit || !inStanza) return;
+            this.enterAdhocEdit(blockKey, event);
+          }}>${changed ? this.renderDiffLine(originalText, displayText) : displayText || "\u00a0"}</div>
       </div>
     `;
+  }
+
+  private bindEditableLine(el: HTMLElement, displayText: string, shouldFocus: boolean) {
+    if (document.activeElement !== el) {
+      el.textContent = displayText || "\u00a0";
+    }
+    if (shouldFocus && document.activeElement !== el) {
+      requestAnimationFrame(() => {
+        el.focus();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      });
+    }
+  }
+
+  private renderDiffLine(original: string, current: string) {
+    const segments = diffLineSegments(original, current);
+    return segments.map((segment) =>
+      segment.changed
+        ? html`<span class="adhoc-changed">${segment.text}</span>`
+        : segment.text,
+    );
   }
 
   private audienceDisplayOptions(): SelectOption[] {
@@ -1618,6 +1900,10 @@ export class PraiseApp extends PraiseElement {
       </div>
     `;
   }
+}
+
+function isContentEditableTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.isContentEditable;
 }
 
 function isTextEntryTarget(

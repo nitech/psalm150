@@ -16,6 +16,6 @@ Praise reads and writes these directives in `.pro` files:
 | `{meta: arrangement=X}` | `congregation`, `stage`, `full` | Arrangement variant |
 | `{meta: base_song=file.pro}` | Links arrangement to primary file | |
 
-Section directives: `{start_of_verse}`, `{start_of_chorus}`, `{start_of_bridge}`.
+Section directives: `{start_of_verse}`, `{end_of_verse}`, `{start_of_chorus}`, `{end_of_chorus}`, `{start_of_bridge}`, `{end_of_bridge}` (short forms `{eov}`, `{eoc}`, `{eob}` are accepted when reading).
 
 Inline chords: `[Am]word` format.

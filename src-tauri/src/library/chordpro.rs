@@ -60,6 +60,73 @@ fn is_blank_line(line: &LyricLine) -> bool {
     line.text.is_empty() && line.chords.is_empty()
 }
 
+fn end_directive_for_kind(kind: &SectionKind) -> &'static str {
+    match kind {
+        SectionKind::Verse => "end_of_verse",
+        SectionKind::Chorus => "end_of_chorus",
+        SectionKind::Chorus2 => "end_of_chorus2",
+        SectionKind::Bridge => "end_of_bridge",
+        SectionKind::Other => "end_of_verse",
+    }
+}
+
+fn reset_to_verse(label: &mut String, kind: &mut SectionKind) {
+    *label = "Verse".into();
+    *kind = SectionKind::Verse;
+}
+
+fn is_single_stanza_section_kind(kind: &SectionKind) -> bool {
+    matches!(
+        kind,
+        SectionKind::Verse
+            | SectionKind::Chorus
+            | SectionKind::Chorus2
+            | SectionKind::Bridge
+            | SectionKind::Other
+    )
+}
+
+fn section_kind_after_stanza_break(kind: &SectionKind) -> SectionKind {
+    match kind {
+        SectionKind::Chorus | SectionKind::Chorus2 | SectionKind::Bridge => SectionKind::Verse,
+        other => other.clone(),
+    }
+}
+
+fn directive_name(trimmed: &str) -> Option<&str> {
+    let rest = trimmed.strip_prefix('{')?.strip_suffix('}')?;
+    Some(
+        rest.split_once(':')
+            .map(|(directive, _)| directive.trim())
+            .unwrap_or_else(|| rest.trim()),
+    )
+}
+
+fn is_section_boundary_directive(name: &str) -> bool {
+    matches!(
+        name,
+        "start_of_verse"
+            | "start_of_chorus"
+            | "start_of_chorus2"
+            | "start_of_bridge"
+            | "end_of_verse"
+            | "end_of_chorus"
+            | "end_of_chorus2"
+            | "end_of_bridge"
+            | "eov"
+            | "eoc"
+            | "eob"
+    )
+}
+
+fn next_non_empty_line<'a>(lines: &[&'a str], start: usize) -> Option<&'a str> {
+    lines
+        .iter()
+        .skip(start)
+        .map(|line| line.trim())
+        .find(|line| !line.is_empty())
+}
+
 /// Drop blank lines at section edges — ChordPro files often have an extra newline
 /// before the next `{start_of_*}` directive, which would otherwise double the gap in the UI.
 fn trim_section_boundary_lines(lines: &mut Vec<LyricLine>) {
@@ -104,13 +171,35 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
         }
     };
 
-    for line in content.lines() {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            if is_single_stanza_section_kind(&current_kind) {
+                if let Some(next) = next_non_empty_line(&lines, i + 1) {
+                    let is_boundary = directive_name(next)
+                        .is_some_and(is_section_boundary_directive);
+                    if !is_boundary {
+                        flush_section(
+                            &mut sections,
+                            &mut current_label,
+                            &mut current_kind,
+                            &mut current_lines,
+                        );
+                        current_kind = section_kind_after_stanza_break(&current_kind);
+                        current_label = "Verse".into();
+                        i += 1;
+                        continue;
+                    }
+                }
+            }
             current_lines.push(LyricLine {
                 text: String::new(),
                 chords: vec![],
             });
+            i += 1;
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
@@ -163,6 +252,42 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                     current_label = "Bridge".into();
                     current_kind = SectionKind::Bridge;
                 }
+                "end_of_verse" | "eov" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    reset_to_verse(&mut current_label, &mut current_kind);
+                }
+                "end_of_chorus" | "eoc" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    reset_to_verse(&mut current_label, &mut current_kind);
+                }
+                "end_of_chorus2" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    reset_to_verse(&mut current_label, &mut current_kind);
+                }
+                "end_of_bridge" | "eob" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    reset_to_verse(&mut current_label, &mut current_kind);
+                }
                 "meta" => {
                     if let Some(raw) = value {
                         if let Some((k, v)) = raw.split_once('=') {
@@ -182,11 +307,13 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                 }
                 _ => {}
             }
+            i += 1;
             continue;
         }
 
         let (text, chords) = parse_chord_line(trimmed);
         current_lines.push(LyricLine { text, chords });
+        i += 1;
     }
 
     flush_section(
@@ -315,6 +442,7 @@ pub fn serialize_chordpro(song: &ParsedSong) -> String {
                 out.push('\n');
             }
         }
+        out.push_str(&format!("{{{}}}\n", end_directive_for_kind(&section.kind)));
         out.push('\n');
     }
     out
@@ -337,4 +465,102 @@ pub fn validate_songs_folder(path: &Path) -> Result<(), String> {
         return Err("Path is not a directory".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn end_of_chorus_closes_section_before_following_verse() {
+        let content = r#"{title: Test}
+{start_of_chorus}
+Chorus line one
+{end_of_chorus}
+Solen står opp
+og en ny dag begynner
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        assert_eq!(parsed.sections.len(), 2);
+        assert_eq!(parsed.sections[0].kind, SectionKind::Chorus);
+        assert_eq!(parsed.sections[0].lines[0].text, "Chorus line one");
+        assert_eq!(parsed.sections[1].kind, SectionKind::Verse);
+        assert_eq!(parsed.sections[1].lines[0].text, "Solen står opp");
+    }
+
+    #[test]
+    fn serialize_emits_end_directives_after_sections() {
+        let content = r#"{title: Test}
+{start_of_chorus}
+Chorus line
+{end_of_chorus}
+{start_of_verse}
+Verse line
+{end_of_verse}
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        let serialized = serialize_chordpro(&parsed);
+        assert!(serialized.contains("{end_of_chorus}\n"));
+        assert!(serialized.contains("{end_of_verse}\n"));
+        let reparsed = parse_chordpro(&serialized, "test.pro");
+        assert_eq!(reparsed.sections.len(), parsed.sections.len());
+        assert_eq!(reparsed.sections[0].kind, SectionKind::Chorus);
+        assert_eq!(reparsed.sections[1].kind, SectionKind::Verse);
+    }
+
+    #[test]
+    fn chorus_without_end_marker_closes_at_stanza_boundary() {
+        let content = r#"{title: 10 000/titusen grunner}
+{start_of_chorus}
+Lov min Gud, Å min sjel
+Å min sjel
+
+Solen står opp
+og en ny dag begynner
+"#;
+        let parsed = parse_chordpro(content, "titusen.pro");
+        assert_eq!(parsed.sections.len(), 2);
+        assert_eq!(parsed.sections[0].kind, SectionKind::Chorus);
+        assert_eq!(parsed.sections[1].kind, SectionKind::Verse);
+        assert_eq!(parsed.sections[1].lines[0].text, "Solen står opp");
+
+        let serialized = serialize_chordpro(&parsed);
+        assert!(serialized.contains("{end_of_chorus}\n"));
+    }
+
+    #[test]
+    fn verse_paragraphs_split_into_separate_sections() {
+        let content = r#"{title: 10 000/titusen grunner}
+{start_of_chorus}
+Lov min Gud, Å min sjel
+{end_of_chorus}
+
+{start_of_verse}
+Solen står opp
+og en ny dag begynner
+
+Du er rik på kjærlighet,
+sen til vrede
+
+Og på den dagen,
+min styrke forsvinner.
+{end_of_verse}
+"#;
+        let parsed = parse_chordpro(content, "titusen.pro");
+        assert_eq!(parsed.sections.len(), 4);
+        assert_eq!(parsed.sections[0].kind, SectionKind::Chorus);
+        assert_eq!(parsed.sections[1].kind, SectionKind::Verse);
+        assert_eq!(parsed.sections[1].lines[0].text, "Solen står opp");
+        assert_eq!(parsed.sections[2].kind, SectionKind::Verse);
+        assert_eq!(parsed.sections[2].lines[0].text, "Du er rik på kjærlighet,");
+        assert_eq!(parsed.sections[3].kind, SectionKind::Verse);
+        assert_eq!(parsed.sections[3].lines[0].text, "Og på den dagen,");
+
+        let serialized = serialize_chordpro(&parsed);
+        assert_eq!(
+            serialized.matches("{start_of_verse}").count(),
+            3,
+            "each verse paragraph should serialize as its own verse block"
+        );
+    }
 }

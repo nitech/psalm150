@@ -307,7 +307,10 @@ Stanza three line
             slides.iter().map(|s| s.stanza_index).collect::<Vec<_>>(),
             vec![0, 1, 2]
         );
-        assert!(slides.iter().all(|s| s.section_index == 0));
+        assert_eq!(
+            slides.iter().map(|s| s.section_index).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
     }
 
     #[test]

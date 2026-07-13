@@ -1,6 +1,9 @@
 use regex::Regex;
 
-use crate::import::vsb_to_chordpro::{classify_section_for_scrape, parse_scraped_chord_pair};
+use crate::import::vsb_to_chordpro::{
+    classify_section_for_scrape, is_single_stanza_section_kind, next_non_empty_line,
+    parse_scraped_chord_pair, section_kind_after_stanza_break,
+};
 use crate::library::chordpro::{serialize_chordpro, ParsedSong, SongMeta, SongSection};
 
 pub fn extract_title(raw: &str) -> Option<String> {
@@ -60,6 +63,22 @@ fn parse_scraped_body(body: &str) -> Vec<SongSection> {
     while i < lines.len() {
         let trimmed = lines[i].trim();
         if trimmed.is_empty() {
+            if !skipping_instrumental && is_single_stanza_section_kind(&current_kind) {
+                if let Some(next) = next_non_empty_line(&lines, i + 1) {
+                    if !section_re.is_match(next) {
+                        flush(
+                            &mut sections,
+                            &mut current_label,
+                            &mut current_kind,
+                            &mut current_lines,
+                        );
+                        current_kind = section_kind_after_stanza_break(&current_kind);
+                        current_label = "Verse".into();
+                        i += 1;
+                        continue;
+                    }
+                }
+            }
             if !skipping_instrumental {
                 current_lines.push(crate::library::chordpro::LyricLine {
                     text: String::new(),
