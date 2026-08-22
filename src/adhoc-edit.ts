@@ -56,18 +56,39 @@ function parseChordLine(line: string): LyricLine {
   return { text, chords };
 }
 
-type DirectiveKind = "verse" | "chorus" | "chorus2" | "bridge" | "other";
+type DirectiveKind =
+  | "verse"
+  | "chorus"
+  | "chorus2"
+  | "bridge"
+  | "intro"
+  | "pre_chorus"
+  | "interlude"
+  | "other";
+
+function directiveBaseName(directive: string): string {
+  return directive.split(":")[0]?.trim() ?? directive.trim();
+}
 
 function kindFromDirective(directive: string): DirectiveKind | null {
-  switch (directive) {
+  switch (directiveBaseName(directive)) {
     case "start_of_verse":
+    case "sov":
       return "verse";
     case "start_of_chorus":
+    case "soc":
       return "chorus";
     case "start_of_chorus2":
       return "chorus2";
     case "start_of_bridge":
+    case "sob":
       return "bridge";
+    case "start_of_intro":
+      return "intro";
+    case "start_of_prechorus":
+      return "pre_chorus";
+    case "start_of_interlude":
+      return "interlude";
     default:
       return null;
   }

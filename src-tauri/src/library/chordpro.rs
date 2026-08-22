@@ -41,7 +41,15 @@ pub enum SectionKind {
     Chorus,
     Chorus2,
     Bridge,
+    Intro,
+    PreChorus,
+    Interlude,
     Other,
+}
+
+/// Sections that should not produce congregation/stage slides.
+pub fn is_projectable_section(kind: &SectionKind) -> bool {
+    !matches!(kind, SectionKind::Intro | SectionKind::Interlude)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,12 +68,41 @@ fn is_blank_line(line: &LyricLine) -> bool {
     line.text.is_empty() && line.chords.is_empty()
 }
 
+fn default_label_for_kind(kind: &SectionKind) -> &'static str {
+    match kind {
+        SectionKind::Verse => "Verse",
+        SectionKind::Chorus => "Chorus",
+        SectionKind::Chorus2 => "Chorus 2",
+        SectionKind::Bridge => "Bridge",
+        SectionKind::Intro => "Intro",
+        SectionKind::PreChorus => "Pre-Chorus",
+        SectionKind::Interlude => "Interlude",
+        SectionKind::Other => "Verse",
+    }
+}
+
+fn start_directive_for_kind(kind: &SectionKind) -> &'static str {
+    match kind {
+        SectionKind::Verse => "start_of_verse",
+        SectionKind::Chorus => "start_of_chorus",
+        SectionKind::Chorus2 => "start_of_chorus2",
+        SectionKind::Bridge => "start_of_bridge",
+        SectionKind::Intro => "start_of_intro",
+        SectionKind::PreChorus => "start_of_prechorus",
+        SectionKind::Interlude => "start_of_interlude",
+        SectionKind::Other => "start_of_verse",
+    }
+}
+
 fn end_directive_for_kind(kind: &SectionKind) -> &'static str {
     match kind {
         SectionKind::Verse => "end_of_verse",
         SectionKind::Chorus => "end_of_chorus",
         SectionKind::Chorus2 => "end_of_chorus2",
         SectionKind::Bridge => "end_of_bridge",
+        SectionKind::Intro => "end_of_intro",
+        SectionKind::PreChorus => "end_of_prechorus",
+        SectionKind::Interlude => "end_of_interlude",
         SectionKind::Other => "end_of_verse",
     }
 }
@@ -82,24 +119,80 @@ fn is_single_stanza_section_kind(kind: &SectionKind) -> bool {
             | SectionKind::Chorus
             | SectionKind::Chorus2
             | SectionKind::Bridge
+            | SectionKind::Intro
+            | SectionKind::PreChorus
+            | SectionKind::Interlude
             | SectionKind::Other
     )
 }
 
 fn section_kind_after_stanza_break(kind: &SectionKind) -> SectionKind {
     match kind {
-        SectionKind::Chorus | SectionKind::Chorus2 | SectionKind::Bridge => SectionKind::Verse,
+        SectionKind::Chorus
+        | SectionKind::Chorus2
+        | SectionKind::Bridge
+        | SectionKind::PreChorus => SectionKind::Verse,
         other => other.clone(),
     }
 }
 
-fn directive_name(trimmed: &str) -> Option<&str> {
+fn normalize_directive(name: &str) -> &str {
+    match name {
+        "t" => "title",
+        "st" => "subtitle",
+        "sov" => "start_of_verse",
+        "soc" => "start_of_chorus",
+        "sob" => "start_of_bridge",
+        "eov" => "end_of_verse",
+        "eoc" => "end_of_chorus",
+        "eob" => "end_of_bridge",
+        "c" => "comment",
+        "ci" => "comment_italic",
+        "cb" => "comment_box",
+        other => other,
+    }
+}
+
+fn parse_directive_line(rest: &str) -> (String, Option<String>) {
+    if let Some((name, value)) = rest.split_once(':') {
+        return (name.trim().to_string(), Some(value.trim().to_string()));
+    }
+    let mut parts = rest.splitn(2, char::is_whitespace);
+    let name = parts.next().unwrap_or("").trim().to_string();
+    let value = parts.next().map(|s| s.trim().to_string());
+    (name, value)
+}
+
+fn unquote_label(value: &str) -> String {
+    let value = value.trim();
+    if value.len() >= 2
+        && ((value.starts_with('"') && value.ends_with('"'))
+            || (value.starts_with('\'') && value.ends_with('\'')))
+    {
+        value[1..value.len() - 1].to_string()
+    } else {
+        value.to_string()
+    }
+}
+
+fn parse_section_label(value: Option<&str>, default: &str) -> String {
+    let Some(value) = value else {
+        return default.to_string();
+    };
+    let value = value.trim();
+    if value.is_empty() {
+        return default.to_string();
+    }
+    if let Some(rest) = value.strip_prefix("label=") {
+        return unquote_label(rest);
+    }
+    unquote_label(value)
+}
+
+fn directive_name_from_line(trimmed: &str) -> Option<String> {
     let rest = trimmed.strip_prefix('{')?.strip_suffix('}')?;
-    Some(
-        rest.split_once(':')
-            .map(|(directive, _)| directive.trim())
-            .unwrap_or_else(|| rest.trim()),
-    )
+    let (name, _) = parse_directive_line(rest);
+    Some(normalize_directive(&name).to_string())
 }
 
 fn is_section_boundary_directive(name: &str) -> bool {
@@ -109,14 +202,24 @@ fn is_section_boundary_directive(name: &str) -> bool {
             | "start_of_chorus"
             | "start_of_chorus2"
             | "start_of_bridge"
+            | "start_of_intro"
+            | "start_of_prechorus"
+            | "start_of_interlude"
             | "end_of_verse"
             | "end_of_chorus"
             | "end_of_chorus2"
             | "end_of_bridge"
+            | "end_of_intro"
+            | "end_of_prechorus"
+            | "end_of_interlude"
             | "eov"
             | "eoc"
             | "eob"
     )
+}
+
+fn is_comment_directive(name: &str) -> bool {
+    matches!(name, "comment" | "comment_italic" | "comment_box")
 }
 
 fn next_non_empty_line<'a>(lines: &[&'a str], start: usize) -> Option<&'a str> {
@@ -179,8 +282,8 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
         if trimmed.is_empty() {
             if is_single_stanza_section_kind(&current_kind) {
                 if let Some(next) = next_non_empty_line(&lines, i + 1) {
-                    let is_boundary = directive_name(next)
-                        .is_some_and(is_section_boundary_directive);
+                    let is_boundary = directive_name_from_line(next)
+                        .is_some_and(|name| is_section_boundary_directive(&name));
                     if !is_boundary {
                         flush_section(
                             &mut sections,
@@ -202,11 +305,17 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
             i += 1;
             continue;
         }
+        if trimmed.starts_with('#') {
+            i += 1;
+            continue;
+        }
         if let Some(rest) = trimmed.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
-            let (directive, value) = match rest.split_once(':') {
-                Some((d, v)) => (d.trim(), Some(v.trim().to_string())),
-                None => (rest.trim(), None),
-            };
+            let (raw_name, value) = parse_directive_line(rest);
+            let directive = normalize_directive(&raw_name);
+            if is_comment_directive(directive) || directive == "subtitle" {
+                i += 1;
+                continue;
+            }
             match directive {
                 "title" if value.is_some() => title = value.unwrap(),
                 "key" if value.is_some() => key = Some(value.unwrap()),
@@ -219,7 +328,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                         &mut current_kind,
                         &mut current_lines,
                     );
-                    current_label = "Verse".into();
+                    current_label = parse_section_label(value.as_deref(), "Verse");
                     current_kind = SectionKind::Verse;
                 }
                 "start_of_chorus" => {
@@ -229,7 +338,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                         &mut current_kind,
                         &mut current_lines,
                     );
-                    current_label = "Chorus".into();
+                    current_label = parse_section_label(value.as_deref(), "Chorus");
                     current_kind = SectionKind::Chorus;
                 }
                 "start_of_chorus2" => {
@@ -239,7 +348,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                         &mut current_kind,
                         &mut current_lines,
                     );
-                    current_label = "Chorus 2".into();
+                    current_label = parse_section_label(value.as_deref(), "Chorus 2");
                     current_kind = SectionKind::Chorus2;
                 }
                 "start_of_bridge" => {
@@ -249,8 +358,38 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                         &mut current_kind,
                         &mut current_lines,
                     );
-                    current_label = "Bridge".into();
+                    current_label = parse_section_label(value.as_deref(), "Bridge");
                     current_kind = SectionKind::Bridge;
+                }
+                "start_of_intro" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    current_label = parse_section_label(value.as_deref(), "Intro");
+                    current_kind = SectionKind::Intro;
+                }
+                "start_of_prechorus" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    current_label = parse_section_label(value.as_deref(), "Pre-Chorus");
+                    current_kind = SectionKind::PreChorus;
+                }
+                "start_of_interlude" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    current_label = parse_section_label(value.as_deref(), "Interlude");
+                    current_kind = SectionKind::Interlude;
                 }
                 "end_of_verse" | "eov" => {
                     flush_section(
@@ -280,6 +419,33 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                     reset_to_verse(&mut current_label, &mut current_kind);
                 }
                 "end_of_bridge" | "eob" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    reset_to_verse(&mut current_label, &mut current_kind);
+                }
+                "end_of_intro" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    reset_to_verse(&mut current_label, &mut current_kind);
+                }
+                "end_of_prechorus" => {
+                    flush_section(
+                        &mut sections,
+                        &mut current_label,
+                        &mut current_kind,
+                        &mut current_lines,
+                    );
+                    reset_to_verse(&mut current_label, &mut current_kind);
+                }
+                "end_of_interlude" => {
                     flush_section(
                         &mut sections,
                         &mut current_label,
@@ -329,7 +495,10 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
             kind: SectionKind::Other,
             lines: content
                 .lines()
-                .filter(|l| !l.trim().is_empty())
+                .filter(|l| {
+                    let t = l.trim();
+                    !t.is_empty() && !t.starts_with('#') && !t.starts_with('{')
+                })
                 .map(|l| LyricLine {
                     text: l.to_string(),
                     chords: vec![],
@@ -416,14 +585,13 @@ pub fn serialize_chordpro(song: &ParsedSong) -> String {
     }
 
     for section in &song.sections {
-        let directive = match section.kind {
-            SectionKind::Verse => "start_of_verse",
-            SectionKind::Chorus => "start_of_chorus",
-            SectionKind::Chorus2 => "start_of_chorus2",
-            SectionKind::Bridge => "start_of_bridge",
-            SectionKind::Other => "start_of_verse",
-        };
-        out.push_str(&format!("{{{directive}}}\n"));
+        let base = start_directive_for_kind(&section.kind);
+        let default = default_label_for_kind(&section.kind);
+        if section.label == default {
+            out.push_str(&format!("{{{base}}}\n"));
+        } else {
+            out.push_str(&format!("{{{base}: {}}}\n", section.label));
+        }
         for line in &section.lines {
             if line.chords.is_empty() {
                 out.push_str(&line.text);
@@ -562,5 +730,76 @@ min styrke forsvinner.
             3,
             "each verse paragraph should serialize as its own verse block"
         );
+    }
+
+    #[test]
+    fn hash_comments_are_skipped() {
+        let content = r#"{title: Test}
+{start_of_verse}
+# maintainer note
+Line one
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        assert_eq!(parsed.sections.len(), 1);
+        assert_eq!(parsed.sections[0].lines.len(), 1);
+        assert_eq!(parsed.sections[0].lines[0].text, "Line one");
+    }
+
+    #[test]
+    fn comment_directives_are_skipped() {
+        let content = r#"{title: Test}
+{start_of_verse}
+{comment: Play softly}
+Line one
+{c: Another note}
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        assert_eq!(parsed.sections[0].lines.len(), 1);
+        assert_eq!(parsed.sections[0].lines[0].text, "Line one");
+    }
+
+    #[test]
+    fn short_directive_aliases() {
+        let content = r#"{t: Alias Title}
+{sov}
+Verse line
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        assert_eq!(parsed.meta.title, "Alias Title");
+        assert_eq!(parsed.sections[0].kind, SectionKind::Verse);
+        assert_eq!(parsed.sections[0].lines[0].text, "Verse line");
+    }
+
+    #[test]
+    fn section_label_from_colon_and_attribute() {
+        let content = r#"{title: Test}
+{start_of_verse: Verse 2}
+Line
+{start_of_verse label="Verse 3"}
+Other line
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        assert_eq!(parsed.sections[0].label, "Verse 2");
+        assert_eq!(parsed.sections[1].label, "Verse 3");
+    }
+
+    #[test]
+    fn intro_prechorus_and_interlude_parsed() {
+        let content = r#"{title: Test}
+{start_of_intro}
+[G]Intro chords only
+{end_of_intro}
+{start_of_prechorus}
+Pre chorus line
+{end_of_prechorus}
+{start_of_verse}
+Verse line
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        assert_eq!(parsed.sections.len(), 3);
+        assert_eq!(parsed.sections[0].kind, SectionKind::Intro);
+        assert_eq!(parsed.sections[1].kind, SectionKind::PreChorus);
+        assert_eq!(parsed.sections[1].lines[0].text, "Pre chorus line");
+        assert_eq!(parsed.sections[2].kind, SectionKind::Verse);
     }
 }

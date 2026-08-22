@@ -176,6 +176,12 @@ export class PraiseAudience extends PraiseElement {
     if (slide.overlay.song_num != null) {
       parts.push(String(slide.overlay.song_num));
     }
+    if (theme?.show_copyright_overlay !== false && slide.overlay.copyright) {
+      parts.push(slide.overlay.copyright);
+    }
+    if (theme?.show_ccli_overlay && slide.overlay.ccli) {
+      parts.push(`CCLI ${slide.overlay.ccli}`);
+    }
     return parts.join(" - ");
   }
 

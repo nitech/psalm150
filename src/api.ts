@@ -74,7 +74,15 @@ export interface ProjectionState {
   hold_slide_id?: string | null;
 }
 
-export type SectionKind = "verse" | "chorus" | "chorus2" | "bridge" | "other";
+export type SectionKind =
+  | "verse"
+  | "chorus"
+  | "chorus2"
+  | "bridge"
+  | "intro"
+  | "pre_chorus"
+  | "interlude"
+  | "other";
 
 export interface ChordPlacement {
   chord: string;

@@ -3,7 +3,7 @@ pub mod split;
 
 use serde::{Deserialize, Serialize};
 
-use crate::library::chordpro::ParsedSong;
+use crate::library::chordpro::{is_projectable_section, ParsedSong};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlideTheme {
@@ -108,6 +108,9 @@ pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Ve
     let mut index = 0usize;
     let mut stanza_index = 0usize;
     for (section_index, section) in sections.iter().enumerate() {
+        if !is_projectable_section(&section.kind) {
+            continue;
+        }
         for stanza_slides in split::split_section_into_stanzas(section, theme) {
             for chunk in stanza_slides {
                 let overlay = SlideOverlay {
@@ -401,5 +404,32 @@ Line
         assert_eq!(slides[0].overlay.song_num, Some(227));
         assert_eq!(slides[0].overlay.title.as_deref(), Some("Numbered"));
         assert_eq!(slides[0].overlay.key.as_deref(), Some("G"));
+    }
+
+    #[test]
+    fn intro_and_interlude_produce_no_slides() {
+        let content = r#"{title: Test}
+{start_of_intro}
+[G]Intro only
+{end_of_intro}
+{start_of_interlude}
+Instrumental break
+{end_of_interlude}
+{start_of_prechorus}
+Pre chorus sung
+{end_of_prechorus}
+{start_of_verse}
+Verse line
+"#;
+        let parsed = parse_chordpro(content, "test.pro");
+        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
+        let texts: Vec<&str> = slides
+            .iter()
+            .flat_map(|s| s.lines.iter().map(|l| l.text.as_str()))
+            .collect();
+        assert!(!texts.iter().any(|t| t.contains("Intro only")));
+        assert!(!texts.iter().any(|t| t.contains("Instrumental break")));
+        assert!(texts.contains(&"Pre chorus sung"));
+        assert!(texts.contains(&"Verse line"));
     }
 }
