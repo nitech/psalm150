@@ -160,6 +160,8 @@ export interface AppConfig {
   last_songs_folder?: string | null;
   read_only: boolean;
   web_search_enabled: boolean;
+  /** Show the song-number column in the song list (default on). */
+  show_song_numbers: boolean;
   project_to_stage: boolean;
   audience_monitor?: string | null;
   stage_monitor?: string | null;
@@ -241,6 +243,8 @@ export const api = {
     invoke<void>("set_web_search_enabled", { enabled }),
   setProjectToStage: (projectToStage: boolean) =>
     invoke<void>("set_project_to_stage", { projectToStage }),
+  setShowSongNumbers: (enabled: boolean) =>
+    invoke<void>("set_show_song_numbers", { enabled }),
   getConfig: () => invoke<AppConfig>("get_config"),
   listDisplays: () => invoke<DisplayInfo[]>("list_displays"),
   setAudienceMonitor: (monitorId: string | null) =>

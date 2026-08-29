@@ -17,6 +17,9 @@ pub struct AppConfig {
     /// Search the web for songs when local library has no matches.
     #[serde(default = "default_web_search_enabled")]
     pub web_search_enabled: bool,
+    /// Show the song-number column in the operator's song list.
+    #[serde(default = "default_show_song_numbers")]
+    pub show_song_numbers: bool,
     pub audience_monitor: Option<String>,
     pub stage_monitor: Option<String>,
     pub remote_enabled: bool,
@@ -32,6 +35,10 @@ fn default_web_search_enabled() -> bool {
     true
 }
 
+fn default_show_song_numbers() -> bool {
+    true
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -39,6 +46,7 @@ impl Default for AppConfig {
             read_only: false,
             project_to_stage: false,
             web_search_enabled: default_web_search_enabled(),
+            show_song_numbers: default_show_song_numbers(),
             audience_monitor: None,
             stage_monitor: None,
             remote_enabled: false,

@@ -10,6 +10,7 @@ import {
 } from "../projection-client";
 import type { ProjectionState, SlidePayload, SlideTheme } from "../api";
 import { activeStanzaIndex, buildStanzaMarkers } from "../stanza-markers";
+import { planFit } from "../audience-fit";
 import { PraiseElement } from "./base";
 
 function slideSignature(slide: SlidePayload): string {
@@ -47,6 +48,8 @@ export class PraiseAudience extends PraiseElement {
       .catch(console.error);
     window.addEventListener("keydown", this.onKeydown);
     window.addEventListener("resize", this.fit);
+    // Web fonts change line widths when they arrive; refit once they are in.
+    void document.fonts?.ready.then(this.fit);
     void this.syncFromState();
   }
 
@@ -135,6 +138,12 @@ export class PraiseAudience extends PraiseElement {
     document.body.style.color = theme.foreground;
   }
 
+  /**
+   * Keep every lyric line intact: lines render unwrapped at natural width and the
+   * block is scaled down to fit the screen. Only a line far wider than the screen
+   * falls back to balanced wrapping (`.wrap`), after which the block is measured
+   * again. See src/audience-fit.ts for the thresholds.
+   */
   private fit = () => {
     const screen = this.querySelector<HTMLElement>(".audience-screen");
     const content = this.querySelector<HTMLElement>(".audience-content");
@@ -142,6 +151,7 @@ export class PraiseAudience extends PraiseElement {
 
     content.style.transform = "";
     content.style.transformOrigin = "center center";
+    content.classList.remove("wrap");
 
     const screenStyle = getComputedStyle(screen);
     const padX = parseFloat(screenStyle.paddingLeft) + parseFloat(screenStyle.paddingRight);
@@ -153,14 +163,21 @@ export class PraiseAudience extends PraiseElement {
 
     const availableWidth = Math.max(1, screen.clientWidth - padX);
     const availableHeight = Math.max(1, screen.clientHeight - padY - overlayReserve - counterReserve);
+    const measure = () =>
+      planFit({
+        availableWidth,
+        availableHeight,
+        contentWidth: content.scrollWidth,
+        contentHeight: content.scrollHeight,
+      });
 
-    const scale = Math.min(
-      availableWidth / content.scrollWidth,
-      availableHeight / content.scrollHeight,
-      1,
-    );
-    if (scale < 0.999) {
-      content.style.transform = `scale(${scale})`;
+    let plan = measure();
+    if (plan.wrap) {
+      content.classList.add("wrap");
+      plan = measure();
+    }
+    if (plan.scale < 0.999) {
+      content.style.transform = `scale(${plan.scale})`;
     }
   };
 

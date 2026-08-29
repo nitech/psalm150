@@ -37,6 +37,13 @@ import {
   type PreviewStanzaBlock,
   stanzaStepSlideIndex,
 } from "../stanza-markers";
+import {
+  parseSongSort,
+  sortSongs,
+  toggleSongSort,
+  type SongSort,
+  type SongSortColumn,
+} from "../song-sort";
 import { PraiseElement } from "./base";
 import type { PraiseCombobox } from "./combobox";
 import "./combobox";
@@ -62,6 +69,7 @@ const BROWSE_PANE_MIN = 280;
 const BROWSE_PANE_MAX = 720;
 const BROWSE_PANE_DEFAULT = 340;
 const WEB_SEARCH_DEBOUNCE_MS = 650;
+const SONG_SORT_KEY = "praise-song-sort";
 
 /**
  * Root component for the main window. Owns all application state and IPC
@@ -105,6 +113,8 @@ export class PraiseApp extends PraiseElement {
     webSearchLoading: { state: true },
     adhocEditingBlockKey: { state: true },
     adhocPendingEdits: { state: true },
+    showSongNumbers: { state: true },
+    songSort: { state: true },
   };
 
   declare songs: SongRow[];
@@ -142,6 +152,8 @@ export class PraiseApp extends PraiseElement {
   declare webSearchLoading: boolean;
   declare adhocEditingBlockKey: string | null;
   declare adhocPendingEdits: PendingEdits;
+  declare showSongNumbers: boolean;
+  declare songSort: SongSort;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -155,6 +167,7 @@ export class PraiseApp extends PraiseElement {
   private songsRefreshGeneration = 0;
   private splitterDragging = false;
   private tabIndicatorObserver: ResizeObserver | null = null;
+  private sortedSongsCache: { songs: SongRow[]; sort: SongSort; sorted: SongRow[] } | null = null;
 
   constructor() {
     super();
@@ -196,6 +209,8 @@ export class PraiseApp extends PraiseElement {
     this.webSearchLoading = false;
     this.adhocEditingBlockKey = null;
     this.adhocPendingEdits = new Map();
+    this.showSongNumbers = true;
+    this.songSort = parseSongSort(localStorage.getItem(SONG_SORT_KEY));
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -867,6 +882,7 @@ export class PraiseApp extends PraiseElement {
     this.webSearchEnabled = config.web_search_enabled !== false;
     this.audienceMonitor = config.audience_monitor ?? "";
     this.stageMonitor = config.stage_monitor ?? "";
+    this.showSongNumbers = config.show_song_numbers !== false;
     if (!this.webSearchEnabled) {
       this.cancelWebSearch();
     }
@@ -901,6 +917,35 @@ export class PraiseApp extends PraiseElement {
     } else if (this.activeTab === "search" && this.songs.length === 0) {
       void this.maybeSearchWeb(this.songsRefreshGeneration);
     }
+  }
+
+  private async onShowSongNumbersChange(checked: boolean) {
+    this.showSongNumbers = checked;
+    await api.setShowSongNumbers(checked);
+  }
+
+  // ── Song list ordering ─────────────────────────────────────────────────
+
+  /** Only library views sort by column; History keeps recency and Setlist keeps service order. */
+  private isSortableTab(): boolean {
+    return this.activeTab === "search" || this.activeTab === "key" || this.activeTab === "favorites";
+  }
+
+  private setSongSort(column: SongSortColumn) {
+    this.songSort = toggleSongSort(this.songSort, column);
+    localStorage.setItem(SONG_SORT_KEY, JSON.stringify(this.songSort));
+  }
+
+  /** Rows in display order: what the list shows and what keyboard navigation walks. */
+  private get visibleSongs(): SongRow[] {
+    if (!this.isSortableTab()) return this.songs;
+    const cache = this.sortedSongsCache;
+    if (cache && cache.songs === this.songs && cache.sort === this.songSort) {
+      return cache.sorted;
+    }
+    const sorted = sortSongs(this.songs, this.songSort);
+    this.sortedSongsCache = { songs: this.songs, sort: this.songSort, sorted };
+    return sorted;
   }
 
   private async printSongbook() {
@@ -1008,7 +1053,7 @@ export class PraiseApp extends PraiseElement {
 
   private allSelectableFiles(): string[] {
     return [
-      ...this.songs.map((song) => song.filename),
+      ...this.visibleSongs.map((song) => song.filename),
       ...this.webResults.map((_, index) => webResultId(index)),
     ];
   }
@@ -1127,7 +1172,7 @@ export class PraiseApp extends PraiseElement {
 
   private async onSearchKeydown(event: KeyboardEvent) {
     if (event.key === "ArrowDown") {
-      const first = this.songs[0];
+      const first = this.visibleSongs[0];
       if (!first) return;
       event.preventDefault();
       await this.selectSong(first.filename);
@@ -1138,7 +1183,7 @@ export class PraiseApp extends PraiseElement {
       return;
     }
     if (event.key === "ArrowUp") {
-      const last = this.songs[this.songs.length - 1];
+      const last = this.visibleSongs[this.visibleSongs.length - 1];
       if (!last) return;
       event.preventDefault();
       await this.selectSong(last.filename);
@@ -1149,7 +1194,7 @@ export class PraiseApp extends PraiseElement {
       return;
     }
     if (event.key === "Enter") {
-      const first = this.songs[0];
+      const first = this.visibleSongs[0];
       if (!first) return;
       event.preventDefault();
       event.stopPropagation();
@@ -1434,9 +1479,12 @@ export class PraiseApp extends PraiseElement {
             `
           : nothing}
         <praise-song-list
-          class="song-list scroll-region"
+          class="song-list scroll-region ${this.showSongNumbers ? "" : "hide-numbers"}"
           role="listbox"
-          .songs=${this.songs}
+          .songs=${this.visibleSongs}
+          .showNumbers=${this.showSongNumbers}
+          .sort=${this.isSortableTab() ? this.songSort : null}
+          @praise-sort=${(e: CustomEvent<SongSortColumn>) => this.setSongSort(e.detail)}
           .webResults=${this.webResults}
           .webSearchLoading=${this.webSearchLoading}
           .currentFile=${this.currentFilename}
@@ -1789,6 +1837,15 @@ export class PraiseApp extends PraiseElement {
           <button class="secondary" @click=${() => this.runImportMdb()}>Import MDB</button>
           <button class="ghost" @click=${() => this.rescan()}>Rescan library</button>
         </div>
+        <label class="settings-check">
+          <input
+            type="checkbox"
+            .checked=${this.showSongNumbers}
+            @change=${(e: Event) =>
+              this.onShowSongNumbersChange((e.target as HTMLInputElement).checked)}
+          />
+          <span>Show song numbers in the song list</span>
+        </label>
       </div>
       <div class="settings-section">
         <h3>Projection</h3>

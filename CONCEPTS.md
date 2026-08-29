@@ -1,6 +1,8 @@
 # Concepts
 
 > Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as learnings are documented; direct edits are fine. Glossary only, not a spec or catch-all.
+>
+> Behaviour and contracts behind these terms are documented in [`.wiki/`](.wiki/index.md).
 
 ## Projection
 

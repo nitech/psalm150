@@ -582,20 +582,76 @@ body.workspace-resizing {
    Song List
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* One grid for the whole list; rows (and the header) are subgrids. The number,
+   key and star columns are exactly as wide as their widest content across all
+   rows, and the title takes whatever is left of the pane. */
+
+.song-list-header-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.song-list-header-cell.end {
+  justify-content: flex-end;
+}
+
+.song-list-header-cell.center {
+  justify-content: center;
+}
+
+.song-list-header-cell:hover {
+  color: var(--text-secondary);
+}
+
+.song-list-header-cell.active {
+  color: var(--accent-lime);
+}
+
+.song-list-header-cell:focus-visible {
+  outline: 1px solid var(--accent-lime-medium);
+  outline-offset: 2px;
+}
+
+.song-list-sort-arrow {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
 .song-list {
   list-style: none;
   padding: 6px;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content max-content;
+  align-content: start;
+  column-gap: 8px;
+  row-gap: 1px;
   overflow-y: auto;
 }
 
+.song-list.hide-numbers {
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
+}
+
 .song-list li {
-  display: flex;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 8px;
   padding: 5px 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -633,9 +689,38 @@ body.workspace-resizing {
   font-weight: 500;
 }
 
+/* Web results have no number, key or star: one flex row with title and source. */
+.song-list li.web-result {
+  display: flex;
+  gap: 8px;
+}
+
+.song-list li.web-result .song-list-key {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Sticky column header row, rendered by praise-song-list when sorting applies. */
+.song-list li.song-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-top: 4px;
+  padding-bottom: 5px;
+  border-radius: 0;
+  border-bottom-color: var(--border-subtle);
+  background: rgba(24, 24, 24, 0.96);
+  cursor: default;
+}
+
+.song-list li.song-list-header:hover {
+  background: rgba(24, 24, 24, 0.96);
+  border-color: transparent;
+  border-bottom-color: var(--border-subtle);
+}
+
 .song-list-num {
-  flex-shrink: 0;
-  min-width: 2.2em;
   font-size: 0.7rem;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
@@ -643,8 +728,6 @@ body.workspace-resizing {
 }
 
 .song-list-key {
-  flex-shrink: 0;
-  min-width: 1.4em;
   font-size: 0.7rem;
   color: var(--text-tertiary);
   text-align: center;
@@ -1796,11 +1879,22 @@ body.audience-projection {
     radial-gradient(900px 400px at 50% 0%, rgba(198, 216, 140, 0.06), transparent 60%);
 }
 
+/* Lines lay out at their natural width and never wrap; `fit()` in audience.ts
+   scales the whole block to the screen so each lyric line stays on one row.
+   The screen padding already applies the theme margins, so no max-width here. */
 .audience-content {
   position: relative;
   z-index: 1;
-  max-width: min(92vw, calc(100% - 2 * var(--praise-margin-left, 48px)));
+  width: max-content;
+  max-width: none;
   will-change: transform;
+}
+
+/* Fallback when a single line is far wider than the screen: wrap it in balanced
+   halves rather than shrinking the whole slide to an unreadable size. */
+.audience-content.wrap {
+  width: auto;
+  max-width: 100%;
 }
 
 .audience-line {
@@ -1810,8 +1904,13 @@ body.audience-projection {
   font-weight: var(--praise-font-weight);
   font-style: var(--praise-font-style);
   letter-spacing: -0.02em;
-  white-space: pre-wrap;
+  white-space: pre;
   animation: audience-in 0.45s ease-out both;
+}
+
+.audience-content.wrap .audience-line {
+  white-space: pre-wrap;
+  text-wrap: balance;
 }
 
 .audience-line + .audience-line {

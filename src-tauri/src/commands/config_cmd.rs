@@ -48,6 +48,18 @@ pub fn set_web_search_enabled(
 }
 
 #[tauri::command]
+pub fn set_show_song_numbers(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    with_state(&state, |runtime| {
+        runtime.config.show_song_numbers = enabled;
+        runtime.config.save(&app)
+    })
+}
+
+#[tauri::command]
 pub fn save_theme(
     app: AppHandle,
     state: State<'_, AppState>,

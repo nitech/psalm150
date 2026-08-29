@@ -228,6 +228,7 @@ pub fn run() {
             commands::config_cmd::set_read_only,
             commands::config_cmd::set_project_to_stage,
             commands::config_cmd::set_web_search_enabled,
+            commands::config_cmd::set_show_song_numbers,
             commands::config_cmd::save_theme,
             commands::config_cmd::get_theme,
             commands::config_cmd::save_shortcuts,

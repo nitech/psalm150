@@ -34,6 +34,10 @@ See [docs/songs-folder-contract.md](docs/songs-folder-contract.md).
 
 `CONCEPTS.md` — shared domain vocabulary (audience window, songs folder, projection terms).
 
+## Wiki
+
+Compiled knowledge for agents (and curious humans) lives in [`.wiki/`](.wiki/index.md): start at [`.wiki/overview.md`](.wiki/overview.md). Every concept page cites the source files it describes; [`.wiki/concepts/gaps.md`](.wiki/concepts/gaps.md) lists what is half-built. After a non-trivial code change the agent updates it in the same turn (see [`AGENTS.md`](AGENTS.md)).
+
 ## Tests
 
 ```bash

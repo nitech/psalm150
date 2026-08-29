@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
 import { PraiseElement } from "./base";
 import type { SongRow, WebSearchCandidate } from "../api";
+import type { SongSort, SongSortColumn } from "../song-sort";
 import { webResultId } from "./song-list-ids";
 
 export { WEB_RESULT_PREFIX, isWebResultId, webResultId } from "./song-list-ids";
@@ -16,6 +17,8 @@ export class PraiseSongList extends PraiseElement {
     webSearchLoading: { type: Boolean },
     currentFile: {},
     projecting: { type: Boolean },
+    showNumbers: { type: Boolean },
+    sort: { attribute: false },
   };
 
   declare songs: SongRow[];
@@ -23,6 +26,9 @@ export class PraiseSongList extends PraiseElement {
   declare webSearchLoading: boolean;
   declare currentFile: string | null;
   declare projecting: boolean;
+  declare showNumbers: boolean;
+  /** Active column sort; null hides the header (History and Setlist keep their own order). */
+  declare sort: SongSort | null;
 
   private pendingFocus: string | null = null;
 
@@ -33,6 +39,8 @@ export class PraiseSongList extends PraiseElement {
     this.webSearchLoading = false;
     this.currentFile = null;
     this.projecting = false;
+    this.showNumbers = true;
+    this.sort = null;
   }
 
   protected updated(changed: Map<PropertyKey, unknown>) {
@@ -97,12 +105,57 @@ export class PraiseSongList extends PraiseElement {
     this.emit("praise-project", file);
   }
 
-  private renderSongRow(file: string, title: string, key: string | null, favorite = false) {
+  private emitSort(column: SongSortColumn) {
+    this.dispatchEvent(
+      new CustomEvent("praise-sort", { detail: column, bubbles: true, composed: true }),
+    );
+  }
+
+  /** Sticky Song / No / Key header; each cell sorts its column (rules in song-sort.ts). */
+  private renderHeader() {
+    const sort = this.sort;
+    if (!sort) return nothing;
+    const cell = (column: SongSortColumn, label: string, align: "start" | "end" | "center") => {
+      const active = sort.column === column;
+      const ascending = sort.direction === "asc";
+      return html`
+        <button
+          type="button"
+          class="song-list-header-cell ${align} ${active ? "active" : ""}"
+          title="Sort by ${label.toLowerCase()}"
+          @click=${() => this.emitSort(column)}
+        >
+          <span>${label}</span>
+          <span class="song-list-sort-arrow" aria-hidden="true">${active ? (ascending ? "↑" : "↓") : ""}</span>
+        </button>
+      `;
+    };
+    return html`
+      <li class="song-list-header" role="presentation">
+        ${cell("title", "Song", "start")}
+        ${this.showNumbers ? cell("song_num", "No", "end") : nothing}
+        ${cell("key", "Key", "center")}
+        <span aria-hidden="true"></span>
+      </li>
+    `;
+  }
+
+  private renderSongRow(
+    file: string,
+    title: string,
+    key: string | null,
+    favorite = false,
+    songNum: number | null = null,
+    webResult = false,
+  ) {
     const active = this.currentFile === file;
+    const classes = [active ? "active" : "", webResult ? "web-result" : ""]
+      .filter(Boolean)
+      .join(" ");
     return html`
       <li
         data-file=${file}
-        class=${active ? "active" : ""}
+        class=${classes}
         role="option"
         tabindex=${this.projecting ? "-1" : "0"}
         aria-selected=${active ? "true" : "false"}
@@ -110,9 +163,11 @@ export class PraiseSongList extends PraiseElement {
         @keydown=${(event: KeyboardEvent) => this.onRowKeydown(event, file)}
       >
         <span class="song-list-title">${title}</span>
-        <span class="song-list-num"></span>
-        ${key ? html`<span class="song-list-key">${key}</span>` : html`<span class="song-list-key"></span>`}
-        ${favorite ? html`<span class="song-list-star">★</span>` : nothing}
+        ${this.showNumbers && !webResult
+          ? html`<span class="song-list-num">${songNum ?? ""}</span>`
+          : nothing}
+        <span class="song-list-key">${key ?? ""}</span>
+        ${webResult ? nothing : html`<span class="song-list-star">${favorite ? "★" : ""}</span>`}
       </li>
     `;
   }
@@ -133,7 +188,7 @@ export class PraiseSongList extends PraiseElement {
         <span class="web-results-label">Web results</span>
       </li>
       ${this.webResults.map((result, index) =>
-        this.renderSongRow(webResultId(index), result.title, result.source_name),
+        this.renderSongRow(webResultId(index), result.title, result.source_name, false, null, true),
       )}
     `;
   }
@@ -163,9 +218,10 @@ export class PraiseSongList extends PraiseElement {
     }
 
     return html`
+      ${hasLocal ? this.renderHeader() : nothing}
       ${hasLocal
         ? this.songs.map((song) =>
-            this.renderSongRow(song.filename, song.title, song.key, song.favorite),
+            this.renderSongRow(song.filename, song.title, song.key, song.favorite, song.song_num),
           )
         : nothing}
       ${this.renderWebResults()}
