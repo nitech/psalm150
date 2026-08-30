@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-08-30
+* **Sync**: Remote control is now usable from a phone: Settings gained a "Phone remote" toggle, `setup()` auto-starts the server when `config.remote_enabled` is true, `RemoteServer` binds synchronously (bind errors reach the caller), stops within 250 ms and releases the port, `GET /` is served as HTML, and the page remembers the PIN and reports each tap. Integration test in `src-tauri/tests/remote.rs`.
+
 ## 2026-08-29
 * **Creation**: Bundle initialised from a full read of the repo: overview, 19 concept pages, index, this log. Sources are cited per page; `/docs/` and `/CONCEPTS.md` stay where they are and are linked, not copied.
 * **Sync**: Audience display — lyric lines no longer wrap mid-line. `.audience-content` is laid out at natural width (`white-space: pre`) and `fit()` scales the block to the screen; only a line wider than 1/0.7 of the available width falls back to balanced wrapping (`src/audience-fit.ts`, tested). The old `max-width` subtracted the theme margins a second time, which is why the 960 px simulated display wrapped so early.

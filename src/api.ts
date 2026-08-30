@@ -156,6 +156,13 @@ export interface DisplayInfo {
   isPrimary: boolean;
 }
 
+/** Phone remote server state, as returned by start_remote / get_remote_status. */
+export interface RemoteStatus {
+  running: boolean;
+  port: number;
+  pin: string;
+}
+
 export interface AppConfig {
   last_songs_folder?: string | null;
   read_only: boolean;
@@ -255,7 +262,7 @@ export const api = {
     invoke<string>("export_ccli_report", { from, to }),
   printSongbookHtml: (title: string, includeIndexes: boolean) =>
     invoke<string>("print_songbook_html", { title, includeIndexes }),
-  startRemote: (port?: number) => invoke<{ running: boolean; port: number; pin: string }>("start_remote", { port }),
+  startRemote: (port?: number) => invoke<RemoteStatus>("start_remote", { port }),
   stopRemote: () => invoke<void>("stop_remote"),
-  getRemoteStatus: () => invoke<{ running: boolean; port: number; pin: string } | null>("get_remote_status"),
+  getRemoteStatus: () => invoke<RemoteStatus | null>("get_remote_status"),
 };

@@ -37,7 +37,7 @@ generated: { by: agent, at: 2026-08-29T19:45:00Z }
 
 - **Favourites** cannot be toggled from the UI; only listed ([library index](library-index.md)).
 - **Setlists** cannot gain items, be reloaded or stepped back from the UI; hold slides are never created ([setlists](setlists.md)).
-- **Remote control** has no UI, is not auto-started, and `stop_remote` lingers until one more request ([remote control](remote-control.md)).
+- **Remote control** page can only step slides and blank; picking a song still needs the console. The PIN travels in clear over HTTP ([remote control](remote-control.md)).
 - **Web search**: the title is the first scraped line, often a lyric; saves always go to `0000-quick-song.pro`; transpose fails on unsaved web songs ([web search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
 - **Stanza view** highlight is off by one for songs with `Intro`/`Interlude` sections ([performance sections](performance-sections.md)).
@@ -58,8 +58,7 @@ generated: { by: agent, at: 2026-08-29T19:45:00Z }
 `close_audience_window`, `close_stage_window`, `get_next_slide_preview`,
 `set_nashville`, `list_setlists`, `load_setlist`, `save_setlist`,
 `setlist_previous`, `list_hold_slides`, `save_theme`, `get_shortcuts`,
-`save_shortcuts`, `start_remote`, `stop_remote`, `get_remote_status`
-([IPC contract](ipc-contract.md)).
+`save_shortcuts` ([IPC contract](ipc-contract.md)).
 
 ## Test blind spots
 

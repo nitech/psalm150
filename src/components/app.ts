@@ -12,6 +12,7 @@ import {
   type LibraryStatus,
   type LyricLine,
   type ProjectionState,
+  type RemoteStatus,
   type Setlist,
   type SongDetail,
   type SongRow,
@@ -115,6 +116,7 @@ export class PraiseApp extends PraiseElement {
     adhocPendingEdits: { state: true },
     showSongNumbers: { state: true },
     songSort: { state: true },
+    remoteStatus: { state: true },
   };
 
   declare songs: SongRow[];
@@ -154,6 +156,7 @@ export class PraiseApp extends PraiseElement {
   declare adhocPendingEdits: PendingEdits;
   declare showSongNumbers: boolean;
   declare songSort: SongSort;
+  declare remoteStatus: RemoteStatus | null;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -211,6 +214,7 @@ export class PraiseApp extends PraiseElement {
     this.adhocPendingEdits = new Map();
     this.showSongNumbers = true;
     this.songSort = parseSongSort(localStorage.getItem(SONG_SORT_KEY));
+    this.remoteStatus = null;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -868,9 +872,14 @@ export class PraiseApp extends PraiseElement {
   private async openSettings() {
     this.settingsOpen = true;
     try {
-      const [config, displays] = await Promise.all([api.getConfig(), api.listDisplays()]);
+      const [config, displays, remote] = await Promise.all([
+        api.getConfig(),
+        api.listDisplays(),
+        api.getRemoteStatus().catch(() => null),
+      ]);
       this.applyConfig(config);
       this.displays = displays;
+      this.remoteStatus = remote;
     } catch {
       // Config not loaded yet.
     }
@@ -946,6 +955,22 @@ export class PraiseApp extends PraiseElement {
     const sorted = sortSongs(this.songs, this.songSort);
     this.sortedSongsCache = { songs: this.songs, sort: this.songSort, sorted };
     return sorted;
+  }
+
+  private async onRemoteEnabledChange(checked: boolean) {
+    try {
+      if (checked) {
+        this.remoteStatus = await api.startRemote();
+        this.showToast(`Phone remote listening on port ${this.remoteStatus.port}`, "success");
+      } else {
+        await api.stopRemote();
+        this.remoteStatus = null;
+        this.showToast("Phone remote stopped");
+      }
+    } catch (err) {
+      this.remoteStatus = null;
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   private async printSongbook() {
@@ -1893,6 +1918,23 @@ export class PraiseApp extends PraiseElement {
           />
           <span>Search the web when no local songs match</span>
         </label>
+      </div>
+      <div class="settings-section">
+        <h3>Phone remote</h3>
+        <label class="settings-check">
+          <input
+            type="checkbox"
+            .checked=${Boolean(this.remoteStatus?.running)}
+            @change=${(e: Event) =>
+              this.onRemoteEnabledChange((e.target as HTMLInputElement).checked)}
+          />
+          <span>Let a phone on the network (Wi-Fi or Tailscale) change slides</span>
+        </label>
+        ${this.remoteStatus?.running
+          ? html`<p class="settings-path">
+              On the phone, open http://&lt;this PC&gt;:${this.remoteStatus.port}/ · PIN ${this.remoteStatus.pin}
+            </p>`
+          : nothing}
       </div>
       <div class="settings-section">
         <h3>Reports</h3>

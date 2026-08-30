@@ -35,7 +35,7 @@ fields marked `#[serde(default)]` may be absent in old files.
 | `show_song_numbers` | true | Settings (Library) | song list number column |
 | `audience_monitor` | none (= primary) | Settings (Congregation) | `open_audience_window`; `"__simulated__"` = window |
 | `stage_monitor` | none | Settings (Stage) | `open_stage_window` (only when set) |
-| `remote_enabled`, `remote_port` (8757), `remote_pin` | off | `start_remote` / `stop_remote` | [remote control](remote-control.md); no UI, not auto-started |
+| `remote_enabled`, `remote_port` (8757), `remote_pin` | off | Settings (Phone remote) via `start_remote` / `stop_remote` | auto-started in `setup()` when enabled; see [remote control](remote-control.md) |
 | `key_format_compressed` | false | nothing | nothing |
 | `history_days` | 30 | nothing | nothing (history is never pruned) |
 | `shortcuts` | ArrowRight / ArrowLeft / KeyB | `save_shortcuts` | nothing; the console hard-codes its keys |

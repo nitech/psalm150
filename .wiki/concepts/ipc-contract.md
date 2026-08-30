@@ -84,7 +84,7 @@ commands are real and tested but reachable only over IPC.
 | `save_theme`, `get_shortcuts`, `save_shortcuts` | | no |
 | `export_ccli_report` | `from, to` (RFC 3339) → CSV string | yes |
 | `print_songbook_html` | `title, includeIndexes` → HTML string | yes |
-| `start_remote` `port?`, `stop_remote`, `get_remote_status` | → `RemoteStatus { running, port, pin }` | no |
+| `start_remote` `port?`, `stop_remote`, `get_remote_status` | → `RemoteStatus { running, port, pin }`; start also runs in `setup()` when `remote_enabled` | yes (Settings) |
 
 ## Events (Rust to webviews)
 

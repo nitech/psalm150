@@ -1,54 +1,86 @@
 ---
 type: Concept
 title: Remote control
-description: A PIN-guarded HTTP server for next/prev/blank from a phone — how it works and why it is effectively dormant.
-tags: [remote, http, lan]
+description: A PIN-guarded HTTP server so a phone on Wi-Fi or Tailscale can change slides — auto-started from config, toggled in Settings, with a phone-sized page.
+tags: [remote, http, lan, tailscale, phone]
 status: stable
 sources:
   - id: remote
     resource: /src-tauri/src/remote.rs
-    title: tiny_http server and RemoteAction channel
+    title: RemoteServer (bind, worker loop, stop, request handling)
   - id: cmd
     resource: /src-tauri/src/commands/remote_cmd.rs
-    title: start/stop/status commands
+    title: start_remote_inner / stop_remote_inner and the commands
   - id: page
     resource: /src-tauri/assets/remote.html
-    title: Embedded remote page
+    title: Embedded phone page
   - id: lib
     resource: /src-tauri/src/lib.rs
-    title: Action polling in the 1 s thread
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+    title: Auto-start in setup() and action polling in the 1 s thread
+  - id: test
+    resource: /src-tauri/tests/remote.rs
+    title: Integration test (page, PIN, 404, port release)
+  - id: app
+    resource: /src/components/app.ts
+    title: Settings "Phone remote" section
+generated: { by: agent, at: 2026-08-30T00:00:00Z }
 ---
 
 # Remote control
 
-`start_remote(port?)` starts a `tiny_http` server on `0.0.0.0:<port>` (default
-`config.remote_port` = 8757) with PIN `config.remote_pin` (default `"1234"`
-when unset), saves `remote_enabled = true`, and hands the action receiver to
-`AppState.remote_actions`.
+A phone on the same network opens `http://<this PC>:<port>/` and gets three
+buttons: Next, Previous, Blank. On a Tailscale network "this PC" is its
+tailnet address (e.g. `100.64.229.79`), so the phone works from anywhere.
+
+## Lifecycle
+
+- **Settings, Phone remote** toggles it. On: `start_remote` binds, saves
+  `remote_enabled = true`, `remote_port` and `remote_pin` (default `1234` when
+  unset) and shows the port and PIN. Off: `stop_remote`.
+- **Auto-start**: `setup()` calls `start_remote_inner` when
+  `config.remote_enabled` is true, so the remote survives restarts. A failed
+  bind is logged as `[remote] not started: …` and the app continues.
+- `RemoteServer::start` binds **synchronously** on `0.0.0.0:<port>` (port `0`
+  picks a free one; `status().port` reports the real one). A bind error (port
+  in use, blocked) is returned to the caller instead of a phantom "running".
+- The worker loops on `recv_timeout(250 ms)` and checks a stop flag.
+  `stop()` joins it, drops the server, then **connects to `127.0.0.1:port`**:
+  tiny_http wakes its accept thread by connecting to the listen address, which
+  is `0.0.0.0` and refused on Windows, so without the loopback poke the port
+  stayed bound until the app exited. The integration test asserts release.
 
 ## Protocol
 
-| Request | Auth | Effect |
+| Request | Auth | Response |
 | --- | --- | --- |
-| `GET /` | none | serves the embedded `remote.html` (three buttons; prompts for the PIN) |
-| `POST /next`, `/prev`, `/blank` | header `X-Praise-PIN` must equal the PIN | queues `RemoteAction`; responds `{"action": "..."}` |
-| anything else | | `{"error":"not found"}`; non-GET without a PIN gets 401 |
+| `GET /` | none | `text/html` remote page |
+| `POST /next`, `/prev`, `/blank` | header `X-Praise-PIN` equal to the PIN | `200 {"action": "..."}`; queues a `RemoteAction` |
+| `POST` with a wrong or missing PIN | | `401 {"error":"unauthorized"}` |
+| anything else | | `404 {"error":"not found"}` |
 
-The thread in `lib.rs` drains queued actions once a second and calls
-`next_slide_inner` / `previous_slide_inner` / `blank_screen_inner`, so a tap
-lands within a second.
+Actions travel over an `mpsc` channel that the thread in `lib.rs` drains once
+a second, calling `next_slide_inner` / `previous_slide_inner` /
+`blank_screen_inner`; a tap lands within a second.
 
-## Status today
+## The page
 
-- No Settings UI calls `start_remote`, and it is **not** auto-started from
-  `remote_enabled` on launch. The feature is reachable only over IPC.
-- `stop_remote` sets a flag that the server thread checks only after the
-  *next* request; until then the port stays bound.
-- Binding `0.0.0.0` exposes it on the LAN; the PIN is the only guard and the
-  page sends it in clear over HTTP.
+Plain HTML embedded with `include_str!` (rebuild to change it). Dark, large
+buttons, safe-area padding, `apple-mobile-web-app-capable` so it can be added
+to the iOS Home Screen. The PIN field is remembered in the phone's
+`localStorage` (`praise-remote-pin`); each tap reports "Sent next", "Wrong
+PIN" or "Praise is not reachable".
+
+## Caveats
+
+- Binding `0.0.0.0` exposes it on every interface; the PIN is the only guard
+  and travels in clear over HTTP. Fine on a tailnet or church Wi-Fi, not on a
+  public network.
+- Windows Firewall may prompt the first time a build listens; allow it or the
+  phone gets "not reachable".
+- The page cannot pick songs; that still needs the console.
 
 ## Related
 
-- [Config](config.md): `remote_*` fields
+- [Config](config.md): `remote_enabled`, `remote_port`, `remote_pin`
 - [Projection windows](projection-windows.md): the navigation it triggers
+- [Operator console](operator-console.md): the Settings toggle

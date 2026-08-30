@@ -2,23 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#060606" />
   <title>Praise Remote</title>
   <style>
-    body { font-family: sans-serif; display: grid; gap: 12px; padding: 24px; }
-    button { font-size: 1.2rem; padding: 16px; }
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; min-height: 100vh; box-sizing: border-box;
+      display: flex; flex-direction: column; gap: 14px;
+      padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+      background: #060606; color: #f4f4f4; font-family: system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    h1 { margin: 0 0 6px; font-size: .8rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #9a9a9a; }
+    button {
+      font: inherit; font-size: 1.4rem; padding: 22px; border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, .08); background: #1e1e1e; color: inherit;
+    }
+    button.primary { background: #c6d88c; color: #1a1a1a; font-weight: 600; }
+    button:active { transform: translateY(1px); background: #242424; }
+    button.primary:active { background: #b3c977; }
+    #status { min-height: 1.4em; color: #9a9a9a; font-size: .9rem; }
+    #pin-row { margin-top: auto; display: flex; align-items: center; gap: 10px; color: #9a9a9a; font-size: .9rem; }
+    input {
+      font: inherit; width: 7em; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, .14); background: #141414; color: #f4f4f4;
+    }
   </style>
 </head>
 <body>
-  <h1>Praise Remote</h1>
-  <p>Enter PIN in request header X-Praise-PIN when using API.</p>
-  <button onclick="send('/next')">Next</button>
+  <h1>Praise remote</h1>
+  <button class="primary" onclick="send('/next')">Next</button>
   <button onclick="send('/prev')">Previous</button>
   <button onclick="send('/blank')">Blank</button>
+  <div id="status" role="status"></div>
+  <div id="pin-row">
+    <label for="pin">PIN</label>
+    <input id="pin" inputmode="numeric" autocomplete="off" />
+  </div>
   <script>
+    const pinInput = document.getElementById('pin');
+    const status = document.getElementById('status');
+    pinInput.value = localStorage.getItem('praise-remote-pin') || '';
+    pinInput.addEventListener('input', () => localStorage.setItem('praise-remote-pin', pinInput.value));
+
     async function send(path) {
-      const pin = prompt('PIN');
-      await fetch(path, { method: 'POST', headers: { 'X-Praise-PIN': pin || '' } });
+      status.textContent = '';
+      try {
+        const res = await fetch(path, { method: 'POST', headers: { 'X-Praise-PIN': pinInput.value } });
+        status.textContent = res.status === 401 ? 'Wrong PIN' : res.ok ? 'Sent ' + path.slice(1) : 'Error ' + res.status;
+      } catch (err) {
+        status.textContent = 'Praise is not reachable';
+      }
     }
   </script>
 </body>

@@ -105,6 +105,14 @@ pub fn run() {
 
             commands::projection_cmd::create_projection_windows(app.handle());
 
+            if config.remote_enabled {
+                let state = app.state::<AppState>();
+                match commands::remote_cmd::start_remote_inner(app.handle(), &state, None) {
+                    Ok(status) => eprintln!("[remote] listening on port {}", status.port),
+                    Err(err) => eprintln!("[remote] not started: {err}"),
+                }
+            }
+
             if let Some(main) = app.get_webview_window("main") {
                 let _ = main.set_focus();
             }

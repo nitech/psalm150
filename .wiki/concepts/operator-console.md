@@ -104,7 +104,9 @@ highlighted and scrolled into view; clicking another stanza jumps
 Library: folder path, Choose Songs Folder, Import MDB, Rescan, song numbers
 toggle. Projection: Congregation display (Primary / Simulated / monitors),
 Stage display, "Also show stage window", "Read-only library". Search: web
-search toggle. Reports: Print songbook HTML, Export CCLI CSV. Shortcut legend.
+search toggle. Phone remote: on/off toggle that shows the port and PIN while
+running ([remote control](remote-control.md)). Reports: Print songbook HTML,
+Export CCLI CSV. Shortcut legend.
 
 ## Edit modal
 
