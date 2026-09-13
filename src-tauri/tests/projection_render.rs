@@ -1,6 +1,3 @@
-use std::fs;
-use std::path::PathBuf;
-
 use psalm150_lib::library::chordpro::parse_chordpro;
 use psalm150_lib::projection::modes::audience_slide;
 use psalm150_lib::projection::split::{max_chars_per_row, split_section_into_stanzas};
