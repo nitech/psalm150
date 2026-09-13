@@ -1,4 +1,5 @@
 pub mod chordpro;
+pub mod files;
 pub mod scan;
 pub mod watcher;
 

@@ -1,20 +1,23 @@
 ---
 type: Concept
 title: Ad hoc editing
-description: Correct a lyric while projecting — per-line contenteditable, pending edits keyed by source line, raw-text patching that keeps chords and directives.
+description: Correct a lyric while projecting — per-line contenteditable, pending edits keyed by parsed source coordinates, and safe Rust-side line replacement.
 tags: [console, editing, chordpro]
 status: stable
 sources:
   - id: adhoc
     resource: /src/adhoc-edit.ts
-    title: patchChordProRaw, diffLineSegments, pending-edit helpers
+    title: Pending-edit collection and word diff helpers
+  - id: song-save
+    resource: /src-tauri/src/commands/song_v2.rs
+    title: Source-mapped line edits and guarded saves
   - id: app
     resource: /src/components/app.ts
     title: enterAdhocEdit / saveAdhocEdits / renderInteractiveLyricLine
   - id: test
     resource: /tests/adhoc-edit.test.ts
     title: Patch and diff tests
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Ad hoc editing
@@ -38,21 +41,19 @@ LCS over whitespace-split tokens) with the changed words highlighted.
 
 ## Saving
 
-`patchChordProRaw(raw, sections, edits)` walks the file text: `{…}` lines that
-start a section bump the section counter; other `{…}` lines and blank lines
-pass through untouched; each non-blank lyric line increments the line counter,
-and if it has an edit the line is re-rendered from `{text, chords}` with
-`formatLyricLineForRaw` (chords re-inserted at their character positions).
-Everything else in the file, including unknown directives and spacing, is
-preserved. Then `save_song(filename, patched)`; the response replaces
-`currentSong` and `projection` (slides rebuilt, index kept). The projected
-screen refreshes on the next navigation, not immediately.
+The parser records `LyricLine.source_line` for every raw lyric or stanza-break
+line. The console sends only `{ sectionIndex, lineIndex, text }` plus the
+content hash from load. `save_song_lines` resolves each edit through that
+mapping, so comments, blank lines, short directive aliases, Unicode and
+repeated section templates do not shift edits. Chords are reinserted at their
+original character positions, capped at the new text end; all untouched raw
+lines and CRLF/LF endings remain unchanged.
 
-## Known edge
-
-`#` comment lines are skipped by the parser but counted as lyric lines by the
-patcher, so an edit *after* a `#` line inside a section lands one line off
-([gaps](gaps.md)).
+The hash rejects an outside edit and keeps pending console text available for
+retry after reload. A successful save updates the index. If the file is the
+active projection, slides publish immediately while the current stanza/part
+and blank state are preserved where valid. Saving a merely selected preview
+does not affect what is being shown.
 
 ## Related
 

@@ -15,16 +15,17 @@ sources:
     resource: /src-tauri/src/projection/modes.rs
     title: Audience vs stage payloads
   - id: song-cmd
-    resource: /src-tauri/src/commands/song.rs
-    title: load_song / save_song / quick_project call build_slides
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+    resource: /src-tauri/src/commands/song_v2.rs
+    title: Preview, active project, save and transpose inputs
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Slide pipeline
 
-`build_slides(&ParsedSong, &SlideTheme, transpose) -> Vec<SlidePayload>` runs on
-`load_song`, `save_song`, `quick_project` and `set_transpose`. The result is
-stored in `RuntimeState.projection.slides`; the current slide is only an index.
+`build_slides(&ParsedSong, &SlideTheme, transpose) -> Vec<SlidePayload>` builds
+read-only previews and the active session created by `project_song`. Active
+save and transpose rebuild the same session. The result is stored in
+`RuntimeState.projection.slides`; the current slide is only an index.
 
 ## Steps
 
@@ -72,8 +73,8 @@ Per slide, from `SlideTheme` flags: title (`show_title_overlay`), key
 
 `transpose_chord` rewrites the root of every chord name by semitones over a
 sharps-only table. `Db` and `Eb` are mapped; other flats are not recognised and
-land on `C` ([gaps](gaps.md)). `set_transpose` re-reads the song file from the
-songs folder, so it fails for web results that were never saved.
+land on `C` ([gaps](gaps.md)). `set_transpose` rebuilds from
+`RuntimeState.active_song`, so saved and unsaved web projections behave alike.
 `set_nashville` only stores a flag; nothing renders Nashville numbers yet.
 
 ## Modes

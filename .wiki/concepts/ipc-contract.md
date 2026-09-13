@@ -14,7 +14,7 @@ sources:
   - id: client
     resource: /src/projection-client.ts
     title: Wrappers used by the audience page
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # IPC contract
@@ -44,15 +44,21 @@ commands are real and tested but reachable only over IPC.
 
 | Command | Args → Result | UI |
 | --- | --- | --- |
-| `load_song` | `filename` → `SongDetail { parsed, projection }` (resets projection to slide 0) | yes |
-| `save_song` | `filename, content` → `SongDetail` (rebuilds slides, keeps index) | yes |
-| `delete_song` | `filename` | yes |
-| `quick_project` | `text, save` → `SongDetail` (`__quick__.pro` or `0000-quick-song.pro`) | yes |
+| `load_song` | `filename` → read-only `SongDetail { parsed, projection, content_hash }` preview | yes |
+| `preview_web_song` | `content` → read-only `SongDetail` preview | yes |
+| `project_song` | exactly one of `filename` / `content` → `ProjectionSnapshot`; starts a new active session and logs a library song once | yes |
+| `save_song` | `filename, content, expectedHash` → `SongDetail`; rejects an external edit and refreshes an active song immediately | yes |
+| `save_song_lines` | `filename, expectedHash, edits[{sectionIndex,lineIndex,text}]` → `SongDetail`; Rust uses parser source-line mappings | yes |
+| `save_web_song` | `content` → `SongDetail`; collision-free number/title filename | yes |
+| `delete_song` | `filename` → `RecoveryItem`; blocks active and setlist-referenced files | yes |
 | `renumber_songs` | `plans[{from,to}]` → messages | no |
 | `compact_library` | → summary string (VACUUM + orphan count) | no |
-| `import_mdb_path` | `mdbPath` → `ImportReport { written, skipped, warnings, cancelled }` | yes |
+| `import_mdb_path` | `mdbPath` → `ImportReport { written, skipped, failed, warnings, cancelled, aborted_reason, files }` | yes |
 | `cancel_import` | | yes |
 | `check_duplicates` | → `Vec<DuplicateWarning>` | no |
+| `list_duplicate_groups` | `includeReviewed` → exact-match groups with reasons, metadata, hashes and raw text | yes |
+| `mark_duplicate_keep_both` | `leftHash, rightHash` | yes |
+| `list_recovery_items`, `restore_recovery_item` | → recoverable copies / restored filename | yes |
 | `search_web_songs` | `query` → `Vec<WebSearchCandidate>` | yes |
 
 ## Projection
@@ -62,13 +68,14 @@ commands are real and tested but reachable only over IPC.
 | `open_audience_window`, `open_stage_window` | async | yes |
 | `close_audience_window`, `close_stage_window` | | no (only via the pair below) |
 | `close_projection_windows` | emits `projection-closed` | yes (console, audience, stage) |
-| `show_slide` | `index` → `ProjectionState` | yes |
-| `next_slide`, `previous_slide`, `blank_screen` | → `ProjectionState` | yes (console + audience keys) |
-| `get_projection_state` | → `ProjectionState` | audience page |
+| `show_slide` | `index` → `ProjectionSnapshot` | yes |
+| `next_slide`, `previous_slide`, `blank_screen` | → `ProjectionSnapshot` | yes (console + audience keys + phone) |
+| `get_projection_snapshot` | → the same complete revisioned snapshot used by events | all three pages |
+| `get_projection_state` | → legacy `ProjectionState` | no |
 | `get_next_slide_preview` | → `Option<SlidePayload>` | no |
-| `set_transpose` | `semitones` → `ProjectionState` (re-reads the file) | yes (Edit modal) |
-| `set_nashville` | `enabled` → `ProjectionState` (flag only) | no |
-| `log_projection` | history + CCLI log | yes (on Project) |
+| `set_transpose` | `semitones` → `ProjectionSnapshot` using the active song kept in memory | yes (Edit modal) |
+| `set_nashville` | `enabled` → `ProjectionSnapshot` | no |
+| `log_projection` | legacy explicit history + CCLI log | no (`project_song` logs once) |
 
 ## Setlists, config, reports, remote
 
@@ -91,11 +98,11 @@ commands are real and tested but reachable only over IPC.
 | Event | Payload | Listener |
 | --- | --- | --- |
 | `library-changed` | none | console refreshes status and list |
+| `library-external-changed` | none | an open duplicate view marks its results stale |
 | `projection-closed` | none | console sets `projecting = false` |
-| `audience-slide` | `SlidePayload` (global and `emit_to("audience")`) | audience page |
-| `stage-slide` | `StageSlide` (global and `emit_to("stage")`) | stage page |
+| `projection-updated` | `ProjectionSnapshot { revision, session_id, projection, theme, audience, stage }` | console, audience and stage; older revisions are ignored |
 | `import-progress` | `{ current, total, song_title }` | console import modal |
 | `import-complete` | `ImportReport` | nobody (the command's return is used) |
 
-Plus two `window.eval` pushes described in
-[projection windows](projection-windows.md).
+Each page subscribes before fetching `get_projection_snapshot`, closing the
+startup race without targeted events or `window.eval` delivery.

@@ -1,15 +1,11 @@
 import { html, nothing } from "lit";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { closeProjectionWindows } from "../projection-client";
+import {
+  closeProjectionWindows,
+  getProjectionSnapshot,
+  listenProjectionUpdated,
+} from "../projection-client";
+import type { ProjectionSnapshot, StageSlide } from "../api";
 import { PraiseElement } from "./base";
-
-export interface StageSlide {
-  section_label: string;
-  next_section_label?: string | null;
-  lines: { text: string; chords: string[] }[];
-  key?: string | null;
-}
 
 /** Musician-facing stage window: lyrics with chords above each line. */
 export class PraiseStage extends PraiseElement {
@@ -18,6 +14,8 @@ export class PraiseStage extends PraiseElement {
   };
 
   declare slide: StageSlide | null;
+  private revision = -1;
+  private unlistenProjection?: () => void;
 
   constructor() {
     super();
@@ -26,23 +24,32 @@ export class PraiseStage extends PraiseElement {
 
   connectedCallback() {
     super.connectedCallback();
-    listen<StageSlide>("stage-slide", (event) => (this.slide = event.payload)).catch(console.error);
-    getCurrentWebviewWindow()
-      .listen<StageSlide>("stage-slide", (event) => (this.slide = event.payload))
-      .catch(console.error);
-    window.addEventListener("praise-stage-slide", this.onCustomSlide);
     window.addEventListener("keydown", this.onKeydown);
+    void this.startProjectionSync();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener("praise-stage-slide", this.onCustomSlide);
     window.removeEventListener("keydown", this.onKeydown);
+    this.unlistenProjection?.();
   }
 
-  private onCustomSlide = (event: Event) => {
-    this.slide = (event as CustomEvent<StageSlide>).detail;
-  };
+  private async startProjectionSync() {
+    try {
+      this.unlistenProjection = await listenProjectionUpdated((snapshot) =>
+        this.applySnapshot(snapshot),
+      );
+      this.applySnapshot(await getProjectionSnapshot());
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  private applySnapshot(snapshot: ProjectionSnapshot) {
+    if (snapshot.revision <= this.revision) return;
+    this.revision = snapshot.revision;
+    this.slide = snapshot.stage;
+  }
 
   private onKeydown = (event: KeyboardEvent) => {
     if (event.key === "Escape") {

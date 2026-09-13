@@ -16,10 +16,11 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 * [Library index](concepts/library-index.md) - SQLite schema, what search actually matches, history, favourites
 * [MDB import](concepts/mdb-import.md) - Visual Song Book `.mdb` to ChordPro, theme from PageSetup, progress and cancel
 * [Web search](concepts/web-search.md) - DuckDuckGo discovery, site scrapers, chord-chart conversion, preview vs save
+* [Duplicate review](concepts/duplicate-review.md) - Exact candidate grouping, side-by-side human review, pair decisions, recoverable delete and restore
 
 # Operator console
 
-* [Operator console](concepts/operator-console.md) - Main window state, tabs, song list columns and sorting, keyboard model, projecting mode, settings
+* [Operator console](concepts/operator-console.md) - Main window state, tabs, song list columns and sorting, numbered stanza buttons and keyboard shortcuts, projecting mode, settings
 * [Performance sections](concepts/performance-sections.md) - Console-side mirror of chorus2 expansion; stanza markers that tie the song view to slides
 * [Ad hoc editing](concepts/adhoc-editing.md) - Fix a lyric while projecting; patch raw ChordPro without touching chords
 * [Setlists](concepts/setlists.md) - Per-PC JSON setlists, advance/previous, and how little has UI

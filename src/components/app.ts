@@ -5,6 +5,8 @@ import { confirm } from "@tauri-apps/plugin-dialog";
 import {
   api,
   type AppConfig,
+  type DuplicateCandidate,
+  type DuplicateGroup,
   SIMULATED_DISPLAY_ID,
   type DisplayInfo,
   type ImportProgress,
@@ -12,6 +14,8 @@ import {
   type LibraryStatus,
   type LyricLine,
   type ProjectionState,
+  type ProjectionSnapshot,
+  type RecoveryItem,
   type RemoteStatus,
   type Setlist,
   type SongDetail,
@@ -20,10 +24,10 @@ import {
 } from "../api";
 import {
   applyPendingEditsToLineText,
+  collectLineEdits,
   diffLineSegments,
   hasPendingEdits,
   lineIsBlank,
-  patchChordProRaw,
   type PendingEdits,
 } from "../adhoc-edit";
 import {
@@ -46,6 +50,12 @@ import {
   type SongSortColumn,
 } from "../song-sort";
 import { PraiseElement } from "./base";
+import { StanzaNumberInput } from "../stanza-number-input";
+import {
+  projectionStructureSignature,
+  shouldAcceptProjectionSnapshot,
+  shouldResetStanzaSequence,
+} from "../projection-snapshot";
 import type { PraiseCombobox } from "./combobox";
 import "./combobox";
 import type { SelectOption } from "./select";
@@ -104,6 +114,8 @@ export class PraiseApp extends PraiseElement {
     importCurrent: { state: true },
     importTotal: { state: true },
     importSong: { state: true },
+    importReportOpen: { state: true },
+    importReport: { state: true },
     toastMsg: { state: true },
     toastTone: { state: true },
     toastVisible: { state: true },
@@ -117,6 +129,15 @@ export class PraiseApp extends PraiseElement {
     showSongNumbers: { state: true },
     songSort: { state: true },
     remoteStatus: { state: true },
+    activeProjectionTitle: { state: true },
+    duplicatesOpen: { state: true },
+    duplicateGroups: { state: true },
+    duplicateGroupId: { state: true },
+    duplicateLeft: { state: true },
+    duplicateRight: { state: true },
+    includeReviewedDuplicates: { state: true },
+    recoveryItems: { state: true },
+    duplicatesStale: { state: true },
   };
 
   declare songs: SongRow[];
@@ -144,6 +165,8 @@ export class PraiseApp extends PraiseElement {
   declare importCurrent: number;
   declare importTotal: number;
   declare importSong: string;
+  declare importReportOpen: boolean;
+  declare importReport: ImportReport | null;
   declare toastMsg: string;
   declare toastTone: ToastTone;
   declare toastVisible: boolean;
@@ -157,6 +180,15 @@ export class PraiseApp extends PraiseElement {
   declare showSongNumbers: boolean;
   declare songSort: SongSort;
   declare remoteStatus: RemoteStatus | null;
+  declare activeProjectionTitle: string | null;
+  declare duplicatesOpen: boolean;
+  declare duplicateGroups: DuplicateGroup[];
+  declare duplicateGroupId: string | null;
+  declare duplicateLeft: string | null;
+  declare duplicateRight: string | null;
+  declare includeReviewedDuplicates: boolean;
+  declare recoveryItems: RecoveryItem[];
+  declare duplicatesStale: boolean;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -164,6 +196,8 @@ export class PraiseApp extends PraiseElement {
   private unlistenImport: UnlistenFn | null = null;
   private unlistenLibrary: UnlistenFn | null = null;
   private unlistenProjection: UnlistenFn | null = null;
+  private unlistenProjectionClosed: UnlistenFn | null = null;
+  private unlistenExternalLibrary: UnlistenFn | null = null;
   private unlistenWindowResize: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
@@ -171,6 +205,12 @@ export class PraiseApp extends PraiseElement {
   private splitterDragging = false;
   private tabIndicatorObserver: ResizeObserver | null = null;
   private sortedSongsCache: { songs: SongRow[]; sort: SongSort; sorted: SongRow[] } | null = null;
+  private stanzaNumberInput = new StanzaNumberInput();
+  private projectionRevision = -1;
+  private projectionSessionId: string | null = null;
+  private projectionStructure = "";
+  private selectionGeneration = 0;
+  private activeSelectionId: string | null = null;
 
   constructor() {
     super();
@@ -199,6 +239,8 @@ export class PraiseApp extends PraiseElement {
     this.importCurrent = 0;
     this.importTotal = 0;
     this.importSong = "";
+    this.importReportOpen = false;
+    this.importReport = null;
     this.toastMsg = "";
     this.toastTone = "info";
     this.toastVisible = false;
@@ -215,6 +257,15 @@ export class PraiseApp extends PraiseElement {
     this.showSongNumbers = true;
     this.songSort = parseSongSort(localStorage.getItem(SONG_SORT_KEY));
     this.remoteStatus = null;
+    this.activeProjectionTitle = null;
+    this.duplicatesOpen = false;
+    this.duplicateGroups = [];
+    this.duplicateGroupId = null;
+    this.duplicateLeft = null;
+    this.duplicateRight = null;
+    this.includeReviewedDuplicates = false;
+    this.recoveryItems = [];
+    this.duplicatesStale = false;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -222,6 +273,9 @@ export class PraiseApp extends PraiseElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener("keydown", this.onGlobalKeydown);
+    window.addEventListener("blur", this.stanzaNumberInput.reset);
+    window.addEventListener("focusin", this.stanzaNumberInput.reset);
+    window.addEventListener("pointerdown", this.stanzaNumberInput.reset);
     void getCurrentWebviewWindow().setFocus();
     void this.initWindowChrome();
     void this.init();
@@ -265,9 +319,17 @@ export class PraiseApp extends PraiseElement {
         await this.refreshLibraryStatus();
         await this.refreshSongs();
       });
-      this.unlistenProjection = await listen("projection-closed", () => {
+      this.unlistenExternalLibrary = await listen("library-external-changed", () => {
+        if (this.duplicatesOpen) this.duplicatesStale = true;
+      });
+      this.unlistenProjection = await listen<ProjectionSnapshot>("projection-updated", (event) => {
+        this.applyProjectionSnapshot(event.payload);
+      });
+      this.unlistenProjectionClosed = await listen("projection-closed", () => {
+        this.stanzaNumberInput.reset();
         this.projecting = false;
       });
+      this.applyProjectionSnapshot(await api.getProjectionSnapshot());
     } catch (err) {
       console.error(err);
     }
@@ -277,8 +339,14 @@ export class PraiseApp extends PraiseElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this.onGlobalKeydown);
+    window.removeEventListener("blur", this.stanzaNumberInput.reset);
+    window.removeEventListener("focusin", this.stanzaNumberInput.reset);
+    window.removeEventListener("pointerdown", this.stanzaNumberInput.reset);
+    this.stanzaNumberInput.reset();
     this.unlistenLibrary?.();
     this.unlistenProjection?.();
+    this.unlistenProjectionClosed?.();
+    this.unlistenExternalLibrary?.();
     this.unlistenWindowResize?.();
     this.tabIndicatorObserver?.disconnect();
     void this.unlistenImport?.();
@@ -557,9 +625,11 @@ export class PraiseApp extends PraiseElement {
     });
     if (!ok) return;
     try {
-      this.currentSong = await api.quickProject(candidate.chordpro_content, true);
+      const saved = await api.saveWebSong(candidate.chordpro_content);
       await this.refreshLibraryStatus();
       await this.refreshSongs();
+      this.currentSong = saved;
+      this.currentFilename = saved.parsed.meta.filename as string;
       this.showToast(`Saved ${candidate.title}`, "success");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -589,7 +659,46 @@ export class PraiseApp extends PraiseElement {
     return Boolean(this.currentSong.projection.filename);
   }
 
+  private selectedSongIsActive(): boolean {
+    return Boolean(this.currentFilename && this.currentFilename === this.activeSelectionId);
+  }
+
+  private async confirmDiscardPendingEdits(): Promise<boolean> {
+    const fullEditChanged = Boolean(
+      this.editOpen && this.currentSong && this.editorValue !== this.currentSong.parsed.raw,
+    );
+    if (!fullEditChanged && !hasPendingEdits(this.adhocPendingEdits)) return true;
+    const save = await confirm(
+      "This song has unsaved corrections. Save them before continuing?",
+      {
+        title: "Unsaved corrections",
+        kind: "info",
+        okLabel: "Save",
+        cancelLabel: "More options",
+      },
+    );
+    if (save) {
+      const saved = fullEditChanged ? await this.saveSong() : await this.saveAdhocEdits();
+      if (saved) this.editOpen = false;
+      return saved;
+    }
+    const discard = await confirm("Discard the corrections?", {
+      title: "Unsaved corrections",
+      kind: "warning",
+      okLabel: "Discard",
+      cancelLabel: "Cancel",
+    });
+    if (discard) {
+      this.editOpen = false;
+      this.resetAdhocEdits();
+    }
+    return discard;
+  }
+
   private async selectSong(file: string) {
+    if (file === this.currentFilename) return;
+    if (!(await this.confirmDiscardPendingEdits())) return;
+    const generation = ++this.selectionGeneration;
     this.resetAdhocEdits();
     this.currentFilename = file;
     if (isWebResultId(file)) {
@@ -598,14 +707,22 @@ export class PraiseApp extends PraiseElement {
         this.currentSong = null;
         return;
       }
-      this.currentSong = await api.quickProject(candidate.chordpro_content, false);
+      const loaded = await api.previewWebSong(candidate.chordpro_content);
+      if (generation !== this.selectionGeneration || this.currentFilename !== file) return;
+      this.currentSong = loaded;
       return;
     }
-    this.currentSong = await api.loadSong(file);
+    const loaded = await api.loadSong(file);
+    if (generation !== this.selectionGeneration || this.currentFilename !== file) return;
+    this.currentSong = loaded;
   }
 
   private async pickFolder() {
     try {
+      if (!(await this.confirmDiscardPendingEdits())) return;
+      if (this.projecting) {
+        await api.closeProjectionWindows();
+      }
       this.libraryStatus = await api.pickSongsFolder();
       await this.refreshSongs();
       if (this.libraryStatus?.songs_folder) {
@@ -625,43 +742,44 @@ export class PraiseApp extends PraiseElement {
 
   // ── Projection ─────────────────────────────────────────────────────────
 
-  /** Reload the selected song on the backend so projection state matches before opening windows. */
-  private async ensureCurrentSongLoaded(): Promise<boolean> {
-    if (!this.currentFilename) return false;
-
-    if (isWebResultId(this.currentFilename)) {
-      const candidate = this.webResults[webResultIndex(this.currentFilename)];
-      if (!candidate) {
-        this.currentSong = null;
-        return false;
-      }
-      this.currentSong = await api.quickProject(candidate.chordpro_content, false);
-      return true;
+  private applyProjectionSnapshot(snapshot: ProjectionSnapshot) {
+    if (!shouldAcceptProjectionSnapshot(this.projectionRevision, snapshot)) return;
+    const structure = projectionStructureSignature(snapshot.projection.slides);
+    const sessionChanged = snapshot.session_id !== this.projectionSessionId;
+    if (shouldResetStanzaSequence(this.projectionSessionId, this.projectionStructure, snapshot)) {
+      this.stanzaNumberInput.reset();
     }
-
-    this.currentSong = await api.loadSong(this.currentFilename);
-    return true;
+    if (sessionChanged) {
+      this.activeSelectionId = snapshot.session_id ? snapshot.projection.filename ?? null : null;
+    }
+    this.projectionRevision = snapshot.revision;
+    this.projectionSessionId = snapshot.session_id;
+    this.projectionStructure = structure;
+    this.projection = snapshot.projection;
+    this.activeProjectionTitle = snapshot.session_id
+      ? snapshot.projection.title ?? "Untitled"
+      : null;
   }
 
   private async projectLoadedSong() {
-    if (!this.currentFilename) return;
-    if (!(await this.ensureCurrentSongLoaded())) return;
+    this.stanzaNumberInput.reset();
+    if (!this.currentFilename || !this.currentSong) return;
+
+    const sourceId = this.currentFilename;
+    const snapshot = isWebResultId(sourceId)
+      ? await api.projectSong({ content: this.currentSong.parsed.raw })
+      : await api.projectSong({ filename: sourceId });
+    this.applyProjectionSnapshot(snapshot);
+    this.activeSelectionId = sourceId;
 
     this.projecting = true;
     this.querySelector<HTMLElement>("praise-song-list li:focus")?.blur();
     await this.updateComplete;
 
-    if (this.currentSong!.projection.slides.length > 0) {
-      this.projection = await api.showSlide(0);
-    } else {
-      this.projection = this.currentSong!.projection;
-    }
-
     await api.openAudienceWindow();
     if (this.projectToStage) {
       await api.openStageWindow();
     }
-    await api.logProjection();
     if (this.audienceMonitor !== SIMULATED_DISPLAY_ID) {
       await getCurrentWebviewWindow().setFocus();
     }
@@ -670,13 +788,14 @@ export class PraiseApp extends PraiseElement {
   }
 
   private async advanceSlide(direction: "next" | "prev") {
-    if (!this.isProjectionActive()) return;
-    this.projection =
-      direction === "next" ? await api.nextSlide() : await api.previousSlide();
+    if (!this.projecting || !this.projection?.slides.length) return;
+    this.applyProjectionSnapshot(
+      direction === "next" ? await api.nextSlide() : await api.previousSlide(),
+    );
   }
 
   private async advanceStanza(direction: "next" | "prev") {
-    if (!this.isProjectionActive() || !this.projection) return;
+    if (!this.projecting || !this.projection?.slides.length) return;
     const markers = buildStanzaMarkers(this.projection.slides);
     const slideIndex = stanzaStepSlideIndex(
       markers,
@@ -688,27 +807,45 @@ export class PraiseApp extends PraiseElement {
   }
 
   private async jumpToStanza(slideIndex: number) {
-    if (!this.isProjectionActive()) return;
-    this.projection = await api.showSlide(slideIndex);
+    this.stanzaNumberInput.reset();
+    if (!this.projecting || !this.projection?.slides.length) return;
+    this.applyProjectionSnapshot(await api.showSlide(slideIndex));
   }
 
   // ── Editing ────────────────────────────────────────────────────────────
 
   private openEdit() {
     if (!this.currentSong) return;
+    if (hasPendingEdits(this.adhocPendingEdits)) {
+      this.showToast("Save or discard the inline corrections before opening the raw editor", "info");
+      return;
+    }
     this.editorValue = this.currentSong.parsed.raw;
     this.editOpen = true;
     requestAnimationFrame(() => this.querySelector<HTMLTextAreaElement>("#editor")?.focus());
   }
 
-  private async saveSong() {
-    if (!this.currentSong?.projection.filename) return;
-    this.currentSong = await api.saveSong(
-      this.currentSong.projection.filename,
-      this.editorValue,
-    );
-    this.showToast("Song saved");
-    await this.refreshSongs();
+  private async saveSong(): Promise<boolean> {
+    if (!this.currentSong || !this.currentFilename || isWebResultId(this.currentFilename)) return false;
+    try {
+      this.currentSong = await api.saveSong(
+        this.currentFilename,
+        this.editorValue,
+        this.currentSong.content_hash,
+      );
+      this.editorValue = this.currentSong.parsed.raw;
+      this.showToast("Song saved", "success");
+      await this.refreshSongs();
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("FILE_SAVED_INDEX_FAILED")) {
+        this.currentSong = await api.loadSong(this.currentFilename).catch(() => this.currentSong);
+        if (this.currentSong) this.editorValue = this.currentSong.parsed.raw;
+      }
+      this.showToast(message, "error");
+      return message.includes("FILE_SAVED_INDEX_FAILED");
+    }
   }
 
   private enterAdhocEdit(blockKey: string, event?: Event) {
@@ -739,23 +876,29 @@ export class PraiseApp extends PraiseElement {
     this.adhocPendingEdits = next;
   }
 
-  private async saveAdhocEdits() {
+  private async saveAdhocEdits(): Promise<boolean> {
     if (!this.currentSong?.projection.filename || !hasPendingEdits(this.adhocPendingEdits)) {
-      return;
+      return false;
     }
     const filename = this.currentSong.projection.filename;
-    const raw = this.currentSong.parsed.raw;
-    const sections = this.currentSong.parsed.sections;
-    const patched = patchChordProRaw(raw, sections, this.adhocPendingEdits);
     try {
-      this.currentSong = await api.saveSong(filename, patched);
-      this.projection = this.currentSong.projection;
+      this.currentSong = await api.saveSongLines(
+        filename,
+        this.currentSong.content_hash,
+        collectLineEdits(this.adhocPendingEdits),
+      );
       this.resetAdhocEdits();
       this.showToast("Corrections saved", "success");
       await this.refreshSongs();
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("FILE_SAVED_INDEX_FAILED")) {
+        this.currentSong = await api.loadSong(filename).catch(() => this.currentSong);
+        this.resetAdhocEdits();
+      }
       this.showToast(message, "error");
+      return message.includes("FILE_SAVED_INDEX_FAILED");
     }
   }
 
@@ -779,23 +922,33 @@ export class PraiseApp extends PraiseElement {
   }
 
   private async deleteSong() {
-    if (!this.currentSong?.projection.filename) return;
-    const ok = await confirm("Delete this song from the library?", {
+    if (!this.currentSong || !this.currentFilename || isWebResultId(this.currentFilename)) return;
+    const filename = this.currentFilename;
+    const title = (this.currentSong.parsed.meta.title as string) || "Untitled";
+    const ok = await confirm(`Delete "${title}" (${filename})? A recovery copy will be kept.`, {
       title: "Delete song",
       kind: "warning",
       okLabel: "Delete",
       cancelLabel: "Cancel",
     });
     if (!ok) return;
-    await api.deleteSong(this.currentSong.projection.filename);
-    this.currentSong = null;
-    this.currentFilename = null;
-    this.editOpen = false;
-    await this.refreshSongs();
+    try {
+      await api.deleteSong(filename);
+      this.currentSong = null;
+      this.currentFilename = null;
+      this.editOpen = false;
+      await this.refreshSongs();
+      if (this.duplicatesOpen) await this.refreshDuplicates();
+      this.showToast("Song deleted; recovery copy retained", "success");
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   private async transpose(delta: number) {
-    this.projection = await api.setTranspose((this.projection?.transpose_semitones ?? 0) + delta);
+    this.applyProjectionSnapshot(
+      await api.setTranspose((this.projection?.transpose_semitones ?? 0) + delta),
+    );
   }
 
   // ── Import ─────────────────────────────────────────────────────────────
@@ -834,7 +987,12 @@ export class PraiseApp extends PraiseElement {
 
       const report = await api.importMdb();
       await this.closeImport();
-      this.showToast(this.formatImportReport(report), report.cancelled ? "info" : "success");
+      this.importReport = report;
+      this.importReportOpen = true;
+      this.showToast(
+        this.formatImportReport(report),
+        report.failed > 0 ? "error" : report.cancelled || report.aborted_reason ? "info" : "success",
+      );
       await this.refreshLibraryStatus();
       await this.refreshSongs();
     } catch (err) {
@@ -861,10 +1019,14 @@ export class PraiseApp extends PraiseElement {
 
   private formatImportReport(report: ImportReport): string {
     const warningNote = report.warnings.length > 0 ? ` (${report.warnings.length} warnings)` : "";
-    if (report.cancelled) {
-      return `Import cancelled after ${report.written} songs (${report.skipped} skipped)${warningNote}.`;
+    const totals = `${report.written} imported, ${report.skipped} skipped, ${report.failed} failed`;
+    if (report.aborted_reason) {
+      return `Import stopped: ${report.aborted_reason}. ${totals}${warningNote}.`;
     }
-    return `Imported ${report.written} songs (${report.skipped} skipped)${warningNote}.`;
+    if (report.cancelled) {
+      return `Import cancelled: ${totals}${warningNote}.`;
+    }
+    return `Import complete: ${totals}${warningNote}.`;
   }
 
   // ── Settings persistence ───────────────────────────────────────────────
@@ -998,6 +1160,7 @@ export class PraiseApp extends PraiseElement {
   private async advanceSetlist() {
     const item = await api.setlistAdvance();
     if (item?.type === "song" && item.file) {
+      this.currentFilename = item.file;
       this.currentSong = await api.loadSong(item.file);
       await this.projectLoadedSong();
     }
@@ -1130,6 +1293,23 @@ export class PraiseApp extends PraiseElement {
 
   private onGlobalKeydown = async (event: KeyboardEvent) => {
     const target = event.target;
+    const digit = /^[0-9]$/.test(event.key);
+    const numberShortcut = digit && !event.ctrlKey && !event.metaKey && !event.altKey &&
+      !event.shiftKey && !event.isComposing && !event.defaultPrevented &&
+      !isTextEntryTarget(target) && !isContentEditableTarget(target) &&
+      !this.editOpen && !this.settingsOpen && !this.importOpen &&
+      !this.importReportOpen && !this.duplicatesOpen &&
+      this.projecting && this.projection?.slides.length;
+    if (numberShortcut) {
+      event.preventDefault();
+      if (!event.repeat) {
+        this.stanzaNumberInput.push(event.key, this.projection!.slides, (slideIndex) => {
+          void this.jumpToStanza(slideIndex).catch((err) => this.showToast(String(err), "error"));
+        });
+      }
+      return;
+    }
+    this.stanzaNumberInput.reset();
 
     if (event.key === "Escape") {
       if (this.adhocEditingBlockKey) {
@@ -1142,6 +1322,14 @@ export class PraiseApp extends PraiseElement {
       }
       if (this.settingsOpen) {
         this.settingsOpen = false;
+        return;
+      }
+      if (this.duplicatesOpen) {
+        this.duplicatesOpen = false;
+        return;
+      }
+      if (this.importReportOpen) {
+        this.importReportOpen = false;
         return;
       }
       await this.stopProjection();
@@ -1158,6 +1346,8 @@ export class PraiseApp extends PraiseElement {
     }
 
     if (event.key === "Enter" && this.currentSong) {
+      // Let Enter activate the focused stanza button through its native click.
+      if (target instanceof HTMLElement && target.closest(".stanza-navigation button")) return;
       if (isTextEntryTarget(target) && !(target as HTMLElement).matches("#search-input")) {
         return;
       }
@@ -1169,29 +1359,29 @@ export class PraiseApp extends PraiseElement {
     if (isTextEntryTarget(target) || isContentEditableTarget(target)) return;
 
     if (event.key === "ArrowRight") {
-      if (!this.isProjectionActive()) return;
+      if (!this.projecting || !this.projection?.slides.length) return;
       event.preventDefault();
       await this.advanceSlide("next");
     } else if (event.key === "ArrowLeft") {
-      if (!this.isProjectionActive()) return;
+      if (!this.projecting || !this.projection?.slides.length) return;
       event.preventDefault();
       await this.advanceSlide("prev");
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
-      if (this.isProjectionActive()) {
+      if (this.projecting && this.projection?.slides.length) {
         await this.advanceStanza("next");
       } else if (!this.projecting) {
         await this.navigateFilteredSongs("next");
       }
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      if (this.isProjectionActive()) {
+      if (this.projecting && this.projection?.slides.length) {
         await this.advanceStanza("prev");
       } else if (!this.projecting) {
         await this.navigateFilteredSongs("prev");
       }
     } else if (event.key.toLowerCase() === "b") {
-      this.projection = await api.blankScreen();
+      if (this.projecting) this.applyProjectionSnapshot(await api.blankScreen());
     }
   };
 
@@ -1257,6 +1447,14 @@ export class PraiseApp extends PraiseElement {
         @praise-close=${() => (this.settingsOpen = false)}
       ></praise-modal>
       <praise-modal
+        class="duplicate-modal"
+        heading="Possible duplicates"
+        variant="wide"
+        ?open=${this.duplicatesOpen}
+        .content=${this.renderDuplicateReviewContent()}
+        @praise-close=${() => (this.duplicatesOpen = false)}
+      ></praise-modal>
+      <praise-modal
         heading=${(this.currentSong?.parsed.meta.title as string) || "Edit song"}
         variant="tall"
         ?open=${this.editOpen}
@@ -1267,6 +1465,13 @@ export class PraiseApp extends PraiseElement {
         heading="Importing songbook"
         ?open=${this.importOpen}
         .content=${this.renderImportContent()}
+      ></praise-modal>
+      <praise-modal
+        heading="Import report"
+        variant="tall"
+        ?open=${this.importReportOpen}
+        .content=${this.renderImportReportContent()}
+        @praise-close=${() => (this.importReportOpen = false)}
       ></praise-modal>
     `;
   }
@@ -1294,13 +1499,16 @@ export class PraiseApp extends PraiseElement {
           <strong class="brand-name">Praise</strong>
         </div>
         <div class="live-bar app-no-drag">
+          <span class="live-song" title=${this.activeProjectionTitle ?? "Nothing is being shown"}>
+            Now showing: ${this.activeProjectionTitle ?? "—"}
+          </span>
           <button class="primary compact" @click=${() => this.projectLoadedSong()}>Project</button>
           <button class="secondary compact" @click=${() => this.advanceSlide("prev")}>Prev</button>
           <button class="secondary compact" @click=${() => this.advanceSlide("next")}>Next</button>
           <button
             class="secondary compact"
             @click=${async () => {
-              this.projection = await api.blankScreen();
+              this.applyProjectionSnapshot(await api.blankScreen());
             }}
           >
             Blank
@@ -1542,12 +1750,251 @@ export class PraiseApp extends PraiseElement {
           </div>
           ${this.renderSongSecondaryMeta()}
           ${this.renderAdhocEditBar()}
+          ${this.renderStanzaNavigation()}
         </header>
         <div class="song-body scroll-region">
           <div class="song-content ${this.isProjectionActive() ? "projecting" : ""}">
             ${this.renderSongContent()}
           </div>
         </div>
+      </section>
+    `;
+  }
+
+  private renderStanzaNavigation() {
+    if (!this.projecting || !this.projection?.slides.length) return nothing;
+    const markers = buildStanzaMarkers(this.projection.slides);
+    const active = this.projection.blank ? -1 : activeStanzaIndex(markers, this.projection.current_index);
+    return html`
+      <nav class="stanza-navigation" aria-label="Jump to stanza">
+        <span class="stanza-navigation-title">Now showing: ${this.activeProjectionTitle ?? "—"}</span>
+        ${markers.map((marker, index) => html`
+          <button
+            type="button"
+            class="${active === index ? "primary" : "secondary"} compact"
+            aria-label="Stanza ${index + 1}"
+            aria-pressed=${active === index ? "true" : "false"}
+            title="Stanza ${index + 1}: ${marker.fullText.split("\n")[0]}"
+            @click=${() => this.jumpToStanza(marker.slideIndices[0])}
+          >${index + 1}</button>
+        `)}
+      </nav>
+    `;
+  }
+
+  private async openDuplicateReview() {
+    this.settingsOpen = false;
+    this.duplicatesOpen = true;
+    await this.refreshDuplicates();
+  }
+
+  private async refreshDuplicates() {
+    try {
+      const [groups, recoveryItems] = await Promise.all([
+        api.listDuplicateGroups(this.includeReviewedDuplicates),
+        api.listRecoveryItems(),
+      ]);
+      this.duplicateGroups = groups;
+      this.recoveryItems = recoveryItems;
+      this.duplicatesStale = false;
+      const selected = groups.find((group) => group.id === this.duplicateGroupId) ?? groups[0];
+      if (selected) {
+        this.selectDuplicateGroup(selected.id);
+      } else {
+        this.duplicateGroupId = null;
+        this.duplicateLeft = null;
+        this.duplicateRight = null;
+      }
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  private selectDuplicateGroup(groupId: string) {
+    const group = this.duplicateGroups.find((candidate) => candidate.id === groupId);
+    if (!group) return;
+    this.duplicateGroupId = groupId;
+    const filenames = group.candidates.map((candidate) => candidate.filename);
+    if (!this.duplicateLeft || !filenames.includes(this.duplicateLeft)) {
+      this.duplicateLeft = filenames[0] ?? null;
+    }
+    if (
+      !this.duplicateRight ||
+      !filenames.includes(this.duplicateRight) ||
+      this.duplicateRight === this.duplicateLeft
+    ) {
+      this.duplicateRight = filenames.find((filename) => filename !== this.duplicateLeft) ?? null;
+    }
+  }
+
+  private selectedDuplicateCandidate(filename: string | null): DuplicateCandidate | null {
+    const group = this.duplicateGroups.find((candidate) => candidate.id === this.duplicateGroupId);
+    return group?.candidates.find((candidate) => candidate.filename === filename) ?? null;
+  }
+
+  private async keepDuplicatePair() {
+    const left = this.selectedDuplicateCandidate(this.duplicateLeft);
+    const right = this.selectedDuplicateCandidate(this.duplicateRight);
+    if (!left || !right || left.filename === right.filename) return;
+    await api.markDuplicateKeepBoth(left.contentHash, right.contentHash);
+    this.showToast("File pair marked as reviewed; both are kept", "success");
+    await this.refreshDuplicates();
+  }
+
+  private async deleteDuplicateCandidate(candidate: DuplicateCandidate) {
+    const ok = await confirm(
+      `Delete "${candidate.title}" (${candidate.filename})? A verified recovery copy will be kept.`,
+      {
+        title: "Delete possible duplicate",
+        kind: "warning",
+        okLabel: "Delete file",
+        cancelLabel: "Cancel",
+      },
+    );
+    if (!ok) return;
+    try {
+      await api.deleteSong(candidate.filename);
+      this.showToast("File deleted; recovery copy retained", "success");
+      await this.refreshDuplicates();
+      await this.refreshSongs();
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  private async restoreRecovery(item: RecoveryItem) {
+    try {
+      const filename = await api.restoreRecoveryItem(item.id);
+      this.showToast(`Restored as ${filename}`, "success");
+      await this.refreshDuplicates();
+      await this.refreshSongs();
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  private duplicateCandidateOptions(group: DuplicateGroup | undefined) {
+    return (group?.candidates ?? []).map(
+      (candidate) => html`<option value=${candidate.filename}>${candidate.filename}</option>`,
+    );
+  }
+
+  private renderDuplicateCandidate(candidate: DuplicateCandidate | null) {
+    if (!candidate) return html`<p class="empty-copy">Select a file to compare.</p>`;
+    const lyrics = candidate.raw
+      .split(/\r?\n/)
+      .filter((line) => {
+        const value = line.trim();
+        return value !== "" && !value.startsWith("{") && !value.startsWith("#");
+      })
+      .map((line) => line.replace(/\[[^\]]+\]/g, ""))
+      .join("\n");
+    const chords = candidate.raw.match(/\[[^\]]+\]/g)?.join("  ") ?? "No chords";
+    return html`
+      <div class="duplicate-meta">
+        <strong>${candidate.title || "Untitled"}</strong>
+        <span>#${candidate.songNum ?? "—"}</span>
+        <span>Key ${candidate.key ?? "—"}</span>
+        <span>${candidate.modifiedAt ? new Date(candidate.modifiedAt).toLocaleString() : "Unknown date"}</span>
+      </div>
+      <h4>Lyrics</h4>
+      <pre class="duplicate-text">${lyrics}</pre>
+      <h4>Chords</h4>
+      <pre class="duplicate-chords">${chords}</pre>
+      <h4>Raw ChordPro</h4>
+      <pre class="duplicate-raw">${candidate.raw}</pre>
+      <button
+        class="secondary compact"
+        ?disabled=${this.readOnly}
+        @click=${() => this.deleteDuplicateCandidate(candidate)}
+      >Delete ${candidate.filename}</button>
+    `;
+  }
+
+  private renderDuplicateReviewContent(): TemplateResult {
+    const group = this.duplicateGroups.find((candidate) => candidate.id === this.duplicateGroupId);
+    const left = this.selectedDuplicateCandidate(this.duplicateLeft);
+    const right = this.selectedDuplicateCandidate(this.duplicateRight);
+    return html`
+      <div class="duplicate-toolbar">
+        <label class="settings-check">
+          <input
+            type="checkbox"
+            .checked=${this.includeReviewedDuplicates}
+            @change=${(event: Event) => {
+              this.includeReviewedDuplicates = (event.target as HTMLInputElement).checked;
+              void this.refreshDuplicates();
+            }}
+          />
+          <span>Show reviewed matches</span>
+        </label>
+        <div class="duplicate-refresh">
+          ${this.duplicatesStale ? html`<span class="badge">Files changed — refresh needed</span>` : nothing}
+          <button class="ghost compact" @click=${() => this.refreshDuplicates()}>Refresh</button>
+        </div>
+      </div>
+      <div class="duplicate-layout">
+        <aside class="duplicate-groups">
+          ${this.duplicateGroups.length === 0
+            ? html`<p class="empty-copy">No possible duplicates found.</p>`
+            : this.duplicateGroups.map(
+                (candidate) => html`
+                  <button
+                    class=${candidate.id === this.duplicateGroupId ? "active" : ""}
+                    @click=${() => this.selectDuplicateGroup(candidate.id)}
+                  >
+                    <strong>${candidate.candidates.map((item) => item.title || item.filename).join(" / ")}</strong>
+                    <span>${candidate.reasons.join(" · ")}</span>
+                    ${candidate.reviewed ? html`<em>Reviewed</em>` : nothing}
+                  </button>
+                `,
+              )}
+        </aside>
+        <section class="duplicate-review">
+          ${group
+            ? html`
+                <div class="duplicate-reasons">Why flagged: ${group.reasons.join(" · ")}</div>
+                <div class="duplicate-selectors">
+                  <select
+                    .value=${this.duplicateLeft ?? ""}
+                    @change=${(event: Event) =>
+                      (this.duplicateLeft = (event.target as HTMLSelectElement).value)}
+                  >${this.duplicateCandidateOptions(group)}</select>
+                  <select
+                    .value=${this.duplicateRight ?? ""}
+                    @change=${(event: Event) =>
+                      (this.duplicateRight = (event.target as HTMLSelectElement).value)}
+                  >${this.duplicateCandidateOptions(group)}</select>
+                </div>
+                <div class="duplicate-columns">
+                  <article>${this.renderDuplicateCandidate(left)}</article>
+                  <article>${this.renderDuplicateCandidate(right)}</article>
+                </div>
+                <div class="duplicate-actions">
+                  <button class="primary" @click=${() => this.keepDuplicatePair()}>
+                    Keep both and mark this pair reviewed
+                  </button>
+                </div>
+              `
+            : nothing}
+        </section>
+      </div>
+      <section class="recovery-list">
+        <h3>Recovery copies</h3>
+        ${this.recoveryItems.length === 0
+          ? html`<p class="empty-copy">No recovery copies yet.</p>`
+          : this.recoveryItems.map(
+              (item) => html`
+                <div>
+                  <span>${item.original_filename} · ${new Date(item.created_at).toLocaleString()}</span>
+                  <button
+                    class="secondary compact"
+                    ?disabled=${this.readOnly}
+                    @click=${() => this.restoreRecovery(item)}
+                  >Restore</button>
+                </div>
+              `,
+            )}
       </section>
     `;
   }
@@ -1634,7 +2081,7 @@ export class PraiseApp extends PraiseElement {
       return html`<p class="empty-state">This song has no parsed content.</p>`;
     }
     const blocks = buildPreviewStanzaBlocksFromSections(performanceSections);
-    if (this.isProjectionActive()) {
+    if (this.isProjectionActive() && this.selectedSongIsActive()) {
       return this.renderStanzaPerformanceContent(performanceSections, blocks);
     }
     return this.renderFlatPerformanceContent(performanceSections);
@@ -1861,6 +2308,9 @@ export class PraiseApp extends PraiseElement {
           <button class="secondary" @click=${() => this.pickFolder()}>Choose Songs Folder</button>
           <button class="secondary" @click=${() => this.runImportMdb()}>Import MDB</button>
           <button class="ghost" @click=${() => this.rescan()}>Rescan library</button>
+          <button class="ghost" @click=${() => this.openDuplicateReview()}>
+            Review possible duplicates
+          </button>
         </div>
         <label class="settings-check">
           <input
@@ -1946,6 +2396,7 @@ export class PraiseApp extends PraiseElement {
       <div class="shortcuts">
         <span><kbd>Enter</kbd> project</span>
         <span><kbd>↑</kbd> <kbd>↓</kbd> stanzas</span>
+        <span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>
         <span><kbd>←</kbd> <kbd>→</kbd> slides</span>
         <span><kbd>B</kbd> blank</span>
         <span><kbd>Esc</kbd> close projection</span>
@@ -1996,6 +2447,25 @@ export class PraiseApp extends PraiseElement {
         >
           Cancel
         </button>
+      </div>
+    `;
+  }
+
+  private renderImportReportContent(): TemplateResult {
+    const report = this.importReport;
+    if (!report) return html`<p>No import report is available.</p>`;
+    return html`
+      <p>${this.formatImportReport(report)}</p>
+      <div class="import-report-list scroll-region">
+        ${report.files.map(
+          (file) => html`
+            <div class="import-report-row ${file.status}">
+              <span class="import-report-status">${file.status}</span>
+              <strong>${file.filename ?? file.title}</strong>
+              ${file.reason ? html`<span>${file.reason}</span>` : nothing}
+            </div>
+          `,
+        )}
       </div>
     `;
   }

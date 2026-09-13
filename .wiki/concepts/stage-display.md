@@ -11,7 +11,7 @@ sources:
   - id: modes
     resource: /src-tauri/src/projection/modes.rs
     title: StageSlide payload
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Stage display
@@ -28,8 +28,8 @@ two spaces), `overlay`, `nashville` (flag only), `key` (song key from meta).
 
 ## Behaviour
 
-- Subscribes to `stage-slide` globally and per window, and to the
-  `praise-stage-slide` CustomEvent pushed via `eval`; any of them sets `slide`.
+- Subscribes to `projection-updated`, then fetches `get_projection_snapshot`;
+  older revisions are ignored. Audience blanking keeps the last stage payload.
 - Header row: section label (lime), "Next · label", "Key · X" (or "—").
 - Escape closes both projection windows. No slide navigation keys here.
 - No fit-to-screen logic: the stage is a normal window, 900x640 by default,

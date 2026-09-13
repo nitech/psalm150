@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::commands::projection_cmd::{build_snapshot, emit_snapshot};
 use crate::config::{self, ensure_library_layout, hash_folder};
 use crate::db::{Database, SongRow};
 use crate::library::{
@@ -73,21 +74,28 @@ pub fn activate_songs_folder(
     let setlist_root = config::library_root(app, &folder_hash)?.join("setlists");
     let watcher = LibraryWatcher::new(&path).ok();
 
-    with_state(state, |runtime| {
+    let _ = crate::commands::projection_cmd::close_projection_windows(app.clone());
+    let snapshot = with_state(state, |runtime| {
         runtime.songs_folder = Some(path.clone());
         runtime.folder_hash = Some(folder_hash);
         runtime.db = Some(db);
         runtime.setlists = Some(SetlistStore::new(setlist_root));
         runtime.watcher = watcher;
         runtime.library_dirty = false;
+        runtime.projection = crate::projection::ProjectionState::default();
+        runtime.active_song = None;
+        runtime.projection_session_id = None;
+        runtime.active_theme = crate::projection::SlideTheme::default();
+        runtime.projection_revision += 1;
         if persist {
             runtime.config.last_songs_folder = Some(path.to_string_lossy().into());
             runtime.config.first_run_complete = true;
             runtime.config.save(app)?;
         }
-        Ok(())
+        Ok(build_snapshot(runtime))
     })?;
 
+    emit_snapshot(app, &snapshot);
     emit_library_changed(app);
     build_status(&path, false, count, true)
 }
@@ -140,6 +148,14 @@ pub async fn pick_songs_folder(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<LibraryStatus, String> {
+    if state
+        .import_running
+        .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        return Err(
+            "An import is running. Cancel or wait for it to finish before changing library.".into(),
+        );
+    }
     let folder = app
         .dialog()
         .file()
@@ -160,6 +176,14 @@ pub fn set_songs_folder(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<LibraryStatus, String> {
+    if state
+        .import_running
+        .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        return Err(
+            "An import is running. Cancel or wait for it to finish before changing library.".into(),
+        );
+    }
     activate_songs_folder(&app, &state, PathBuf::from(path), true)
 }
 

@@ -46,7 +46,7 @@ fn parse_scraped_body(body: &str) -> Vec<SongSection> {
     let mut current_lines = Vec::new();
     let mut skipping_instrumental = false;
 
-    let mut flush = |sections: &mut Vec<SongSection>,
+    let flush = |sections: &mut Vec<SongSection>,
                      label: &mut String,
                      kind: &mut crate::library::chordpro::SectionKind,
                      lines: &mut Vec<_>| {
@@ -83,6 +83,7 @@ fn parse_scraped_body(body: &str) -> Vec<SongSection> {
                 current_lines.push(crate::library::chordpro::LyricLine {
                     text: String::new(),
                     chords: vec![],
+                    source_line: None,
                 });
             }
             i += 1;
@@ -130,6 +131,7 @@ fn parse_scraped_body(body: &str) -> Vec<SongSection> {
         current_lines.push(crate::library::chordpro::LyricLine {
             text: trimmed.to_string(),
             chords: vec![],
+            source_line: None,
         });
         i += 1;
     }

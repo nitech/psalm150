@@ -67,11 +67,33 @@ export interface SlideTheme {
 export interface ProjectionState {
   filename?: string | null;
   title?: string | null;
+  key?: string | null;
+  ccli?: string | null;
+  nashville?: boolean;
   slides: SlidePayload[];
   current_index: number;
   blank: boolean;
   transpose_semitones: number;
   hold_slide_id?: string | null;
+}
+
+export interface StageSlide {
+  index: number;
+  section_label: string;
+  next_section_label?: string | null;
+  lines: SlideLine[];
+  overlay: SlideOverlay;
+  nashville: boolean;
+  key?: string | null;
+}
+
+export interface ProjectionSnapshot {
+  revision: number;
+  session_id: string | null;
+  projection: ProjectionState;
+  theme: SlideTheme;
+  audience: SlidePayload;
+  stage: StageSlide | null;
 }
 
 export type SectionKind =
@@ -92,6 +114,7 @@ export interface ChordPlacement {
 export interface LyricLine {
   text: string;
   chords: ChordPlacement[];
+  source_line?: number | null;
 }
 
 export interface SongSection {
@@ -107,6 +130,7 @@ export interface SongDetail {
     sections: SongSection[];
   };
   projection: ProjectionState;
+  content_hash: string;
 }
 
 export interface WebSearchCandidate {
@@ -119,8 +143,18 @@ export interface WebSearchCandidate {
 export interface ImportReport {
   written: number;
   skipped: number;
+  failed: number;
   warnings: string[];
   cancelled: boolean;
+  aborted_reason: string | null;
+  files: ImportFileResult[];
+}
+
+export interface ImportFileResult {
+  filename: string | null;
+  title: string;
+  status: "imported" | "skipped" | "failed";
+  reason: string | null;
 }
 
 export interface ImportProgress {
@@ -142,6 +176,35 @@ export interface SetlistItem {
   transpose?: number | null;
   arrangement?: string | null;
   id?: string | null;
+}
+
+export interface SongLineEdit {
+  sectionIndex: number;
+  lineIndex: number;
+  text: string;
+}
+
+export interface DuplicateCandidate {
+  filename: string;
+  title: string;
+  songNum: number | null;
+  key: string | null;
+  modifiedAt: string | null;
+  contentHash: string;
+  raw: string;
+}
+
+export interface DuplicateGroup {
+  id: string;
+  reasons: string[];
+  candidates: DuplicateCandidate[];
+  reviewed: boolean;
+}
+
+export interface RecoveryItem {
+  id: string;
+  original_filename: string;
+  created_at: string;
 }
 
 /** Config value for projection on a resizable test window instead of a physical monitor. */
@@ -219,24 +282,38 @@ export const api = {
     return invoke<ImportReport>("import_mdb_path", { mdbPath });
   },
   checkDuplicates: () => invoke<{ kind: string; message: string; filenames: string[] }[]>("check_duplicates"),
+  listDuplicateGroups: (includeReviewed = false) =>
+    invoke<DuplicateGroup[]>("list_duplicate_groups", { includeReviewed }),
+  markDuplicateKeepBoth: (leftHash: string, rightHash: string) =>
+    invoke<void>("mark_duplicate_keep_both", { leftHash, rightHash }),
+  listRecoveryItems: () => invoke<RecoveryItem[]>("list_recovery_items"),
+  restoreRecoveryItem: (id: string) => invoke<string>("restore_recovery_item", { id }),
   loadSong: (filename: string) => invoke<SongDetail>("load_song", { filename }),
-  saveSong: (filename: string, content: string) =>
-    invoke<SongDetail>("save_song", { filename, content }),
-  deleteSong: (filename: string) => invoke<void>("delete_song", { filename }),
-  quickProject: (text: string, save: boolean) =>
-    invoke<SongDetail>("quick_project", { text, save }),
+  previewWebSong: (content: string) => invoke<SongDetail>("preview_web_song", { content }),
+  projectSong: (source: { filename: string } | { content: string }) =>
+    invoke<ProjectionSnapshot>("project_song", {
+      filename: "filename" in source ? source.filename : null,
+      content: "content" in source ? source.content : null,
+    }),
+  saveSong: (filename: string, content: string, expectedHash: string) =>
+    invoke<SongDetail>("save_song", { filename, content, expectedHash }),
+  saveSongLines: (filename: string, expectedHash: string, edits: SongLineEdit[]) =>
+    invoke<SongDetail>("save_song_lines", { filename, expectedHash, edits }),
+  saveWebSong: (content: string) => invoke<SongDetail>("save_web_song", { content }),
+  deleteSong: (filename: string) => invoke<RecoveryItem>("delete_song", { filename }),
   openAudienceWindow: () => invoke<void>("open_audience_window"),
   closeAudienceWindow: () => invoke<void>("close_audience_window"),
   openStageWindow: () => invoke<void>("open_stage_window"),
   closeStageWindow: () => invoke<void>("close_stage_window"),
   closeProjectionWindows: () => invoke<void>("close_projection_windows"),
-  showSlide: (index: number) => invoke<ProjectionState>("show_slide", { index }),
-  nextSlide: () => invoke<ProjectionState>("next_slide"),
-  previousSlide: () => invoke<ProjectionState>("previous_slide"),
-  blankScreen: () => invoke<ProjectionState>("blank_screen"),
+  showSlide: (index: number) => invoke<ProjectionSnapshot>("show_slide", { index }),
+  nextSlide: () => invoke<ProjectionSnapshot>("next_slide"),
+  previousSlide: () => invoke<ProjectionSnapshot>("previous_slide"),
+  blankScreen: () => invoke<ProjectionSnapshot>("blank_screen"),
   getProjectionState: () => invoke<ProjectionState>("get_projection_state"),
+  getProjectionSnapshot: () => invoke<ProjectionSnapshot>("get_projection_snapshot"),
   getNextSlidePreview: () => invoke<SlidePayload | null>("get_next_slide_preview"),
-  setTranspose: (semitones: number) => invoke<ProjectionState>("set_transpose", { semitones }),
+  setTranspose: (semitones: number) => invoke<ProjectionSnapshot>("set_transpose", { semitones }),
   logProjection: () => invoke<void>("log_projection"),
   listSetlists: () => invoke<Setlist[]>("list_setlists"),
   createSetlist: (name: string, date: string) =>

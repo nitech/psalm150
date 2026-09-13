@@ -1,24 +1,18 @@
 import { html, nothing } from "lit";
 import { keyed } from "lit/directives/keyed.js";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
   closeProjectionWindows,
-  getProjectionState,
-  getTheme,
-  listenAudienceSlide,
+  getProjectionSnapshot,
+  listenProjectionUpdated,
 } from "../projection-client";
-import type { ProjectionState, SlidePayload, SlideTheme } from "../api";
+import type { ProjectionSnapshot, ProjectionState, SlidePayload, SlideTheme } from "../api";
 import { activeStanzaIndex, buildStanzaMarkers } from "../stanza-markers";
 import { planFit } from "../audience-fit";
 import { PraiseElement } from "./base";
 
 function slideSignature(slide: SlidePayload): string {
   return `${slide.index}:${slide.stanza_index ?? 0}:${slide.lines.map((line) => line.text).join("\n")}`;
-}
-
-function stripChords(slide: SlidePayload): SlidePayload {
-  return { ...slide, lines: slide.lines.map((line) => ({ text: line.text, chords: [] })) };
 }
 
 /** Audience-facing projection window. */
@@ -32,6 +26,8 @@ export class PraiseAudience extends PraiseElement {
   declare slide: SlidePayload | null;
   declare projection: ProjectionState | null;
   declare theme: SlideTheme | null;
+  private revision = -1;
+  private unlistenProjection?: () => void;
 
   constructor() {
     super();
@@ -42,21 +38,18 @@ export class PraiseAudience extends PraiseElement {
 
   connectedCallback() {
     super.connectedCallback();
-    listenAudienceSlide((slide) => this.onSlide(slide)).catch(console.error);
-    getCurrentWebviewWindow()
-      .listen<SlidePayload>("audience-slide", (event) => this.onSlide(event.payload))
-      .catch(console.error);
     window.addEventListener("keydown", this.onKeydown);
     window.addEventListener("resize", this.fit);
     // Web fonts change line widths when they arrive; refit once they are in.
     void document.fonts?.ready.then(this.fit);
-    void this.syncFromState();
+    void this.startProjectionSync();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this.onKeydown);
     window.removeEventListener("resize", this.fit);
+    this.unlistenProjection?.();
   }
 
   updated() {
@@ -78,48 +71,24 @@ export class PraiseAudience extends PraiseElement {
     }
   };
 
-  private async onSlide(raw: SlidePayload) {
-    const slide = stripChords(raw);
-    this.slide = slide;
-    if (slide.lines.length > 0) {
-      this.projection = await this.resolveProjection(slide);
-    } else {
-      this.projection = null;
+  private async startProjectionSync() {
+    try {
+      this.unlistenProjection = await listenProjectionUpdated((snapshot) =>
+        this.applySnapshot(snapshot),
+      );
+      this.applySnapshot(await getProjectionSnapshot());
+    } catch (error) {
+      console.error(error);
     }
   }
 
-  private async resolveProjection(slide: SlidePayload): Promise<ProjectionState | null> {
-    const cached = this.projection;
-    if (
-      cached &&
-      cached.slides.length > 0 &&
-      slide.index < cached.slides.length &&
-      cached.slides[slide.index]?.section_label === slide.section_label &&
-      (cached.slides[slide.index]?.stanza_index ?? slide.index) === (slide.stanza_index ?? slide.index)
-    ) {
-      return { ...cached, current_index: slide.index };
-    }
-    try {
-      return await getProjectionState();
-    } catch {
-      return cached;
-    }
-  }
-
-  private async syncFromState() {
-    try {
-      this.theme = await getTheme();
-      this.applyTheme(this.theme);
-    } catch {
-      // Theme unavailable before a library is open; CSS defaults apply.
-    }
-    const projection = await getProjectionState();
-    this.projection = projection;
-    if (projection.blank || projection.slides.length === 0) {
-      this.slide = { index: 0, section_label: "", lines: [], overlay: {} };
-      return;
-    }
-    this.slide = stripChords(projection.slides[projection.current_index]);
+  private applySnapshot(snapshot: ProjectionSnapshot) {
+    if (snapshot.revision <= this.revision) return;
+    this.revision = snapshot.revision;
+    this.projection = snapshot.projection;
+    this.theme = snapshot.theme;
+    this.applyTheme(snapshot.theme);
+    this.slide = snapshot.audience;
   }
 
   private applyTheme(theme: SlideTheme) {

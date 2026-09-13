@@ -1,6 +1,3 @@
-use std::fs;
-use std::path::PathBuf;
-
 use praise_lib::library::chordpro::parse_chordpro;
 use praise_lib::projection::modes::audience_slide;
 use praise_lib::projection::split::{max_chars_per_row, split_section_into_stanzas};
@@ -9,18 +6,8 @@ use praise_lib::library::chordpro::{LyricLine, SectionKind, SongSection};
 
 #[test]
 fn imported_song_produces_audience_slides_with_lyrics() {
-    let folder = PathBuf::from(r"c:\temp\vsb-import-test");
-    if !folder.is_dir() {
-        return;
-    }
-
-    let sample = folder.join("0966-give-thanks.pro");
-    if !sample.is_file() {
-        return;
-    }
-
-    let content = fs::read_to_string(&sample).expect("read sample song");
-    let parsed = parse_chordpro(&content, "0966-give-thanks.pro");
+    let content = "{title: Give Thanks}\n{start_of_verse}\nGive thanks with a grateful heart\n{end_of_verse}\n";
+    let parsed = parse_chordpro(content, "0966-give-thanks.pro");
     let slides = build_slides(&parsed, &SlideTheme::default(), 0);
 
     assert!(!slides.is_empty(), "expected at least one slide");
@@ -46,6 +33,7 @@ fn long_verse_line_wraps_at_word_boundaries() {
         lines: vec![LyricLine {
             text: long.into(),
             chords: vec![],
+            source_line: None,
         }],
     };
     let stanzas = split_section_into_stanzas(&section, &theme);

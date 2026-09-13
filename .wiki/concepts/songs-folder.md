@@ -17,13 +17,16 @@ sources:
   - id: scan
     resource: /src-tauri/src/library/scan.rs
     title: Folder scan, foreign files, conflicts
+  - id: files
+    resource: /src-tauri/src/library/files.rs
+    title: Validated paths, verified recovery and collision-free creation
   - id: watcher
     resource: /src-tauri/src/library/watcher.rs
     title: notify-based watcher
   - id: lib
     resource: /src-tauri/src/lib.rs
     title: Startup restore and the 1 s poll thread
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Songs folder and app data
@@ -50,6 +53,8 @@ Windows `app_data_dir` is `%APPDATA%\com.sevenfold.praise`.
 | `theme.json` | [config](config.md) | `SlideTheme`; written by MDB import or `save_theme` |
 | `favorites.json` | — | Helpers exist in `config.rs` but nothing calls them; favourites live in SQLite |
 | `ccli_log.sqlite` | [reports](reports.md) | Projection usage log |
+| `duplicate-reviews.json` | [duplicate review](duplicate-review.md) | Reviewed content-hash pairs |
+| `recovery/<uuid>/` | [duplicate review](duplicate-review.md) | Verified originals from edits and deletes plus `recovery.json` |
 
 Global: `app_data_dir/config.json` (`AppConfig`).
 
@@ -85,7 +90,18 @@ Edits made through the app (`save_song`, `delete_song`) update SQLite directly.
 ## Read-only
 
 `config.read_only` (Settings, "Read-only library") blocks `save_song`,
-`delete_song`, `renumber_songs` and saving a web result.
+`delete_song`, `renumber_songs`, MDB writes and saving a web result. Library
+selection and a second import are blocked while import is running.
+
+## Safe file operations
+
+Rust accepts only one-component `.pro` / `.cho` names below the active folder.
+Every replacement checks the content hash returned by `load_song`, creates a
+verified recovery copy, writes and verifies a reserved `.praise-tmp-*.pro`,
+then installs it. Scans and duplicate checks ignore reserved temporary files.
+Web saves use exclusive creation and append `-1`, `-2`, … on a collision.
+Recoverable deletion fails before removing the source if its copy cannot be
+created and verified.
 
 ## Related
 

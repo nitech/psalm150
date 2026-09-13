@@ -25,6 +25,7 @@ pub struct AppState {
     pub inner: Mutex<state::RuntimeState>,
     pub remote_actions: Mutex<Option<Receiver<remote::RemoteAction>>>,
     pub import_cancel: AtomicBool,
+    pub import_running: AtomicBool,
 }
 
 pub mod state {
@@ -47,6 +48,10 @@ pub mod state {
         pub remote: Option<RemoteServer>,
         pub current_setlist_id: Option<String>,
         pub projection: super::projection::ProjectionState,
+        pub active_song: Option<super::library::chordpro::ParsedSong>,
+        pub projection_revision: u64,
+        pub projection_session_id: Option<String>,
+        pub active_theme: super::projection::SlideTheme,
     }
 
     impl RuntimeState {
@@ -63,6 +68,10 @@ pub mod state {
                 remote: None,
                 current_setlist_id: None,
                 projection: super::projection::ProjectionState::default(),
+                active_song: None,
+                projection_revision: 0,
+                projection_session_id: None,
+                active_theme: super::projection::SlideTheme::default(),
             }
         }
     }
@@ -101,6 +110,7 @@ pub fn run() {
                 inner: Mutex::new(runtime),
                 remote_actions: Mutex::new(None),
                 import_cancel: AtomicBool::new(false),
+                import_running: AtomicBool::new(false),
             });
 
             commands::projection_cmd::create_projection_windows(app.handle());
@@ -141,6 +151,7 @@ pub fn run() {
                     }
                 }
                 if dirty {
+                    let _ = poll_handle.emit("library-external-changed", ());
                     emit_library_changed(&poll_handle);
                 }
                 let remote_actions: Vec<remote::RemoteAction> = {
@@ -205,12 +216,19 @@ pub fn run() {
             commands::import_cmd::import_mdb_path,
             commands::import_cmd::cancel_import,
             commands::import_cmd::check_duplicates,
-            commands::song::load_song,
-            commands::song::save_song,
-            commands::song::delete_song,
+            commands::duplicates_cmd::list_duplicate_groups,
+            commands::duplicates_cmd::mark_duplicate_keep_both,
+            commands::duplicates_cmd::list_recovery_items,
+            commands::duplicates_cmd::restore_recovery_item,
+            commands::song_v2::load_song,
+            commands::song_v2::preview_web_song,
+            commands::song_v2::project_song,
+            commands::song_v2::save_song,
+            commands::song_v2::save_song_lines,
+            commands::song_v2::save_web_song,
+            commands::song_v2::delete_song,
             commands::song::renumber_songs,
             commands::song::compact_library,
-            commands::song::quick_project,
             commands::projection_cmd::open_audience_window,
             commands::projection_cmd::close_audience_window,
             commands::projection_cmd::open_stage_window,
@@ -221,6 +239,7 @@ pub fn run() {
             commands::projection_cmd::previous_slide,
             commands::projection_cmd::blank_screen,
             commands::projection_cmd::get_projection_state,
+            commands::projection_cmd::get_projection_snapshot,
             commands::projection_cmd::get_next_slide_preview,
             commands::projection_cmd::set_transpose,
             commands::projection_cmd::set_nashville,

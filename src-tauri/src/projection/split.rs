@@ -92,6 +92,7 @@ fn wrap_line_at_words(line: &LyricLine, max_chars: usize) -> Vec<LyricLine> {
         .map(|(i, text)| LyricLine {
             text,
             chords: if i == 0 { line.chords.clone() } else { vec![] },
+            source_line: line.source_line,
         })
         .collect()
 }
@@ -200,6 +201,7 @@ mod tests {
         LyricLine {
             text: text.into(),
             chords: vec![],
+            source_line: None,
         }
     }
 

@@ -56,6 +56,8 @@ pub fn is_projectable_section(kind: &SectionKind) -> bool {
 pub struct LyricLine {
     pub text: String,
     pub chords: Vec<ChordPlacement>,
+    #[serde(default)]
+    pub source_line: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -260,7 +262,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
     let mut current_kind = SectionKind::Verse;
     let mut current_lines: Vec<LyricLine> = Vec::new();
 
-    let mut flush_section = |sections: &mut Vec<SongSection>,
+    let flush_section = |sections: &mut Vec<SongSection>,
                              label: &mut String,
                              kind: &mut SectionKind,
                              lines: &mut Vec<LyricLine>| {
@@ -301,6 +303,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
             current_lines.push(LyricLine {
                 text: String::new(),
                 chords: vec![],
+                source_line: Some(i),
             });
             i += 1;
             continue;
@@ -478,7 +481,11 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
         }
 
         let (text, chords) = parse_chord_line(trimmed);
-        current_lines.push(LyricLine { text, chords });
+        current_lines.push(LyricLine {
+            text,
+            chords,
+            source_line: Some(i),
+        });
         i += 1;
     }
 
@@ -502,6 +509,7 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
                 .map(|l| LyricLine {
                     text: l.to_string(),
                     chords: vec![],
+                    source_line: None,
                 })
                 .collect(),
         });

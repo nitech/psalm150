@@ -110,6 +110,20 @@ impl SetlistStore {
         self.slide_index = index;
     }
 
+    pub fn references_file(&self, filename: &str) -> bool {
+        self.list()
+            .map(|setlists| {
+                setlists.iter().any(|setlist| {
+                    setlist
+                        .items
+                        .iter()
+                        .any(|item| item.file.as_deref() == Some(filename))
+                })
+            })
+            // A malformed setlist must not make deletion less safe.
+            .unwrap_or(true)
+    }
+
     pub fn advance_item(&mut self) -> bool {
         if let Some(setlist) = self.active.as_ref() {
             if self.item_index + 1 < setlist.items.len() {

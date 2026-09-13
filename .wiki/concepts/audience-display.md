@@ -20,18 +20,18 @@ sources:
   - id: fit-test
     resource: /tests/audience-fit.test.ts
     title: planFit unit tests
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Audience display
 
 `audience.html` mounts `<praise-audience>` (light DOM, shared `styles.css`).
-On connect it subscribes to `audience-slide`, loads the theme, and renders the
-current `ProjectionState` so a reopened window is never blank.
+On connect it subscribes to `projection-updated` before fetching the current
+`ProjectionSnapshot`, so a reopened window cannot miss or roll back a frame.
 
 ## Theme to CSS
 
-`get_theme` returns the library's `SlideTheme`; `applyTheme` writes
+The snapshot carries the active session's `SlideTheme`; `applyTheme` writes
 `--praise-font-family / -size / -weight / -style / -fg / -bg / -margin-*` on
 `<html>`. With no library open the call fails silently and the CSS defaults
 apply (Geist 48 px, weight 500, `#f4f4f4` on `#060606`). Screen padding per
@@ -79,8 +79,8 @@ copyright (unless `show_copyright_overlay` is false), `CCLI n` (only if
 
 `n / total` with arrows that dim at the ends. Built from
 [stanza markers](performance-sections.md) over `ProjectionState.slides`; shown
-only when there is more than one stanza. The component keeps the last
-`ProjectionState` and refetches it when an incoming slide does not match.
+only when there is more than one stanza. The component receives the projection,
+theme and audience payload together in a revisioned `ProjectionSnapshot`.
 
 ## Keys and blank
 
@@ -91,5 +91,5 @@ a changed slide remounts and replays the `audience-in` animation.
 
 ## Related
 
-- [Projection windows](projection-windows.md): how slides arrive (twice)
+- [Projection windows](projection-windows.md): single revisioned delivery
 - [Stage display](stage-display.md)

@@ -1,6 +1,8 @@
 pub mod mdb;
 pub mod vsb_to_chordpro;
 
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -15,8 +17,20 @@ use crate::library::scan::scan_songs_folder;
 pub struct ImportReport {
     pub written: usize,
     pub skipped: usize,
+    pub failed: usize,
     pub warnings: Vec<String>,
     pub cancelled: bool,
+    pub aborted_reason: Option<String>,
+    pub files: Vec<ImportFileResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportFileResult {
+    pub filename: Option<String>,
+    pub title: String,
+    pub status: String,
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +43,7 @@ pub struct ImportProgress {
 pub struct ImportCallbacks<'a> {
     pub on_progress: Option<&'a dyn Fn(ImportProgress)>,
     pub should_cancel: Option<&'a dyn Fn() -> bool>,
+    pub stop_reason: Option<&'a dyn Fn() -> Option<String>>,
 }
 
 impl Default for ImportCallbacks<'_> {
@@ -36,6 +51,7 @@ impl Default for ImportCallbacks<'_> {
         Self {
             on_progress: None,
             should_cancel: None,
+            stop_reason: None,
         }
     }
 }
@@ -63,8 +79,11 @@ pub fn import_mdb_to_folder_with_callbacks(
     let total = rows.len();
     let mut written = 0usize;
     let mut skipped = 0usize;
+    let mut failed = 0usize;
     let mut warnings = Vec::new();
     let mut cancelled = false;
+    let mut aborted_reason = None;
+    let mut files = Vec::new();
 
     for (index, row) in rows.into_iter().enumerate() {
         if callbacks
@@ -73,6 +92,10 @@ pub fn import_mdb_to_folder_with_callbacks(
             .is_some_and(|check| check())
         {
             cancelled = true;
+            break;
+        }
+        if let Some(reason) = callbacks.stop_reason.as_ref().and_then(|check| check()) {
+            aborted_reason = Some(reason);
             break;
         }
 
@@ -86,16 +109,90 @@ pub fn import_mdb_to_folder_with_callbacks(
 
         match convert_song(&row, categories) {
             Ok((filename, content)) => {
-                let path = songs_folder.join(&filename);
+                let path = match crate::library::files::song_path(songs_folder, &filename) {
+                    Ok(path) => path,
+                    Err(err) => {
+                        failed += 1;
+                        warnings.push(format!("Failed {filename}: {err}"));
+                        files.push(ImportFileResult {
+                            filename: Some(filename),
+                            title: row.title,
+                            status: "failed".into(),
+                            reason: Some(err),
+                        });
+                        continue;
+                    }
+                };
                 if path.exists() {
-                    warnings.push(format!("Overwriting existing file: {filename}"));
+                    let reason = "A file with this name already exists".to_string();
+                    skipped += 1;
+                    warnings.push(format!("Skipped {filename}: {reason}"));
+                    files.push(ImportFileResult {
+                        filename: Some(filename),
+                        title: row.title,
+                        status: "skipped".into(),
+                        reason: Some(reason),
+                    });
+                    continue;
                 }
-                std::fs::write(&path, content).map_err(|e| e.to_string())?;
-                written += 1;
+                match OpenOptions::new().write(true).create_new(true).open(&path) {
+                    Ok(mut file) => match file
+                        .write_all(content.as_bytes())
+                        .and_then(|_| file.sync_all())
+                    {
+                        Ok(()) => {
+                            written += 1;
+                            files.push(ImportFileResult {
+                                filename: Some(filename),
+                                title: row.title,
+                                status: "imported".into(),
+                                reason: None,
+                            });
+                        }
+                        Err(err) => {
+                            let _ = std::fs::remove_file(&path);
+                            failed += 1;
+                            warnings.push(format!("Failed {filename}: {err}"));
+                            files.push(ImportFileResult {
+                                filename: Some(filename),
+                                title: row.title,
+                                status: "failed".into(),
+                                reason: Some(err.to_string()),
+                            });
+                        }
+                    },
+                    Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                        let reason = "A file with this name appeared during import".to_string();
+                        skipped += 1;
+                        warnings.push(format!("Skipped {filename}: {reason}"));
+                        files.push(ImportFileResult {
+                            filename: Some(filename),
+                            title: row.title,
+                            status: "skipped".into(),
+                            reason: Some(reason),
+                        });
+                    }
+                    Err(err) => {
+                        failed += 1;
+                        warnings.push(format!("Failed {filename}: {err}"));
+                        files.push(ImportFileResult {
+                            filename: Some(filename),
+                            title: row.title,
+                            status: "failed".into(),
+                            reason: Some(err.to_string()),
+                        });
+                    }
+                }
             }
             Err(err) => {
                 skipped += 1;
                 warnings.push(format!("Skipped {}: {err}", row.title));
+                files.push(ImportFileResult {
+                    filename: None,
+                    title: row.title,
+                    status: "skipped".into(),
+                    reason: Some(err),
+                });
             }
         }
     }
@@ -103,8 +200,11 @@ pub fn import_mdb_to_folder_with_callbacks(
     Ok(ImportReport {
         written,
         skipped,
+        failed,
         warnings,
         cancelled,
+        aborted_reason,
+        files,
     })
 }
 
@@ -135,6 +235,7 @@ mod tests {
             ImportCallbacks {
                 on_progress: None,
                 should_cancel: Some(&|| processed.fetch_add(1, Ordering::SeqCst) > 5),
+                stop_reason: None,
             },
         )
         .expect("import");

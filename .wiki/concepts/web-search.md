@@ -23,7 +23,7 @@ sources:
   - id: ids
     resource: /src/components/song-list-ids.ts
     title: __web__N row ids
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Web search
@@ -63,14 +63,13 @@ host in the key column. A failed search toasts "Web search failed".
 
 ## Preview vs save
 
-- Select or Project a web row: `quick_project(text, save = false)`. The text
-  is parsed and turned into slides under the pseudo filename `__quick__.pro`;
-  **no file is written**, so ad hoc editing is disabled and `set_transpose`
-  (which re-reads the file) fails.
-- **Save to library** (button in the song pane; blocked in read-only), after a
-  confirm: `quick_project(text, save = true)` serialises to
-  `0000-quick-song.pro` in the songs folder and upserts the index. The name is
-  fixed, so saving a second web song overwrites the first ([gaps](gaps.md)).
+- Selecting a web row calls `preview_web_song`; it parses preview slides but
+  does not change the active projection and writes nothing.
+- Project calls `project_song(content=...)`, starts an in-memory active session
+  and supports navigation and transpose without a file.
+- **Save to library** calls `save_web_song` after confirmation. It serialises
+  to the normal `{song_num:04}-{title-slug}.pro` convention and uses exclusive
+  creation with `-1`, `-2`, … suffixes, so no existing song can be overwritten.
 
 ## Related
 

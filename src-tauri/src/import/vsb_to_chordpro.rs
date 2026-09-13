@@ -86,7 +86,7 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
     let mut current_kind = SectionKind::Verse;
     let mut current_lines = Vec::new();
 
-    let mut flush = |sections: &mut Vec<SongSection>,
+    let flush = |sections: &mut Vec<SongSection>,
                      label: &mut String,
                      kind: &mut SectionKind,
                      lines: &mut Vec<_>| {
@@ -123,6 +123,7 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
             current_lines.push(crate::library::chordpro::LyricLine {
                 text: String::new(),
                 chords: vec![],
+                source_line: None,
             });
             i += 1;
             continue;
@@ -158,6 +159,7 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
         current_lines.push(crate::library::chordpro::LyricLine {
             text: trimmed.to_string(),
             chords: vec![],
+            source_line: None,
         });
         i += 1;
     }
@@ -183,6 +185,7 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
                         l.trim().to_string()
                     },
                     chords: vec![],
+                    source_line: None,
                 })
                 .collect(),
         });
@@ -214,6 +217,7 @@ pub(crate) fn parse_scraped_chord_pair(
     crate::library::chordpro::LyricLine {
         text: lyric_line.trim().to_string(),
         chords,
+        source_line: None,
     }
 }
 

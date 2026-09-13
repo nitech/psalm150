@@ -29,7 +29,7 @@ sources:
   - id: fixture
     resource: /brattvaag-2018-12-28.mdb
     title: Sample database (963 songs) committed as a test fixture
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # MDB import
@@ -54,25 +54,32 @@ songs folder must already be open; the console offers to pick one first.
    - meta: `vsb_song_id`, `category`, `artist`, `copyright`,
      `arrangement=congregation`; then `serialize_chordpro`.
    - Empty bodies are counted as `skipped` with a warning.
-4. Existing files with the same name are **overwritten** (warning recorded).
-5. After the loop: `PageSetup` becomes the library's `theme.json` (font name,
+4. Existing files with the same name are **skipped unchanged**. Exclusive file
+   creation also prevents a race from overwriting a file that appears mid-import.
+5. After the loop: `PageSetup` becomes the library's `theme.json` only when
+   that library has no theme yet (font name,
    size and bold; BGR colour longs to `#rrggbb`; margins copied as raw
    numbers); the folder is rescanned and the index rebuilt; `import-complete`
    is emitted.
 
 ## Progress and cancel
 
-`ImportCallbacks { on_progress, should_cancel }`. Each row emits
+`ImportCallbacks { on_progress, should_cancel, stop_reason }`. Each row emits
 `import-progress { current, total, song_title }`; the console shows a modal
 with a bar and the current title. **Cancel** sets `AppState.import_cancel`
 (atomic); the loop checks it per row and returns `cancelled: true` with the
-count written so far.
+count written so far. Only one import can run. It is bound to the folder/hash
+where it started; a library change or enabling read-only stops later writes.
+Completed files remain, and the index is rebuilt after cancellation or stop.
+
+`ImportReport` contains totals for `written`, `skipped` and `failed`, a
+file-by-file status/reason list, `cancelled`, and an optional `aborted_reason`.
 
 ## Duplicates
 
-`check_duplicates` groups the scanned folder by `song_num` and lower-cased
-title and returns `DuplicateWarning { kind, message, filenames }`. The UI does
-not call it.
+The legacy `check_duplicates` remains available without UI. The operator uses
+the richer [duplicate review](duplicate-review.md), which also compares exact
+normalized lyric text and never merges automatically.
 
 ## Caveats
 
@@ -80,8 +87,8 @@ not call it.
   `MarginLeft/Right/Top/Bottom` may be twips rather than pixels; they are
   applied as px. Large values shrink the audience area (the
   [audience fit](audience-display.md) copes), but the unit is unverified.
-- Fixture-dependent tests (`src-tauri/tests/*.rs`, `import/mod.rs`) return
-  early when the sample `.mdb` or `c:\temp\vsb-import-test` is absent.
+- Import integration tests use the repository fixture and a temporary output
+  directory; repeating the import verifies that existing files are skipped.
 
 ## Related
 

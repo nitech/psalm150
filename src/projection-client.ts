@@ -1,17 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { ProjectionState, SlidePayload, SlideTheme } from "./api";
+import type { ProjectionSnapshot } from "./api";
 
-export async function listenAudienceSlide(handler: (slide: SlidePayload) => void) {
-  return listen<SlidePayload>("audience-slide", (event) => handler(event.payload));
+export async function listenProjectionUpdated(handler: (snapshot: ProjectionSnapshot) => void) {
+  return listen<ProjectionSnapshot>("projection-updated", (event) => handler(event.payload));
 }
 
-export function getProjectionState() {
-  return invoke<ProjectionState>("get_projection_state");
-}
-
-export function getTheme() {
-  return invoke<SlideTheme>("get_theme");
+export function getProjectionSnapshot() {
+  return invoke<ProjectionSnapshot>("get_projection_snapshot");
 }
 
 export function closeProjectionWindows() {

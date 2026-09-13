@@ -1,5 +1,12 @@
 # Directory Update Log
 
+## 2026-09-13
+* **Sync**: Song loading is now preview-only and `project_song` creates an explicit active session. Console, audience and stage consume one revisioned `projection-updated` snapshot; saving the active song updates immediately while previewing or saving another song leaves it untouched. The stage keeps its text while the audience is blank.
+* **Sync**: Song writes validate local `.pro`/`.cho` filenames, use content hashes to reject outside edits, retain verified recovery copies and install verified reserved temp files. Web saves use collision-free number/title names. Line corrections are applied in Rust through parser source-line mappings.
+* **Creation**: Settings gained manual duplicate review with exact number/title/lyrics grouping, side-by-side lyrics/chords/raw ChordPro, content-hash pair decisions, guarded recoverable deletion and restore. Review and recovery data are per-library local app data.
+* **Sync**: MDB import skips existing files, reports imported/skipped/failed files, allows one bound import at a time, stops further writes on read-only/library changes, preserves existing themes and reindexes completed partial work. Integration tests now use repository fixtures and temporary folders rather than `C:\temp`.
+* **Sync**: Operator console gained numbered stanza buttons and digit-key navigation, including multi-digit numbers with a 600 ms prefix timeout. Numbers follow the audience stanza counter, jump to the first slide of split stanzas, and unblank. Pending input survives ordinary navigation/preview and resets for focus changes, other keys, pointer presses, session/structure changes and projection close. Timing and stanza mapping are covered by `tests/stanza-number-input.test.ts`.
+
 ## 2026-08-30
 * **Sync**: Remote control is now usable from a phone: Settings gained a "Phone remote" toggle, `setup()` auto-starts the server when `config.remote_enabled` is true, `RemoteServer` binds synchronously (bind errors reach the caller), stops within 250 ms and releases the port, `GET /` is served as HTML, and the page remembers the PIN and reports each tap. Integration test in `src-tauri/tests/remote.rs`.
 

@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::setlist::{Setlist, SetlistItem, SetlistItemType};
+use crate::setlist::{Setlist, SetlistItem};
 use crate::{with_state, AppState};
 
 #[tauri::command]

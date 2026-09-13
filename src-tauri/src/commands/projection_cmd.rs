@@ -3,9 +3,8 @@ use tauri::{
     WindowEvent,
 };
 
-use crate::config::load_theme;
 use crate::display;
-use crate::library::chordpro::{parse_chordpro, ParsedSong, SongMeta};
+use crate::library::chordpro::{ParsedSong, SongMeta};
 use crate::projection::modes::{audience_slide, stage_slide, StageSlide};
 use crate::projection::{blank_payload, build_slides, ProjectionState, SlidePayload};
 use crate::state::RuntimeState;
@@ -24,86 +23,62 @@ fn song_stub(runtime: &RuntimeState) -> ParsedSong {
     }
 }
 
-/// Owned slide payloads to deliver to the projection windows. These are built
-/// while the state lock is held, then emitted *after* the lock is released, so
-/// we never call `eval`/`emit` (which hop to the UI thread) while holding the
-/// mutex — that combination can deadlock on Windows.
-struct ProjectionFrame {
-    audience: SlidePayload,
-    stage: Option<StageSlide>,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProjectionSnapshot {
+    pub revision: u64,
+    pub session_id: Option<String>,
+    pub projection: ProjectionState,
+    pub theme: crate::projection::SlideTheme,
+    pub audience: SlidePayload,
+    pub stage: Option<StageSlide>,
 }
 
-fn build_frame(runtime: &RuntimeState, blank: bool) -> ProjectionFrame {
-    if blank || runtime.projection.slides.is_empty() {
-        return ProjectionFrame {
-            audience: blank_payload(),
-            stage: None,
-        };
-    }
-
-    let idx = runtime
+pub(crate) fn build_snapshot(runtime: &RuntimeState) -> ProjectionSnapshot {
+    let slide = runtime
         .projection
-        .current_index
-        .min(runtime.projection.slides.len() - 1);
-    let slide = runtime.projection.slides[idx].clone();
+        .slides
+        .get(runtime.projection.current_index)
+        .cloned();
+    let audience = if runtime.projection.blank {
+        blank_payload()
+    } else {
+        slide
+            .as_ref()
+            .map(audience_slide)
+            .unwrap_or_else(blank_payload)
+    };
     let next_label = runtime
         .projection
         .slides
-        .get(idx + 1)
+        .get(runtime.projection.current_index + 1)
         .map(|s| s.section_label.clone());
-    let stage = stage_slide(
-        &slide,
-        &song_stub(runtime),
-        next_label,
-        runtime.projection.nashville,
-    );
-    ProjectionFrame {
-        audience: audience_slide(&slide),
-        stage: Some(stage),
+    let stage = slide.as_ref().map(|slide| {
+        stage_slide(
+            slide,
+            &song_stub(runtime),
+            next_label,
+            runtime.projection.nashville,
+        )
+    });
+    ProjectionSnapshot {
+        revision: runtime.projection_revision,
+        session_id: runtime.projection_session_id.clone(),
+        projection: runtime.projection.clone(),
+        theme: runtime.active_theme.clone(),
+        audience,
+        stage,
     }
 }
 
-fn push_audience_slide(window: &WebviewWindow, slide: &SlidePayload) {
-    if let Ok(json) = serde_json::to_string(slide) {
-        let script = format!(
-            "try{{if(window.__PRAISE_RENDER__)window.__PRAISE_RENDER__({json});}}catch(e){{console.error(e)}}"
-        );
-        let _ = window.eval(&script);
-    }
-}
-
-fn push_stage_slide(window: &WebviewWindow, slide: &StageSlide) {
-    if let Ok(json) = serde_json::to_string(slide) {
-        let script = format!(
-            "try{{window.dispatchEvent(new CustomEvent('praise-stage-slide',{{detail:{json}}}));}}catch(e){{console.error(e)}}"
-        );
-        let _ = window.eval(&script);
-    }
-}
-
-fn emit_frame(app: &AppHandle, frame: &ProjectionFrame) {
-    let _ = app.emit("audience-slide", &frame.audience);
-    let _ = app.emit_to("audience", "audience-slide", &frame.audience);
-    if let Some(window) = app.get_webview_window("audience") {
-        push_audience_slide(&window, &frame.audience);
-    }
-
-    if let Some(stage) = frame.stage.as_ref() {
-        let _ = app.emit("stage-slide", stage);
-        let _ = app.emit_to("stage", "stage-slide", stage);
-        if let Some(window) = app.get_webview_window("stage") {
-            push_stage_slide(&window, stage);
-        }
-    }
+pub fn emit_snapshot(app: &AppHandle, snapshot: &ProjectionSnapshot) {
+    let _ = app.emit("projection-updated", snapshot);
 }
 
 /// Re-send the current slide to whatever projection windows exist.
 fn sync_projection_windows(app: &AppHandle, state: &AppState) {
-    let frame = with_state(state, |runtime| {
-        Ok(build_frame(runtime, runtime.projection.blank))
-    });
-    if let Ok(frame) = frame {
-        emit_frame(app, &frame);
+    let snapshot = with_state(state, |runtime| Ok(build_snapshot(runtime)));
+    if let Ok(snapshot) = snapshot {
+        emit_snapshot(app, &snapshot);
     }
 }
 
@@ -175,7 +150,10 @@ pub fn create_projection_windows(app: &AppHandle) {
 }
 
 #[tauri::command]
-pub async fn open_audience_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn open_audience_window(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     ensure_projection_window(&app, "audience")?;
     let monitor_id = with_state(&state, |runtime| {
         Ok(runtime.config.audience_monitor.clone())
@@ -237,7 +215,7 @@ pub fn show_slide(
     app: AppHandle,
     state: State<'_, AppState>,
     index: usize,
-) -> Result<ProjectionState, String> {
+) -> Result<ProjectionSnapshot, String> {
     show_slide_inner(&app, &state, index)
 }
 
@@ -245,94 +223,108 @@ pub fn show_slide_inner(
     app: &AppHandle,
     state: &AppState,
     index: usize,
-) -> Result<ProjectionState, String> {
-    let (projection, frame) = with_state(state, |runtime| {
+) -> Result<ProjectionSnapshot, String> {
+    let snapshot = with_state(state, |runtime| {
         if index >= runtime.projection.slides.len() {
             return Err("Slide index out of range".into());
         }
         runtime.projection.current_index = index;
         runtime.projection.blank = false;
-        let frame = build_frame(runtime, false);
-        Ok((runtime.projection.clone(), frame))
+        runtime.projection_revision += 1;
+        Ok(build_snapshot(runtime))
     })?;
-    emit_frame(app, &frame);
-    Ok(projection)
+    emit_snapshot(app, &snapshot);
+    Ok(snapshot)
 }
 
 #[tauri::command]
-pub fn next_slide(app: AppHandle, state: State<'_, AppState>) -> Result<ProjectionState, String> {
+pub fn next_slide(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ProjectionSnapshot, String> {
     next_slide_inner(&app, &state)
 }
 
-pub fn next_slide_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionState, String> {
-    let (projection, frame) = with_state(state, |runtime| {
+pub fn next_slide_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionSnapshot, String> {
+    let (snapshot, changed) = with_state(state, |runtime| {
         if runtime.projection.slides.is_empty() {
             return Err("No slides loaded".into());
         }
+        let was_blank = runtime.projection.blank;
         runtime.projection.blank = false;
         let before = runtime.projection.current_index;
         if runtime.projection.current_index + 1 < runtime.projection.slides.len() {
             runtime.projection.current_index += 1;
         }
-        let frame = if before != runtime.projection.current_index {
-            Some(build_frame(runtime, false))
-        } else {
-            None
-        };
-        Ok((runtime.projection.clone(), frame))
+        let changed = before != runtime.projection.current_index || was_blank;
+        if changed {
+            runtime.projection_revision += 1;
+        }
+        Ok((build_snapshot(runtime), changed))
     })?;
-    if let Some(frame) = frame {
-        emit_frame(app, &frame);
+    if changed {
+        emit_snapshot(app, &snapshot);
     }
-    Ok(projection)
+    Ok(snapshot)
 }
 
 #[tauri::command]
 pub fn previous_slide(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<ProjectionState, String> {
+) -> Result<ProjectionSnapshot, String> {
     previous_slide_inner(&app, &state)
 }
 
-pub fn previous_slide_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionState, String> {
-    let (projection, frame) = with_state(state, |runtime| {
+pub fn previous_slide_inner(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<ProjectionSnapshot, String> {
+    let (snapshot, changed) = with_state(state, |runtime| {
+        let was_blank = runtime.projection.blank;
         runtime.projection.blank = false;
         let before = runtime.projection.current_index;
         if runtime.projection.current_index > 0 {
             runtime.projection.current_index -= 1;
         }
-        let frame = if before != runtime.projection.current_index {
-            Some(build_frame(runtime, false))
-        } else {
-            None
-        };
-        Ok((runtime.projection.clone(), frame))
+        let changed = before != runtime.projection.current_index || was_blank;
+        if changed {
+            runtime.projection_revision += 1;
+        }
+        Ok((build_snapshot(runtime), changed))
     })?;
-    if let Some(frame) = frame {
-        emit_frame(app, &frame);
+    if changed {
+        emit_snapshot(app, &snapshot);
     }
-    Ok(projection)
+    Ok(snapshot)
 }
 
 #[tauri::command]
-pub fn blank_screen(app: AppHandle, state: State<'_, AppState>) -> Result<ProjectionState, String> {
+pub fn blank_screen(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ProjectionSnapshot, String> {
     blank_screen_inner(&app, &state)
 }
 
-pub fn blank_screen_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionState, String> {
-    let (projection, frame) = with_state(state, |runtime| {
+pub fn blank_screen_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionSnapshot, String> {
+    let snapshot = with_state(state, |runtime| {
         runtime.projection.blank = true;
-        let frame = build_frame(runtime, true);
-        Ok((runtime.projection.clone(), frame))
+        runtime.projection_revision += 1;
+        Ok(build_snapshot(runtime))
     })?;
-    emit_frame(app, &frame);
-    Ok(projection)
+    emit_snapshot(app, &snapshot);
+    Ok(snapshot)
 }
 
 #[tauri::command]
 pub fn get_projection_state(state: State<'_, AppState>) -> Result<ProjectionState, String> {
     with_state(&state, |runtime| Ok(runtime.projection.clone()))
+}
+
+#[tauri::command]
+pub fn get_projection_snapshot(state: State<'_, AppState>) -> Result<ProjectionSnapshot, String> {
+    with_state(&state, |runtime| Ok(build_snapshot(runtime)))
 }
 
 #[tauri::command]
@@ -348,35 +340,37 @@ pub fn set_transpose(
     app: AppHandle,
     state: State<'_, AppState>,
     semitones: i32,
-) -> Result<ProjectionState, String> {
-    with_state(&state, |runtime| {
-        runtime.projection.transpose_semitones = semitones;
-        let filename = runtime
-            .projection
-            .filename
-            .clone()
-            .ok_or_else(|| "No song loaded".to_string())?;
-        let folder = runtime
-            .songs_folder
+) -> Result<ProjectionSnapshot, String> {
+    let snapshot = with_state(&state, |runtime| {
+        let parsed = runtime
+            .active_song
             .as_ref()
-            .ok_or_else(|| "No songs folder".to_string())?;
-        let content = std::fs::read_to_string(folder.join(filename)).map_err(|e| e.to_string())?;
-        let parsed = parse_chordpro(
-            &content,
-            &runtime.projection.filename.clone().unwrap_or_default(),
-        );
-        let theme = load_theme(&app, runtime.folder_hash.as_ref().unwrap()).unwrap_or_default();
-        runtime.projection.slides = build_slides(&parsed, &theme, semitones);
-        Ok(runtime.projection.clone())
-    })
+            .ok_or_else(|| "No active song".to_string())?;
+        let current_index = runtime.projection.current_index;
+        runtime.projection.transpose_semitones = semitones;
+        runtime.projection.slides = build_slides(parsed, &runtime.active_theme, semitones);
+        runtime.projection.current_index =
+            current_index.min(runtime.projection.slides.len().saturating_sub(1));
+        runtime.projection_revision += 1;
+        Ok(build_snapshot(runtime))
+    })?;
+    emit_snapshot(&app, &snapshot);
+    Ok(snapshot)
 }
 
 #[tauri::command]
-pub fn set_nashville(state: State<'_, AppState>, enabled: bool) -> Result<ProjectionState, String> {
-    with_state(&state, |runtime| {
+pub fn set_nashville(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<ProjectionSnapshot, String> {
+    let snapshot = with_state(&state, |runtime| {
         runtime.projection.nashville = enabled;
-        Ok(runtime.projection.clone())
-    })
+        runtime.projection_revision += 1;
+        Ok(build_snapshot(runtime))
+    })?;
+    emit_snapshot(&app, &snapshot);
+    Ok(snapshot)
 }
 
 #[tauri::command]

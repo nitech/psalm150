@@ -17,7 +17,7 @@ sources:
   - id: app
     resource: /src/components/app.ts
     title: Operator console component
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Praise
@@ -46,12 +46,11 @@ the slide payload under the lock and **emit after the lock is released**
 2. Files are parsed by the [ChordPro dialect](concepts/chordpro-dialect.md)
    parser and indexed into a per-library SQLite file
    ([library index](concepts/library-index.md)).
-3. `load_song` parses one file and runs the
-   [slide pipeline](concepts/slide-pipeline.md) into
-   `ProjectionState { slides, current_index, blank, … }`.
+3. `load_song` is a read-only preview. `project_song` creates the active
+   projection session and runs the [slide pipeline](concepts/slide-pipeline.md).
 4. `show_slide` / `next_slide` / `previous_slide` / `blank_screen` mutate that
-   state and push a frame to the [audience](concepts/audience-display.md) and
-   [stage](concepts/stage-display.md) windows.
+   session and publish one revisioned `ProjectionSnapshot` to the console,
+   [audience](concepts/audience-display.md) and [stage](concepts/stage-display.md).
 5. The console mirrors the same section/stanza structure client-side
    ([performance sections](concepts/performance-sections.md)) so the highlighted
    stanza matches the projected slide and lyrics can be corrected live
@@ -59,7 +58,8 @@ the slide payload under the lock and **emit after the lock is released**
 
 Songs missing from the library can be fetched from the web and projected or
 saved ([web search](concepts/web-search.md)). Legacy libraries arrive through
-[MDB import](concepts/mdb-import.md).
+[MDB import](concepts/mdb-import.md). Possible duplicate songs are never merged
+automatically; they go through [manual duplicate review](concepts/duplicate-review.md).
 
 ## Standing rules
 

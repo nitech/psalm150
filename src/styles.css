@@ -822,6 +822,29 @@ body.workspace-resizing {
   background: linear-gradient(180deg, rgba(198, 216, 140, 0.04) 0%, transparent 100%);
 }
 
+.stanza-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.live-song {
+  max-width: 220px;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stanza-navigation button {
+  min-width: 36px;
+}
+
 .song-pane-header-row {
   display: flex;
   align-items: center;
@@ -1577,6 +1600,175 @@ select option {
 
 .modal-card-wide {
   width: min(560px, 100%);
+}
+
+praise-modal.duplicate-modal .modal-card-wide {
+  width: min(1200px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.duplicate-toolbar,
+.duplicate-selectors,
+.duplicate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.duplicate-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.28fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.duplicate-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.duplicate-groups button {
+  display: grid;
+  gap: 4px;
+  border-radius: var(--radius-md);
+  border-color: var(--border-subtle);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.duplicate-groups button.active {
+  border-color: var(--accent-lime);
+  color: var(--text-primary);
+}
+
+.duplicate-groups button span,
+.duplicate-groups button em {
+  font-size: 0.7rem;
+}
+
+.duplicate-review {
+  min-width: 0;
+}
+
+.duplicate-reasons {
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.duplicate-selectors select {
+  width: 50%;
+}
+
+.duplicate-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.duplicate-columns article {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.duplicate-columns h4 {
+  margin: 14px 0 6px;
+  color: var(--text-tertiary);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.duplicate-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.duplicate-text,
+.duplicate-chords,
+.duplicate-raw {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  color: var(--text-primary);
+  font: 0.76rem/1.45 var(--font-mono);
+  white-space: pre-wrap;
+}
+
+.duplicate-actions {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.recovery-list {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.recovery-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.import-report-list {
+  display: grid;
+  gap: 6px;
+  min-height: 160px;
+  overflow: auto;
+}
+
+.import-report-row {
+  display: grid;
+  grid-template-columns: 76px minmax(140px, 0.7fr) minmax(160px, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.import-report-status {
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.import-report-row.imported .import-report-status {
+  color: var(--accent-lime);
+}
+
+.import-report-row.failed .import-report-status {
+  color: var(--error);
+}
+
+@media (max-width: 850px) {
+  .duplicate-layout,
+  .duplicate-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 .modal-card-tall {

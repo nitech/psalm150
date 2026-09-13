@@ -15,7 +15,7 @@ sources:
   - id: lib
     resource: /src-tauri/src/lib.rs
     title: Registered commands
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Gaps and backlog
@@ -38,16 +38,13 @@ generated: { by: agent, at: 2026-08-29T19:45:00Z }
 - **Favourites** cannot be toggled from the UI; only listed ([library index](library-index.md)).
 - **Setlists** cannot gain items, be reloaded or stepped back from the UI; hold slides are never created ([setlists](setlists.md)).
 - **Remote control** page can only step slides and blank; picking a song still needs the console. The PIN travels in clear over HTTP ([remote control](remote-control.md)).
-- **Web search**: the title is the first scraped line, often a lyric; saves always go to `0000-quick-song.pro`; transpose fails on unsaved web songs ([web search](web-search.md)).
+- **Web search**: the title is the first scraped line, often a lyric ([web search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
 - **Stanza view** highlight is off by one for songs with `Intro`/`Interlude` sections ([performance sections](performance-sections.md)).
-- **Ad hoc patcher** miscounts lines after a `#` comment inside a section ([ad hoc editing](adhoc-editing.md)).
-- **`save_song` does not push a frame**; a correction shows on the next navigation ([projection windows](projection-windows.md)).
 - **Search** ignores the FTS table and returns unranked `LIKE` matches ([library index](library-index.md)).
 - **Simulated display** is not a true miniature: the theme font is fixed px, so the 960 px window relies on the fit scaler more than a 1920 px projector would; MDB margins may be twips ([audience display](audience-display.md), [MDB import](mdb-import.md)).
 - **Reports**: CCLI export only reaches the devtools console; the songbook has no lyrics ([reports](reports.md)).
 - `history_days`, `key_format_compressed` and `shortcuts` are stored but unused ([config](config.md)).
-- The audience page receives every slide twice (global + targeted emit); harmless.
 - Stray/unused: `src-tauri/2` (npm log), `.live-preview` CSS with no markup, `designsystem.json` (reference only), `config::load_favorites/save_favorites`.
 
 ## Commands without UI

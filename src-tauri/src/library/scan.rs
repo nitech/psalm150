@@ -10,7 +10,7 @@ pub fn list_chordpro_files(folder: &Path) -> Result<Vec<PathBuf>, String> {
         let path = entry.path();
         if path.is_file() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if is_chordpro_filename(name) {
+                if is_chordpro_filename(name) && !name.starts_with(super::files::TEMP_PREFIX) {
                     files.push(path);
                 }
             }

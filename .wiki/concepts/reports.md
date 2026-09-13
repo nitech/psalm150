@@ -17,7 +17,7 @@ sources:
   - id: app
     resource: /src/components/app.ts
     title: printSongbook / exportCcli handlers
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Reports
@@ -25,7 +25,7 @@ generated: { by: agent, at: 2026-08-29T19:45:00Z }
 ## CCLI usage log
 
 `libraries/<hash>/ccli_log.sqlite`, table `usage (filename, title, ccli,
-used_at)`. `log_projection` appends a row every time a song is projected
+used_at)`. `project_song` appends a row once when a library song session starts
 (alongside the history row in the index). `export_ccli_report(from, to)`
 returns CSV (`filename,title,ccli,used_at`, quotes doubled) for
 `used_at` between the two RFC 3339 bounds.

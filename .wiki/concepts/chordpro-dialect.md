@@ -14,7 +14,7 @@ sources:
   - id: golden
     resource: /tests/golden/fall-til-ro-snippet.pro
     title: Golden chord-line snippet
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # ChordPro dialect
@@ -61,10 +61,10 @@ match).
 `serialize_chordpro` regenerates a file from `ParsedSong`: title, key, then
 `meta` directives, then each section as `{start_of_x}` … lines … `{end_of_x}`
 and a blank line. Unknown directives, comment directives and `#` lines are
-**dropped**. Paths that rewrite: MDB import, `quick_project(save = true)`,
+**dropped**. Paths that rewrite: MDB import, `save_web_song`,
 `renumber_songs`. Paths that keep the author's text: `save_song` (writes the
 editor's raw text) and [ad hoc editing](adhoc-editing.md) (patches single
-lines inside the raw text).
+lines inside the raw text through the parser's `source_line` mapping).
 
 ## Filenames
 

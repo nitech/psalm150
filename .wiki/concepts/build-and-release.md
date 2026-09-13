@@ -29,7 +29,7 @@ sources:
   - id: skill
     resource: /.agents/skills/tauri-v2/SKILL.md
     title: Vendored Tauri v2 skill (pinned in skills-lock.json)
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Build and release
@@ -65,7 +65,7 @@ Notable crates: `rusqlite` (bundled), `jetdb` (Access reader), `notify`,
 | Command | What runs |
 | --- | --- |
 | `bun run test` | Vitest over `tests/*.test.ts`: ad hoc editing and performance sections, audience fit planning, song sorting, sample-fixture presence |
-| `bun run test:rust` | `cargo test`: parser, slide splitting, chorus2, import body parsing, scraped-text conversion, plus integration tests that skip when `brattvaag-2018-12-28.mdb` or `c:\temp\vsb-import-test` is absent |
+| `bun run test:rust` | `cargo test`: parser, safe song files and source-mapped edits, duplicate grouping, slide splitting, chorus2, import/body conversion, plus the repository MDB fixture in a temporary output folder |
 
 There is no UI or end-to-end test; window behaviour is verified by running
 the app with a simulated display.

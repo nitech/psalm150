@@ -11,7 +11,7 @@ sources:
   - id: library-cmd
     resource: /src-tauri/src/commands/library.rs
     title: search_songs, list_by_key, get_history, toggle_favorite commands
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
 # Library index
@@ -26,7 +26,7 @@ scan (`rebuild_from_songs`: delete all, insert all, refill FTS) and patched by
 | --- | --- | --- |
 | `songs` | `id, filename UNIQUE, title, title_sort, song_num, key, category, tags, ccli, body_plain, modified_at` | `title_sort` = upper-cased title; `body_plain` = every lyric line joined by newlines; `modified_at` = file mtime, RFC 3339 |
 | `song_search` | FTS5 over `title, body_plain, tags` (content table `songs`) | **Populated but never queried**: search uses `LIKE` |
-| `history` | `filename, title, accessed_at` | Appended by `log_projection` on every Project |
+| `history` | `filename, title, accessed_at` | Appended once by `project_song` for each library-song projection session |
 | `favorites` | `filename` | Toggled by `toggle_favorite` |
 
 ## `SongRow`
