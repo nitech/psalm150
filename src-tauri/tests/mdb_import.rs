@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use praise_lib::import::mdb::{read_page_setup, read_vsb_categories, read_vsb_mdb};
+use psalm150_lib::import::mdb::{read_page_setup, read_vsb_categories, read_vsb_mdb};
 
 #[test]
 fn imports_brattvaag_sample_when_present() {

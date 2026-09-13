@@ -5,10 +5,10 @@ import {
   listenProjectionUpdated,
 } from "../projection-client";
 import type { ProjectionSnapshot, StageSlide } from "../api";
-import { PraiseElement } from "./base";
+import { Psa150Element } from "./base";
 
 /** Musician-facing stage window: lyrics with chords above each line. */
-export class PraiseStage extends PraiseElement {
+export class Psa150Stage extends Psa150Element {
   static properties = {
     slide: { state: true },
   };
@@ -85,10 +85,10 @@ export class PraiseStage extends PraiseElement {
   }
 }
 
-customElements.define("praise-stage", PraiseStage);
+customElements.define("psa150-stage", Psa150Stage);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "praise-stage": PraiseStage;
+    "psa150-stage": Psa150Stage;
   }
 }

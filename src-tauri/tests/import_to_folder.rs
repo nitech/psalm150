@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use praise_lib::import::import_mdb_to_folder;
-use praise_lib::import::mdb::read_vsb_categories;
+use psalm150_lib::import::import_mdb_to_folder;
+use psalm150_lib::import::mdb::read_vsb_categories;
 
 #[test]
 fn imports_repository_mdb_without_overwriting_existing_files() {

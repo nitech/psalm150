@@ -1,4 +1,4 @@
-# Praise
+# Psalm150
 
 Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript webviews). Start at [overview](overview.md).
 

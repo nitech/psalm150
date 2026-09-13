@@ -1,6 +1,6 @@
 # ChordPro metadata
 
-Praise reads and writes a **worship-projection dialect** of [ChordPro](https://www.chordpro.org/chordpro/chordpro-introduction/) — not the full specification. Unsupported directives are ignored on parse but preserved when saving raw file content from the editor.
+Psalm150 reads and writes a **worship-projection dialect** of [ChordPro](https://www.chordpro.org/chordpro/chordpro-introduction/) — not the full specification. Unsupported directives are ignored on parse but preserved when saving raw file content from the editor.
 
 ## Metadata directives
 
@@ -25,7 +25,7 @@ Praise reads and writes a **worship-projection dialect** of [ChordPro](https://w
 - `{start_of_verse}` / `{end_of_verse}`
 - `{start_of_chorus}` / `{end_of_chorus}`
 - `{start_of_bridge}` / `{end_of_bridge}`
-- `{start_of_chorus2}` / `{end_of_chorus2}` — Praise extension for alternate chorus templates
+- `{start_of_chorus2}` / `{end_of_chorus2}` — Psalm150 extension for alternate chorus templates
 
 **Additional sections (read + write):**
 

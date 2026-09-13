@@ -18,7 +18,7 @@ The app writes only ChordPro files to this folder. All other state lives in loca
 
 Web saves use the same number/title convention. If that filename is occupied,
 `-1`, `-2`, … is appended and the existing file is never overwritten.
-Reserved temporary files start with `.praise-tmp-`, end in `.pro`, and are
+Reserved temporary files start with `.psa150-tmp-`, end in `.pro`, and are
 ignored by library scans. They exist only while a verified replacement is
 being installed.
 

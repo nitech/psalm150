@@ -82,7 +82,7 @@ the app with a simulated display.
    production (`src/updater.ts`): `check()`, ask, `downloadAndInstall()`,
    `relaunch()`. The updater endpoint is the GitHub `releases/latest` URL and
    the public key is embedded in `tauri.conf.json`; the private key lives in
-   `%USERPROFILE%\.tauri\praise.key`.
+   `%USERPROFILE%\.tauri\psalm150.key`.
 
 ## Related
 

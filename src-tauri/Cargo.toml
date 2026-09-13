@@ -1,12 +1,12 @@
 [package]
-name = "praise"
+name = "psalm150"
 version = "0.1.0"
-description = "Praise — cross-platform church worship projection"
+description = "Psalm150 — cross-platform church worship projection"
 authors = ["Sevenfold"]
 edition = "2021"
 
 [lib]
-name = "praise_lib"
+name = "psalm150_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

@@ -43,7 +43,7 @@ ChordPro files** there. Scans are non-recursive. Two health signals surface in
 
 `app_data_dir/libraries/<hash>/`, where `hash` is the first 16 hex characters
 of SHA-256 over the lower-cased folder path (`config::hash_folder`). On
-Windows `app_data_dir` is `%APPDATA%\com.sevenfold.praise`.
+Windows `app_data_dir` is `%APPDATA%\com.sevenfold.psalm150`.
 
 | File | Owner | Purpose |
 | --- | --- | --- |
@@ -97,7 +97,7 @@ selection and a second import are blocked while import is running.
 
 Rust accepts only one-component `.pro` / `.cho` names below the active folder.
 Every replacement checks the content hash returned by `load_song`, creates a
-verified recovery copy, writes and verifies a reserved `.praise-tmp-*.pro`,
+verified recovery copy, writes and verifies a reserved `.psa150-tmp-*.pro`,
 then installs it. Scans and duplicate checks ignore reserved temporary files.
 Web saves use exclusive creation and append `-1`, `-2`, … on a collision.
 Recoverable deletion fails before removing the source if its copy cannot be

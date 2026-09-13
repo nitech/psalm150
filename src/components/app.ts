@@ -49,14 +49,14 @@ import {
   type SongSort,
   type SongSortColumn,
 } from "../song-sort";
-import { PraiseElement } from "./base";
+import { Psa150Element } from "./base";
 import { StanzaNumberInput } from "../stanza-number-input";
 import {
   projectionStructureSignature,
   shouldAcceptProjectionSnapshot,
   shouldResetStanzaSequence,
 } from "../projection-snapshot";
-import type { PraiseCombobox } from "./combobox";
+import type { Psa150Combobox } from "./combobox";
 import "./combobox";
 import type { SelectOption } from "./select";
 import "./select";
@@ -75,19 +75,19 @@ const TAB_LABELS: Record<Tab, string> = {
   setlist: "Setlist",
 };
 
-const BROWSE_PANE_WIDTH_KEY = "praise-browse-pane-width";
+const BROWSE_PANE_WIDTH_KEY = "psa150-browse-pane-width";
 const BROWSE_PANE_MIN = 280;
 const BROWSE_PANE_MAX = 720;
 const BROWSE_PANE_DEFAULT = 340;
 const WEB_SEARCH_DEBOUNCE_MS = 650;
-const SONG_SORT_KEY = "praise-song-sort";
+const SONG_SORT_KEY = "psa150-song-sort";
 
 /**
  * Root component for the main window. Owns all application state and IPC
- * orchestration, and composes the presentational components (`praise-song-list`,
- * `praise-modal`).
+ * orchestration, and composes the presentational components (`psa150-song-list`,
+ * `psa150-modal`).
  */
-export class PraiseApp extends PraiseElement {
+export class Psa150App extends Psa150Element {
   static properties = {
     songs: { state: true },
     currentSong: { state: true },
@@ -462,7 +462,7 @@ export class PraiseApp extends PraiseElement {
       if (this.activeTab === "search") {
         this.focusSearchField();
       } else if (this.activeTab === "key") {
-        this.querySelector<PraiseCombobox>("praise-combobox")?.focusInput();
+        this.querySelector<Psa150Combobox>("psa150-combobox")?.focusInput();
       }
     });
   }
@@ -773,7 +773,7 @@ export class PraiseApp extends PraiseElement {
     this.activeSelectionId = sourceId;
 
     this.projecting = true;
-    this.querySelector<HTMLElement>("praise-song-list li:focus")?.blur();
+    this.querySelector<HTMLElement>("psa150-song-list li:focus")?.blur();
     await this.updateComplete;
 
     await api.openAudienceWindow();
@@ -1249,7 +1249,7 @@ export class PraiseApp extends PraiseElement {
   private async focusSongListRow(file: string) {
     await this.updateComplete;
     const row = this.querySelector<HTMLElement>(
-      `praise-song-list li[data-file="${CSS.escape(file)}"]`,
+      `psa150-song-list li[data-file="${CSS.escape(file)}"]`,
     );
     row?.focus({ preventScroll: true });
     row?.scrollIntoView({ block: "nearest" });
@@ -1392,7 +1392,7 @@ export class PraiseApp extends PraiseElement {
       event.preventDefault();
       await this.selectSong(first.filename);
       await this.updateComplete;
-      const row = this.querySelector<HTMLElement>("praise-song-list li[data-file]");
+      const row = this.querySelector<HTMLElement>("psa150-song-list li[data-file]");
       row?.focus({ preventScroll: true });
       row?.scrollIntoView({ block: "nearest" });
       return;
@@ -1403,7 +1403,7 @@ export class PraiseApp extends PraiseElement {
       event.preventDefault();
       await this.selectSong(last.filename);
       await this.updateComplete;
-      const rows = this.querySelectorAll<HTMLElement>("praise-song-list li[data-file]");
+      const rows = this.querySelectorAll<HTMLElement>("psa150-song-list li[data-file]");
       rows[rows.length - 1]?.focus({ preventScroll: true });
       rows[rows.length - 1]?.scrollIntoView({ block: "nearest" });
       return;
@@ -1439,40 +1439,40 @@ export class PraiseApp extends PraiseElement {
           @pointercancel=${this.onSplitterPointerUp}
         ></div>
       </main>
-      <praise-modal
+      <psa150-modal
         heading="Settings"
         variant="wide"
         ?open=${this.settingsOpen}
         .content=${this.renderSettingsContent()}
-        @praise-close=${() => (this.settingsOpen = false)}
-      ></praise-modal>
-      <praise-modal
+        @psa150-close=${() => (this.settingsOpen = false)}
+      ></psa150-modal>
+      <psa150-modal
         class="duplicate-modal"
         heading="Possible duplicates"
         variant="wide"
         ?open=${this.duplicatesOpen}
         .content=${this.renderDuplicateReviewContent()}
-        @praise-close=${() => (this.duplicatesOpen = false)}
-      ></praise-modal>
-      <praise-modal
+        @psa150-close=${() => (this.duplicatesOpen = false)}
+      ></psa150-modal>
+      <psa150-modal
         heading=${(this.currentSong?.parsed.meta.title as string) || "Edit song"}
         variant="tall"
         ?open=${this.editOpen}
         .content=${this.renderEditContent()}
-        @praise-close=${() => (this.editOpen = false)}
-      ></praise-modal>
-      <praise-modal
+        @psa150-close=${() => (this.editOpen = false)}
+      ></psa150-modal>
+      <psa150-modal
         heading="Importing songbook"
         ?open=${this.importOpen}
         .content=${this.renderImportContent()}
-      ></praise-modal>
-      <praise-modal
+      ></psa150-modal>
+      <psa150-modal
         heading="Import report"
         variant="tall"
         ?open=${this.importReportOpen}
         .content=${this.renderImportReportContent()}
-        @praise-close=${() => (this.importReportOpen = false)}
-      ></praise-modal>
+        @psa150-close=${() => (this.importReportOpen = false)}
+      ></psa150-modal>
     `;
   }
 
@@ -1496,7 +1496,7 @@ export class PraiseApp extends PraiseElement {
               <circle cx="18" cy="16" r="3" />
             </svg>
           </div>
-          <strong class="brand-name">Praise</strong>
+          <strong class="brand-name">Psalm150</strong>
         </div>
         <div class="live-bar app-no-drag">
           <span class="live-song" title=${this.activeProjectionTitle ?? "Nothing is being shown"}>
@@ -1657,7 +1657,7 @@ export class PraiseApp extends PraiseElement {
                   <input
                     id="search-input"
                     type="text"
-                    name="praise-library-query"
+                    name="psa150-library-query"
                     placeholder="Search songs, tags, or numbers..."
                     autocomplete="off"
                     autocorrect="off"
@@ -1677,15 +1677,15 @@ export class PraiseApp extends PraiseElement {
         ${this.activeTab === "key"
           ? html`
               <div class="browse-toolbar">
-                <praise-combobox
+                <psa150-combobox
                   placeholder="Select key"
                   .options=${this.keys}
                   .value=${this.keySelected}
-                  @praise-change=${(e: CustomEvent<string>) => {
+                  @psa150-change=${(e: CustomEvent<string>) => {
                     this.keySelected = e.detail;
                     void this.refreshSongs();
                   }}
-                ></praise-combobox>
+                ></psa150-combobox>
               </div>
             `
           : nothing}
@@ -1711,24 +1711,24 @@ export class PraiseApp extends PraiseElement {
               </div>
             `
           : nothing}
-        <praise-song-list
+        <psa150-song-list
           class="song-list scroll-region ${this.showSongNumbers ? "" : "hide-numbers"}"
           role="listbox"
           .songs=${this.visibleSongs}
           .showNumbers=${this.showSongNumbers}
           .sort=${this.isSortableTab() ? this.songSort : null}
-          @praise-sort=${(e: CustomEvent<SongSortColumn>) => this.setSongSort(e.detail)}
+          @psa150-sort=${(e: CustomEvent<SongSortColumn>) => this.setSongSort(e.detail)}
           .webResults=${this.webResults}
           .webSearchLoading=${this.webSearchLoading}
           .currentFile=${this.currentFilename}
           .projecting=${this.projecting}
-          @praise-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
-          @praise-focus-search=${() => this.focusActiveBrowseField()}
-          @praise-project=${async (e: CustomEvent<string>) => {
+          @psa150-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
+          @psa150-focus-search=${() => this.focusActiveBrowseField()}
+          @psa150-project=${async (e: CustomEvent<string>) => {
             if (this.currentFilename !== e.detail) await this.selectSong(e.detail);
             await this.projectLoadedSong();
           }}
-        ></praise-song-list>
+        ></psa150-song-list>
       </aside>
     `;
   }
@@ -2326,19 +2326,19 @@ export class PraiseApp extends PraiseElement {
         <h3>Projection</h3>
         <div class="settings-row">
           <span class="settings-row-label">Congregation</span>
-          <praise-select
+          <psa150-select
             .options=${this.audienceDisplayOptions()}
             .value=${this.audienceMonitor}
-            @praise-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}
-          ></praise-select>
+            @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}
+          ></psa150-select>
         </div>
         <div class="settings-row">
           <span class="settings-row-label">Stage</span>
-          <praise-select
+          <psa150-select
             .options=${this.stageDisplayOptions()}
             .value=${this.stageMonitor}
-            @praise-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}
-          ></praise-select>
+            @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}
+          ></psa150-select>
         </div>
         <label class="settings-check">
           <input
@@ -2489,10 +2489,10 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-customElements.define("praise-app", PraiseApp);
+customElements.define("psa150-app", Psa150App);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "praise-app": PraiseApp;
+    "psa150-app": Psa150App;
   }
 }

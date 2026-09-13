@@ -1,6 +1,6 @@
-# Praise wiki — agent schema
+# Psalm150 wiki — agent schema
 
-Compiled knowledge for the Praise repo. Agents write it; people read it.
+Compiled knowledge for the Psalm150 repo. Agents write it; people read it.
 Follow the global `llm-wiki` skill (OKF core). This file is the
 producer-defined extra for *this* repo.
 

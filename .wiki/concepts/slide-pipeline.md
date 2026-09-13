@@ -50,7 +50,7 @@ save and transpose rebuild the same session. The result is stored in
 | Constant | Value | Meaning |
 | --- | --- | --- |
 | `CHAR_WIDTH_RATIO` | 0.52 | Assumed average glyph width as a fraction of font size |
-| `LINE_HEIGHT_RATIO` | 1.28 | Mirrors `--praise-line-height` in the audience CSS |
+| `LINE_HEIGHT_RATIO` | 1.28 | Mirrors `--psa150-line-height` in the audience CSS |
 | `LINE_GAP_RATIO` | 0.35 | Mirrors the `0.35em` gap between `.audience-line`s |
 | `SCREEN_PADDING` | 64 | Per side; mirrors the audience padding clamp |
 | `OVERLAY_RESERVE` | 88 | Reserved when any overlay flag is on |

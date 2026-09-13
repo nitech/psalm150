@@ -1,4 +1,4 @@
-# Praise
+# Psalm150
 
 Cross-platform church worship projection app built with Tauri 2 (Rust + TypeScript).
 
@@ -51,11 +51,11 @@ Installed copies check for updates on startup via [Tauri updater](https://v2.tau
 ### One-time setup
 
 1. **Signing keys** (already generated for this project):
-   - Private key: `%USERPROFILE%\.tauri\praise.key` — keep secret, never commit
+   - Private key: `%USERPROFILE%\.tauri\psalm150.key` — keep secret, never commit
    - Public key: embedded in `src-tauri/tauri.conf.json`
 
 2. **GitHub repository secrets** (Settings → Secrets → Actions):
-   - `TAURI_SIGNING_PRIVATE_KEY` — paste the full contents of `praise.key`
+   - `TAURI_SIGNING_PRIVATE_KEY` — paste the full contents of `psalm150.key`
    - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — leave empty if the key has no password
 
 ### Publish a new version

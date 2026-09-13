@@ -54,7 +54,7 @@ tailnet address (e.g. `100.64.229.79`), so the phone works from anywhere.
 | Request | Auth | Response |
 | --- | --- | --- |
 | `GET /` | none | `text/html` remote page |
-| `POST /next`, `/prev`, `/blank` | header `X-Praise-PIN` equal to the PIN | `200 {"action": "..."}`; queues a `RemoteAction` |
+| `POST /next`, `/prev`, `/blank` | header `X-PSA150-PIN` equal to the PIN | `200 {"action": "..."}`; queues a `RemoteAction` |
 | `POST` with a wrong or missing PIN | | `401 {"error":"unauthorized"}` |
 | anything else | | `404 {"error":"not found"}` |
 
@@ -67,8 +67,8 @@ a second, calling `next_slide_inner` / `previous_slide_inner` /
 Plain HTML embedded with `include_str!` (rebuild to change it). Dark, large
 buttons, safe-area padding, `apple-mobile-web-app-capable` so it can be added
 to the iOS Home Screen. The PIN field is remembered in the phone's
-`localStorage` (`praise-remote-pin`); each tap reports "Sent next", "Wrong
-PIN" or "Praise is not reachable".
+`localStorage` (`psa150-remote-pin`); each tap reports "Sent next", "Wrong
+PIN" or "Psalm150 is not reachable".
 
 ## Caveats
 

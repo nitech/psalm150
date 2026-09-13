@@ -1,5 +1,5 @@
 import { html, nothing } from "lit";
-import { PraiseElement } from "./base";
+import { Psa150Element } from "./base";
 
 export interface SelectOption {
   value: string;
@@ -10,7 +10,7 @@ export interface SelectOption {
  * Styled dropdown select with a custom option list (native `<select>` popups
  * cannot be themed reliably on Windows/WebView2).
  */
-export class PraiseSelect extends PraiseElement {
+export class Psa150Select extends Psa150Element {
   static properties = {
     options: { attribute: false },
     value: { type: String },
@@ -40,7 +40,7 @@ export class PraiseSelect extends PraiseElement {
   private emitChange(next: string) {
     if (next === this.value) return;
     this.dispatchEvent(
-      new CustomEvent("praise-change", { detail: next, bubbles: true, composed: true }),
+      new CustomEvent("psa150-change", { detail: next, bubbles: true, composed: true }),
     );
   }
 
@@ -169,10 +169,10 @@ export class PraiseSelect extends PraiseElement {
   }
 }
 
-customElements.define("praise-select", PraiseSelect);
+customElements.define("psa150-select", Psa150Select);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "praise-select": PraiseSelect;
+    "psa150-select": Psa150Select;
   }
 }

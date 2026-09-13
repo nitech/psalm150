@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: ChordPro dialect
-description: The worship-projection subset of ChordPro that Praise parses and writes — data model, section kinds, the blank-line stanza rule, and what survives a rewrite.
+description: The worship-projection subset of ChordPro that Psalm150 parses and writes — data model, section kinds, the blank-line stanza rule, and what survives a rewrite.
 tags: [chordpro, parser, contract, library]
 status: stable
 sources:

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::config;
 
-pub const TEMP_PREFIX: &str = ".praise-tmp-";
+pub const TEMP_PREFIX: &str = ".psa150-tmp-";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryItem {
@@ -231,7 +231,7 @@ mod tests {
         assert!(validate_song_filename("../song.pro").is_err());
         assert!(validate_song_filename("folder/song.pro").is_err());
         assert!(validate_song_filename("song.txt").is_err());
-        assert!(validate_song_filename(".praise-tmp-one.pro").is_err());
+        assert!(validate_song_filename(".psa150-tmp-one.pro").is_err());
     }
 
     #[test]

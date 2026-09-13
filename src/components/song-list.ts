@@ -1,5 +1,5 @@
 import { html, nothing } from "lit";
-import { PraiseElement } from "./base";
+import { Psa150Element } from "./base";
 import type { SongRow, WebSearchCandidate } from "../api";
 import type { SongSort, SongSortColumn } from "../song-sort";
 import { webResultId } from "./song-list-ids";
@@ -7,10 +7,10 @@ import { webResultId } from "./song-list-ids";
 export { WEB_RESULT_PREFIX, isWebResultId, webResultId } from "./song-list-ids";
 
 /**
- * Library song list. Presentational: it renders rows and emits `praise-select`
- * (single click / focus) and `praise-project` (Enter on a focused row) events.
+ * Library song list. Presentational: it renders rows and emits `psa150-select`
+ * (single click / focus) and `psa150-project` (Enter on a focused row) events.
  */
-export class PraiseSongList extends PraiseElement {
+export class Psa150SongList extends Psa150Element {
   static properties = {
     songs: { attribute: false },
     webResults: { attribute: false },
@@ -53,7 +53,7 @@ export class PraiseSongList extends PraiseElement {
     row?.scrollIntoView({ block: "nearest" });
   }
 
-  private emit(name: "praise-select" | "praise-project", file: string) {
+  private emit(name: "psa150-select" | "psa150-project", file: string) {
     this.dispatchEvent(new CustomEvent(name, { detail: file, bubbles: true, composed: true }));
   }
 
@@ -66,7 +66,7 @@ export class PraiseSongList extends PraiseElement {
 
   private navigateTo(file: string) {
     this.pendingFocus = file;
-    this.emit("praise-select", file);
+    this.emit("psa150-select", file);
   }
 
   private onRowKeydown(event: KeyboardEvent, file: string) {
@@ -93,7 +93,7 @@ export class PraiseSongList extends PraiseElement {
       if (prev) {
         this.navigateTo(prev);
       } else {
-        this.dispatchEvent(new CustomEvent("praise-focus-search", { bubbles: true, composed: true }));
+        this.dispatchEvent(new CustomEvent("psa150-focus-search", { bubbles: true, composed: true }));
       }
       return;
     }
@@ -101,13 +101,13 @@ export class PraiseSongList extends PraiseElement {
     if (event.key !== "Enter") return;
     event.preventDefault();
     event.stopPropagation();
-    if (this.currentFile !== file) this.emit("praise-select", file);
-    this.emit("praise-project", file);
+    if (this.currentFile !== file) this.emit("psa150-select", file);
+    this.emit("psa150-project", file);
   }
 
   private emitSort(column: SongSortColumn) {
     this.dispatchEvent(
-      new CustomEvent("praise-sort", { detail: column, bubbles: true, composed: true }),
+      new CustomEvent("psa150-sort", { detail: column, bubbles: true, composed: true }),
     );
   }
 
@@ -159,7 +159,7 @@ export class PraiseSongList extends PraiseElement {
         role="option"
         tabindex=${this.projecting ? "-1" : "0"}
         aria-selected=${active ? "true" : "false"}
-        @click=${() => this.emit("praise-select", file)}
+        @click=${() => this.emit("psa150-select", file)}
         @keydown=${(event: KeyboardEvent) => this.onRowKeydown(event, file)}
       >
         <span class="song-list-title">${title}</span>
@@ -229,10 +229,10 @@ export class PraiseSongList extends PraiseElement {
   }
 }
 
-customElements.define("praise-song-list", PraiseSongList);
+customElements.define("psa150-song-list", Psa150SongList);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "praise-song-list": PraiseSongList;
+    "psa150-song-list": Psa150SongList;
   }
 }

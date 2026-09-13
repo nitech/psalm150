@@ -1,4 +1,4 @@
-# Praise — agent instructions
+# Psalm150 — agent instructions
 
 Church worship projection app: Tauri 2 (Rust core in `src-tauri/`) with a
 Lit/TypeScript frontend (`src/`) rendered into three webviews (console,

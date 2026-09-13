@@ -1,10 +1,10 @@
 import { html, nothing } from "lit";
-import { PraiseElement } from "./base";
+import { Psa150Element } from "./base";
 
 /**
  * Typeahead combobox: type to filter options and pick by exact match, Enter, or click.
  */
-export class PraiseCombobox extends PraiseElement {
+export class Psa150Combobox extends Psa150Element {
   static properties = {
     options: { attribute: false },
     value: { type: String },
@@ -48,7 +48,7 @@ export class PraiseCombobox extends PraiseElement {
   private emitChange(next: string) {
     if (next === this.value) return;
     this.dispatchEvent(
-      new CustomEvent("praise-change", { detail: next, bubbles: true, composed: true }),
+      new CustomEvent("psa150-change", { detail: next, bubbles: true, composed: true }),
     );
   }
 
@@ -190,10 +190,10 @@ export class PraiseCombobox extends PraiseElement {
   }
 }
 
-customElements.define("praise-combobox", PraiseCombobox);
+customElements.define("psa150-combobox", Psa150Combobox);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "praise-combobox": PraiseCombobox;
+    "psa150-combobox": Psa150Combobox;
   }
 }

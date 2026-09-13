@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Praise — Vance Biometrics Clinical Dashboard Design System
+   Psalm150 — Vance Biometrics Clinical Dashboard Design System
    Tokens (color, type, radii, shadow, motion) mirror designsystem.json:
    near-black canvas, single muted-lime accent (#C6D88C), glassmorphic overlays.
    ───────────────────────────────────────────────────────────────────────────── */
@@ -701,7 +701,7 @@ body.workspace-resizing {
   white-space: nowrap;
 }
 
-/* Sticky column header row, rendered by praise-song-list when sorting applies. */
+/* Sticky column header row, rendered by psa150-song-list when sorting applies. */
 .song-list li.song-list-header {
   position: sticky;
   top: 0;
@@ -1444,7 +1444,7 @@ select option {
   color: var(--text-secondary);
 }
 
-.settings-row praise-select {
+.settings-row psa150-select {
   flex: 0 1 240px;
   min-width: 0;
   max-width: 100%;
@@ -1602,7 +1602,7 @@ select option {
   width: min(560px, 100%);
 }
 
-praise-modal.duplicate-modal .modal-card-wide {
+psa150-modal.duplicate-modal .modal-card-wide {
   width: min(1200px, 94vw);
   max-height: 92vh;
   overflow: auto;
@@ -2026,19 +2026,19 @@ body.projection {
 }
 
 body.audience-projection {
-  --praise-font-family: "Geist", "Inter", system-ui, sans-serif;
-  --praise-font-size: 48px;
-  --praise-line-height: 1.28;
-  --praise-font-weight: 500;
-  --praise-font-style: normal;
-  --praise-fg: #f4f4f4;
-  --praise-bg: #060606;
-  --praise-margin-top: 40px;
-  --praise-margin-left: 48px;
-  --praise-margin-right: 48px;
-  --praise-margin-bottom: 48px;
-  background: var(--praise-bg);
-  color: var(--praise-fg);
+  --psa150-font-family: "Geist", "Inter", system-ui, sans-serif;
+  --psa150-font-size: 48px;
+  --psa150-line-height: 1.28;
+  --psa150-font-weight: 500;
+  --psa150-font-style: normal;
+  --psa150-fg: #f4f4f4;
+  --psa150-bg: #060606;
+  --psa150-margin-top: 40px;
+  --psa150-margin-left: 48px;
+  --psa150-margin-right: 48px;
+  --psa150-margin-bottom: 48px;
+  background: var(--psa150-bg);
+  color: var(--psa150-fg);
   font-family: var(--font-ui);
 }
 
@@ -2052,13 +2052,13 @@ body.audience-projection {
   justify-content: center;
   align-items: center;
   padding:
-    max(var(--praise-margin-top), clamp(32px, 6vw, 72px))
-    max(var(--praise-margin-right), clamp(32px, 6vw, 72px))
-    max(var(--praise-margin-bottom), clamp(32px, 6vw, 72px))
-    max(var(--praise-margin-left), clamp(32px, 6vw, 72px));
+    max(var(--psa150-margin-top), clamp(32px, 6vw, 72px))
+    max(var(--psa150-margin-right), clamp(32px, 6vw, 72px))
+    max(var(--psa150-margin-bottom), clamp(32px, 6vw, 72px))
+    max(var(--psa150-margin-left), clamp(32px, 6vw, 72px));
   text-align: center;
-  background: var(--praise-bg);
-  color: var(--praise-fg);
+  background: var(--psa150-bg);
+  color: var(--psa150-fg);
   overflow: hidden;
 }
 
@@ -2090,11 +2090,11 @@ body.audience-projection {
 }
 
 .audience-line {
-  font-family: var(--praise-font-family);
-  font-size: var(--praise-font-size);
-  line-height: var(--praise-line-height);
-  font-weight: var(--praise-font-weight);
-  font-style: var(--praise-font-style);
+  font-family: var(--psa150-font-family);
+  font-size: var(--psa150-font-size);
+  line-height: var(--psa150-line-height);
+  font-weight: var(--psa150-font-weight);
+  font-style: var(--psa150-font-style);
   letter-spacing: -0.02em;
   white-space: pre;
   animation: audience-in 0.45s ease-out both;

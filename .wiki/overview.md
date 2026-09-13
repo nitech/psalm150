@@ -1,8 +1,8 @@
 ---
 type: Overview
-title: Praise
+title: Psalm150
 description: Church worship projection — a Tauri 2 desktop app that indexes a folder of ChordPro songs and projects lyrics to a congregation screen and chords to a stage screen.
-tags: [praise, overview, tauri]
+tags: [psalm150, overview, tauri]
 status: stable
 sources:
   - id: readme
@@ -20,9 +20,9 @@ sources:
 generated: { by: agent, at: 2026-09-13T14:00:00Z }
 ---
 
-# Praise
+# Psalm150
 
-Praise replaces a VB6 "Visual Song Book" used in a Norwegian church. A worship
+Psalm150 replaces a VB6 "Visual Song Book" used in a Norwegian church. A worship
 leader searches the song library on the **operator console**, presses Project,
 and the lyrics appear on the **audience window** (congregation) while chords
 appear on the optional **stage window** (musicians).
@@ -31,7 +31,7 @@ appear on the optional **stage window** (musicians).
 
 | Half | Where | Role |
 | --- | --- | --- |
-| Rust core (`src-tauri/`) | One process, `praise_lib::run()` | Owns all state: config, songs folder, SQLite index, the current `ProjectionState`, setlists, remote server |
+| Rust core (`src-tauri/`) | One process, `psalm150_lib::run()` | Owns all state: config, songs folder, SQLite index, the current `ProjectionState`, setlists, remote server |
 | Web UI (`src/`) | Three webviews: `index.html`, `audience.html`, `stage.html` | Lit components in light DOM sharing one `styles.css`; talk to Rust with `invoke` and `listen` |
 
 `RuntimeState` lives behind a `parking_lot::Mutex` in `AppState`; every command

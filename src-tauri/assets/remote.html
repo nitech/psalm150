@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#060606" />
-  <title>Praise Remote</title>
+  <title>Psalm150 Remote</title>
   <style>
     :root { color-scheme: dark; }
     body {
@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Praise remote</h1>
+  <h1>Psalm150 remote</h1>
   <button class="primary" onclick="send('/next')">Next</button>
   <button onclick="send('/prev')">Previous</button>
   <button onclick="send('/blank')">Blank</button>
@@ -44,16 +44,16 @@
   <script>
     const pinInput = document.getElementById('pin');
     const status = document.getElementById('status');
-    pinInput.value = localStorage.getItem('praise-remote-pin') || '';
-    pinInput.addEventListener('input', () => localStorage.setItem('praise-remote-pin', pinInput.value));
+    pinInput.value = localStorage.getItem('psa150-remote-pin') || '';
+    pinInput.addEventListener('input', () => localStorage.setItem('psa150-remote-pin', pinInput.value));
 
     async function send(path) {
       status.textContent = '';
       try {
-        const res = await fetch(path, { method: 'POST', headers: { 'X-Praise-PIN': pinInput.value } });
+        const res = await fetch(path, { method: 'POST', headers: { 'X-PSA150-PIN': pinInput.value } });
         status.textContent = res.status === 401 ? 'Wrong PIN' : res.ok ? 'Sent ' + path.slice(1) : 'Error ' + res.status;
       } catch (err) {
-        status.textContent = 'Praise is not reachable';
+        status.textContent = 'Psalm150 is not reachable';
       }
     }
   </script>

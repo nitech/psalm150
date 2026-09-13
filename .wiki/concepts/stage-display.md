@@ -7,7 +7,7 @@ status: stable
 sources:
   - id: stage
     resource: /src/components/stage.ts
-    title: praise-stage component
+    title: psa150-stage component
   - id: modes
     resource: /src-tauri/src/projection/modes.rs
     title: StageSlide payload
@@ -16,7 +16,7 @@ generated: { by: agent, at: 2026-09-13T14:00:00Z }
 
 # Stage display
 
-`stage.html` mounts `<praise-stage>`. It shows the same slide as the audience,
+`stage.html` mounts `<psa150-stage>`. It shows the same slide as the audience,
 plus the chords the audience never sees.
 
 ## Payload (`StageSlide`)

@@ -1,5 +1,5 @@
 import { html, nothing, type TemplateResult } from "lit";
-import { PraiseElement } from "./base";
+import { Psa150Element } from "./base";
 
 export type ModalVariant = "default" | "wide" | "tall";
 
@@ -10,7 +10,7 @@ export type ModalVariant = "default" | "wide" | "tall";
  * markup keeps living with the owning component while the shell, sizing and
  * dismissal behaviour stay in one place.
  */
-export class PraiseModal extends PraiseElement {
+export class Psa150Modal extends Psa150Element {
   static properties = {
     heading: {},
     open: { type: Boolean, reflect: true },
@@ -32,7 +32,7 @@ export class PraiseModal extends PraiseElement {
   }
 
   private close() {
-    this.dispatchEvent(new CustomEvent("praise-close", { bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent("psa150-close", { bubbles: true, composed: true }));
   }
 
   private onBackdrop = (event: MouseEvent) => {
@@ -63,10 +63,10 @@ export class PraiseModal extends PraiseElement {
   }
 }
 
-customElements.define("praise-modal", PraiseModal);
+customElements.define("psa150-modal", Psa150Modal);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "praise-modal": PraiseModal;
+    "psa150-modal": Psa150Modal;
   }
 }

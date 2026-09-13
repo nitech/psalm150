@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use praise_lib::remote::{RemoteAction, RemoteServer};
+use psalm150_lib::remote::{RemoteAction, RemoteServer};
 
 #[test]
 fn remote_serves_page_guards_actions_with_pin_and_releases_port_on_stop() {
@@ -13,7 +13,7 @@ fn remote_serves_page_guards_actions_with_pin_and_releases_port_on_stop() {
 
     let page = client.get(format!("{base}/")).send().expect("GET /");
     assert!(page.headers()["content-type"].to_str().unwrap().starts_with("text/html"));
-    assert!(page.text().unwrap().contains("Praise remote"));
+    assert!(page.text().unwrap().contains("Psalm150 remote"));
 
     let denied = client.post(format!("{base}/next")).send().unwrap();
     assert_eq!(denied.status(), 401);
@@ -21,13 +21,13 @@ fn remote_serves_page_guards_actions_with_pin_and_releases_port_on_stop() {
 
     let accepted = client
         .post(format!("{base}/blank"))
-        .header("X-Praise-PIN", "4321")
+        .header("X-PSA150-PIN", "4321")
         .send()
         .unwrap();
     assert_eq!(accepted.status(), 200);
     assert_eq!(actions.recv_timeout(Duration::from_secs(2)).unwrap(), RemoteAction::Blank);
 
-    let missing = client.post(format!("{base}/nope")).header("X-Praise-PIN", "4321").send().unwrap();
+    let missing = client.post(format!("{base}/nope")).header("X-PSA150-PIN", "4321").send().unwrap();
     assert_eq!(missing.status(), 404);
 
     let started = std::time::Instant::now();

@@ -108,7 +108,7 @@ fn handle_request(request: Request, pin: &str, actions: &Sender<RemoteAction>) {
     let pin_ok = request
         .headers()
         .iter()
-        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case("x-praise-pin"))
+        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case("x-psa150-pin"))
         .map(|h| h.value.as_str() == pin)
         .unwrap_or(false);
 

@@ -9,14 +9,14 @@ import {
 import type { ProjectionSnapshot, ProjectionState, SlidePayload, SlideTheme } from "../api";
 import { activeStanzaIndex, buildStanzaMarkers } from "../stanza-markers";
 import { planFit } from "../audience-fit";
-import { PraiseElement } from "./base";
+import { Psa150Element } from "./base";
 
 function slideSignature(slide: SlidePayload): string {
   return `${slide.index}:${slide.stanza_index ?? 0}:${slide.lines.map((line) => line.text).join("\n")}`;
 }
 
 /** Audience-facing projection window. */
-export class PraiseAudience extends PraiseElement {
+export class Psa150Audience extends Psa150Element {
   static properties = {
     slide: { state: true },
     projection: { state: true },
@@ -93,16 +93,16 @@ export class PraiseAudience extends PraiseElement {
 
   private applyTheme(theme: SlideTheme) {
     const style = document.documentElement.style;
-    style.setProperty("--praise-font-family", theme.font_name);
-    style.setProperty("--praise-font-size", `${theme.font_size}px`);
-    style.setProperty("--praise-font-weight", theme.font_bold ? "700" : "500");
-    style.setProperty("--praise-font-style", theme.font_italic ? "italic" : "normal");
-    style.setProperty("--praise-fg", theme.foreground);
-    style.setProperty("--praise-bg", theme.background);
-    style.setProperty("--praise-margin-top", `${theme.margin_top}px`);
-    style.setProperty("--praise-margin-left", `${theme.margin_left}px`);
-    style.setProperty("--praise-margin-right", `${theme.margin_right}px`);
-    style.setProperty("--praise-margin-bottom", `${theme.margin_bottom}px`);
+    style.setProperty("--psa150-font-family", theme.font_name);
+    style.setProperty("--psa150-font-size", `${theme.font_size}px`);
+    style.setProperty("--psa150-font-weight", theme.font_bold ? "700" : "500");
+    style.setProperty("--psa150-font-style", theme.font_italic ? "italic" : "normal");
+    style.setProperty("--psa150-fg", theme.foreground);
+    style.setProperty("--psa150-bg", theme.background);
+    style.setProperty("--psa150-margin-top", `${theme.margin_top}px`);
+    style.setProperty("--psa150-margin-left", `${theme.margin_left}px`);
+    style.setProperty("--psa150-margin-right", `${theme.margin_right}px`);
+    style.setProperty("--psa150-margin-bottom", `${theme.margin_bottom}px`);
     document.body.style.background = theme.background;
     document.body.style.color = theme.foreground;
   }
@@ -211,10 +211,10 @@ export class PraiseAudience extends PraiseElement {
   }
 }
 
-customElements.define("praise-audience", PraiseAudience);
+customElements.define("psa150-audience", Psa150Audience);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "praise-audience": PraiseAudience;
+    "psa150-audience": Psa150Audience;
   }
 }

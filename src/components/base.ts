@@ -1,13 +1,13 @@
 import { LitElement } from "lit";
 
 /**
- * Base class for every Praise component.
+ * Base class for every Psalm150 component.
  *
  * Components render into the light DOM (not a shadow root) so the global design
  * system in `styles.css` applies directly and layout-measuring code in the
  * projection windows can still query rendered nodes.
  */
-export class PraiseElement extends LitElement {
+export class Psa150Element extends LitElement {
   private dropdownScrollTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {

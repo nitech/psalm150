@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 const MAX_CANDIDATES: usize = 3;
 const SEARCH_TIMEOUT_SECS: u64 = 10;
-const USER_AGENT: &str = "Praise/0.1 (church worship projection; +https://github.com/nitech/praise)";
+const USER_AGENT: &str = "Psalm150/0.1 (church worship projection; +https://github.com/nitech/psalm150)";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchCandidate {

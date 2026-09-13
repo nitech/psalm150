@@ -7,10 +7,10 @@ status: stable
 sources:
   - id: app
     resource: /src/components/app.ts
-    title: PraiseApp root component
+    title: Psa150App root component
   - id: song-list
     resource: /src/components/song-list.ts
-    title: praise-song-list rows and row keyboard handling
+    title: psa150-song-list rows and row keyboard handling
   - id: sort
     resource: /src/song-sort.ts
     title: Column sort rules
@@ -34,10 +34,10 @@ generated: { by: agent, at: 2026-09-13T14:00:00Z }
 
 # Operator console
 
-`index.html` mounts `<praise-app>`, one Lit component that owns all UI state
-and IPC. Presentational pieces: `praise-song-list`, `praise-modal`,
-`praise-select` (custom dropdown; native selects cannot be themed on
-WebView2) and `praise-combobox` (key typeahead). Everything renders into light
+`index.html` mounts `<psa150-app>`, one Lit component that owns all UI state
+and IPC. Presentational pieces: `psa150-song-list`, `psa150-modal`,
+`psa150-select` (custom dropdown; native selects cannot be themed on
+WebView2) and `psa150-combobox` (key typeahead). Everything renders into light
 DOM so `styles.css` applies; its tokens mirror `designsystem.json`, a
 reference file the app never loads.
 
@@ -46,7 +46,7 @@ reference file the app never loads.
 Custom title bar (`data-tauri-drag-region`; double-click maximises; min/max/
 close buttons), then a **browse pane** (tabs, toolbar, song list) and the
 **song pane**, separated by a drag splitter (280–720 px, default 340, stored in
-`localStorage["praise-browse-pane-width"]`).
+`localStorage["psa150-browse-pane-width"]`).
 
 ## Tabs
 
@@ -64,8 +64,8 @@ Columns **Song | No | Key | star**. The list element is one CSS grid
 (`minmax(0, 1fr) max-content max-content max-content`) and every row, header
 included, is a `subgrid`, so No, Key and the star are exactly as wide as their
 widest content across all rows and the title takes the rest of the pane. The
-header is an `li.song-list-header` rendered by `praise-song-list` (sticky at
-the top of the scroll region) and emits `praise-sort`. Web-result rows are a
+header is an `li.song-list-header` rendered by `psa150-song-list` (sticky at
+the top of the scroll region) and emits `psa150-sort`. Web-result rows are a
 flex row (title + source) spanning all columns and do not widen them.
 
 - **Numbers column**: Settings, Library, "Show song numbers in the song list".
@@ -73,7 +73,7 @@ flex row (title + source) spanning all columns and do not widen them.
   to the list, which drops the track from the grid, the header and the rows.
 - **Sorting**: header buttons Song / No / Key on the sortable tabs. Click the
   active column to flip direction, another column to sort it ascending.
-  Default is Song ascending. Persisted as `localStorage["praise-song-sort"]`
+  Default is Song ascending. Persisted as `localStorage["psa150-song-sort"]`
   (`{column, direction}`; invalid values fall back to the default). Rules in
   `song-sort.ts`: `Intl.Collator` (base sensitivity, numeric) for text,
   numeric for numbers, rows without a value last in both directions, ties by

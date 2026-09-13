@@ -7,7 +7,7 @@ status: stable
 sources:
   - id: audience
     resource: /src/components/audience.ts
-    title: praise-audience component (fit, theme, overlay, counter)
+    title: psa150-audience component (fit, theme, overlay, counter)
   - id: fit
     resource: /src/audience-fit.ts
     title: planFit — pure fit planning with the wrap threshold
@@ -25,14 +25,14 @@ generated: { by: agent, at: 2026-09-13T14:00:00Z }
 
 # Audience display
 
-`audience.html` mounts `<praise-audience>` (light DOM, shared `styles.css`).
+`audience.html` mounts `<psa150-audience>` (light DOM, shared `styles.css`).
 On connect it subscribes to `projection-updated` before fetching the current
 `ProjectionSnapshot`, so a reopened window cannot miss or roll back a frame.
 
 ## Theme to CSS
 
 The snapshot carries the active session's `SlideTheme`; `applyTheme` writes
-`--praise-font-family / -size / -weight / -style / -fg / -bg / -margin-*` on
+`--psa150-font-family / -size / -weight / -style / -fg / -bg / -margin-*` on
 `<html>`. With no library open the call fails silently and the CSS defaults
 apply (Geist 48 px, weight 500, `#f4f4f4` on `#060606`). Screen padding per
 side is `max(theme margin, clamp(32px, 6vw, 72px))`.
