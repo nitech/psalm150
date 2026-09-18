@@ -23,10 +23,10 @@ pub fn metadata(source: &str) -> SongMetadata {
             "title" | "t" if title.is_none() => title = Some(value),
             "number" | "song_number" if song_number.is_none() => song_number = Some(value),
             "language" | "lang" if language.is_none() => language = Some(value),
-            "artist" | "composer" | "lyricist" | "author" if !value.is_empty() => {
-                if !authors.iter().any(|existing| existing == &value) {
-                    authors.push(value);
-                }
+            "artist" | "composer" | "lyricist" | "author"
+                if !value.is_empty() && !authors.iter().any(|existing| existing == &value) =>
+            {
+                authors.push(value);
             }
             _ => {}
         }
