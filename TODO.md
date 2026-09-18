@@ -1,44 +1,77 @@
-# PSA150 Song Server
+# PSA150 Song Server implementation plan
 
-## Purpose
+Confirmed product and architecture decisions are documented in [README.md](README.md)
+and [docs/architecture.md](docs/architecture.md). This file tracks work that is
+not yet complete.
 
-An optional, self-hostable, API-first song service for individual churches.
-Psalm150 desktop clients remain fully usable with local ChordPro libraries when
-no server is configured.
+## Foundation
 
-## Confirmed direction
+- [x] Establish the offline-first and self-hostable product principles.
+- [x] Define folder-backed and server-backed library authority.
+- [x] Separate local revision history from cross-song provenance.
+- [x] Confirm PostgreSQL as the only supported production database.
+- [x] Record the Christ-centered PSA150 mission and the subordinate role of AI.
+- [x] Choose the Rust HTTP framework and repository structure.
+- [x] Create the initial Rust project, configuration model, and health check.
+- [x] Add automated checks for formatting, tests, and container builds.
 
-- Run a separate server per church by default; a host may intentionally serve
-  several isolated churches.
-- Use PostgreSQL as the only supported production database.
-- Ship a small Docker deployment for `linux/amd64` and `linux/arm64`, suitable
-  for a VPS, Dokploy, Coolify, Railway, or a Raspberry Pi 5.
-- Provide a versioned REST/JSON API and an OpenAPI description. The optional
-  web interface is an API consumer; the server remains useful headlessly.
-- Keep songs as ChordPro source text. The server adds search, ownership,
-  revision history, sharing controls, and backups around that source.
-- Keep projections and the desktop client offline-first. The projection
-  computer owns live presentation state; a server is never required to run a
-  service.
-- Importing a public song creates an independently owned local copy. It never
-  updates automatically from the source server.
-- Retain provenance separately from synchronization: originals, translations,
-  forks, arrangements, corrections, and added verses form a navigable song
-  lineage graph.
-- Keep access simple: owner, leader, and viewer. Shared plans default to
-  read-only.
+## Domain and database
 
-## First design work
+- [x] Specify churches, users, memberships, and simple roles.
+- [ ] Specify songs, immutable revisions, conflicts, and deletion semantics.
+- [ ] Specify typed provenance relationships and public source references.
+- [ ] Specify plans and read-only-by-default sharing.
+- [x] Design the initial PostgreSQL migration, indexes, and transactional boundaries.
+- [ ] Define search behavior, including languages and alternate titles.
 
-- [ ] Define the server repository structure and Rust workspace.
-- [ ] Specify the versioned API and publish an OpenAPI document.
-- [ ] Model churches, users, roles, devices, songs, revisions, imports, and
-      lineage relationships.
-- [ ] Specify authentication for people and revocable machine/device tokens.
-- [ ] Design offline synchronization and explicit conflict resolution.
-- [ ] Define public, unlisted, and private sharing plus attribution and
-      licensing fields.
-- [ ] Define backups, restore, migrations, and the supported Docker Compose
-      deployment.
-- [ ] Define the desktop client's local-library and Song Server connection
-      modes.
+## Authentication and policy
+
+- [x] Choose password authentication and initial-owner provisioning for people.
+- [x] Define revocable, scoped desktop credentials with read and append-only import access.
+- [ ] Define private, unlisted, and public content visibility.
+- [ ] Define instance-level publication and contribution policies.
+- [ ] Define attribution, authorship, and licensing requirements.
+
+## Synchronization and portability
+
+- [ ] Define the offline outbox and revision-based synchronization protocol.
+- [ ] Define explicit conflict preservation and review behavior.
+- [ ] Define snapshot import and provenance recording between servers.
+- [ ] Define a complete ChordPro-based export and portable metadata format.
+- [x] Implement exact-content folder merge to the server and a read-only desktop replica.
+- [ ] Define the later migration and offline-edit upload workflows.
+
+## API and interfaces
+
+- [x] Specify the Phase 1 versioned REST/JSON resources.
+- [x] Publish generated OpenAPI JSON.
+- [ ] Define compatibility and deprecation rules for API versions.
+- [x] Build the initial web interface as an ordinary API consumer.
+- [x] Define and implement Phase 1 merge-then-pull PSA150-client synchronization.
+- [ ] Define additional integration guidance for external church websites.
+
+## Deployment and operation
+
+- [x] Build the API and web container with multi-architecture-compatible inputs.
+- [x] Provide a two-service Docker Compose deployment with PostgreSQL.
+- [ ] Document TLS/reverse-proxy configuration and secure defaults.
+- [ ] Define database migrations and upgrade behavior.
+- [ ] Implement and document backup, restore, and disaster recovery.
+- [ ] Establish release, image-signing, and security-update processes.
+
+## Future AI-assisted capabilities
+
+These tasks intentionally follow the dependable non-AI song, synchronization,
+and sharing workflows. They are not requirements for the initial server.
+
+- [ ] Define privacy and consent rules for uploading or processing recordings.
+- [ ] Define a replaceable provider interface that can support local,
+      self-hosted, and optional hosted processing.
+- [ ] Prototype audio-to-text lyric transcription with mandatory human review.
+- [ ] Prototype time alignment between recordings and lyric lines or words.
+- [ ] Explore performed-versus-canonical lyric comparison.
+- [ ] Explore section detection and translation-comparison assistance.
+- [ ] Record generated suggestions and their provenance without treating them
+      as canonical song revisions until a person accepts them.
+- [ ] Verify that every core workflow continues to operate when all AI features
+      are disabled or unavailable.
