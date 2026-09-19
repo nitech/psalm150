@@ -145,7 +145,7 @@ function renderLibrary(): void {
           <div class="index-heading"><span>${songs.length} ${songs.length === 1 ? "song" : "songs"}</span><span>Updated</span></div>
           <div class="song-list">${renderSongRows()}</div>
         </div>
-        <aside class="detail-pane">${renderDetail()}</aside>
+        <aside class="detail-pane${selected ? " open" : ""}" aria-label="Song detail">${renderDetail()}</aside>
       </section>
     </main>
   </div>
@@ -153,6 +153,7 @@ function renderLibrary(): void {
   <dialog id="device-dialog" class="token-dialog"></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
 
+  document.body.classList.toggle("detail-open", Boolean(selected));
   bindLibraryEvents();
 }
 
@@ -171,17 +172,17 @@ function renderDetail(): string {
   if (!selected) {
     return `<div class="detail-empty"><span>SELECT A SONG</span><div class="staff" aria-hidden="true">𝄞</div><p>Lyrics, metadata, and the current ChordPro source will appear here.</p></div>`;
   }
-  const lyricPreview = selected.chordpro
+  const lyricText = selected.chordpro
     .split("\n")
     .filter((line) => !line.trim().startsWith("{") && line.trim())
-    .slice(0, 8)
     .map((line) => line.replace(/\[[^\]]*\]/g, ""))
     .join("\n");
   return `<div class="detail-content">
+    <button class="detail-close" id="close-detail" aria-label="Back to songs">← Back</button>
     <p class="eyebrow">Current revision</p>
     <h2>${escapeHtml(selected.title)}</h2>
     <p class="detail-byline">${escapeHtml(selected.authors || "Author not recorded")}</p>
-    <pre class="lyric-preview">${escapeHtml(lyricPreview || "No lyric lines yet.")}</pre>
+    <pre class="lyric-preview">${escapeHtml(lyricText || "No lyric lines yet.")}</pre>
     <dl><div><dt>Revision</dt><dd>${selected.revision_id.slice(0, 8)}</dd></div><div><dt>Language</dt><dd>${escapeHtml(selected.language?.toUpperCase() ?? "—")}</dd></div></dl>
     <button class="primary wide" id="edit-song">Edit ChordPro <span>→</span></button>
   </div>`;
@@ -203,6 +204,10 @@ function bindLibraryEvents(): void {
       renderLibrary();
     });
   }));
+  document.querySelector("#close-detail")?.addEventListener("click", () => {
+    selected = null;
+    renderLibrary();
+  });
   document.querySelector("#new-song")?.addEventListener("click", () => openEditor());
   document.querySelector("#edit-song")?.addEventListener("click", () => openEditor(selected ?? undefined));
   document.querySelector("#import")?.addEventListener("click", () => document.querySelector<HTMLInputElement>("#file-import")?.click());
@@ -375,6 +380,7 @@ function clearSession(): void {
   session = null;
   selected = null;
   sessionStorage.removeItem(SESSION_KEY);
+  document.body.classList.remove("detail-open");
 }
 
 function setFormBusy(form: HTMLFormElement, value: boolean): void {
