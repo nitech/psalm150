@@ -88,7 +88,10 @@ pub fn activate_songs_folder(
         runtime.active_theme = crate::projection::SlideTheme::default();
         runtime.projection_revision += 1;
         if persist {
+            runtime.config.server_library = None;
+            runtime.read_only = runtime.config.read_only;
             runtime.config.last_songs_folder = Some(path.to_string_lossy().into());
+            runtime.config.last_local_songs_folder = Some(path.to_string_lossy().into());
             runtime.config.first_run_complete = true;
             runtime.config.save(app)?;
         }
@@ -97,6 +100,12 @@ pub fn activate_songs_folder(
 
     emit_snapshot(app, &snapshot);
     emit_library_changed(app);
+    if persist {
+        let token_path = config::server_token_path(app)?;
+        if token_path.exists() {
+            let _ = std::fs::remove_file(token_path);
+        }
+    }
     build_status(&path, false, count, true)
 }
 

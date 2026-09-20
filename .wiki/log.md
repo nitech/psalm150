@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-09-13
+* **Creation**: The Settings dialog now uses a persistent category menu and a top-level “Find a setting” search. The search filters to matching setting groups and preserves all existing library, server, projection, search, remote, report, and shortcut controls.
 * **Sync**: Song loading is now preview-only and `project_song` creates an explicit active session. Console, audience and stage consume one revisioned `projection-updated` snapshot; saving the active song updates immediately while previewing or saving another song leaves it untouched. The stage keeps its text while the audience is blank.
 * **Sync**: Song writes validate local `.pro`/`.cho` filenames, use content hashes to reject outside edits, retain verified recovery copies and install verified reserved temp files. Web saves use collision-free number/title names. Line corrections are applied in Rust through parser source-line mappings.
 * **Creation**: Settings gained manual duplicate review with exact number/title/lyrics grouping, side-by-side lyrics/chords/raw ChordPro, content-hash pair decisions, guarded recoverable deletion and restore. Review and recovery data are per-library local app data.

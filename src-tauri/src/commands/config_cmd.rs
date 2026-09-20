@@ -17,7 +17,7 @@ pub fn set_read_only(
     read_only: bool,
 ) -> Result<(), String> {
     with_state(&state, |runtime| {
-        runtime.read_only = read_only;
+        runtime.read_only = read_only || runtime.config.server_library.is_some();
         runtime.config.read_only = read_only;
         runtime.config.save(&app)
     })

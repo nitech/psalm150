@@ -17,6 +17,8 @@ import {
   type ProjectionSnapshot,
   type RecoveryItem,
   type RemoteStatus,
+  type ServerLibraryConfig,
+  type ServerSyncProgress,
   type Setlist,
   type SongDetail,
   type SongRow,
@@ -66,6 +68,29 @@ import { isWebResultId, webResultId, webResultIndex } from "./song-list-ids";
 
 type Tab = "search" | "key" | "history" | "favorites" | "setlist";
 type ToastTone = "info" | "success" | "error";
+type SettingsSectionId =
+  | "library"
+  | "server"
+  | "projection"
+  | "search"
+  | "remote"
+  | "reports"
+  | "shortcuts";
+
+const SETTINGS_SECTIONS: ReadonlyArray<{
+  id: SettingsSectionId;
+  label: string;
+  icon: string;
+  keywords: string;
+}> = [
+  { id: "library", label: "Library", icon: "♫", keywords: "songs folder chordpro import mdb rescan duplicates numbers" },
+  { id: "server", label: "Church server", icon: "↗", keywords: "server url token sync download offline cache church" },
+  { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display chords read only editing" },
+  { id: "search", label: "Search", icon: "⌕", keywords: "web internet local songs match" },
+  { id: "remote", label: "Phone remote", icon: "◌", keywords: "phone remote wifi network tailscale pin slides" },
+  { id: "reports", label: "Reports", icon: "▤", keywords: "print songbook ccli csv export" },
+  { id: "shortcuts", label: "Keyboard shortcuts", icon: "⌘", keywords: "keys keyboard enter arrows stanzas blank projection" },
+];
 
 const TAB_LABELS: Record<Tab, string> = {
   search: "Search",
@@ -98,6 +123,12 @@ export class Psa150App extends Psa150Element {
     currentSetlist: { state: true },
     projectToStage: { state: true },
     readOnly: { state: true },
+    serverLibrary: { state: true },
+    lastLocalSongsFolder: { state: true },
+    serverUrl: { state: true },
+    serverToken: { state: true },
+    serverSyncing: { state: true },
+    serverSyncProgress: { state: true },
     webSearchEnabled: { state: true },
     displays: { state: true },
     audienceMonitor: { state: true },
@@ -109,6 +140,8 @@ export class Psa150App extends Psa150Element {
     setlistDate: { state: true },
     editorValue: { state: true },
     settingsOpen: { state: true },
+    activeSettingsSection: { state: true },
+    settingsQuery: { state: true },
     editOpen: { state: true },
     importOpen: { state: true },
     importCurrent: { state: true },
@@ -149,6 +182,12 @@ export class Psa150App extends Psa150Element {
   declare currentSetlist: Setlist | null;
   declare projectToStage: boolean;
   declare readOnly: boolean;
+  declare serverLibrary: ServerLibraryConfig | null;
+  declare lastLocalSongsFolder: string | null;
+  declare serverUrl: string;
+  declare serverToken: string;
+  declare serverSyncing: boolean;
+  declare serverSyncProgress: ServerSyncProgress | null;
   declare webSearchEnabled: boolean;
   declare displays: DisplayInfo[];
   declare audienceMonitor: string;
@@ -160,6 +199,8 @@ export class Psa150App extends Psa150Element {
   declare setlistDate: string;
   declare editorValue: string;
   declare settingsOpen: boolean;
+  declare activeSettingsSection: SettingsSectionId;
+  declare settingsQuery: string;
   declare editOpen: boolean;
   declare importOpen: boolean;
   declare importCurrent: number;
@@ -194,6 +235,7 @@ export class Psa150App extends Psa150Element {
   private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
   private webSearchGeneration = 0;
   private unlistenImport: UnlistenFn | null = null;
+  private unlistenServerSync: UnlistenFn | null = null;
   private unlistenLibrary: UnlistenFn | null = null;
   private unlistenProjection: UnlistenFn | null = null;
   private unlistenProjectionClosed: UnlistenFn | null = null;
@@ -223,6 +265,12 @@ export class Psa150App extends Psa150Element {
     this.currentSetlist = null;
     this.projectToStage = false;
     this.readOnly = false;
+    this.serverLibrary = null;
+    this.lastLocalSongsFolder = null;
+    this.serverUrl = "";
+    this.serverToken = "";
+    this.serverSyncing = false;
+    this.serverSyncProgress = null;
     this.webSearchEnabled = true;
     this.displays = [];
     this.audienceMonitor = "";
@@ -234,6 +282,8 @@ export class Psa150App extends Psa150Element {
     this.setlistDate = "";
     this.editorValue = "";
     this.settingsOpen = false;
+    this.activeSettingsSection = "library";
+    this.settingsQuery = "";
     this.editOpen = false;
     this.importOpen = false;
     this.importCurrent = 0;
@@ -350,6 +400,7 @@ export class Psa150App extends Psa150Element {
     this.unlistenWindowResize?.();
     this.tabIndicatorObserver?.disconnect();
     void this.unlistenImport?.();
+    void this.unlistenServerSync?.();
   }
 
   firstUpdated() {
@@ -724,6 +775,7 @@ export class Psa150App extends Psa150Element {
         await api.closeProjectionWindows();
       }
       this.libraryStatus = await api.pickSongsFolder();
+      this.applyConfig(await api.getConfig());
       await this.refreshSongs();
       if (this.libraryStatus?.songs_folder) {
         this.showToast("Songs folder updated");
@@ -1032,6 +1084,8 @@ export class Psa150App extends Psa150Element {
   // ── Settings persistence ───────────────────────────────────────────────
 
   private async openSettings() {
+    this.settingsQuery = "";
+    this.activeSettingsSection = "library";
     this.settingsOpen = true;
     try {
       const [config, displays, remote] = await Promise.all([
@@ -1049,7 +1103,10 @@ export class Psa150App extends Psa150Element {
 
   private applyConfig(config: AppConfig) {
     this.projectToStage = Boolean(config.project_to_stage);
-    this.readOnly = Boolean(config.read_only);
+    this.serverLibrary = config.server_library ?? null;
+    this.lastLocalSongsFolder = config.last_local_songs_folder ?? null;
+    this.serverUrl = this.serverLibrary?.url ?? "";
+    this.readOnly = Boolean(config.read_only) || Boolean(this.serverLibrary);
     this.webSearchEnabled = config.web_search_enabled !== false;
     this.audienceMonitor = config.audience_monitor ?? "";
     this.stageMonitor = config.stage_monitor ?? "";
@@ -1075,9 +1132,153 @@ export class Psa150App extends Psa150Element {
   }
 
   private async onReadOnlyChange(checked: boolean) {
+    if (this.serverLibrary) return;
     this.readOnly = checked;
     await api.setReadOnly(checked);
     this.showToast(checked ? "Library is read-only" : "Edits enabled");
+  }
+
+  private async beginServerSyncProgress() {
+    this.serverSyncing = true;
+    this.serverSyncProgress = {
+      phase: "preparing",
+      label: "Preparing the connection",
+      current: 0,
+      total: null,
+      unit: "steps",
+    };
+    try {
+      await this.unlistenServerSync?.();
+      this.unlistenServerSync = await listen<ServerSyncProgress>("server-sync-progress", (event) => {
+        this.serverSyncProgress = event.payload;
+      });
+    } catch (error) {
+      console.error("Could not subscribe to server synchronization progress", error);
+      this.unlistenServerSync = null;
+    }
+  }
+
+  private async endServerSyncProgress() {
+    this.serverSyncing = false;
+    this.serverSyncProgress = null;
+    try {
+      await this.unlistenServerSync?.();
+    } catch (error) {
+      console.error("Could not remove the server synchronization progress listener", error);
+    } finally {
+      this.unlistenServerSync = null;
+    }
+  }
+
+  private async connectServerLibrary() {
+    const url = this.serverUrl.trim();
+    const token = this.serverToken.trim();
+    if (!url || !token) {
+      this.showToast("Enter the server URL and a desktop token", "error");
+      return;
+    }
+    if (!(await this.confirmDiscardPendingEdits())) return;
+    if (!this.serverLibrary && (this.libraryStatus?.song_count ?? 0) > 0) {
+      const accepted = await confirm(
+        `Connecting will add any of these ${this.libraryStatus?.song_count} local songs that the server does not already have, then download the merged library. Exact matches are skipped; differing versions remain separate. Your original files stay unchanged. Continue?`,
+        { title: "Merge with server library", kind: "warning" },
+      );
+      if (!accepted) return;
+    }
+    await this.beginServerSyncProgress();
+    try {
+      this.libraryStatus = await api.connectServerLibrary(url, token);
+      this.serverToken = "";
+      this.applyConfig(await api.getConfig());
+      await this.refreshSongs();
+      this.showToast(`Library merged: ${this.libraryStatus.song_count} songs available offline`, "success");
+    } catch (error) {
+      this.showToast(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      await this.endServerSyncProgress();
+    }
+  }
+
+  private async syncServerLibrary() {
+    if (!(await this.confirmDiscardPendingEdits())) return;
+    await this.beginServerSyncProgress();
+    try {
+      this.libraryStatus = await api.syncServerLibrary();
+      this.applyConfig(await api.getConfig());
+      await this.refreshSongs();
+      this.showToast(`Library synchronized: ${this.libraryStatus.song_count} songs available offline`, "success");
+    } catch (error) {
+      this.showToast(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      await this.endServerSyncProgress();
+    }
+  }
+
+  private async disconnectServerLibrary() {
+    const returnsToLocal = Boolean(this.lastLocalSongsFolder);
+    const accepted = await confirm(
+      returnsToLocal
+        ? "Return to your previous local ChordPro library? The server cache will remain on this computer."
+        : "Disconnect this server library? Its cached song files will remain on this computer, but the library will close.",
+      { title: returnsToLocal ? "Return to local library" : "Disconnect song server", kind: "warning" },
+    );
+    if (!accepted) return;
+    try {
+      await api.disconnectServerLibrary();
+      this.applyConfig(await api.getConfig());
+      await this.refreshLibraryStatus();
+      await this.refreshSongs();
+      this.showToast(returnsToLocal ? "Returned to local song library" : "Song server disconnected");
+    } catch (error) {
+      this.showToast(error instanceof Error ? error.message : String(error), "error");
+    }
+  }
+
+  private formatServerSyncTime(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
+  }
+
+  private renderServerSyncProgress() {
+    if (!this.serverSyncing) return nothing;
+    const progress = this.serverSyncProgress;
+    const total = progress?.total ?? 0;
+    const determinate = total > 0;
+    const percentage = determinate
+      ? Math.min(100, Math.round(((progress?.current ?? 0) / total) * 100))
+      : 0;
+    const amount = !determinate
+      ? "One moment…"
+      : progress?.unit === "bytes"
+        ? `${this.formatByteCount(progress.current)} / ${this.formatByteCount(total)}`
+        : progress?.unit === "songs"
+          ? `${progress.current.toLocaleString()} / ${total.toLocaleString()} songs`
+          : `${percentage}%`;
+
+    return html`
+      <div class="server-sync-status" role="status" aria-live="polite">
+        <div class="server-sync-heading">
+          <span class="server-sync-kicker">${progress?.phase ?? "preparing"}</span>
+          <strong>${progress?.label ?? "Preparing the connection"}</strong>
+          <span class="server-sync-amount">${determinate ? `${amount} · ${percentage}%` : amount}</span>
+        </div>
+        ${determinate
+          ? html`<div
+              class="server-sync-track"
+              role="progressbar"
+              aria-label=${progress?.label ?? "Synchronizing library"}
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow=${String(percentage)}
+            ><span class="server-sync-fill" style="width:${percentage}%"></span></div>`
+          : html`<div class="server-sync-waiting"><span class="server-sync-loader" aria-hidden="true"></span><span>Establishing a secure library session</span></div>`}
+      </div>`;
+  }
+
+  private formatByteCount(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   private async onWebSearchEnabledChange(checked: boolean) {
@@ -1440,6 +1641,7 @@ export class Psa150App extends Psa150Element {
         ></div>
       </main>
       <psa150-modal
+        class="settings-modal"
         heading="Settings"
         variant="wide"
         ?open=${this.settingsOpen}
@@ -2298,110 +2500,119 @@ export class Psa150App extends Psa150Element {
     ];
   }
 
-  private renderSettingsContent(): TemplateResult {
+  private settingMatches(section: (typeof SETTINGS_SECTIONS)[number], query: string): boolean {
+    const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+    const haystack = `${section.label} ${section.keywords}`.toLocaleLowerCase();
+    return terms.every((term) => haystack.includes(term));
+  }
+
+  private selectSettingsSection(section: SettingsSectionId) {
+    this.activeSettingsSection = section;
+    this.settingsQuery = "";
+  }
+
+  private renderSettingsSection(id: SettingsSectionId): TemplateResult {
     const folderLabel = this.libraryStatus?.songs_folder ?? "No folder selected";
+    const title = SETTINGS_SECTIONS.find((section) => section.id === id)?.label ?? "Settings";
+    let content: TemplateResult;
+
+    switch (id) {
+      case "library":
+        content = html`
+          <p class="settings-hint">${this.serverLibrary
+            ? "Using a read-only offline replica from your church server."
+            : "Using ordinary ChordPro files from a folder on this computer."}</p>
+          <p class="settings-path">${folderLabel}</p>
+          <div class="settings-actions">
+            <button class="secondary" @click=${() => this.pickFolder()}>Use local songs folder</button>
+            <button class="secondary" ?disabled=${Boolean(this.serverLibrary)} @click=${() => this.runImportMdb()}>Import MDB</button>
+            <button class="ghost" @click=${() => this.rescan()}>Rescan library</button>
+            <button class="ghost" @click=${() => this.openDuplicateReview()}>Review possible duplicates</button>
+          </div>
+          <label class="settings-check">
+            <input type="checkbox" .checked=${this.showSongNumbers} @change=${(e: Event) => this.onShowSongNumbersChange((e.target as HTMLInputElement).checked)} />
+            <span>Show song numbers in the song list</span>
+          </label>`;
+        break;
+      case "server":
+        content = this.serverLibrary
+          ? html`
+              <p class="settings-path">${this.serverLibrary.url}</p>
+              <p class="settings-hint">${this.serverLibrary.song_count} songs cached · Last synchronized ${this.formatServerSyncTime(this.serverLibrary.last_synced_at)}</p>
+              <div class="settings-actions">
+                <button class="primary" ?disabled=${this.serverSyncing} @click=${() => this.syncServerLibrary()}>${this.serverSyncing ? "Synchronizing…" : "Synchronize library"}</button>
+                <button class="ghost" ?disabled=${this.serverSyncing} @click=${() => this.disconnectServerLibrary()}>${this.lastLocalSongsFolder ? "Return to local library" : "Disconnect"}</button>
+              </div>
+              ${this.renderServerSyncProgress()}
+              <p class="settings-hint settings-note">Synchronization adds exact local-only songs from the remembered local folder, then downloads the complete server library. Projection and browsing continue from the cache when the server is offline.</p>`
+          : html`
+              <p class="settings-hint">Paste a desktop sync token from PSA150 Server. On first connection, local-only songs are added to the server and the merged library is downloaded for offline use. Exact content matches are not duplicated.</p>
+              <div class="settings-fields">
+                <label class="settings-field"><span>Server URL</span><input type="url" inputmode="url" placeholder="https://songs.example.org" .value=${this.serverUrl} @input=${(event: Event) => (this.serverUrl = (event.target as HTMLInputElement).value)} /></label>
+                <label class="settings-field"><span>Desktop token</span><input type="password" autocomplete="off" placeholder="psa_d_…" .value=${this.serverToken} @input=${(event: Event) => (this.serverToken = (event.target as HTMLInputElement).value)} /></label>
+              </div>
+              <button class="primary" ?disabled=${this.serverSyncing} @click=${() => this.connectServerLibrary()}>${this.serverSyncing ? "Connecting…" : "Connect and download"}</button>
+              ${this.renderServerSyncProgress()}`;
+        break;
+      case "projection":
+        content = html`
+          <div class="settings-row"><span class="settings-row-label">Congregation</span><psa150-select .options=${this.audienceDisplayOptions()} .value=${this.audienceMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}></psa150-select></div>
+          <div class="settings-row"><span class="settings-row-label">Stage</span><psa150-select .options=${this.stageDisplayOptions()} .value=${this.stageMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}></psa150-select></div>
+          <label class="settings-check"><input type="checkbox" .checked=${this.projectToStage} @change=${(e: Event) => this.onProjectToStageChange((e.target as HTMLInputElement).checked)} /><span>Also show stage window when projecting (musician chords)</span></label>
+          <label class="settings-check"><input type="checkbox" .checked=${this.readOnly} ?disabled=${Boolean(this.serverLibrary)} @change=${(e: Event) => this.onReadOnlyChange((e.target as HTMLInputElement).checked)} /><span>Read-only library (prevent edits and deletes)</span></label>`;
+        break;
+      case "search":
+        content = html`<label class="settings-check"><input type="checkbox" .checked=${this.webSearchEnabled} @change=${(e: Event) => this.onWebSearchEnabledChange((e.target as HTMLInputElement).checked)} /><span>Search the web when no local songs match</span></label>`;
+        break;
+      case "remote":
+        content = html`
+          <label class="settings-check"><input type="checkbox" .checked=${Boolean(this.remoteStatus?.running)} @change=${(e: Event) => this.onRemoteEnabledChange((e.target as HTMLInputElement).checked)} /><span>Let a phone on the network (Wi-Fi or Tailscale) change slides</span></label>
+          ${this.remoteStatus?.running ? html`<p class="settings-path">On the phone, open http://&lt;this PC&gt;:${this.remoteStatus.port}/ · PIN ${this.remoteStatus.pin}</p>` : nothing}`;
+        break;
+      case "reports":
+        content = html`<div class="settings-actions"><button class="secondary" @click=${() => this.printSongbook()}>Print songbook HTML</button><button class="secondary" @click=${() => this.exportCcli()}>Export CCLI CSV</button></div>`;
+        break;
+      case "shortcuts":
+        content = html`<div class="shortcuts">
+          <span><kbd>Enter</kbd> project</span><span><kbd>↑</kbd> <kbd>↓</kbd> stanzas</span>
+          <span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>
+          <span><kbd>←</kbd> <kbd>→</kbd> slides</span><span><kbd>B</kbd> blank</span><span><kbd>Esc</kbd> close projection</span>
+        </div>`;
+        break;
+    }
+
+    return html`<section class="settings-section" id="settings-${id}"><h3>${title}</h3>${content}</section>`;
+  }
+
+  private renderSettingsContent(): TemplateResult {
+    const query = this.settingsQuery.trim();
+    const matchingSections = SETTINGS_SECTIONS.filter((section) => this.settingMatches(section, query));
+    const sectionsToRender = query
+      ? matchingSections.map((section) => section.id)
+      : [this.activeSettingsSection];
+
     return html`
-      <div class="settings-section">
-        <h3>Library</h3>
-        <p class="settings-path">${folderLabel}</p>
-        <div class="settings-actions">
-          <button class="secondary" @click=${() => this.pickFolder()}>Choose Songs Folder</button>
-          <button class="secondary" @click=${() => this.runImportMdb()}>Import MDB</button>
-          <button class="ghost" @click=${() => this.rescan()}>Rescan library</button>
-          <button class="ghost" @click=${() => this.openDuplicateReview()}>
-            Review possible duplicates
-          </button>
+      <div class="settings-layout">
+        <aside class="settings-nav" aria-label="Settings categories">
+          <label class="settings-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+            <input type="search" placeholder="Find a setting" .value=${this.settingsQuery} @input=${(event: Event) => (this.settingsQuery = (event.target as HTMLInputElement).value)} />
+            ${query ? html`<button type="button" aria-label="Clear settings search" @click=${() => (this.settingsQuery = "")}>×</button>` : nothing}
+          </label>
+          <span class="settings-nav-label">Settings</span>
+          <nav>
+            ${SETTINGS_SECTIONS.map((section) => html`
+              <button class="${!query && this.activeSettingsSection === section.id ? "active" : ""}" type="button" @click=${() => this.selectSettingsSection(section.id)}>
+                <span class="settings-nav-icon" aria-hidden="true">${section.icon}</span>${section.label}
+                ${query && this.settingMatches(section, query) ? html`<span class="settings-match" aria-label="Matches search">•</span>` : nothing}
+              </button>`)}
+          </nav>
+        </aside>
+        <div class="settings-panel" aria-live="polite">
+          ${query ? html`<div class="settings-results-heading"><span>Search results</span><strong>${matchingSections.length} ${matchingSections.length === 1 ? "section" : "sections"} match “${query}”</strong></div>` : nothing}
+          ${sectionsToRender.length ? sectionsToRender.map((id) => this.renderSettingsSection(id)) : html`<div class="settings-empty"><strong>No matching settings</strong><span>Try terms like “display”, “songs”, “remote”, or “import”.</span></div>`}
         </div>
-        <label class="settings-check">
-          <input
-            type="checkbox"
-            .checked=${this.showSongNumbers}
-            @change=${(e: Event) =>
-              this.onShowSongNumbersChange((e.target as HTMLInputElement).checked)}
-          />
-          <span>Show song numbers in the song list</span>
-        </label>
-      </div>
-      <div class="settings-section">
-        <h3>Projection</h3>
-        <div class="settings-row">
-          <span class="settings-row-label">Congregation</span>
-          <psa150-select
-            .options=${this.audienceDisplayOptions()}
-            .value=${this.audienceMonitor}
-            @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}
-          ></psa150-select>
-        </div>
-        <div class="settings-row">
-          <span class="settings-row-label">Stage</span>
-          <psa150-select
-            .options=${this.stageDisplayOptions()}
-            .value=${this.stageMonitor}
-            @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}
-          ></psa150-select>
-        </div>
-        <label class="settings-check">
-          <input
-            type="checkbox"
-            .checked=${this.projectToStage}
-            @change=${(e: Event) => this.onProjectToStageChange((e.target as HTMLInputElement).checked)}
-          />
-          <span>Also show stage window when projecting (musician chords)</span>
-        </label>
-        <label class="settings-check">
-          <input
-            type="checkbox"
-            .checked=${this.readOnly}
-            @change=${(e: Event) => this.onReadOnlyChange((e.target as HTMLInputElement).checked)}
-          />
-          <span>Read-only library (prevent edits and deletes)</span>
-        </label>
-      </div>
-      <div class="settings-section">
-        <h3>Search</h3>
-        <label class="settings-check">
-          <input
-            type="checkbox"
-            .checked=${this.webSearchEnabled}
-            @change=${(e: Event) =>
-              this.onWebSearchEnabledChange((e.target as HTMLInputElement).checked)}
-          />
-          <span>Search the web when no local songs match</span>
-        </label>
-      </div>
-      <div class="settings-section">
-        <h3>Phone remote</h3>
-        <label class="settings-check">
-          <input
-            type="checkbox"
-            .checked=${Boolean(this.remoteStatus?.running)}
-            @change=${(e: Event) =>
-              this.onRemoteEnabledChange((e.target as HTMLInputElement).checked)}
-          />
-          <span>Let a phone on the network (Wi-Fi or Tailscale) change slides</span>
-        </label>
-        ${this.remoteStatus?.running
-          ? html`<p class="settings-path">
-              On the phone, open http://&lt;this PC&gt;:${this.remoteStatus.port}/ · PIN ${this.remoteStatus.pin}
-            </p>`
-          : nothing}
-      </div>
-      <div class="settings-section">
-        <h3>Reports</h3>
-        <div class="settings-actions">
-          <button class="secondary" @click=${() => this.printSongbook()}>Print songbook HTML</button>
-          <button class="secondary" @click=${() => this.exportCcli()}>Export CCLI CSV</button>
-        </div>
-      </div>
-      <div class="shortcuts">
-        <span><kbd>Enter</kbd> project</span>
-        <span><kbd>↑</kbd> <kbd>↓</kbd> stanzas</span>
-        <span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>
-        <span><kbd>←</kbd> <kbd>→</kbd> slides</span>
-        <span><kbd>B</kbd> blank</span>
-        <span><kbd>Esc</kbd> close projection</span>
-      </div>
-    `;
+      </div>`;
   }
 
   private renderEditContent(): TemplateResult {

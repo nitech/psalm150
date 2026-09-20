@@ -29,7 +29,7 @@ sources:
   - id: stanza-number-test
     resource: /tests/stanza-number-input.test.ts
     title: Stanza selection and timeout tests
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-09-13T19:10:00Z }
 ---
 
 # Operator console
@@ -135,13 +135,20 @@ for long songs. Settings includes a hint for the number shortcuts.
 
 ## Settings modal
 
+Settings is a two-pane dialog. A persistent category menu selects Library,
+Church server, Projection, Search, Phone remote, Reports, or Keyboard
+shortcuts; the current category stays focused in the main pane. The menu's
+**Find a setting** search filters the pane to every matching category and
+marks matching menu items, so a term such as "display", "remote", or
+"import" leads directly to its controls.
+
 Library: folder path, Choose Songs Folder, Import MDB, Rescan, manual
 [duplicate review](duplicate-review.md), song numbers toggle. Projection:
-Congregation display (Primary / Simulated / monitors),
-Stage display, "Also show stage window", "Read-only library". Search: web
-search toggle. Phone remote: on/off toggle that shows the port and PIN while
-running ([remote control](remote-control.md)). Reports: Print songbook HTML,
-Export CCLI CSV. Shortcut legend.
+Congregation display (Primary / Simulated / monitors), Stage display, "Also
+show stage window", "Read-only library". Search: web search toggle. Phone
+remote: on/off toggle that shows the port and PIN while running ([remote
+control](remote-control.md)). Reports: Print songbook HTML, Export CCLI CSV.
+Shortcut legend.
 
 ## Edit modal
 

@@ -10,7 +10,15 @@ use crate::projection::SlideTheme;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub last_songs_folder: Option<String>,
+    /// Most recently selected user-owned ChordPro folder. Kept separately so
+    /// switching to a managed server cache never loses the return path.
+    #[serde(default)]
+    pub last_local_songs_folder: Option<String>,
     pub read_only: bool,
+    /// A server-backed library uses a managed local ChordPro cache. The
+    /// credential is stored separately and is never serialized to the UI.
+    #[serde(default)]
+    pub server_library: Option<ServerLibraryConfig>,
     /// When projecting a song, also show the stage window (musician chords).
     #[serde(default)]
     pub project_to_stage: bool,
@@ -43,7 +51,9 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             last_songs_folder: None,
+            last_local_songs_folder: None,
             read_only: false,
+            server_library: None,
             project_to_stage: false,
             web_search_enabled: default_web_search_enabled(),
             show_song_numbers: default_show_song_numbers(),
@@ -58,6 +68,13 @@ impl Default for AppConfig {
             first_run_complete: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerLibraryConfig {
+    pub url: String,
+    pub last_synced_at: String,
+    pub song_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +118,22 @@ impl AppConfig {
 pub fn global_config_path(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
     Ok(dir.join("config.json"))
+}
+
+pub fn server_token_path(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|dir| dir.join("server-device-token"))
+        .map_err(|error| error.to_string())
+}
+
+pub fn server_library_root(app: &AppHandle, server_url: &str) -> Result<PathBuf, String> {
+    let digest = Sha256::digest(server_url.as_bytes());
+    let server_hash = format!("{:x}", digest)[..16].to_string();
+    app.path()
+        .app_data_dir()
+        .map(|dir| dir.join("server-libraries").join(server_hash))
+        .map_err(|error| error.to_string())
 }
 
 pub fn library_root(app: &AppHandle, folder_hash: &str) -> Result<PathBuf, String> {

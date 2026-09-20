@@ -163,6 +163,14 @@ export interface ImportProgress {
   song_title: string;
 }
 
+export interface ServerSyncProgress {
+  phase: "preparing" | "uploading" | "downloading" | "activating";
+  label: string;
+  current: number;
+  total: number | null;
+  unit: "songs" | "bytes" | "steps";
+}
+
 export interface Setlist {
   id: string;
   name: string;
@@ -228,7 +236,9 @@ export interface RemoteStatus {
 
 export interface AppConfig {
   last_songs_folder?: string | null;
+  last_local_songs_folder?: string | null;
   read_only: boolean;
+  server_library?: ServerLibraryConfig | null;
   web_search_enabled: boolean;
   /** Show the song-number column in the song list (default on). */
   show_song_numbers: boolean;
@@ -241,6 +251,12 @@ export interface AppConfig {
   key_format_compressed: boolean;
   history_days: number;
   first_run_complete: boolean;
+}
+
+export interface ServerLibraryConfig {
+  url: string;
+  last_synced_at: string;
+  song_count: number;
 }
 
 export const api = {
@@ -323,6 +339,10 @@ export const api = {
   setlistAdvance: () => invoke<SetlistItem | null>("setlist_advance"),
   setlistPrevious: () => invoke<SetlistItem | null>("setlist_previous"),
   setReadOnly: (readOnly: boolean) => invoke<void>("set_read_only", { readOnly }),
+  connectServerLibrary: (url: string, token: string) =>
+    invoke<LibraryStatus>("connect_server_library", { url, token }),
+  syncServerLibrary: () => invoke<LibraryStatus>("sync_server_library"),
+  disconnectServerLibrary: () => invoke<void>("disconnect_server_library"),
   setWebSearchEnabled: (enabled: boolean) =>
     invoke<void>("set_web_search_enabled", { enabled }),
   setProjectToStage: (projectToStage: boolean) =>

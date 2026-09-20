@@ -19,14 +19,31 @@ bun run tauri
 ## Usage
 
 1. Launch the app
-2. **Open Songs Folder** — select a directory that will contain only `.pro` / `.cho` files (e.g. a Dropbox folder)
-3. **Import MDB** — convert a legacy Visual Song Book `.mdb` songbook into ChordPro files in that folder
-4. Search, project to the audience window, manage setlists locally
+2. Choose a library source in **Settings**:
+   - **Use Local Songs Folder** for a directory containing only `.pro` / `.cho` files (for example, a Dropbox folder), or
+   - **Church song server** for a read-only offline replica using a desktop token created by PSA150 Server.
+3. **Import MDB** converts a legacy Visual Song Book `.mdb` songbook into a local ChordPro folder.
+4. Search, project to the audience window, and manage setlists locally.
+
+A server-backed library downloads into managed app storage. On first
+connection and each explicit synchronization, the client adds ChordPro
+documents from the remembered local folder whose exact content is not already
+on the server, then downloads the merged server library. Exact matches are
+skipped and differing versions are kept separately. The original local folder
+remains unchanged and is remembered as a return path.
+
+Synchronization is explicit in Phase 1, and the last complete cache opens
+without a network connection. PostgreSQL becomes canonical after connection;
+editing existing server-backed songs from the desktop is deferred until the
+conflict-aware upload protocol is implemented.
 
 ## Architecture
 
-- **Songs folder** (synced): ChordPro files only
-- **Local app data**: SQLite index, setlists, history, CCLI log, theme, favorites
+- **Folder-backed library**: ChordPro files are canonical.
+- **Server-backed library**: PostgreSQL is canonical; the desktop uses a managed,
+  read-only ChordPro cache.
+- **Local app data**: SQLite index, server cache, setlists, history, CCLI log,
+  theme, and favorites.
 
 See [docs/songs-folder-contract.md](docs/songs-folder-contract.md).
 

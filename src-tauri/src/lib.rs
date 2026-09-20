@@ -56,8 +56,9 @@ pub mod state {
 
     impl RuntimeState {
         pub fn new(config: AppConfig) -> Self {
+            let read_only = config.read_only || config.server_library.is_some();
             Self {
-                read_only: config.read_only,
+                read_only,
                 config,
                 songs_folder: None,
                 folder_hash: None,
@@ -268,6 +269,9 @@ pub fn run() {
             commands::remote_cmd::start_remote,
             commands::remote_cmd::stop_remote,
             commands::remote_cmd::get_remote_status,
+            commands::server_library::connect_server_library,
+            commands::server_library::sync_server_library,
+            commands::server_library::disconnect_server_library,
             commands::web_search_cmd::search_web_songs,
         ])
         .run(tauri::generate_context!())
