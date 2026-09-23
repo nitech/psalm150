@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
@@ -94,6 +94,21 @@ pub struct CreateSongRequest {
 pub struct UpdateSongRequest {
     pub base_revision_id: Uuid,
     pub chordpro: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct DeleteSongQuery {
+    /// Revision the caller last saw; a newer current revision is a 409.
+    pub base_revision_id: Option<Uuid>,
+}
+
+/// One line of `psa150-manifest.json` in the export ZIP.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ExportManifestEntry {
+    pub filename: String,
+    pub id: Uuid,
+    pub revision_id: Uuid,
+    pub content_hash: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -43,3 +43,11 @@ export interface DeviceTokenSummary {
   created_at: string;
   last_used_at: string | null;
 }
+
+/** One entry of `psa150-manifest.json` in the export ZIP. */
+export interface ExportManifestEntry {
+  filename: string;
+  id: string;
+  revision_id: string;
+  content_hash: string;
+}

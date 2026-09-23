@@ -20,18 +20,22 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 use crate::{
     AppState,
     auth::{
-        LoginRow, authenticate, hash_password, hash_token, issue_session, new_token,
+        Actor, LoginRow, authenticate, hash_password, hash_token, issue_session, new_token,
         verify_password,
     },
     chordpro,
     error::{AppError, ErrorBody},
     models::{
-        CreateDeviceTokenRequest, CreateSongRequest, DeviceTokenResponse, DeviceTokenSummary,
-        HealthResponse, ImportSongInput, ImportSongsRequest, ImportSongsResponse, LoginRequest,
-        RevisionSummary, Role, SessionResponse, SetupRequest, SetupStatus, SongDetail, SongQuery,
-        SongSummary, UpdateSongRequest,
+        CreateDeviceTokenRequest, CreateSongRequest, DeleteSongQuery, DeviceTokenResponse,
+        DeviceTokenSummary, ExportManifestEntry, HealthResponse, ImportSongInput,
+        ImportSongsRequest, ImportSongsResponse, LoginRequest, RevisionSummary, Role,
+        SessionResponse, SetupRequest, SetupStatus, SongDetail, SongQuery, SongSummary,
+        UpdateSongRequest,
     },
 };
+
+/// Name of the JSON entry in the export ZIP that maps files to songs.
+pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
 
 #[derive(OpenApi)]
 #[openapi(
@@ -52,6 +56,7 @@ use crate::{
         create_song,
         get_song,
         update_song,
+        delete_song,
         list_revisions,
         import_songs,
         export_songs
@@ -74,7 +79,8 @@ use crate::{
         RevisionSummary,
         ImportSongInput,
         ImportSongsRequest,
-        ImportSongsResponse
+        ImportSongsResponse,
+        ExportManifestEntry
     )),
     tags((name = "PSA150", description = "PSA150 Song Server"))
 )]
@@ -99,7 +105,10 @@ pub fn router() -> Router<AppState> {
             post(import_songs).layer(DefaultBodyLimit::max(64 * 1024 * 1024)),
         )
         .route("/songs/export", get(export_songs))
-        .route("/songs/{song_id}", get(get_song).put(update_song))
+        .route(
+            "/songs/{song_id}",
+            get(get_song).put(update_song).delete(delete_song),
+        )
         .route("/songs/{song_id}/revisions", get(list_revisions))
 }
 
@@ -380,8 +389,8 @@ async fn create_song(
     Json(request): Json<CreateSongRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    let user_id = auth.require_editor()?;
-    let song = insert_song(&state.pool, auth.church_id, user_id, request.chordpro).await?;
+    let actor = auth.require_song_editor()?;
+    let song = insert_song(&state.pool, auth.church_id, actor, request.chordpro).await?;
     Ok((StatusCode::CREATED, Json(song)))
 }
 
@@ -421,7 +430,7 @@ async fn update_song(
     Json(request): Json<UpdateSongRequest>,
 ) -> Result<Json<SongDetail>, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    let user_id = auth.require_editor()?;
+    let actor = auth.require_song_editor()?;
     validate_chordpro(&request.chordpro)?;
     let parsed = chordpro::metadata(&request.chordpro);
     let revision_id = Uuid::new_v4();
@@ -441,7 +450,7 @@ async fn update_song(
             revision_id,
             song_id,
             parent_revision_id: Some(current_revision_id),
-            user_id: Some(user_id),
+            actor,
             source: &request.chordpro,
             parsed: &parsed,
             created_at: Utc::now(),
@@ -460,6 +469,50 @@ async fn update_song(
             .await?
             .ok_or_else(|| AppError::NotFound("song was not found".into()))?,
     ))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/songs/{song_id}",
+    params(("song_id" = Uuid, Path), DeleteSongQuery),
+    responses(
+        (status = 204),
+        (status = 409, body = ErrorBody),
+        (status = 404, body = ErrorBody)
+    )
+)]
+async fn delete_song(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(song_id): Path<Uuid>,
+    Query(query): Query<DeleteSongQuery>,
+) -> Result<StatusCode, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    let actor = auth.require_song_editor()?;
+    let mut transaction = state.pool.begin().await?;
+
+    let current_revision_id = lock_song(&mut transaction, auth.church_id, song_id).await?;
+    // Like updates, a delete based on an older revision must not discard a
+    // newer edit: the caller has to look at the change first.
+    if let Some(base) = query.base_revision_id
+        && base != current_revision_id
+    {
+        return Err(AppError::Conflict(format!(
+            "song changed since revision {base}; current revision is {current_revision_id}"
+        )));
+    }
+    sqlx::query(
+        "UPDATE songs SET deleted_at = now(), deleted_by = $1, deleted_by_device = $2
+         WHERE id = $3 AND church_id = $4",
+    )
+    .bind(actor.user_id)
+    .bind(actor.device_id)
+    .bind(song_id)
+    .bind(auth.church_id)
+    .execute(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(
@@ -509,13 +562,7 @@ async fn import_songs(
     Json(request): Json<ImportSongsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    // A device credential may add exact new ChordPro documents during an
-    // initial library merge, but it still cannot edit or delete server songs.
-    let user_id = if auth.is_device {
-        None
-    } else {
-        Some(auth.require_editor()?)
-    };
+    let actor = auth.require_song_editor()?;
     if request.songs.is_empty() || request.songs.len() > 500 {
         return Err(AppError::BadRequest(
             "an import must contain between 1 and 500 songs".into(),
@@ -552,7 +599,7 @@ async fn import_songs(
             continue;
         }
         imported.push(
-            insert_song_in_transaction(&mut transaction, auth.church_id, user_id, song.chordpro)
+            insert_song_in_transaction(&mut transaction, auth.church_id, actor, song.chordpro)
                 .await?,
         );
     }
@@ -592,14 +639,32 @@ async fn export_songs(
 
     let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let mut manifest = Vec::with_capacity(songs.len());
     for song in songs {
+        let filename = chordpro::export_filename(&song.title, song.id);
         archive
-            .start_file(chordpro::export_filename(&song.title, song.id), options)
+            .start_file(filename.as_str(), options)
             .map_err(|error| AppError::Internal(format!("could not create export: {error}")))?;
         archive
             .write_all(song.chordpro.as_bytes())
             .map_err(|error| AppError::Internal(format!("could not create export: {error}")))?;
+        manifest.push(ExportManifestEntry {
+            filename,
+            id: song.id,
+            revision_id: song.revision_id,
+            content_hash: song.content_hash,
+        });
     }
+    // Maps each exported file to its song and revision so a desktop can send
+    // edits (with the base revision) and deletions back.
+    archive
+        .start_file(EXPORT_MANIFEST, options)
+        .map_err(|error| AppError::Internal(format!("could not create export: {error}")))?;
+    let manifest = serde_json::to_vec(&manifest)
+        .map_err(|error| AppError::Internal(format!("could not create export: {error}")))?;
+    archive
+        .write_all(&manifest)
+        .map_err(|error| AppError::Internal(format!("could not create export: {error}")))?;
     let bytes = archive
         .finish()
         .map_err(|error| AppError::Internal(format!("could not finish export: {error}")))?
@@ -620,12 +685,11 @@ async fn export_songs(
 async fn insert_song(
     pool: &PgPool,
     church_id: Uuid,
-    user_id: Uuid,
+    actor: Actor,
     source: String,
 ) -> Result<SongSummary, AppError> {
     let mut transaction = pool.begin().await?;
-    let song =
-        insert_song_in_transaction(&mut transaction, church_id, Some(user_id), source).await?;
+    let song = insert_song_in_transaction(&mut transaction, church_id, actor, source).await?;
     transaction.commit().await?;
     Ok(song)
 }
@@ -633,7 +697,7 @@ async fn insert_song(
 async fn insert_song_in_transaction(
     transaction: &mut Transaction<'_, Postgres>,
     church_id: Uuid,
-    user_id: Option<Uuid>,
+    actor: Actor,
     source: String,
 ) -> Result<SongSummary, AppError> {
     validate_chordpro(&source)?;
@@ -654,7 +718,7 @@ async fn insert_song_in_transaction(
             revision_id,
             song_id,
             parent_revision_id: None,
-            user_id,
+            actor,
             source: &source,
             parsed: &parsed,
             created_at,
@@ -682,7 +746,7 @@ struct NewRevision<'a> {
     revision_id: Uuid,
     song_id: Uuid,
     parent_revision_id: Option<Uuid>,
-    user_id: Option<Uuid>,
+    actor: Actor,
     source: &'a str,
     parsed: &'a chordpro::SongMetadata,
     created_at: chrono::DateTime<Utc>,
@@ -695,8 +759,8 @@ async fn insert_revision(
     sqlx::query(
         "INSERT INTO song_revisions
          (id, song_id, parent_revision_id, title, song_number, authors, language,
-          chordpro, content_hash, created_by, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+          chordpro, content_hash, created_by, created_by_device, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
     )
     .bind(revision.revision_id)
     .bind(revision.song_id)
@@ -707,7 +771,8 @@ async fn insert_revision(
     .bind(&revision.parsed.language)
     .bind(revision.source)
     .bind(chordpro::content_hash(revision.source))
-    .bind(revision.user_id)
+    .bind(revision.actor.user_id)
+    .bind(revision.actor.device_id)
     .bind(revision.created_at)
     .execute(&mut **transaction)
     .await?;

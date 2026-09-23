@@ -20,9 +20,36 @@ pub struct AuthContext {
     pub church_id: Uuid,
     pub role: Role,
     pub is_device: bool,
+    pub device_id: Option<Uuid>,
+}
+
+/// Who wrote a song change: a person or a desktop device token.
+#[derive(Debug, Clone, Copy)]
+pub struct Actor {
+    pub user_id: Option<Uuid>,
+    pub device_id: Option<Uuid>,
 }
 
 impl AuthContext {
+    /// Song create, edit and delete: leaders and editors, and desktop tokens,
+    /// which keep a church's desktops and their Visual Song Book in sync.
+    pub fn require_song_editor(&self) -> Result<Actor, AppError> {
+        if self.is_device {
+            return Ok(self.actor());
+        }
+        Ok(Actor {
+            user_id: Some(self.require_editor()?),
+            device_id: None,
+        })
+    }
+
+    pub fn actor(&self) -> Actor {
+        Actor {
+            user_id: self.user_id,
+            device_id: self.device_id,
+        }
+    }
+
     pub fn require_editor(&self) -> Result<Uuid, AppError> {
         if self.is_device || !self.role.can_edit() {
             return Err(AppError::Forbidden("leader access is required".into()));
@@ -41,6 +68,7 @@ struct SessionRow {
 
 #[derive(FromRow)]
 struct DeviceRow {
+    id: Uuid,
     church_id: Uuid,
 }
 
@@ -82,12 +110,13 @@ pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<AuthC
             role: Role::from_db(&session.role)
                 .ok_or_else(|| AppError::Internal("unknown role in database".into()))?,
             is_device: false,
+            device_id: None,
         });
     }
 
     if token.starts_with("psa_d_") {
         let device = sqlx::query_as::<_, DeviceRow>(
-            "SELECT church_id FROM device_tokens
+            "SELECT id, church_id FROM device_tokens
              WHERE token_hash = $1 AND revoked_at IS NULL",
         )
         .bind(&token_hash)
@@ -105,6 +134,7 @@ pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<AuthC
             church_id: device.church_id,
             role: Role::Viewer,
             is_device: true,
+            device_id: Some(device.id),
         });
     }
 

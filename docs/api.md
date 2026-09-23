@@ -33,9 +33,10 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `POST` | `/api/v1/songs` | Create a song and its first revision |
 | `GET` | `/api/v1/songs/{id}` | Read the current ChordPro source and metadata |
 | `PUT` | `/api/v1/songs/{id}` | Create a revision from an expected base revision |
+| `DELETE` | `/api/v1/songs/{id}?base_revision_id=` | Delete a song (soft); a stale base revision is `409` |
 | `GET` | `/api/v1/songs/{id}/revisions` | List immutable revision metadata |
 | `POST` | `/api/v1/songs/import` | Import up to 500 ChordPro songs, skipping exact content matches |
-| `GET` | `/api/v1/songs/export` | Download current songs as a ZIP of `.pro` files |
+| `GET` | `/api/v1/songs/export` | Download current songs as a ZIP of `.pro` files plus `psa150-manifest.json` |
 
 ## Conflict contract
 

@@ -94,15 +94,69 @@ async fn private_library_flow(pool: PgPool) {
     let device_list = send(&app, "GET", "/api/v1/songs", Some(device_token), None).await;
     assert_eq!(device_list.0, StatusCode::OK);
 
+    // Desktops edit songs (to keep Visual Song Book in step) but still cannot
+    // manage device tokens.
     let denied = send(
+        &app,
+        "POST",
+        "/api/v1/device-tokens",
+        Some(device_token),
+        Some(json!({ "name": "Rogue PC" })),
+    )
+    .await;
+    assert_eq!(denied.0, StatusCode::FORBIDDEN);
+
+    let device_song = send(
         &app,
         "POST",
         "/api/v1/songs",
         Some(device_token),
-        Some(json!({ "chordpro": "{title: Must be denied}" })),
+        Some(json!({ "chordpro": "{title: From VSB}\n\nFirst line" })),
     )
     .await;
-    assert_eq!(denied.0, StatusCode::FORBIDDEN);
+    assert_eq!(device_song.0, StatusCode::CREATED);
+    let device_song_id = device_song.1["id"].as_str().expect("device song id");
+    let first_revision = device_song.1["revision_id"].as_str().expect("revision");
+
+    let device_edit = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/songs/{device_song_id}"),
+        Some(device_token),
+        Some(json!({ "base_revision_id": first_revision, "chordpro": "{title: From VSB}\n\nEdited line" })),
+    )
+    .await;
+    assert_eq!(device_edit.0, StatusCode::OK);
+
+    let stale_delete = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{device_song_id}?base_revision_id={first_revision}"),
+        Some(device_token),
+        None,
+    )
+    .await;
+    assert_eq!(stale_delete.0, StatusCode::CONFLICT);
+
+    let current_revision = device_edit.1["revision_id"].as_str().expect("revision");
+    let device_delete = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{device_song_id}?base_revision_id={current_revision}"),
+        Some(device_token),
+        None,
+    )
+    .await;
+    assert_eq!(device_delete.0, StatusCode::NO_CONTENT);
+    let gone = send(
+        &app,
+        "GET",
+        &format!("/api/v1/songs/{device_song_id}"),
+        Some(device_token),
+        None,
+    )
+    .await;
+    assert_eq!(gone.0, StatusCode::NOT_FOUND);
 
     let device_merge = send(
         &app,
