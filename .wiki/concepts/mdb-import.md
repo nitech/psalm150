@@ -29,7 +29,7 @@ sources:
   - id: fixture
     resource: /brattvaag-2018-12-28.mdb
     title: Sample database (963 songs) committed as a test fixture
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-09-23T18:00:00Z }
 ---
 
 # MDB import
@@ -49,7 +49,9 @@ songs folder must already be open; the console offers to pick one first.
    - `parse_vsb_body`: header lines `verse`, `verse 2`, `chorus`, `chorus 2`,
      `bridge`, `intro`, `outro` (case-insensitive) start sections; a line that
      matches the chord-token regex and is followed by a non-empty line is paired
-     with it, chord positions taken from the chord's column; a blank line
+     with it, chord positions taken from the chord's column on the untrimmed
+     row, less the lyric row's indentation (before 2026-09-23 the chord row was
+     trimmed first, so indented chords landed too far left); a blank line
      starts a new stanza section (chorus/bridge become verse after the break);
    - meta: `vsb_song_id`, `category`, `artist`, `copyright`,
      `arrangement=congregation`; then `serialize_chordpro`.
@@ -92,5 +94,6 @@ normalized lyric text and never merges automatically.
 
 ## Related
 
+- [VSB sync](vsb-sync.md): keeps a linked database and the library in step
 - [ChordPro dialect](chordpro-dialect.md): output format
 - [Songs folder](songs-folder.md): destination and rescan

@@ -46,3 +46,7 @@ path = "tests/mdb_import.rs"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+
+[target.'cfg(windows)'.dependencies]
+odbc-api = "29"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Globalization"] }

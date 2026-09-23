@@ -16,6 +16,10 @@ use crate::{emit_library_changed, with_state, AppState};
 const MAX_EXPORT_BYTES: usize = 128 * 1024 * 1024;
 const MAX_SONG_BYTES: u64 = 1_000_000;
 const MAX_IMPORT_SONGS_PER_REQUEST: usize = 50;
+/// Export entry mapping files to server songs and revisions (newer servers).
+const EXPORT_MANIFEST: &str = "psa150-manifest.json";
+/// Saved next to (never inside) the replica's songs folder.
+const MANIFEST_FILE: &str = "manifest.json";
 
 #[derive(Serialize)]
 struct ImportSongInput {
@@ -133,7 +137,7 @@ pub fn disconnect_server_library(app: AppHandle, state: State<'_, AppState>) -> 
     Ok(())
 }
 
-async fn synchronize(
+pub(crate) async fn synchronize(
     app: &AppHandle,
     state: &State<'_, AppState>,
     url: &str,
@@ -183,8 +187,8 @@ async fn synchronize(
     let staging = root.join(format!(".staging-{}", Uuid::new_v4()));
     fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
 
-    let song_count = match extract_export(&archive, &staging) {
-        Ok(count) => count,
+    let (song_count, manifest) = match extract_export(&archive, &staging) {
+        Ok(result) => result,
         Err(error) => {
             let _ = fs::remove_dir_all(&staging);
             return Err(error);
@@ -219,6 +223,13 @@ async fn synchronize(
     };
     if let Some(previous) = previous {
         let _ = fs::remove_dir_all(previous);
+    }
+    let manifest_path = root.join(MANIFEST_FILE);
+    match manifest {
+        Some(bytes) => fs::write(&manifest_path, bytes).map_err(|error| error.to_string())?,
+        None => {
+            let _ = fs::remove_file(&manifest_path);
+        }
     }
 
     write_token(app, token)?;
@@ -262,6 +273,30 @@ async fn upload_local_songs(
             chordpro: song.raw,
         })
         .collect::<Vec<_>>();
+    import_songs(app, server_url, token, songs).await
+}
+
+/// Add new ChordPro documents through the import endpoint, which device
+/// tokens may use; exact content matches are skipped by the server.
+pub(crate) async fn import_chordpro(
+    app: &AppHandle,
+    server_url: &str,
+    token: &str,
+    songs: Vec<(String, String)>,
+) -> Result<usize, String> {
+    let songs = songs
+        .into_iter()
+        .map(|(filename, chordpro)| ImportSongInput { filename, chordpro })
+        .collect();
+    import_songs(app, server_url, token, songs).await
+}
+
+async fn import_songs(
+    app: &AppHandle,
+    server_url: &str,
+    token: &str,
+    songs: Vec<ImportSongInput>,
+) -> Result<usize, String> {
     if songs.is_empty() {
         return Ok(0);
     }
@@ -436,10 +471,13 @@ fn normalize_server_url(value: &str) -> Result<String, String> {
     Ok(url.to_string())
 }
 
-fn extract_export(bytes: &[u8], destination: &Path) -> Result<usize, String> {
+/// Unpack the ChordPro files into `destination`; returns their count and the
+/// raw manifest when the server sent one.
+fn extract_export(bytes: &[u8], destination: &Path) -> Result<(usize, Option<Vec<u8>>), String> {
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .map_err(|error| format!("The server returned an invalid ZIP archive: {error}"))?;
     let mut song_count = 0;
+    let mut manifest = None;
     for index in 0..archive.len() {
         let mut entry = archive
             .by_index(index)
@@ -454,6 +492,15 @@ fn extract_export(bytes: &[u8], destination: &Path) -> Result<usize, String> {
             .file_name()
             .ok_or_else(|| "The server export contains an invalid filename".to_string())?;
         let filename = filename.to_string_lossy();
+        if filename == EXPORT_MANIFEST && enclosed.parent() == Some(Path::new("")) {
+            if entry.size() > MAX_EXPORT_BYTES as u64 {
+                return Err("The server manifest is too large".into());
+            }
+            let mut bytes = Vec::new();
+            std::io::copy(&mut entry, &mut bytes).map_err(|error| error.to_string())?;
+            manifest = Some(bytes);
+            continue;
+        }
         if !crate::library::chordpro::is_chordpro_filename(&filename) {
             continue;
         }
@@ -470,7 +517,99 @@ fn extract_export(bytes: &[u8], destination: &Path) -> Result<usize, String> {
         std::io::copy(&mut entry, &mut output).map_err(|error| error.to_string())?;
         song_count += 1;
     }
-    Ok(song_count)
+    Ok((song_count, manifest))
+}
+
+/// Filename → server song from the last download; empty for older servers.
+pub(crate) fn read_manifest(
+    app: &AppHandle,
+    server_url: &str,
+) -> std::collections::HashMap<String, crate::vsb_sync::ServerSongRef> {
+    config::server_library_root(app, server_url)
+        .ok()
+        .and_then(|root| fs::read(root.join(MANIFEST_FILE)).ok())
+        .and_then(|bytes| serde_json::from_slice::<Vec<crate::vsb_sync::ServerSongRef>>(&bytes).ok())
+        .map(|entries| {
+            entries
+                .into_iter()
+                .map(|entry| (entry.filename.clone(), entry))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn song_endpoint(server_url: &str, song_id: &str) -> Result<url::Url, String> {
+    let id = uuid::Uuid::parse_str(song_id).map_err(|_| "Invalid server song id".to_string())?;
+    url::Url::parse(server_url)
+        .and_then(|base| base.join(&format!("api/v1/songs/{id}")))
+        .map_err(|error| error.to_string())
+}
+
+fn song_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+async fn song_response(response: reqwest::Response) -> Result<(), String> {
+    let status = response.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    let body = response.text().await.unwrap_or_default();
+    Err(if status == reqwest::StatusCode::CONFLICT {
+        "changed on the song server in the meantime; the server version is kept".into()
+    } else if status == reqwest::StatusCode::FORBIDDEN {
+        "the song server does not let this desktop change songs (update the server)".into()
+    } else if body.trim().is_empty() {
+        format!("the song server returned {status}")
+    } else {
+        format!("the song server returned {status}: {}", body.trim())
+    })
+}
+
+/// Replace a server song's text, based on the revision this PC last saw.
+pub(crate) async fn update_song(
+    server_url: &str,
+    token: &str,
+    song_id: &str,
+    base_revision_id: &str,
+    chordpro: &str,
+) -> Result<(), String> {
+    let response = song_client()?
+        .put(song_endpoint(server_url, song_id)?)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .header(CONTENT_TYPE, "application/json")
+        .body(
+            serde_json::json!({ "base_revision_id": base_revision_id, "chordpro": chordpro })
+                .to_string(),
+        )
+        .send()
+        .await
+        .map_err(|error| format!("could not reach the song server: {error}"))?;
+    song_response(response).await
+}
+
+/// Delete a server song unless it changed since `base_revision_id`.
+pub(crate) async fn delete_song(
+    server_url: &str,
+    token: &str,
+    song_id: &str,
+    base_revision_id: &str,
+) -> Result<(), String> {
+    let mut endpoint = song_endpoint(server_url, song_id)?;
+    endpoint
+        .query_pairs_mut()
+        .append_pair("base_revision_id", base_revision_id);
+    let response = song_client()?
+        .delete(endpoint)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(|error| format!("could not reach the song server: {error}"))?;
+    song_response(response).await
 }
 
 fn replace_cache(root: &Path, staging: &Path) -> Result<(PathBuf, Option<PathBuf>), String> {
@@ -524,7 +663,7 @@ fn write_token(app: &AppHandle, token: &str) -> Result<(), String> {
     fs::rename(temporary, path).map_err(|error| error.to_string())
 }
 
-fn read_token(app: &AppHandle) -> Result<String, String> {
+pub(crate) fn read_token(app: &AppHandle) -> Result<String, String> {
     let token = fs::read_to_string(config::server_token_path(app)?).map_err(|_| {
         "The saved desktop token is unavailable; reconnect the server library".to_string()
     })?;
@@ -575,11 +714,30 @@ mod tests {
         let bytes = archive.finish().unwrap().into_inner();
         let destination = tempdir().unwrap();
 
-        assert_eq!(extract_export(&bytes, destination.path()).unwrap(), 1);
+        let (count, manifest) = extract_export(&bytes, destination.path()).unwrap();
+        assert_eq!(count, 1);
+        assert!(manifest.is_none());
         assert_eq!(
             std::fs::read_to_string(destination.path().join("grace-123.pro")).unwrap(),
             "{title: Grace}\nAmazing grace"
         );
         assert!(!destination.path().join("manifest.json").exists());
+    }
+
+    #[test]
+    fn keeps_the_server_manifest_out_of_the_songs_folder() {
+        let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
+        let options = SimpleFileOptions::default();
+        archive.start_file("grace-1a2b3c4d.pro", options).unwrap();
+        archive.write_all(b"{title: Grace}").unwrap();
+        archive.start_file("psa150-manifest.json", options).unwrap();
+        archive.write_all(b"[]").unwrap();
+        let bytes = archive.finish().unwrap().into_inner();
+        let destination = tempdir().unwrap();
+
+        let (count, manifest) = extract_export(&bytes, destination.path()).unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(manifest.as_deref(), Some(&b"[]"[..]));
+        assert!(!destination.path().join("psa150-manifest.json").exists());
     }
 }

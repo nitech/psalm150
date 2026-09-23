@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use regex::Regex;
 use slug::slugify;
 
@@ -75,11 +77,17 @@ fn parse_keys(raw: Option<&str>) -> (Option<String>, Option<String>) {
 
 pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
     let lines: Vec<&str> = body.lines().collect();
-    let chord_line = Regex::new(
-        r"^[A-G][#b]?(?:m|maj|min|sus|add|dim|aug|\d)*(?:[\s/]+[A-G][#b]?(?:m|maj|min|sus|add|dim|aug|\d)*)*$",
-    )
-    .ok();
-    let section_re = Regex::new(r"(?i)^(verse\s*\d*|chorus\s*\d*|bridge|intro|outro)\s*$").unwrap();
+    static CHORD_LINE: OnceLock<Regex> = OnceLock::new();
+    static SECTION: OnceLock<Regex> = OnceLock::new();
+    let chord_line = Some(CHORD_LINE.get_or_init(|| {
+        Regex::new(
+            r"^[A-G][#b]?(?:m|maj|min|sus|add|dim|aug|\d)*(?:[\s/]+[A-G][#b]?(?:m|maj|min|sus|add|dim|aug|\d)*)*$",
+        )
+        .unwrap()
+    }));
+    let section_re = SECTION.get_or_init(|| {
+        Regex::new(r"(?i)^(verse\s*\d*|chorus\s*\d*|bridge|intro|outro)\s*$").unwrap()
+    });
 
     let mut sections = Vec::new();
     let mut current_label = "Verse".to_string();
@@ -150,8 +158,10 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
             .unwrap_or(false);
 
         if looks_like_chord_line {
-            let lyric = next;
-            current_lines.push(parse_vsb_chord_pair(trimmed, lyric));
+            // Columns are measured on the untrimmed lines: VSB aligns the chord
+            // row with the lyric row, leading spaces included.
+            let lyric = lines.get(i + 1).copied().unwrap_or("");
+            current_lines.push(parse_vsb_chord_pair(line, lyric));
             i += 2;
             continue;
         }
@@ -195,14 +205,32 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
 }
 
 fn parse_vsb_chord_pair(chord_line: &str, lyric_line: &str) -> crate::library::chordpro::LyricLine {
-    parse_scraped_chord_pair(chord_line, lyric_line)
+    let chord_token = chord_token_re();
+    let indent = lyric_line.chars().take_while(|c| c.is_whitespace()).count();
+    let text = lyric_line.trim().to_string();
+    let text_len = text.chars().count();
+    let chords = chord_token
+        .find_iter(chord_line)
+        .map(|mat| {
+            let column = chord_line[..mat.start()].chars().count();
+            crate::library::chordpro::ChordPlacement {
+                chord: mat.as_str().to_string(),
+                position: column.saturating_sub(indent).min(text_len),
+            }
+        })
+        .collect();
+    crate::library::chordpro::LyricLine {
+        text,
+        chords,
+        source_line: None,
+    }
 }
 
 pub(crate) fn parse_scraped_chord_pair(
     chord_line: &str,
     lyric_line: &str,
 ) -> crate::library::chordpro::LyricLine {
-    let chord_token = Regex::new(r"[A-G](#|b)?[^ \t]*").unwrap();
+    let chord_token = chord_token_re();
     let mut chords = Vec::new();
     for mat in chord_token.find_iter(chord_line) {
         let pos = lyric_line
@@ -219,6 +247,11 @@ pub(crate) fn parse_scraped_chord_pair(
         chords,
         source_line: None,
     }
+}
+
+fn chord_token_re() -> &'static Regex {
+    static CHORD_TOKEN: OnceLock<Regex> = OnceLock::new();
+    CHORD_TOKEN.get_or_init(|| Regex::new(r"[A-G](#|b)?[^ \t]*").unwrap())
 }
 
 fn classify_section(label: &str) -> SectionKind {
@@ -333,7 +366,18 @@ mod tests {
         let sections = parse_vsb_body(body);
         assert_eq!(sections.len(), 1);
         assert_eq!(sections[0].kind, SectionKind::Chorus);
-        assert!(!sections[0].lines[0].chords.is_empty());
+        let chords = &sections[0].lines[0].chords;
+        assert_eq!(chords.len(), 2);
+        assert_eq!((chords[0].chord.as_str(), chords[0].position), ("Dm", 9));
+        assert_eq!((chords[1].chord.as_str(), chords[1].position), ("A", 31));
+    }
+
+    #[test]
+    fn chord_columns_follow_lyric_indentation() {
+        let body = "      D\n   the love of Jesus";
+        let line = &parse_vsb_body(body)[0].lines[0];
+        assert_eq!(line.text, "the love of Jesus");
+        assert_eq!(line.chords[0].position, 3);
     }
 
     #[test]

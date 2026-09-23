@@ -14,7 +14,7 @@ sources:
   - id: client
     resource: /src/projection-client.ts
     title: Wrappers used by the audience page
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-09-23T20:00:00Z }
 ---
 
 # IPC contract
@@ -37,8 +37,8 @@ commands are real and tested but reachable only over IPC.
 | `list_by_key` | `key` → `Vec<SongRow>` | yes |
 | `list_keys`, `list_categories` | → `Vec<String>` | keys yes, categories no |
 | `get_history` | `limit` → `Vec<(filename, title, accessed_at)>` | yes |
-| `toggle_favorite` | `filename` → `bool` | no |
-| `list_favorites` | → `Vec<String>` | no |
+| `toggle_favorite` | `filename` → `bool` | yes (star) |
+| `list_favorites` | → `Vec<String>` | yes |
 
 ## Songs and import
 
@@ -81,14 +81,19 @@ commands are real and tested but reachable only over IPC.
 
 | Command | Args → Result | UI |
 | --- | --- | --- |
-| `create_setlist` `name, date`; `setlist_advance` | → `Setlist` / `Option<SetlistItem>` | yes |
-| `list_setlists`, `load_setlist`, `save_setlist`, `setlist_previous`, `list_hold_slides` | | no |
+| `list_setlists`, `create_setlist` `name, date` | → `Vec<Setlist>` / `Setlist` | yes |
+| `add_to_setlist`, `remove_from_setlist` | `id, filename` → `Setlist` | yes (add-to-setlist menu) |
+| `format_short_date` | → `Option<String>`, today in the Windows short date format | yes |
+| `load_setlist`, `save_setlist`, `setlist_advance`, `setlist_previous`, `list_hold_slides` | | no |
+| `set_vsb_database` | `path: Option<String>` → `Option<VsbSyncConfig>`; reads the file once to validate | yes |
+| `sync_vsb_database` | `force` → `Option<VsbSyncReport>`; `None` when unlinked, busy, or unchanged | yes, plus a background thread ([VSB sync](vsb-sync.md)) |
 | `get_config` | → `AppConfig` | yes |
 | `set_read_only`, `set_project_to_stage`, `set_web_search_enabled`, `set_show_song_numbers` | bool | yes |
 | `list_displays` | → `Vec<DisplayInfo { id, label, name, width, height, isPrimary }>` | yes |
 | `set_audience_monitor`, `set_stage_monitor` | `monitorId: Option<String>` (re-places a visible window) | yes |
 | `get_theme` | → `SlideTheme` | audience page |
-| `save_theme`, `get_shortcuts`, `save_shortcuts` | | no |
+| `get_shortcuts`, `save_shortcuts` | → / `shortcuts: ShortcutConfig` (combos like `Alt+S`) | yes |
+| `save_theme` | | no |
 | `export_ccli_report` | `from, to` (RFC 3339) → CSV string | yes |
 | `print_songbook_html` | `title, includeIndexes` → HTML string | yes |
 | `start_remote` `port?`, `stop_remote`, `get_remote_status` | → `RemoteStatus { running, port, pin }`; start also runs in `setup()` when `remote_enabled` | yes (Settings) |
@@ -100,9 +105,12 @@ commands are real and tested but reachable only over IPC.
 | `library-changed` | none | console refreshes status and list |
 | `library-external-changed` | none | an open duplicate view marks its results stale |
 | `projection-closed` | none | console sets `projecting = false` |
+| `projection-escaped` | none | global Escape closed the projection; console clears and focuses search |
 | `projection-updated` | `ProjectionSnapshot { revision, session_id, projection, theme, audience, stage }` | console, audience and stage; older revisions are ignored |
 | `import-progress` | `{ current, total, song_title }` | console import modal |
 | `import-complete` | `ImportReport` | nobody (the command's return is used) |
+| `vsb-sync-progress` | `{ label, current, total }` | console progress hairline and sync icon |
+| `vsb-sync-finished` | `{ report: VsbSyncReport?, error? }` | console refreshes config, toasts changes or errors |
 
 Each page subscribes before fetching `get_projection_snapshot`, closing the
 startup race without targeted events or `window.eval` delivery.

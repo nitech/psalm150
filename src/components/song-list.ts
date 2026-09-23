@@ -9,6 +9,11 @@ export { WEB_RESULT_PREFIX, isWebResultId, webResultId } from "./song-list-ids";
 /**
  * Library song list. Presentational: it renders rows and emits `psa150-select`
  * (single click / focus) and `psa150-project` (Enter on a focused row) events.
+ *
+ * The column header sits above the scrolling body, so the scrollbar starts
+ * below it. The body is one grid with subgrid rows; after each layout the
+ * header copies the body's resolved column widths (and leaves room for the
+ * scrollbar), while the header labels set the body's minimum column widths.
  */
 export class Psa150SongList extends Psa150Element {
   static properties = {
@@ -31,6 +36,7 @@ export class Psa150SongList extends Psa150Element {
   declare sort: SongSort | null;
 
   private pendingFocus: string | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor() {
     super();
@@ -43,8 +49,46 @@ export class Psa150SongList extends Psa150Element {
     this.sort = null;
   }
 
+  protected firstUpdated() {
+    const body = this.body();
+    if (!body) return;
+    this.resizeObserver = new ResizeObserver(() => this.syncHeader());
+    this.resizeObserver.observe(body);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+  }
+
+  private body() {
+    return this.querySelector<HTMLElement>(":scope > ul.song-list");
+  }
+
+  /** Align the fixed header with the body's columns. */
+  private syncHeader() {
+    const body = this.body();
+    const head = this.querySelector<HTMLElement>(":scope > .song-list-head");
+    if (!body || !head) return;
+    const labelWidth = (cell: HTMLElement | null) => {
+      if (!cell) return 0;
+      const parts = [...cell.children] as HTMLElement[];
+      const gap = parts.length > 1 ? 4 * (parts.length - 1) : 0;
+      return Math.ceil(parts.reduce((sum, part) => sum + part.getBoundingClientRect().width, gap));
+    };
+    body.style.setProperty("--num-min", `${labelWidth(head.querySelector(".song-list-header-cell.num"))}px`);
+    body.style.setProperty("--key-min", `${labelWidth(head.querySelector(".song-list-header-cell.key"))}px`);
+    const tracks = getComputedStyle(body).gridTemplateColumns.split(" ");
+    if (tracks.length < 2) return;
+    tracks[0] = "minmax(0, 1fr)";
+    head.style.gridTemplateColumns = tracks.join(" ");
+    head.style.setProperty("--scrollbar-width", `${body.offsetWidth - body.clientWidth}px`);
+  }
+
   protected updated(changed: Map<PropertyKey, unknown>) {
     super.updated(changed);
+    this.syncHeader();
     if (!this.pendingFocus || this.currentFile !== this.pendingFocus) return;
     const file = this.pendingFocus;
     this.pendingFocus = null;
@@ -111,7 +155,7 @@ export class Psa150SongList extends Psa150Element {
     );
   }
 
-  /** Sticky Song / No / Key header; each cell sorts its column (rules in song-sort.ts). */
+  /** Song / No / Key header above the scroll body; each cell sorts its column (rules in song-sort.ts). */
   private renderHeader() {
     const sort = this.sort;
     if (!sort) return nothing;
@@ -121,7 +165,7 @@ export class Psa150SongList extends Psa150Element {
       return html`
         <button
           type="button"
-          class="song-list-header-cell ${align} ${active ? "active" : ""}"
+          class="song-list-header-cell ${column === "song_num" ? "num" : column} ${align} ${active ? "active" : ""}"
           title="Sort by ${label.toLowerCase()}"
           @click=${() => this.emitSort(column)}
         >
@@ -131,12 +175,12 @@ export class Psa150SongList extends Psa150Element {
       `;
     };
     return html`
-      <li class="song-list-header" role="presentation">
+      <div class="song-list-head">
         ${cell("title", "Song", "start")}
         ${this.showNumbers ? cell("song_num", "No", "end") : nothing}
         ${cell("key", "Key", "center")}
         <span aria-hidden="true"></span>
-      </li>
+      </div>
     `;
   }
 
@@ -193,10 +237,9 @@ export class Psa150SongList extends Psa150Element {
     `;
   }
 
-  render() {
+  private renderRows() {
     const hasLocal = this.songs.length > 0;
     const hasWeb = this.webSearchLoading || this.webResults.length > 0;
-
     if (!hasLocal && !hasWeb) {
       return html`
         <li class="empty-list">
@@ -216,15 +259,20 @@ export class Psa150SongList extends Psa150Element {
         </li>
       `;
     }
-
     return html`
-      ${hasLocal ? this.renderHeader() : nothing}
-      ${hasLocal
-        ? this.songs.map((song) =>
-            this.renderSongRow(song.filename, song.title, song.key, song.favorite, song.song_num),
-          )
-        : nothing}
+      ${this.songs.map((song) =>
+        this.renderSongRow(song.filename, song.title, song.key, song.favorite, song.song_num),
+      )}
       ${this.renderWebResults()}
+    `;
+  }
+
+  render() {
+    return html`
+      ${this.songs.length > 0 ? this.renderHeader() : nothing}
+      <ul class="song-list scroll-region ${this.showNumbers ? "" : "hide-numbers"}" role="listbox">
+        ${this.renderRows()}
+      </ul>
     `;
   }
 }

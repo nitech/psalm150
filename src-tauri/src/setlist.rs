@@ -90,6 +90,23 @@ impl SetlistStore {
         Ok(setlist)
     }
 
+    /// Load, change and save one setlist; the active copy follows the change.
+    pub fn update(
+        &mut self,
+        id: &str,
+        change: impl FnOnce(&mut Setlist),
+    ) -> Result<Setlist, String> {
+        let path = self.root.join(format!("{id}.json"));
+        let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let mut setlist: Setlist = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        change(&mut setlist);
+        self.save(&setlist)?;
+        if self.active.as_ref().is_some_and(|active| active.id == setlist.id) {
+            self.active = Some(setlist.clone());
+        }
+        Ok(setlist)
+    }
+
     pub fn active(&self) -> Option<&Setlist> {
         self.active.as_ref()
     }

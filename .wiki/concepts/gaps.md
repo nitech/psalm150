@@ -15,7 +15,7 @@ sources:
   - id: lib
     resource: /src-tauri/src/lib.rs
     title: Registered commands
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-09-23T20:00:00Z }
 ---
 
 # Gaps and backlog
@@ -35,8 +35,7 @@ generated: { by: agent, at: 2026-09-13T14:00:00Z }
 
 ## Behaviour gaps seen in the code
 
-- **Favourites** cannot be toggled from the UI; only listed ([library index](library-index.md)).
-- **Setlists** cannot gain items, be reloaded or stepped back from the UI; hold slides are never created ([setlists](setlists.md)).
+- **Setlists** cannot be reordered or stepped back from the UI; hold slides are never created ([setlists](setlists.md)).
 - **Remote control** page can only step slides and blank; picking a song still needs the console. The PIN travels in clear over HTTP ([remote control](remote-control.md)).
 - **Web search**: the title is the first scraped line, often a lyric ([web search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
@@ -44,18 +43,16 @@ generated: { by: agent, at: 2026-09-13T14:00:00Z }
 - **Search** ignores the FTS table and returns unranked `LIKE` matches ([library index](library-index.md)).
 - **Simulated display** is not a true miniature: the theme font is fixed px, so the 960 px window relies on the fit scaler more than a 1920 px projector would; MDB margins may be twips ([audience display](audience-display.md), [MDB import](mdb-import.md)).
 - **Reports**: CCLI export only reaches the devtools console; the songbook has no lyrics ([reports](reports.md)).
-- `history_days`, `key_format_compressed` and `shortcuts` are stored but unused ([config](config.md)).
+- `history_days` and `key_format_compressed` are stored but unused ([config](config.md)).
 - Stray/unused: `src-tauri/2` (npm log), `.live-preview` CSS with no markup, `designsystem.json` (reference only), `config::load_favorites/save_favorites`.
 
 ## Commands without UI
 
 `pick_songs_folder`, `get_songs_folder`, `list_foreign_files`,
-`list_conflicts`, `list_categories`, `toggle_favorite`, `list_favorites`,
-`renumber_songs`, `compact_library`, `check_duplicates`,
+`list_conflicts`, `list_categories`, `renumber_songs`, `compact_library`, `check_duplicates`,
 `close_audience_window`, `close_stage_window`, `get_next_slide_preview`,
-`set_nashville`, `list_setlists`, `load_setlist`, `save_setlist`,
-`setlist_previous`, `list_hold_slides`, `save_theme`, `get_shortcuts`,
-`save_shortcuts` ([IPC contract](ipc-contract.md)).
+`set_nashville`, `load_setlist`, `save_setlist`, `setlist_advance`,
+`setlist_previous`, `list_hold_slides`, `save_theme` ([IPC contract](ipc-contract.md)).
 
 ## Test blind spots
 

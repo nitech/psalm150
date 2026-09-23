@@ -11,6 +11,7 @@ pub mod projection;
 pub mod remote;
 pub mod setlist;
 pub mod stage;
+pub mod vsb_sync;
 pub mod web_search;
 
 use std::path::PathBuf;
@@ -100,6 +101,8 @@ pub fn run() {
                         });
                         if projecting {
                             let _ = commands::projection_cmd::close_projection_windows(app.clone());
+                            // The console clears and focuses its search field.
+                            let _ = app.emit("projection-escaped", ());
                         }
                     }
                 })
@@ -171,6 +174,8 @@ pub fn run() {
                     let _ = handle_remote_action(&poll_handle, &app_state, action);
                 }
             });
+
+            commands::vsb_sync_cmd::spawn_background_sync(app.handle());
 
             if let Some(ref folder) = config.last_songs_folder {
                 let path = PathBuf::from(folder);
@@ -273,6 +278,11 @@ pub fn run() {
             commands::server_library::sync_server_library,
             commands::server_library::disconnect_server_library,
             commands::web_search_cmd::search_web_songs,
+            commands::vsb_sync_cmd::set_vsb_database,
+            commands::vsb_sync_cmd::sync_vsb_database,
+            commands::setlist_cmd::add_to_setlist,
+            commands::setlist_cmd::remove_from_setlist,
+            commands::setlist_cmd::format_short_date,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

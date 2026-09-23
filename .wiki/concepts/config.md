@@ -17,7 +17,7 @@ sources:
   - id: api
     resource: /src/api.ts
     title: AppConfig TypeScript shape
-generated: { by: agent, at: 2026-08-29T19:45:00Z }
+generated: { by: agent, at: 2026-09-23T18:00:00Z }
 ---
 
 # Config and theme
@@ -33,12 +33,13 @@ fields marked `#[serde(default)]` may be absent in old files.
 | `project_to_stage` | false | Settings | console opens the stage window on Project |
 | `web_search_enabled` | true | Settings | console trigger and `search_web_songs` |
 | `show_song_numbers` | true | Settings (Library) | song list number column |
+| `vsb_sync` | none | Settings (Visual Song Book) via `set_vsb_database`; `last_synced_at`, `last_summary`, `last_error` by each run | [VSB sync](vsb-sync.md) |
 | `audience_monitor` | none (= primary) | Settings (Congregation) | `open_audience_window`; `"__simulated__"` = window |
 | `stage_monitor` | none | Settings (Stage) | `open_stage_window` (only when set) |
 | `remote_enabled`, `remote_port` (8757), `remote_pin` | off | Settings (Phone remote) via `start_remote` / `stop_remote` | auto-started in `setup()` when enabled; see [remote control](remote-control.md) |
 | `key_format_compressed` | false | nothing | nothing |
 | `history_days` | 30 | nothing | nothing (history is never pruned) |
-| `shortcuts` | ArrowRight / ArrowLeft / KeyB | `save_shortcuts` | nothing; the console hard-codes its keys |
+| `shortcuts` | `next_slide` ArrowRight, `previous_slide` ArrowLeft, `blank` B, `add_to_setlist` Alt+S, `toggle_favorite` Alt+F, `focus_search` Ctrl+F | Settings (Keyboard shortcuts) via `save_shortcuts` | console key handling (`src/shortcuts.ts`); missing fields take defaults, the old `KeyB` spelling is accepted |
 | `first_run_complete` | false | first folder activation | welcome toast wording |
 
 `runtime.read_only` is a copy of `config.read_only` taken at startup and

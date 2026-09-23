@@ -22,8 +22,25 @@ import {
   type Setlist,
   type SongDetail,
   type SongRow,
+  type VsbSyncConfig,
+  type VsbSyncFinished,
+  type VsbSyncProgress,
   type WebSearchCandidate,
 } from "../api";
+import { icon } from "../icons";
+import {
+  DEFAULT_SHORTCUTS,
+  SHORTCUT_ACTIONS,
+  actionForCombo,
+  comboFromEvent,
+  formatCombo,
+  hasCommandModifier,
+  resolveShortcuts,
+  shortcutProblem,
+  type ShortcutAction,
+  type ShortcutMap,
+} from "../shortcuts";
+import { applyKey, keyTokenAt, matchingKeys, parseSearch, type KeyToken } from "../search-query";
 import {
   applyPendingEditsToLineText,
   collectLineEdits,
@@ -58,19 +75,19 @@ import {
   shouldAcceptProjectionSnapshot,
   shouldResetStanzaSequence,
 } from "../projection-snapshot";
-import type { Psa150Combobox } from "./combobox";
-import "./combobox";
 import type { SelectOption } from "./select";
 import "./select";
 import "./modal";
 import "./song-list";
 import { isWebResultId, webResultId, webResultIndex } from "./song-list-ids";
 
-type Tab = "search" | "key" | "history" | "favorites" | "setlist";
+/** What the browse pane lists: search results, or one of the toolbar views. */
+type BrowseMode = "search" | "history" | "favorites" | "setlist";
 type ToastTone = "info" | "success" | "error";
 type SettingsSectionId =
   | "library"
   | "server"
+  | "vsb"
   | "projection"
   | "search"
   | "remote"
@@ -85,16 +102,15 @@ const SETTINGS_SECTIONS: ReadonlyArray<{
 }> = [
   { id: "library", label: "Library", icon: "♫", keywords: "songs folder chordpro import mdb rescan duplicates numbers" },
   { id: "server", label: "Church server", icon: "↗", keywords: "server url token sync download offline cache church" },
+  { id: "vsb", label: "Visual Song Book", icon: "⇄", keywords: "vsb visual song book mdb access database sync synchronize two-way backup" },
   { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display chords read only editing" },
   { id: "search", label: "Search", icon: "⌕", keywords: "web internet local songs match" },
   { id: "remote", label: "Phone remote", icon: "◌", keywords: "phone remote wifi network tailscale pin slides" },
   { id: "reports", label: "Reports", icon: "▤", keywords: "print songbook ccli csv export" },
-  { id: "shortcuts", label: "Keyboard shortcuts", icon: "⌘", keywords: "keys keyboard enter arrows stanzas blank projection" },
+  { id: "shortcuts", label: "Keyboard shortcuts", icon: "⌘", keywords: "keys keyboard hotkeys shortcuts alt ctrl enter arrows stanzas blank projection setlist favourite search" },
 ];
 
-const TAB_LABELS: Record<Tab, string> = {
-  search: "Search",
-  key: "Key",
+const BROWSE_TITLES: Record<Exclude<BrowseMode, "search">, string> = {
   history: "History",
   favorites: "Favourites",
   setlist: "Setlist",
@@ -106,6 +122,7 @@ const BROWSE_PANE_MAX = 720;
 const BROWSE_PANE_DEFAULT = 340;
 const WEB_SEARCH_DEBOUNCE_MS = 650;
 const SONG_SORT_KEY = "psa150-song-sort";
+const CURRENT_SETLIST_KEY = "psa150-current-setlist";
 
 /**
  * Root component for the main window. Owns all application state and IPC
@@ -119,7 +136,7 @@ export class Psa150App extends Psa150Element {
     currentFilename: { state: true },
     projection: { state: true },
     libraryStatus: { state: true },
-    activeTab: { state: true },
+    browseMode: { state: true },
     currentSetlist: { state: true },
     projectToStage: { state: true },
     readOnly: { state: true },
@@ -135,9 +152,18 @@ export class Psa150App extends Psa150Element {
     stageMonitor: { state: true },
     keys: { state: true },
     query: { state: true },
-    keySelected: { state: true },
-    setlistName: { state: true },
-    setlistDate: { state: true },
+    keyToken: { state: true },
+    keyMenuIndex: { state: true },
+    setlists: { state: true },
+    favoriteFiles: { state: true },
+    shortcuts: { state: true },
+    recordingShortcut: { state: true },
+    shortcutError: { state: true },
+    setlistMenuOpen: { state: true },
+    newSetlistName: { state: true },
+    vsbSync: { state: true },
+    vsbProgress: { state: true },
+    vsbSyncing: { state: true },
     editorValue: { state: true },
     settingsOpen: { state: true },
     activeSettingsSection: { state: true },
@@ -178,7 +204,7 @@ export class Psa150App extends Psa150Element {
   declare currentFilename: string | null;
   declare projection: ProjectionState | null;
   declare libraryStatus: LibraryStatus | null;
-  declare activeTab: Tab;
+  declare browseMode: BrowseMode;
   declare currentSetlist: Setlist | null;
   declare projectToStage: boolean;
   declare readOnly: boolean;
@@ -194,9 +220,21 @@ export class Psa150App extends Psa150Element {
   declare stageMonitor: string;
   declare keys: string[];
   declare query: string;
-  declare keySelected: string;
-  declare setlistName: string;
-  declare setlistDate: string;
+  /** The `#…` word being typed in the search field, while it can become a key. */
+  declare keyToken: KeyToken | null;
+  declare keyMenuIndex: number;
+  declare setlists: Setlist[];
+  /** Filenames marked as favourites, for the star on the song title row. */
+  declare favoriteFiles: Set<string>;
+  declare shortcuts: ShortcutMap;
+  /** Settings row waiting for a new key combination. */
+  declare recordingShortcut: ShortcutAction | null;
+  declare shortcutError: string | null;
+  declare setlistMenuOpen: boolean;
+  declare newSetlistName: string;
+  declare vsbSync: VsbSyncConfig | null;
+  declare vsbProgress: VsbSyncProgress | null;
+  declare vsbSyncing: boolean;
   declare editorValue: string;
   declare settingsOpen: boolean;
   declare activeSettingsSection: SettingsSectionId;
@@ -239,13 +277,15 @@ export class Psa150App extends Psa150Element {
   private unlistenLibrary: UnlistenFn | null = null;
   private unlistenProjection: UnlistenFn | null = null;
   private unlistenProjectionClosed: UnlistenFn | null = null;
+  private unlistenProjectionEscaped: UnlistenFn | null = null;
   private unlistenExternalLibrary: UnlistenFn | null = null;
   private unlistenWindowResize: UnlistenFn | null = null;
+  private unlistenVsbProgress: UnlistenFn | null = null;
+  private unlistenVsbFinished: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
   private songsRefreshGeneration = 0;
   private splitterDragging = false;
-  private tabIndicatorObserver: ResizeObserver | null = null;
   private sortedSongsCache: { songs: SongRow[]; sort: SongSort; sorted: SongRow[] } | null = null;
   private stanzaNumberInput = new StanzaNumberInput();
   private projectionRevision = -1;
@@ -261,7 +301,7 @@ export class Psa150App extends Psa150Element {
     this.currentFilename = null;
     this.projection = null;
     this.libraryStatus = null;
-    this.activeTab = "search";
+    this.browseMode = "search";
     this.currentSetlist = null;
     this.projectToStage = false;
     this.readOnly = false;
@@ -277,9 +317,18 @@ export class Psa150App extends Psa150Element {
     this.stageMonitor = "";
     this.keys = [];
     this.query = "";
-    this.keySelected = "";
-    this.setlistName = "";
-    this.setlistDate = "";
+    this.keyToken = null;
+    this.keyMenuIndex = 0;
+    this.setlists = [];
+    this.favoriteFiles = new Set();
+    this.shortcuts = { ...DEFAULT_SHORTCUTS };
+    this.recordingShortcut = null;
+    this.shortcutError = null;
+    this.setlistMenuOpen = false;
+    this.newSetlistName = "";
+    this.vsbSync = null;
+    this.vsbProgress = null;
+    this.vsbSyncing = false;
     this.editorValue = "";
     this.settingsOpen = false;
     this.activeSettingsSection = "library";
@@ -322,10 +371,12 @@ export class Psa150App extends Psa150Element {
 
   connectedCallback() {
     super.connectedCallback();
+    window.addEventListener("keydown", this.onRecordShortcutKeydown, true);
     window.addEventListener("keydown", this.onGlobalKeydown);
     window.addEventListener("blur", this.stanzaNumberInput.reset);
     window.addEventListener("focusin", this.stanzaNumberInput.reset);
     window.addEventListener("pointerdown", this.stanzaNumberInput.reset);
+    document.addEventListener("pointerdown", this.onDocumentPointerDown);
     void getCurrentWebviewWindow().setFocus();
     void this.initWindowChrome();
     void this.init();
@@ -337,7 +388,6 @@ export class Psa150App extends Psa150Element {
       this.windowMaximized = await win.isMaximized();
       this.unlistenWindowResize = await win.onResized(async () => {
         this.windowMaximized = await win.isMaximized();
-        requestAnimationFrame(() => this.updateTabIndicator());
       });
     } catch (err) {
       console.error(err);
@@ -366,7 +416,10 @@ export class Psa150App extends Psa150Element {
   private async init() {
     try {
       this.unlistenLibrary = await listen("library-changed", async () => {
+        this.keysLoaded = false;
         await this.refreshLibraryStatus();
+        await this.refreshSetlists();
+        await this.refreshFavorites();
         await this.refreshSongs();
       });
       this.unlistenExternalLibrary = await listen("library-external-changed", () => {
@@ -379,7 +432,18 @@ export class Psa150App extends Psa150Element {
         this.stanzaNumberInput.reset();
         this.projecting = false;
       });
+      this.unlistenProjectionEscaped = await listen("projection-escaped", () => {
+        void this.startFreshSearch();
+      });
+      this.unlistenVsbProgress = await listen<VsbSyncProgress>("vsb-sync-progress", (event) => {
+        this.vsbSyncing = true;
+        this.vsbProgress = event.payload;
+      });
+      this.unlistenVsbFinished = await listen<VsbSyncFinished>("vsb-sync-finished", (event) => {
+        void this.onVsbSyncFinished(event.payload);
+      });
       this.applyProjectionSnapshot(await api.getProjectionSnapshot());
+      this.shortcuts = resolveShortcuts(await api.getShortcuts().catch(() => null));
     } catch (err) {
       console.error(err);
     }
@@ -388,6 +452,7 @@ export class Psa150App extends Psa150Element {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener("keydown", this.onRecordShortcutKeydown, true);
     window.removeEventListener("keydown", this.onGlobalKeydown);
     window.removeEventListener("blur", this.stanzaNumberInput.reset);
     window.removeEventListener("focusin", this.stanzaNumberInput.reset);
@@ -396,39 +461,32 @@ export class Psa150App extends Psa150Element {
     this.unlistenLibrary?.();
     this.unlistenProjection?.();
     this.unlistenProjectionClosed?.();
+    this.unlistenProjectionEscaped?.();
     this.unlistenExternalLibrary?.();
     this.unlistenWindowResize?.();
-    this.tabIndicatorObserver?.disconnect();
+    this.unlistenVsbProgress?.();
+    this.unlistenVsbFinished?.();
+    document.removeEventListener("pointerdown", this.onDocumentPointerDown);
     void this.unlistenImport?.();
     void this.unlistenServerSync?.();
   }
 
   firstUpdated() {
     this.focusActiveBrowseField();
-    this.updateTabIndicator();
-    this.observeTabIndicator();
   }
 
-  private observeTabIndicator() {
-    const nav = this.querySelector<HTMLElement>(".tabs.segmented");
-    if (!nav) return;
-    this.tabIndicatorObserver?.disconnect();
-    this.tabIndicatorObserver = new ResizeObserver(() => {
-      requestAnimationFrame(() => this.updateTabIndicator());
-    });
-    this.tabIndicatorObserver.observe(nav);
-    for (const button of nav.querySelectorAll("button")) {
-      this.tabIndicatorObserver.observe(button);
+  /** Clicking outside the setlist menu or the key list closes it. */
+  private onDocumentPointerDown = (event: PointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (this.setlistMenuOpen && !target?.closest(".setlist-menu, .setlist-btn")) {
+      this.setlistMenuOpen = false;
     }
-  }
+    if (this.keyToken && !target?.closest(".search-wrap")) {
+      this.keyToken = null;
+    }
+  };
 
   updated(changed: Map<string, unknown>) {
-    if (changed.has("activeTab")) {
-      requestAnimationFrame(() => {
-        this.updateTabIndicator();
-        this.observeTabIndicator();
-      });
-    }
     if (changed.has("projection") || changed.has("projecting")) {
       if (this.isProjectionActive()) {
         requestAnimationFrame(() => this.scrollActiveStanzaIntoView());
@@ -453,17 +511,6 @@ export class Psa150App extends Psa150Element {
     );
   }
 
-  private updateTabIndicator() {
-    const nav = this.querySelector<HTMLElement>(".tabs.segmented");
-    const active = nav?.querySelector<HTMLElement>("button.active");
-    const indicator = nav?.querySelector<HTMLElement>(".tabs-indicator");
-    if (!nav || !active || !indicator) return;
-    const navRect = nav.getBoundingClientRect();
-    const activeRect = active.getBoundingClientRect();
-    indicator.style.width = `${activeRect.width}px`;
-    indicator.style.transform = `translateX(${activeRect.left - navRect.left}px)`;
-  }
-
   private onSplitterPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -486,7 +533,6 @@ export class Psa150App extends Psa150Element {
       ),
     );
     this.browsePaneWidth = width;
-    requestAnimationFrame(() => this.updateTabIndicator());
   };
 
   private onSplitterPointerUp = (event: PointerEvent) => {
@@ -498,7 +544,6 @@ export class Psa150App extends Psa150Element {
       splitter.releasePointerCapture(event.pointerId);
     }
     localStorage.setItem(BROWSE_PANE_WIDTH_KEY, String(this.browsePaneWidth));
-    requestAnimationFrame(() => this.updateTabIndicator());
   };
 
   private focusSearchField(selectAll = false) {
@@ -510,11 +555,7 @@ export class Psa150App extends Psa150Element {
 
   private focusActiveBrowseField() {
     requestAnimationFrame(() => {
-      if (this.activeTab === "search") {
-        this.focusSearchField();
-      } else if (this.activeTab === "key") {
-        this.querySelector<Psa150Combobox>("psa150-combobox")?.focusInput();
-      }
+      if (this.browseMode === "search") this.focusSearchField();
     });
   }
 
@@ -528,50 +569,31 @@ export class Psa150App extends Psa150Element {
     const generation = ++this.songsRefreshGeneration;
     try {
       let songs: SongRow[];
-      if (this.activeTab === "search") {
-        songs = await api.searchSongs(this.query.trim(), false);
-      } else if (this.activeTab === "favorites") {
+      if (this.browseMode === "favorites") {
         songs = await api.searchSongs("", true);
-      } else if (this.activeTab === "history") {
+      } else if (this.browseMode === "history") {
         const history = await api.getHistory(50);
-        songs = history.map(([filename, title], index) => ({
-          id: index,
-          filename,
-          title,
-          title_sort: title.toUpperCase(),
-          song_num: null,
-          key: null,
-          category: null,
-          tags: null,
-          ccli: null,
-          modified_at: null,
-          favorite: false,
-        }));
-      } else if (this.activeTab === "key") {
-        songs = this.keySelected ? await api.listByKey(this.keySelected) : [];
-      } else if (this.activeTab === "setlist") {
-        songs =
-          this.currentSetlist?.items
-            .filter((item) => item.type === "song" && item.file)
-            .map((item, index) => ({
-              id: index,
-              filename: item.file!,
-              title: item.file!.replace(/\.(pro|cho)$/i, ""),
-              title_sort: item.file!.toUpperCase(),
-              song_num: null,
-              key: null,
-              category: null,
-              tags: null,
-              ccli: null,
-              modified_at: null,
-              favorite: false,
-            })) ?? [];
+        songs = history.map(([filename, title], index) => syntheticRow(index, filename, title));
+      } else if (this.browseMode === "setlist") {
+        songs = await this.setlistRows();
       } else {
-        songs = await api.searchSongs("", false);
+        if (this.query.includes("#")) await this.loadKeyOptions();
+        const { key, text } = parseSearch(this.query, this.keys);
+        if (key) {
+          const inKey = await api.listByKey(key);
+          if (text) {
+            const matching = new Set((await api.searchSongs(text, false)).map((row) => row.filename));
+            songs = inKey.filter((row) => matching.has(row.filename));
+          } else {
+            songs = inKey;
+          }
+        } else {
+          songs = await api.searchSongs(text, false);
+        }
       }
       if (generation !== this.songsRefreshGeneration) return;
       this.songs = songs;
-      if (this.activeTab === "search") {
+      if (this.browseMode === "search") {
         void this.maybeSearchWeb(generation);
       } else {
         this.webResults = [];
@@ -581,10 +603,23 @@ export class Psa150App extends Psa150Element {
       // Library may not be open yet (no songs folder selected, or still loading).
       if (generation !== this.songsRefreshGeneration) return;
       this.songs = [];
-      if (this.activeTab === "search") {
+      if (this.browseMode === "search") {
         void this.maybeSearchWeb(generation);
       }
     }
+  }
+
+  /** Items of the current setlist in service order, with titles from the index. */
+  private async setlistRows(): Promise<SongRow[]> {
+    const files = (this.currentSetlist?.items ?? [])
+      .filter((item) => item.type === "song" && item.file)
+      .map((item) => item.file!);
+    if (!files.length) return [];
+    const library = new Map((await api.searchSongs("", false)).map((row) => [row.filename, row]));
+    return files.map(
+      (file, index) =>
+        library.get(file) ?? syntheticRow(index, file, file.replace(/\.(pro|cho)$/i, "")),
+    );
   }
 
   private cancelWebSearch() {
@@ -613,8 +648,8 @@ export class Psa150App extends Psa150Element {
     this.webSearchGeneration += 1;
     const searchGeneration = this.webSearchGeneration;
 
-    const q = this.query.trim();
-    if (q.length < 3 || this.songs.length > 0) {
+    const { key, text: q } = parseSearch(this.query, this.keys);
+    if (key || q.length < 3 || this.songs.length > 0) {
       this.webResults = [];
       this.webSearchLoading = false;
       if (this.currentFilename && isWebResultId(this.currentFilename)) {
@@ -635,8 +670,8 @@ export class Psa150App extends Psa150Element {
     if (searchGeneration !== this.webSearchGeneration) return;
     if (songsGeneration !== this.songsRefreshGeneration) return;
 
-    const q = this.query.trim();
-    if (q.length < 3 || this.songs.length > 0) return;
+    const { key, text: q } = parseSearch(this.query, this.keys);
+    if (key || q.length < 3 || this.songs.length > 0) return;
 
     this.webSearchLoading = true;
     try {
@@ -825,7 +860,14 @@ export class Psa150App extends Psa150Element {
     this.activeSelectionId = sourceId;
 
     this.projecting = true;
+    // Leave text fields so digits, arrows and B drive the projection at once
+    // (Enter in the search field projects). Ctrl+F returns to searching.
     this.querySelector<HTMLElement>("psa150-song-list li:focus")?.blur();
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && isTextEntryTarget(focused) && this.contains(focused)) {
+      focused.blur();
+    }
+    this.keyToken = null;
     await this.updateComplete;
 
     await api.openAudienceWindow();
@@ -1111,6 +1153,7 @@ export class Psa150App extends Psa150Element {
     this.audienceMonitor = config.audience_monitor ?? "";
     this.stageMonitor = config.stage_monitor ?? "";
     this.showSongNumbers = config.show_song_numbers !== false;
+    this.vsbSync = config.vsb_sync ?? null;
     if (!this.webSearchEnabled) {
       this.cancelWebSearch();
     }
@@ -1281,12 +1324,104 @@ export class Psa150App extends Psa150Element {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  // ── Visual Song Book sync ──────────────────────────────────────────────
+
+  private async linkVsbDatabase() {
+    try {
+      const linked = await api.chooseVsbDatabase();
+      if (linked === undefined) return;
+      this.vsbSync = linked;
+      this.showToast("Visual Song Book linked; synchronizing…", "success");
+      await this.syncVsbNow();
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  private async unlinkVsbDatabase() {
+    const ok = await confirm(
+      "Stop synchronizing with this Visual Song Book database? Neither the database nor your songs are changed.",
+      { title: "Unlink Visual Song Book", kind: "warning", okLabel: "Unlink", cancelLabel: "Cancel" },
+    );
+    if (!ok) return;
+    this.vsbSync = await api.unlinkVsbDatabase();
+    this.showToast("Visual Song Book unlinked");
+  }
+
+  /** On-demand run. The backend reports progress and the result as events. */
+  private async syncVsbNow() {
+    if (!this.vsbSync || this.vsbSyncing) return;
+    this.vsbSyncing = true;
+    this.vsbProgress = { label: "Synchronizing with Visual Song Book", current: 0, total: 0 };
+    try {
+      const report = await api.syncVsbDatabase(true);
+      if (report === null) {
+        this.vsbSyncing = false;
+        this.vsbProgress = null;
+      }
+    } catch {
+      // The finished event carries the error.
+    }
+  }
+
+  private async onVsbSyncFinished(result: VsbSyncFinished) {
+    this.vsbSyncing = false;
+    this.vsbProgress = null;
+    // Background runs retry every minute; the icon keeps showing a lasting error.
+    const previousError = this.vsbSync?.last_error ?? null;
+    this.applyConfig(await api.getConfig());
+    if (result.error) {
+      if (result.error !== previousError) this.showToast(`VSB sync: ${result.error}`, "error");
+      return;
+    }
+    const report = result.report;
+    if (!report) return;
+    const moved =
+      report.files_written + report.files_created + report.files_deleted +
+      report.rows_written + report.rows_inserted + report.rows_deleted + report.sent_to_server;
+    if (moved > 0 || report.errors.length > 0) {
+      this.showToast(
+        `VSB sync: ${this.vsbSync?.last_summary ?? "done"}`,
+        report.errors.length ? "error" : "success",
+      );
+    }
+  }
+
+  private renderVsbProgress() {
+    if (!this.vsbSyncing) return nothing;
+    const progress = this.vsbProgress;
+    const total = progress?.total ?? 0;
+    const percentage = total > 0 ? Math.min(100, Math.round(((progress?.current ?? 0) / total) * 100)) : null;
+    return html`<div
+      class="vsb-progress ${percentage === null ? "indeterminate" : ""}"
+      role="progressbar"
+      aria-label=${progress?.label || "Synchronizing with Visual Song Book"}
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow=${percentage ?? nothing}
+    ><span style=${percentage === null ? "" : `width:${percentage}%`}></span></div>`;
+  }
+
+  private vsbStatusTitle(): string {
+    if (this.vsbSyncing) {
+      const p = this.vsbProgress;
+      return p && p.total > 0
+        ? `${p.label || "Synchronizing with Visual Song Book"} (${p.current} / ${p.total})`
+        : "Synchronizing with Visual Song Book…";
+    }
+    if (this.vsbSync?.last_error) return `Visual Song Book: ${this.vsbSync.last_error}`;
+    const when = this.vsbSync?.last_synced_at
+      ? ` · ${this.formatServerSyncTime(this.vsbSync.last_synced_at)}`
+      : "";
+    return `Synchronize with Visual Song Book now${this.vsbSync?.last_summary ? `\nLast: ${this.vsbSync.last_summary}${when}` : ""}`;
+  }
+
   private async onWebSearchEnabledChange(checked: boolean) {
     this.webSearchEnabled = checked;
     await api.setWebSearchEnabled(checked);
     if (!checked) {
       this.cancelWebSearch();
-    } else if (this.activeTab === "search" && this.songs.length === 0) {
+    } else if (this.browseMode === "search" && this.songs.length === 0) {
       void this.maybeSearchWeb(this.songsRefreshGeneration);
     }
   }
@@ -1299,8 +1434,8 @@ export class Psa150App extends Psa150Element {
   // ── Song list ordering ─────────────────────────────────────────────────
 
   /** Only library views sort by column; History keeps recency and Setlist keeps service order. */
-  private isSortableTab(): boolean {
-    return this.activeTab === "search" || this.activeTab === "key" || this.activeTab === "favorites";
+  private isSortableView(): boolean {
+    return this.browseMode === "search" || this.browseMode === "favorites";
   }
 
   private setSongSort(column: SongSortColumn) {
@@ -1310,7 +1445,7 @@ export class Psa150App extends Psa150Element {
 
   /** Rows in display order: what the list shows and what keyboard navigation walks. */
   private get visibleSongs(): SongRow[] {
-    if (!this.isSortableTab()) return this.songs;
+    if (!this.isSortableView()) return this.songs;
     const cache = this.sortedSongsCache;
     if (cache && cache.songs === this.songs && cache.sort === this.songSort) {
       return cache.sorted;
@@ -1349,33 +1484,200 @@ export class Psa150App extends Psa150Element {
     console.log(csv);
   }
 
-  // ── Setlist ────────────────────────────────────────────────────────────
+  // ── Setlists ──────────────────────────────────────────────────────────
 
-  private async createSetlist() {
-    const name = this.setlistName || "Service";
-    const date = this.setlistDate || new Date().toISOString().slice(0, 10);
-    this.currentSetlist = await api.createSetlist(name, date);
-    this.showToast(`Setlist: ${this.currentSetlist.name}`);
+  /**
+   * Reload setlists and keep the active one (remembered per PC). There is no
+   * automatic default: a setlist becomes active when it is picked in the
+   * Setlist view, or when a song is added while none is active.
+   */
+  private async refreshSetlists() {
+    try {
+      this.setlists = await api.listSetlists();
+    } catch {
+      this.setlists = [];
+      this.currentSetlist = null;
+      return;
+    }
+    const wanted = this.currentSetlist?.id ?? readLocal(CURRENT_SETLIST_KEY);
+    this.currentSetlist = this.setlists.find((setlist) => setlist.id === wanted) ?? null;
   }
 
-  private async advanceSetlist() {
-    const item = await api.setlistAdvance();
-    if (item?.type === "song" && item.file) {
-      this.currentFilename = item.file;
-      this.currentSong = await api.loadSong(item.file);
-      await this.projectLoadedSong();
+  private async chooseSetlist(setlist: Setlist | null) {
+    this.currentSetlist = setlist;
+    writeLocal(CURRENT_SETLIST_KEY, setlist?.id ?? null);
+    if (this.browseMode === "setlist") await this.refreshSongs();
+  }
+
+  private setlistHasSong(setlist: Setlist | null, filename: string | null): boolean {
+    if (!setlist || !filename) return false;
+    return setlist.items.some((item) => item.file === filename);
+  }
+
+  /** Songs that can go in a setlist: library files, not web previews. */
+  private setlistCandidate(): string | null {
+    if (!this.currentSong || !this.currentFilename || isWebResultId(this.currentFilename)) return null;
+    return this.currentFilename;
+  }
+
+  private async toggleSetlistMenu() {
+    if (this.setlistMenuOpen) {
+      this.setlistMenuOpen = false;
+      return;
+    }
+    this.newSetlistName = await defaultSetlistName();
+    await this.refreshSetlists();
+    this.setlistMenuOpen = true;
+    await this.updateComplete;
+    this.querySelector<HTMLElement>(".setlist-menu-item, .setlist-menu input")?.focus();
+  }
+
+  private replaceSetlist(updated: Setlist) {
+    this.setlists = this.setlists.map((setlist) => (setlist.id === updated.id ? updated : setlist));
+    if (this.currentSetlist?.id === updated.id) this.currentSetlist = updated;
+  }
+
+  private async toggleSongInSetlist(setlist: Setlist) {
+    const filename = this.setlistCandidate();
+    if (!filename) return;
+    try {
+      if (this.setlistHasSong(setlist, filename)) {
+        this.replaceSetlist(await api.removeFromSetlist(setlist.id, filename));
+        this.showToast(`Removed from ${setlist.name}`);
+      } else {
+        const updated = await api.addToSetlist(setlist.id, filename);
+        this.replaceSetlist(updated);
+        if (!this.currentSetlist) await this.chooseSetlist(updated);
+        this.setlistMenuOpen = false;
+        this.showToast(`Added to ${setlist.name}`, "success");
+      }
+      if (this.browseMode === "setlist") await this.refreshSongs();
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
     }
   }
 
-  // ── Tabs ───────────────────────────────────────────────────────────────
+  private async createSetlistWithSong() {
+    const filename = this.setlistCandidate();
+    if (!filename) return;
+    const name = this.newSetlistName.trim() || (await defaultSetlistName());
+    try {
+      const created = await api.createSetlist(name, localIsoDate(new Date()));
+      const updated = await api.addToSetlist(created.id, filename);
+      this.setlists = [updated, ...this.setlists];
+      if (!this.currentSetlist) await this.chooseSetlist(updated);
+      this.setlistMenuOpen = false;
+      this.showToast(`Added to ${name}`, "success");
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
 
-  private async selectTab(tab: Tab) {
-    this.activeTab = tab;
-    if (tab === "key") await this.loadKeyOptions();
+  /**
+   * Keyboard add (Alt+S by default): into the active setlist, or, with none
+   * active, open the menu to pick or create one.
+   */
+  private async addSelectedToSetlist() {
+    const filename = this.setlistCandidate();
+    if (!filename) {
+      this.showToast("Select a song from the library first");
+      return;
+    }
+    const active = this.currentSetlist;
+    if (!active) {
+      if (!this.setlistMenuOpen) await this.toggleSetlistMenu();
+      return;
+    }
+    if (this.setlistHasSong(active, filename)) {
+      this.showToast(`Already in ${active.name}`);
+      return;
+    }
+    await this.toggleSongInSetlist(active);
+  }
+
+  /** Project the setlist song after the one on screen (or the first). */
+  private async projectNextInSetlist() {
+    const files = (this.currentSetlist?.items ?? [])
+      .filter((item) => item.type === "song" && item.file)
+      .map((item) => item.file!);
+    const index = files.indexOf(this.activeSelectionId ?? "");
+    const next = files[index + 1];
+    if (!next) {
+      this.showToast(files.length ? "End of the setlist" : "The setlist is empty");
+      return;
+    }
+    await this.selectSong(next);
+    if (this.currentFilename === next) await this.projectLoadedSong();
+  }
+
+  // ── Favourites ─────────────────────────────────────────────────────────
+
+  private async refreshFavorites() {
+    try {
+      this.favoriteFiles = new Set(await api.listFavorites());
+    } catch {
+      this.favoriteFiles = new Set();
+    }
+  }
+
+  private async toggleFavorite(filename: string) {
+    try {
+      const favorite = await api.toggleFavorite(filename);
+      const next = new Set(this.favoriteFiles);
+      if (favorite) next.add(filename);
+      else next.delete(filename);
+      this.favoriteFiles = next;
+      this.showToast(favorite ? "Added to favourites" : "Removed from favourites", favorite ? "success" : "info");
+      await this.refreshSongs();
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  // ── Browse views ───────────────────────────────────────────────────────
+
+  /** Search button: back to the search view with the field focused. */
+  private async showSearch() {
+    if (this.browseMode !== "search") await this.setBrowseMode("search");
+    requestAnimationFrame(() => this.focusSearchField(true));
+  }
+
+  /** Toolbar views toggle: pressing the active one returns to search. */
+  private async setBrowseMode(mode: BrowseMode) {
+    this.browseMode = this.browseMode === mode ? "search" : mode;
+    this.keyToken = null;
+    if (this.browseMode === "setlist") await this.refreshSetlists();
     await this.refreshSongs();
     await this.updateComplete;
-    if (tab === "search" || tab === "key") this.focusActiveBrowseField();
-    requestAnimationFrame(() => this.updateTabIndicator());
+    this.focusActiveBrowseField();
+  }
+
+  private async onSearchInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.query = input.value;
+    void this.refreshSongs();
+    await this.updateKeyToken(input);
+  }
+
+  private async updateKeyToken(input: HTMLInputElement) {
+    const token = keyTokenAt(input.value, input.selectionStart ?? input.value.length);
+    if (token) await this.loadKeyOptions();
+    this.keyToken = token && matchingKeys(this.keys, token.partial).length > 0 ? token : null;
+    this.keyMenuIndex = 0;
+  }
+
+  private chooseKey(key: string) {
+    if (!this.keyToken) return;
+    const next = applyKey(this.query, this.keyToken, key);
+    this.query = next.query;
+    this.keyToken = null;
+    void this.refreshSongs();
+    requestAnimationFrame(() => {
+      const input = this.querySelector<HTMLInputElement>("#search-input");
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(next.caret, next.caret);
+    });
   }
 
   // ── Toast ──────────────────────────────────────────────────────────────
@@ -1397,6 +1699,8 @@ export class Psa150App extends Psa150Element {
       typeof config.last_songs_folder === "string" ? config.last_songs_folder : null;
 
     await this.refreshLibraryStatus();
+    await this.refreshSetlists();
+    await this.refreshFavorites();
     await this.refreshSongs();
 
     // The backend attaches the remembered folder immediately, then rescans on a
@@ -1490,6 +1794,18 @@ export class Psa150App extends Psa150Element {
     if (!this.projecting) return;
     await api.closeProjectionWindows();
     this.projecting = false;
+    await this.startFreshSearch();
+  }
+
+  /** After Esc ends a projection: empty search field, focused, ready for the next song. */
+  private async startFreshSearch() {
+    this.keyToken = null;
+    const changed = this.query !== "" || this.browseMode !== "search";
+    this.query = "";
+    this.browseMode = "search";
+    if (changed) await this.refreshSongs();
+    await this.updateComplete;
+    requestAnimationFrame(() => this.focusSearchField());
   }
 
   private onGlobalKeydown = async (event: KeyboardEvent) => {
@@ -1513,6 +1829,10 @@ export class Psa150App extends Psa150Element {
     this.stanzaNumberInput.reset();
 
     if (event.key === "Escape") {
+      if (this.setlistMenuOpen) {
+        this.setlistMenuOpen = false;
+        return;
+      }
       if (this.adhocEditingBlockKey) {
         this.exitAdhocEdit();
         return;
@@ -1537,18 +1857,21 @@ export class Psa150App extends Psa150Element {
       return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-      event.preventDefault();
-      if (this.activeTab !== "search") {
-        await this.selectTab("search");
+    // Configurable shortcuts. Combos with Ctrl, Alt or Meta also work while
+    // typing; plain keys (B, arrows) only outside text fields.
+    const combo = comboFromEvent(event);
+    const action = combo ? actionForCombo(this.shortcuts, combo) : null;
+    const modalOpen = this.editOpen || this.settingsOpen || this.importOpen ||
+      this.importReportOpen || this.duplicatesOpen;
+    const typing = isTextEntryTarget(target) || isContentEditableTarget(target);
+    if (action && combo && !modalOpen && (hasCommandModifier(combo) || !typing)) {
+      if (await this.runShortcut(action)) {
+        event.preventDefault();
+        return;
       }
-      requestAnimationFrame(() => this.focusSearchField(true));
-      return;
     }
 
     if (event.key === "Enter" && this.currentSong) {
-      // Let Enter activate the focused stanza button through its native click.
-      if (target instanceof HTMLElement && target.closest(".stanza-navigation button")) return;
       if (isTextEntryTarget(target) && !(target as HTMLElement).matches("#search-input")) {
         return;
       }
@@ -1559,15 +1882,7 @@ export class Psa150App extends Psa150Element {
 
     if (isTextEntryTarget(target) || isContentEditableTarget(target)) return;
 
-    if (event.key === "ArrowRight") {
-      if (!this.projecting || !this.projection?.slides.length) return;
-      event.preventDefault();
-      await this.advanceSlide("next");
-    } else if (event.key === "ArrowLeft") {
-      if (!this.projecting || !this.projection?.slides.length) return;
-      event.preventDefault();
-      await this.advanceSlide("prev");
-    } else if (event.key === "ArrowDown") {
+    if (event.key === "ArrowDown") {
       event.preventDefault();
       if (this.projecting && this.projection?.slides.length) {
         await this.advanceStanza("next");
@@ -1581,12 +1896,110 @@ export class Psa150App extends Psa150Element {
       } else if (!this.projecting) {
         await this.navigateFilteredSongs("prev");
       }
-    } else if (event.key.toLowerCase() === "b") {
-      if (this.projecting) this.applyProjectionSnapshot(await api.blankScreen());
     }
   };
 
+  /** Run a configurable shortcut; false when it does not apply right now. */
+  private async runShortcut(action: ShortcutAction): Promise<boolean> {
+    const projectingSlides = Boolean(this.projecting && this.projection?.slides.length);
+    switch (action) {
+      case "add_to_setlist":
+        await this.addSelectedToSetlist();
+        return true;
+      case "toggle_favorite": {
+        const filename = this.setlistCandidate();
+        if (!filename) {
+          this.showToast("Select a song from the library first");
+          return true;
+        }
+        await this.toggleFavorite(filename);
+        return true;
+      }
+      case "focus_search":
+        await this.showSearch();
+        return true;
+      case "blank":
+        if (!this.projecting) return false;
+        this.applyProjectionSnapshot(await api.blankScreen());
+        return true;
+      case "next_slide":
+        if (!projectingSlides) return false;
+        await this.advanceSlide("next");
+        return true;
+      case "previous_slide":
+        if (!projectingSlides) return false;
+        await this.advanceSlide("prev");
+        return true;
+    }
+  }
+
+  /** Settings: the next key combination becomes the recorded action's shortcut. */
+  private onRecordShortcutKeydown = (event: KeyboardEvent) => {
+    const action = this.recordingShortcut;
+    if (!action) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.key === "Escape") {
+      this.recordingShortcut = null;
+      this.shortcutError = null;
+      return;
+    }
+    const noModifiers = !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+    if (noModifiers && (event.key === "Backspace" || event.key === "Delete")) {
+      void this.setShortcut(action, "");
+      return;
+    }
+    const combo = comboFromEvent(event);
+    if (!combo) return;
+    const problem = shortcutProblem(this.shortcuts, action, combo);
+    if (problem) {
+      this.shortcutError = problem;
+      return;
+    }
+    void this.setShortcut(action, combo);
+  };
+
+  private async setShortcut(action: ShortcutAction, combo: string) {
+    this.shortcuts = { ...this.shortcuts, [action]: combo };
+    this.recordingShortcut = null;
+    this.shortcutError = null;
+    try {
+      await api.saveShortcuts(this.shortcuts);
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  private async resetShortcuts() {
+    this.shortcuts = { ...DEFAULT_SHORTCUTS };
+    this.recordingShortcut = null;
+    this.shortcutError = null;
+    await api.saveShortcuts(this.shortcuts);
+    this.showToast("Keyboard shortcuts reset");
+  }
+
   private async onSearchKeydown(event: KeyboardEvent) {
+    const keyOptions = this.keyToken ? matchingKeys(this.keys, this.keyToken.partial) : [];
+    if (keyOptions.length > 0) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        this.keyMenuIndex = (this.keyMenuIndex + step + keyOptions.length) % keyOptions.length;
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.chooseKey(keyOptions[this.keyMenuIndex] ?? keyOptions[0]);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.keyToken = null;
+        return;
+      }
+    }
     if (event.key === "ArrowDown") {
       const first = this.visibleSongs[0];
       if (!first) return;
@@ -1626,6 +2039,8 @@ export class Psa150App extends Psa150Element {
   render() {
     return html`
       ${this.renderHeader()}
+      <div class="app-body">
+      ${this.renderActivityBar()}
       <main class="workspace" style="--browse-pane-width: ${this.browsePaneWidth}px">
         ${this.renderBrowsePane()}
         ${this.renderSongPane()}
@@ -1640,13 +2055,17 @@ export class Psa150App extends Psa150Element {
           @pointercancel=${this.onSplitterPointerUp}
         ></div>
       </main>
+      </div>
       <psa150-modal
         class="settings-modal"
         heading="Settings"
         variant="wide"
         ?open=${this.settingsOpen}
         .content=${this.renderSettingsContent()}
-        @psa150-close=${() => (this.settingsOpen = false)}
+        @psa150-close=${() => {
+          this.settingsOpen = false;
+          this.recordingShortcut = null;
+        }}
       ></psa150-modal>
       <psa150-modal
         class="duplicate-modal"
@@ -1679,75 +2098,66 @@ export class Psa150App extends Psa150Element {
   }
 
   private renderHeader() {
+    const song = this.currentSong;
     return html`
       <header class="app-header" data-tauri-drag-region @dblclick=${this.onTitlebarDblClick}>
+        ${this.renderVsbProgress()}
         <div class="brand">
           <div class="brand-mark">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
+            <svg width="18" height="18" viewBox="200 180 700 680" fill="currentColor" stroke="none" aria-hidden="true">
+              <rect x="352" y="196" width="104" height="632" rx="24" />
+              <rect x="228" y="340" width="352" height="100" rx="24" />
+              <ellipse cx="626" cy="742" rx="66" ry="52" transform="rotate(-22 626 742)" />
+              <ellipse cx="800" cy="676" rx="66" ry="52" transform="rotate(-22 800 676)" />
+              <rect x="662" y="498" width="34" height="240" />
+              <rect x="836" y="432" width="34" height="240" />
+              <path d="M662 498 L870 432 L870 512 L662 578 Z" />
             </svg>
           </div>
           <strong class="brand-name">Psalm150</strong>
-        </div>
-        <div class="live-bar app-no-drag">
-          <span class="live-song" title=${this.activeProjectionTitle ?? "Nothing is being shown"}>
-            Now showing: ${this.activeProjectionTitle ?? "—"}
-          </span>
-          <button class="primary compact" @click=${() => this.projectLoadedSong()}>Project</button>
-          <button class="secondary compact" @click=${() => this.advanceSlide("prev")}>Prev</button>
-          <button class="secondary compact" @click=${() => this.advanceSlide("next")}>Next</button>
-          <button
-            class="secondary compact"
-            @click=${async () => {
-              this.applyProjectionSnapshot(await api.blankScreen());
-            }}
-          >
-            Blank
-          </button>
-          <button class="ghost compact" ?disabled=${!this.currentSong} @click=${() => this.openEdit()}>
-            Edit
-          </button>
         </div>
         <div class="header-end app-no-drag">
           <span class="toast ${this.toastTone} ${this.toastVisible ? "" : "hidden"}" role="status">
             ${this.toastMsg}
           </span>
           <span class="badge ${this.libraryStatus?.library_dirty ? "" : "hidden"}">Changed</span>
-          <button
-            class="icon-btn"
-            type="button"
-            title="Settings"
-            aria-label="Settings"
-            @click=${() => this.openSettings()}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path
-                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-              />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </button>
+          <div class="toolbar-group projection-toolbar" role="toolbar" aria-label="Projection and settings">
+            <button
+              class="ghost compact toolbar-btn ${this.projecting ? "pressed" : ""}"
+              title="Project the selected song (Enter)"
+              ?disabled=${!song}
+              @click=${() => this.projectLoadedSong()}
+            >${icon("project", 16)}<span>Project</span></button>
+            ${this.projecting
+              ? html`
+                  <button
+                    class="ghost compact toolbar-btn icon-only"
+                    title="Previous slide (←)"
+                    aria-label="Previous slide"
+                    @click=${() => this.advanceSlide("prev")}
+                  >${icon("prev", 16)}</button>
+                  <button
+                    class="ghost compact toolbar-btn icon-only"
+                    title="Next slide (→)"
+                    aria-label="Next slide"
+                    @click=${() => this.advanceSlide("next")}
+                  >${icon("next", 16)}</button>
+                  <button
+                    class="ghost compact toolbar-btn ${this.projection?.blank ? "pressed" : ""}"
+                    title="Blank the screen (B)"
+                    aria-pressed=${this.projection?.blank ? "true" : "false"}
+                    @click=${async () => this.applyProjectionSnapshot(await api.blankScreen())}
+                  >${icon("blank", 16)}<span>Blank</span></button>
+                `
+              : nothing}
+            <button
+              class="icon-btn toolbar-icon"
+              type="button"
+              title="Settings"
+              aria-label="Settings"
+              @click=${() => this.openSettings()}
+            >${icon("settings", 16)}</button>
+          </div>
         </div>
         <div class="window-controls app-no-drag">
           <button
@@ -1772,16 +2182,16 @@ export class Psa150App extends Psa150Element {
               ? html`
                   <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
                     <path
-                      d="M1 1h5v4H2V2H1V1"
+                      d="M2.5 2.5V0.5h7v7h-2"
                       fill="none"
                       stroke="currentColor"
                       stroke-width="1"
                     />
                     <rect
-                      x="4"
-                      y="4"
-                      width="5"
-                      height="5"
+                      x="0.5"
+                      y="2.5"
+                      width="7"
+                      height="7"
                       fill="none"
                       stroke="currentColor"
                       stroke-width="1"
@@ -1818,107 +2228,56 @@ export class Psa150App extends Psa150Element {
     `;
   }
 
+  /**
+   * Activity bar (as in VS Code): what the song list shows. The VSB sync
+   * status sits at the bottom, like VS Code's account and manage icons.
+   */
+  private renderActivityBar() {
+    const mode = (
+      name: BrowseMode,
+      label: string,
+      iconName: "search" | "setlist" | "history" | "favorites",
+      onClick: () => unknown,
+    ) => html`
+      <button
+        class="activity-btn ${this.browseMode === name ? "active" : ""}"
+        type="button"
+        title=${label}
+        aria-label=${label}
+        aria-pressed=${this.browseMode === name ? "true" : "false"}
+        @click=${onClick}
+      >${icon(iconName, 22)}</button>
+    `;
+    return html`
+      <nav class="activity-bar" aria-label="Song list views">
+        ${mode("search", "Search (Ctrl+F)", "search", () => this.showSearch())}
+        ${mode("setlist", "Setlist", "setlist", () => this.setBrowseMode("setlist"))}
+        ${mode("history", "History", "history", () => this.setBrowseMode("history"))}
+        ${mode("favorites", "Favourites", "favorites", () => this.setBrowseMode("favorites"))}
+        <span class="activity-spacer"></span>
+        ${this.vsbSync
+          ? html`<button
+              class="activity-btn ${this.vsbSyncing ? "spinning" : ""} ${this.vsbSync.last_error ? "attention" : ""}"
+              type="button"
+              title=${this.vsbStatusTitle()}
+              aria-label="Synchronize with Visual Song Book"
+              ?disabled=${this.vsbSyncing}
+              @click=${() => this.syncVsbNow()}
+            >${icon("sync", 20)}</button>`
+          : nothing}
+      </nav>
+    `;
+  }
+
   private renderBrowsePane() {
-    const tabs: Tab[] = ["search", "key", "history", "favorites", "setlist"];
     return html`
       <aside class="browse-pane" style="width: ${this.browsePaneWidth}px">
-        <nav class="tabs segmented" role="tablist">
-          <div class="tabs-indicator" aria-hidden="true"></div>
-          ${tabs.map(
-            (tab) => html`
-              <button
-                class=${this.activeTab === tab ? "active" : ""}
-                role="tab"
-                aria-selected=${this.activeTab === tab ? "true" : "false"}
-                @click=${() => this.selectTab(tab)}
-              >
-                ${TAB_LABELS[tab]}
-              </button>
-            `,
-          )}
-        </nav>
-        ${this.activeTab === "search"
-          ? html`
-              <div class="browse-toolbar">
-                <form class="search-wrap" autocomplete="off" @submit=${(e: Event) => e.preventDefault()}>
-                  <svg
-                    class="search-icon"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.3-4.3" />
-                  </svg>
-                  <input
-                    id="search-input"
-                    type="text"
-                    name="psa150-library-query"
-                    placeholder="Search songs, tags, or numbers..."
-                    autocomplete="off"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    .value=${this.query}
-                    @input=${(e: Event) => {
-                      this.query = (e.target as HTMLInputElement).value;
-                      void this.refreshSongs();
-                    }}
-                    @keydown=${(e: KeyboardEvent) => this.onSearchKeydown(e)}
-                  />
-                </form>
-              </div>
-            `
-          : nothing}
-        ${this.activeTab === "key"
-          ? html`
-              <div class="browse-toolbar">
-                <psa150-combobox
-                  placeholder="Select key"
-                  .options=${this.keys}
-                  .value=${this.keySelected}
-                  @psa150-change=${(e: CustomEvent<string>) => {
-                    this.keySelected = e.detail;
-                    void this.refreshSongs();
-                  }}
-                ></psa150-combobox>
-              </div>
-            `
-          : nothing}
-        ${this.activeTab === "setlist"
-          ? html`
-              <div class="browse-toolbar">
-                <div class="setlist-fields">
-                  <input
-                    placeholder="Service name"
-                    .value=${this.setlistName}
-                    @input=${(e: Event) => (this.setlistName = (e.target as HTMLInputElement).value)}
-                  />
-                  <input
-                    type="date"
-                    .value=${this.setlistDate}
-                    @input=${(e: Event) => (this.setlistDate = (e.target as HTMLInputElement).value)}
-                  />
-                </div>
-                <div class="setlist-actions">
-                  <button class="secondary compact" @click=${() => this.createSetlist()}>Create</button>
-                  <button class="secondary compact" @click=${() => this.advanceSetlist()}>Advance</button>
-                </div>
-              </div>
-            `
-          : nothing}
+        ${this.browseMode === "search" ? this.renderSearchToolbar() : this.renderViewToolbar()}
         <psa150-song-list
-          class="song-list scroll-region ${this.showSongNumbers ? "" : "hide-numbers"}"
-          role="listbox"
+          class="song-list-host"
           .songs=${this.visibleSongs}
           .showNumbers=${this.showSongNumbers}
-          .sort=${this.isSortableTab() ? this.songSort : null}
+          .sort=${this.isSortableView() ? this.songSort : null}
           @psa150-sort=${(e: CustomEvent<SongSortColumn>) => this.setSongSort(e.detail)}
           .webResults=${this.webResults}
           .webSearchLoading=${this.webSearchLoading}
@@ -1935,6 +2294,111 @@ export class Psa150App extends Psa150Element {
     `;
   }
 
+  private renderSearchToolbar() {
+    const keyOptions = this.keyToken ? matchingKeys(this.keys, this.keyToken.partial) : [];
+    const { key } = parseSearch(this.query, this.keys);
+    return html`
+      <div class="browse-toolbar">
+        <form class="search-wrap" autocomplete="off" @submit=${(e: Event) => e.preventDefault()}>
+          <span class="search-icon">${icon("search")}</span>
+          <input
+            id="search-input"
+            type="text"
+            name="psa150-library-query"
+            placeholder="Search songs, numbers, or # for key…"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            role="combobox"
+            aria-expanded=${keyOptions.length > 0 ? "true" : "false"}
+            aria-controls="key-menu"
+            aria-autocomplete="list"
+            .value=${this.query}
+            @input=${(e: Event) => this.onSearchInput(e)}
+            @click=${(e: Event) => this.updateKeyToken(e.target as HTMLInputElement)}
+            @keydown=${(e: KeyboardEvent) => this.onSearchKeydown(e)}
+          />
+          ${key ? html`<span class="search-key-chip" title="Showing songs in ${key}">${icon("key", 13)}${key}</span>` : nothing}
+          ${keyOptions.length > 0
+            ? html`
+                <div class="combobox-list key-menu">
+                  <div class="key-menu-heading">Songs in key</div>
+                  <ul id="key-menu" class="dropdown-scroll" role="listbox" aria-label="Keys">
+                    ${keyOptions.map(
+                      (option, index) => html`
+                        <li
+                          role="option"
+                          aria-selected=${index === this.keyMenuIndex ? "true" : "false"}
+                          class=${index === this.keyMenuIndex ? "highlighted" : ""}
+                          @mousedown=${(event: MouseEvent) => {
+                            event.preventDefault();
+                            this.chooseKey(option);
+                          }}
+                        >${option}</li>
+                      `,
+                    )}
+                  </ul>
+                </div>
+              `
+            : nothing}
+        </form>
+      </div>
+    `;
+  }
+
+  /** History, Favourites and Setlist: a title bar that closes back to search. */
+  /**
+   * History, Favourites and Setlist: one row as tall as the search heading.
+   * The Setlist view puts its picker and Next song in that row.
+   */
+  private renderViewToolbar() {
+    const mode = this.browseMode as Exclude<BrowseMode, "search">;
+    const iconName = mode === "favorites" ? "favorites" : mode;
+    return html`
+      <div class="browse-toolbar view-toolbar">
+        <span class="view-title-icon" title=${BROWSE_TITLES[mode]}>${icon(iconName, 16)}</span>
+        ${mode === "setlist" ? this.renderSetlistPicker() : html`<strong class="view-title">${BROWSE_TITLES[mode]}</strong>`}
+        <button
+          class="icon-btn view-close"
+          type="button"
+          title="Back to search (Ctrl+F)"
+          aria-label="Back to search"
+          @click=${() => this.setBrowseMode("search")}
+        >${icon("close", 16)}</button>
+      </div>
+    `;
+  }
+
+  private renderSetlistPicker() {
+    if (!this.setlists.length) {
+      return html`<p class="setlist-empty">No setlists yet. Use the add-to-setlist button on a song to start one.</p>`;
+    }
+    return html`
+      <psa150-select
+        class="setlist-picker"
+        .options=${[
+          ...(this.currentSetlist ? [] : [{ value: "", label: "Choose a setlist…" }]),
+          ...this.setlists.map((setlist) => ({
+            value: setlist.id,
+            label: `${setlist.name} · ${setlist.items.length} ${setlist.items.length === 1 ? "song" : "songs"}`,
+          })),
+        ]}
+        .value=${this.currentSetlist?.id ?? ""}
+        @psa150-change=${(e: CustomEvent<string>) =>
+          this.chooseSetlist(this.setlists.find((setlist) => setlist.id === e.detail) ?? null)}
+      ></psa150-select>
+      <button
+        class="icon-btn view-close"
+        type="button"
+        title="Project the next song in the setlist"
+        aria-label="Project the next song in the setlist"
+        ?disabled=${!this.currentSetlist?.items.length}
+        @click=${() => this.projectNextInSetlist()}
+      >${icon("skipForward", 16)}</button>
+    `;
+  }
+
   private renderSongPane() {
     return html`
       <section class="song-pane ${this.projecting ? "projecting" : ""}">
@@ -1945,17 +2409,19 @@ export class Psa150App extends Psa150Element {
                 ? (this.currentSong.parsed.meta.title as string) || "Untitled"
                 : "Select a song"}
             </h1>
-            ${this.currentSong
-              ? html`<div class="song-title-meta">${this.renderSongTitleMeta()}</div>`
-              : nothing}
             ${this.renderSongPaneSaveButton()}
+            ${this.renderSongActions()}
           </div>
-          ${this.renderSongSecondaryMeta()}
-          ${this.renderAdhocEditBar()}
-          ${this.renderStanzaNavigation()}
         </header>
         <div class="song-body scroll-region">
+          ${this.renderSongNotices()}
           <div class="song-content ${this.isProjectionActive() ? "projecting" : ""}">
+            ${this.currentSong
+              ? html`<div class="song-title-meta">
+                  <div class="song-title-meta-line">${this.renderSongTitleMeta()}</div>
+                  ${this.renderSongSecondaryMeta()}
+                </div>`
+              : nothing}
             ${this.renderSongContent()}
           </div>
         </div>
@@ -1963,25 +2429,26 @@ export class Psa150App extends Psa150Element {
     `;
   }
 
+  /** Ad hoc edit bar and the "On screen" line, pinned at the top of the song body. */
+  private renderSongNotices() {
+    const adhoc = this.renderAdhocEditBar();
+    const onScreen = this.renderStanzaNavigation();
+    if (adhoc === nothing && onScreen === nothing) return nothing;
+    return html`<div class="song-notices">${adhoc}${onScreen}</div>`;
+  }
+
+  /**
+   * Stanzas are switched with the number keys (and by clicking a stanza), so
+   * there are no stanza buttons. While another song is previewed, say which
+   * song the number keys still control.
+   */
   private renderStanzaNavigation() {
-    if (!this.projecting || !this.projection?.slides.length) return nothing;
-    const markers = buildStanzaMarkers(this.projection.slides);
-    const active = this.projection.blank ? -1 : activeStanzaIndex(markers, this.projection.current_index);
-    return html`
-      <nav class="stanza-navigation" aria-label="Jump to stanza">
-        <span class="stanza-navigation-title">Now showing: ${this.activeProjectionTitle ?? "—"}</span>
-        ${markers.map((marker, index) => html`
-          <button
-            type="button"
-            class="${active === index ? "primary" : "secondary"} compact"
-            aria-label="Stanza ${index + 1}"
-            aria-pressed=${active === index ? "true" : "false"}
-            title="Stanza ${index + 1}: ${marker.fullText.split("\n")[0]}"
-            @click=${() => this.jumpToStanza(marker.slideIndices[0])}
-          >${index + 1}</button>
-        `)}
-      </nav>
-    `;
+    if (!this.projecting || !this.projection?.slides.length || this.selectedSongIsActive()) {
+      return nothing;
+    }
+    return html`<div class="stanza-navigation">
+      <span class="stanza-navigation-title">On screen: ${this.activeProjectionTitle ?? "—"}</span>
+    </div>`;
   }
 
   private async openDuplicateReview() {
@@ -2210,6 +2677,125 @@ export class Psa150App extends Psa150Element {
     return html`
       ${hasNum ? html`<span class="song-title-meta-num">#${meta.song_num}</span>` : nothing}
       ${hasKey ? html`<span class="song-title-meta-key">${meta.key}</span>` : nothing}
+    `;
+  }
+
+  /** Edit, favourite star and add-to-setlist, right-aligned on the title row. */
+  private renderSongActions() {
+    if (!this.currentSong) return nothing;
+    const filename = this.setlistCandidate();
+    const favorite = Boolean(filename && this.favoriteFiles.has(filename));
+    return html`
+      <div class="toolbar-group song-actions" role="toolbar" aria-label="Song">
+        <button
+          type="button"
+          class="song-action-btn"
+          title="Edit the ChordPro source"
+          aria-label="Edit the ChordPro source"
+          @click=${() => this.openEdit()}
+        >${icon("edit")}</button>
+        ${filename
+          ? html`
+              <button
+                type="button"
+                class="song-action-btn star-btn ${favorite ? "active" : ""}"
+                title=${`${favorite ? "Remove from favourites" : "Add to favourites"} (${formatCombo(this.shortcuts.toggle_favorite)})`}
+                aria-label=${favorite ? "Remove from favourites" : "Add to favourites"}
+                aria-pressed=${favorite ? "true" : "false"}
+                @click=${() => this.toggleFavorite(filename)}
+              >${icon("favorites")}</button>
+              ${this.renderSetlistButton(filename)}
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
+  private renderSetlistButton(filename: string) {
+    const current = this.currentSetlist;
+    const inSetlist = this.setlistHasSong(current, filename);
+    // In the setlist (check): one click takes the song out of the active setlist.
+    // Not in it (plus): open the menu to pick a setlist or start a new one.
+    const label = inSetlist && current
+      ? `Remove from ${current.name}`
+      : `Add to a setlist (${formatCombo(this.shortcuts.add_to_setlist)})`;
+    return html`
+      <div class="setlist-anchor">
+        <button
+          type="button"
+          class="song-action-btn setlist-btn ${inSetlist ? "active" : ""}"
+          title=${label}
+          aria-label=${label}
+          aria-pressed=${inSetlist ? "true" : "false"}
+          aria-haspopup=${inSetlist ? nothing : "menu"}
+          aria-expanded=${inSetlist ? nothing : this.setlistMenuOpen ? "true" : "false"}
+          @click=${() => {
+            if (inSetlist && current) {
+              this.setlistMenuOpen = false;
+              void this.toggleSongInSetlist(current);
+            } else {
+              void this.toggleSetlistMenu();
+            }
+          }}
+        >${icon(inSetlist ? "check" : "plus")}</button>
+        ${this.setlistMenuOpen ? this.renderSetlistMenu(filename) : nothing}
+      </div>
+    `;
+  }
+
+  private renderSetlistMenu(filename: string) {
+    return html`
+      <div class="setlist-menu" role="menu" aria-label="Add to setlist">
+        ${this.setlists.length
+          ? html`<div class="setlist-menu-heading">Add to setlist</div>
+            <div class="setlist-menu-list">
+              ${this.setlists.map((setlist) => {
+                const has = this.setlistHasSong(setlist, filename);
+                return html`
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked=${has ? "true" : "false"}
+                    class="setlist-menu-item ${has ? "checked" : ""} ${this.currentSetlist?.id === setlist.id ? "current" : ""}"
+                    @click=${() => this.toggleSongInSetlist(setlist)}
+                  >
+                    <span class="setlist-menu-check">${has ? icon("check", 14) : nothing}</span>
+                    <span class="setlist-menu-name">${setlist.name}</span>
+                    <span class="setlist-menu-count">${setlist.items.length}</span>
+                  </button>
+                `;
+              })}
+            </div>`
+          : nothing}
+        <form
+          class="setlist-menu-new"
+          @submit=${(event: Event) => {
+            event.preventDefault();
+            void this.createSetlistWithSong();
+          }}
+        >
+          <label class="setlist-menu-label" for="new-setlist-name">New setlist</label>
+          <div class="setlist-menu-new-row">
+            <input
+              id="new-setlist-name"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              .value=${this.newSetlistName}
+              @input=${(e: Event) => (this.newSetlistName = (e.target as HTMLInputElement).value)}
+              @keydown=${(e: KeyboardEvent) => {
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  this.setlistMenuOpen = false;
+                }
+              }}
+            />
+            <button type="submit" class="primary compact toolbar-btn" title="Create the setlist and add this song">
+              ${icon("plus", 14)}<span>Create</span>
+            </button>
+          </div>
+        </form>
+      </div>
     `;
   }
 
@@ -2554,6 +3140,25 @@ export class Psa150App extends Psa150Element {
               <button class="primary" ?disabled=${this.serverSyncing} @click=${() => this.connectServerLibrary()}>${this.serverSyncing ? "Connecting…" : "Connect and download"}</button>
               ${this.renderServerSyncProgress()}`;
         break;
+      case "vsb":
+        content = this.vsbSync
+          ? html`
+              <p class="settings-path">${this.vsbSync.mdb_path}</p>
+              <p class="settings-hint">${this.vsbSync.last_synced_at
+                ? `Last synchronized ${this.formatServerSyncTime(this.vsbSync.last_synced_at)} · ${this.vsbSync.last_summary ?? ""}`
+                : "Not synchronized yet"}</p>
+              ${this.vsbSync.last_error ? html`<p class="settings-hint settings-error">${this.vsbSync.last_error}</p>` : nothing}
+              <div class="settings-actions">
+                <button class="primary" ?disabled=${this.vsbSyncing} @click=${() => this.syncVsbNow()}>${this.vsbSyncing ? "Synchronizing…" : "Synchronize now"}</button>
+                <button class="secondary" ?disabled=${this.vsbSyncing} @click=${() => this.linkVsbDatabase()}>Link another database</button>
+                <button class="ghost" ?disabled=${this.vsbSyncing} @click=${() => this.unlinkVsbDatabase()}>Unlink</button>
+              </div>
+              <p class="settings-hint settings-note">Changes flow both ways at start-up, every minute when either side changed, and when you press Synchronize. A song edited on both sides keeps the Psalm150 version. The database is backed up before every write (the last 10 copies are kept).${this.serverLibrary ? " With a song server, VSB changes are sent to the server (a song edited there in the meantime keeps the server version), and syncing waits while something is projected." : ""}</p>`
+          : html`
+              <p class="settings-hint">Keep a Visual Song Book database and this library in step: songs added, edited or deleted on one side follow on the other. Works with a local songs folder and with a song server library.</p>
+              <button class="primary" @click=${() => this.linkVsbDatabase()}>Link VSB database…</button>
+              <p class="settings-hint settings-note">Writing to VSB uses the Microsoft Access Database Engine (64-bit), included with Office. Without it, VSB changes still reach Psalm150.</p>`;
+        break;
       case "projection":
         content = html`
           <div class="settings-row"><span class="settings-row-label">Congregation</span><psa150-select .options=${this.audienceDisplayOptions()} .value=${this.audienceMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}></psa150-select></div>
@@ -2573,11 +3178,37 @@ export class Psa150App extends Psa150Element {
         content = html`<div class="settings-actions"><button class="secondary" @click=${() => this.printSongbook()}>Print songbook HTML</button><button class="secondary" @click=${() => this.exportCcli()}>Export CCLI CSV</button></div>`;
         break;
       case "shortcuts":
-        content = html`<div class="shortcuts">
-          <span><kbd>Enter</kbd> project</span><span><kbd>↑</kbd> <kbd>↓</kbd> stanzas</span>
-          <span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>
-          <span><kbd>←</kbd> <kbd>→</kbd> slides</span><span><kbd>B</kbd> blank</span><span><kbd>Esc</kbd> close projection</span>
-        </div>`;
+        content = html`
+          <p class="settings-hint">Click a shortcut, then press the new keys. Esc cancels, Backspace removes it.</p>
+          <div class="shortcut-list">
+            ${SHORTCUT_ACTIONS.map(({ id, label }) => {
+              const recording = this.recordingShortcut === id;
+              return html`
+                <div class="shortcut-row ${recording ? "recording" : ""}">
+                  <span class="shortcut-label">${label}</span>
+                  <button
+                    type="button"
+                    class="shortcut-key"
+                    aria-label="Change the shortcut for ${label}"
+                    @click=${() => {
+                      this.shortcutError = null;
+                      this.recordingShortcut = recording ? null : id;
+                    }}
+                  >${recording ? "Press keys…" : formatCombo(this.shortcuts[id])}</button>
+                </div>
+              `;
+            })}
+          </div>
+          ${this.shortcutError ? html`<p class="settings-hint settings-error">${this.shortcutError}</p>` : nothing}
+          <div class="settings-actions">
+            <button class="ghost" @click=${() => this.resetShortcuts()}>Reset to defaults</button>
+          </div>
+          <h4 class="shortcut-fixed-heading">Fixed keys</h4>
+          <div class="shortcuts">
+            <span><kbd>Enter</kbd> project</span><span><kbd>↑</kbd> <kbd>↓</kbd> songs, or stanzas while projecting</span>
+            <span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>
+            <span><kbd>#</kbd> in search: pick a key</span><span><kbd>Esc</kbd> close projection</span>
+          </div>`;
         break;
     }
 
@@ -2694,6 +3325,50 @@ function isTextEntryTarget(
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement
   );
+}
+
+function readLocal(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocal(key: string, value: string | null) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable; the choice just is not remembered.
+  }
+}
+
+function localIsoDate(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Today in the PC's short date format (e.g. 23.09.26 with Norwegian settings). */
+async function defaultSetlistName(): Promise<string> {
+  const fromSystem = await api.formatShortDate().catch(() => null);
+  return fromSystem || new Intl.DateTimeFormat(undefined, { dateStyle: "short" }).format(new Date());
+}
+
+function syntheticRow(id: number, filename: string, title: string): SongRow {
+  return {
+    id,
+    filename,
+    title,
+    title_sort: title.toUpperCase(),
+    song_num: null,
+    key: null,
+    category: null,
+    tags: null,
+    ccli: null,
+    modified_at: null,
+    favorite: false,
+  };
 }
 
 function delay(ms: number) {

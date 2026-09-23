@@ -239,6 +239,7 @@ export interface AppConfig {
   last_local_songs_folder?: string | null;
   read_only: boolean;
   server_library?: ServerLibraryConfig | null;
+  vsb_sync?: VsbSyncConfig | null;
   web_search_enabled: boolean;
   /** Show the song-number column in the song list (default on). */
   show_song_numbers: boolean;
@@ -257,6 +258,42 @@ export interface ServerLibraryConfig {
   url: string;
   last_synced_at: string;
   song_count: number;
+}
+
+/** Linked Visual Song Book database, kept in two-way sync with the library. */
+export interface VsbSyncConfig {
+  mdb_path: string;
+  last_synced_at?: string | null;
+  last_summary?: string | null;
+  last_error?: string | null;
+}
+
+export interface VsbSyncReport {
+  files_written: number;
+  files_created: number;
+  files_deleted: number;
+  rows_written: number;
+  rows_inserted: number;
+  rows_deleted: number;
+  conflicts: number;
+  differing: number;
+  sent_to_server: number;
+  linked: number;
+  blocked: string[];
+  errors: string[];
+  backup?: string | null;
+  finished_at: string;
+}
+
+export interface VsbSyncProgress {
+  label: string;
+  current: number;
+  total: number;
+}
+
+export interface VsbSyncFinished {
+  report: VsbSyncReport | null;
+  error: string | null;
 }
 
 export const api = {
@@ -283,6 +320,7 @@ export const api = {
   listCategories: () => invoke<string[]>("list_categories"),
   getHistory: (limit = 50) => invoke<[string, string, string][]>("get_history", { limit }),
   toggleFavorite: (filename: string) => invoke<boolean>("toggle_favorite", { filename }),
+  listFavorites: () => invoke<string[]>("list_favorites"),
   importMdbPath: (mdbPath: string) => invoke<ImportReport>("import_mdb_path", { mdbPath }),
   cancelImport: () => invoke<void>("cancel_import"),
   importMdb: async () => {
@@ -338,6 +376,25 @@ export const api = {
   saveSetlist: (setlist: Setlist) => invoke<void>("save_setlist", { setlist }),
   setlistAdvance: () => invoke<SetlistItem | null>("setlist_advance"),
   setlistPrevious: () => invoke<SetlistItem | null>("setlist_previous"),
+  addToSetlist: (id: string, filename: string) =>
+    invoke<Setlist>("add_to_setlist", { id, filename }),
+  removeFromSetlist: (id: string, filename: string) =>
+    invoke<Setlist>("remove_from_setlist", { id, filename }),
+  /** Today in the PC's regional short date format, or null off Windows. */
+  formatShortDate: () => invoke<string | null>("format_short_date"),
+  chooseVsbDatabase: async () => {
+    const selected = await open({
+      title: "Link a Visual Song Book database",
+      filters: [{ name: "Visual Song Book database", extensions: ["mdb"] }],
+      multiple: false,
+    });
+    if (selected === null) return undefined;
+    const path = Array.isArray(selected) ? selected[0] : selected;
+    return invoke<VsbSyncConfig | null>("set_vsb_database", { path });
+  },
+  unlinkVsbDatabase: () => invoke<VsbSyncConfig | null>("set_vsb_database", { path: null }),
+  syncVsbDatabase: (force: boolean) =>
+    invoke<VsbSyncReport | null>("sync_vsb_database", { force }),
   setReadOnly: (readOnly: boolean) => invoke<void>("set_read_only", { readOnly }),
   connectServerLibrary: (url: string, token: string) =>
     invoke<LibraryStatus>("connect_server_library", { url, token }),
@@ -350,6 +407,8 @@ export const api = {
   setShowSongNumbers: (enabled: boolean) =>
     invoke<void>("set_show_song_numbers", { enabled }),
   getConfig: () => invoke<AppConfig>("get_config"),
+  getShortcuts: () => invoke<Partial<Record<string, string>>>("get_shortcuts"),
+  saveShortcuts: (shortcuts: Record<string, string>) => invoke<void>("save_shortcuts", { shortcuts }),
   listDisplays: () => invoke<DisplayInfo[]>("list_displays"),
   setAudienceMonitor: (monitorId: string | null) =>
     invoke<void>("set_audience_monitor", { monitorId }),

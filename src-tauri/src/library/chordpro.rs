@@ -538,7 +538,8 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
 }
 
 fn parse_chord_line(line: &str) -> (String, Vec<ChordPlacement>) {
-    let chord_re = regex::Regex::new(r"\[([^\]]+)\]").unwrap();
+    static CHORD: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let chord_re = CHORD.get_or_init(|| regex::Regex::new(r"\[([^\]]+)\]").unwrap());
     let mut chords = Vec::new();
     let mut text = String::new();
     let mut last = 0;

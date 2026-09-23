@@ -19,6 +19,9 @@ pub struct AppConfig {
     /// credential is stored separately and is never serialized to the UI.
     #[serde(default)]
     pub server_library: Option<ServerLibraryConfig>,
+    /// Visual Song Book database kept in two-way sync with the active library.
+    #[serde(default)]
+    pub vsb_sync: Option<VsbSyncConfig>,
     /// When projecting a song, also show the stage window (musician chords).
     #[serde(default)]
     pub project_to_stage: bool,
@@ -35,6 +38,7 @@ pub struct AppConfig {
     pub remote_port: u16,
     pub key_format_compressed: bool,
     pub history_days: u32,
+    #[serde(default)]
     pub shortcuts: ShortcutConfig,
     pub first_run_complete: bool,
 }
@@ -54,6 +58,7 @@ impl Default for AppConfig {
             last_local_songs_folder: None,
             read_only: false,
             server_library: None,
+            vsb_sync: None,
             project_to_stage: false,
             web_search_enabled: default_web_search_enabled(),
             show_song_numbers: default_show_song_numbers(),
@@ -78,10 +83,28 @@ pub struct ServerLibraryConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VsbSyncConfig {
+    pub mdb_path: String,
+    #[serde(default)]
+    pub last_synced_at: Option<String>,
+    #[serde(default)]
+    pub last_summary: Option<String>,
+    #[serde(default)]
+    pub last_error: Option<String>,
+}
+
+/// Operator keyboard shortcuts as combos such as `Alt+S`, `Ctrl+F`, `B` or
+/// `ArrowRight` (see `src/shortcuts.ts`). Missing fields take the defaults,
+/// so older config files keep working.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ShortcutConfig {
     pub next_slide: String,
     pub previous_slide: String,
     pub blank: String,
+    pub add_to_setlist: String,
+    pub toggle_favorite: String,
+    pub focus_search: String,
 }
 
 impl Default for ShortcutConfig {
@@ -89,7 +112,10 @@ impl Default for ShortcutConfig {
         Self {
             next_slide: "ArrowRight".into(),
             previous_slide: "ArrowLeft".into(),
-            blank: "KeyB".into(),
+            blank: "B".into(),
+            add_to_setlist: "Alt+S".into(),
+            toggle_favorite: "Alt+F".into(),
+            focus_search: "Ctrl+F".into(),
         }
     }
 }
@@ -133,6 +159,13 @@ pub fn server_library_root(app: &AppHandle, server_url: &str) -> Result<PathBuf,
     app.path()
         .app_data_dir()
         .map(|dir| dir.join("server-libraries").join(server_hash))
+        .map_err(|error| error.to_string())
+}
+
+pub fn vsb_backup_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|dir| dir.join("vsb-backups"))
         .map_err(|error| error.to_string())
 }
 
@@ -205,4 +238,28 @@ pub fn save_favorites(
     }
     let text = serde_json::to_string_pretty(favorites).map_err(|e| e.to_string())?;
     fs::write(path, text).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppConfig, ShortcutConfig};
+
+    #[test]
+    fn older_shortcut_settings_gain_the_new_defaults() {
+        let shortcuts: ShortcutConfig = serde_json::from_str(
+            r#"{"next_slide":"ArrowRight","previous_slide":"ArrowLeft","blank":"KeyB"}"#,
+        )
+        .unwrap();
+        assert_eq!(shortcuts.blank, "KeyB");
+        assert_eq!(shortcuts.add_to_setlist, "Alt+S");
+        assert_eq!(shortcuts.focus_search, "Ctrl+F");
+
+        let config: AppConfig = serde_json::from_str(
+            &serde_json::to_string(&AppConfig::default())
+                .unwrap()
+                .replace(r#","shortcuts":{"next_slide":"ArrowRight","previous_slide":"ArrowLeft","blank":"B","add_to_setlist":"Alt+S","toggle_favorite":"Alt+F","focus_search":"Ctrl+F"}"#, ""),
+        )
+        .unwrap();
+        assert_eq!(config.shortcuts.toggle_favorite, "Alt+F");
+    }
 }

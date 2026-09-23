@@ -11,7 +11,7 @@ sources:
   - id: library-cmd
     resource: /src-tauri/src/commands/library.rs
     title: search_songs, list_by_key, get_history, toggle_favorite commands
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-09-23T20:00:00Z }
 ---
 
 # Library index
@@ -33,7 +33,8 @@ scan (`rebuild_from_songs`: delete all, insert all, refill FTS) and patched by
 
 `id, filename, title, title_sort, song_num, key, category, tags, ccli,
 modified_at, favorite`: the shape the song list renders. The console
-synthesises rows with null number and key for the History and Setlist tabs.
+synthesises rows with null number and key for the History view (and for
+setlist items whose file is missing).
 
 ## Search semantics
 
@@ -52,14 +53,15 @@ the distinct non-empty values. `list_by_category`, `renumber_songs` and
 ## History and favourites
 
 `get_history(limit)` returns `(filename, title, accessed_at)` newest first; the
-console asks for 50. Favourites can be listed (Favourites tab) but **nothing in
-the UI toggles them** yet; `toggle_favorite` is only reachable over IPC.
+console asks for 50. Favourites are listed in the Favourites view and toggled
+with the star on the song title row (`toggle_favorite`, `list_favorites`).
 
 ## Ordering in the console
 
 Sorting by Song / No / Key happens client-side over the returned rows
 ([operator console](operator-console.md)); the SQL order only matters for the
-History and Setlist tabs.
+History and Setlist views. `#Key` in the search field uses `list_by_key`
+intersected with the text search.
 
 ## Related
 

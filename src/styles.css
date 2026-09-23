@@ -62,6 +62,9 @@
   --shadow-glow: 0 0 24px var(--accent-lime-glow);
   --glow-danger: 0 0 40px rgba(224, 69, 76, 0.35);
 
+  /* Shared height of the search heading and the song-name heading. */
+  --pane-head-height: 73px;
+
   --radius-xs: 8px;
   --radius-sm: 12px;
   --radius-md: 16px;
@@ -120,10 +123,12 @@ body {
    ───────────────────────────────────────────────────────────────────────────── */
 
 .app-header {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 14px 24px;
+  gap: 16px;
+  /* 9px + the 30px brand mark centres it over the 48px activity bar. */
+  padding: 6px 20px 6px 9px;
   background: var(--bg-glass);
   backdrop-filter: var(--blur-glass);
   -webkit-backdrop-filter: var(--blur-glass);
@@ -140,9 +145,9 @@ body {
 }
 
 .brand-mark {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
   background: linear-gradient(135deg, var(--accent-lime) 0%, #96ac58 100%);
   box-shadow:
     0 4px 16px var(--accent-lime-glow),
@@ -155,26 +160,104 @@ body {
 }
 
 .brand-mark svg {
-  stroke: var(--accent-on);
+  color: var(--accent-on);
 }
 
 .brand-name {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   font-weight: 500;
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 
-/* Live Control Bar */
-.live-bar {
+/* Toolbar groups: projection controls left, views and settings right. */
+.toolbar-group {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px;
+  gap: 2px;
+  padding: 3px;
   background: var(--bg-subtle);
   border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-btn.icon-only {
+  padding-inline: 9px;
+}
+
+.toolbar-btn.ghost {
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.toolbar-btn.ghost:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.toolbar-btn.pressed,
+.toolbar-btn.ghost.pressed {
+  background: var(--accent-lime-soft);
+  border-color: rgba(198, 216, 140, 0.35);
+  color: var(--accent-lime);
+}
+
+.toolbar-icon.pressed {
+  background: var(--accent-lime-soft);
+  border-color: rgba(198, 216, 140, 0.35);
+  color: var(--accent-lime);
+}
+
+.toolbar-icon.attention {
+  color: var(--warning);
+}
+
+.toolbar-icon.spinning svg {
+  animation: spin 1.1s linear infinite;
+}
+
+.toolbar-icon:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* VSB sync runs in the background: a hairline along the bottom of the app bar. */
+.vsb-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.vsb-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent-lime);
+  box-shadow: 0 0 8px var(--accent-lime-glow);
+  transition: width var(--dur-base) var(--ease-standard);
+}
+
+.vsb-progress.indeterminate span {
+  width: 30%;
+  animation: vsb-slide 1.4s var(--ease-standard) infinite;
+}
+
+@keyframes vsb-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
 }
 
 .header-end {
@@ -194,7 +277,7 @@ body {
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
-  margin: -14px -24px -14px 4px;
+  margin: -6px -20px -6px 4px;
   position: relative;
   z-index: 40;
 }
@@ -203,7 +286,7 @@ body {
   display: grid;
   place-items: center;
   width: 46px;
-  min-height: 52px;
+  min-height: 44px;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -349,103 +432,20 @@ body.workspace-resizing {
   position: relative;
 }
 
-/* Tabs — segmented control with sliding indicator */
-.tabs {
-  display: flex;
-  gap: 2px;
-  padding: 14px 14px 0;
-  flex-shrink: 0;
-}
-
-.tabs.segmented {
-  --segmented-inset: 4px;
-  position: relative;
-  margin: 14px 14px 0;
-  padding: var(--segmented-inset);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.tabs.segmented::-webkit-scrollbar {
-  display: none;
-}
-
-.tabs-indicator {
-  position: absolute;
-  top: var(--segmented-inset);
-  left: 0;
-  height: calc(100% - 2 * var(--segmented-inset));
-  border-radius: var(--radius-full);
-  background: var(--bg-glass);
-  backdrop-filter: var(--blur-glass);
-  -webkit-backdrop-filter: var(--blur-glass);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--shadow-xs);
-  transition:
-    transform var(--dur-fast) var(--ease-standard),
-    width var(--dur-fast) var(--ease-standard);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.tabs button {
-  padding: 8px 14px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  transition: color var(--dur-fast) var(--ease-standard);
-}
-
-.tabs.segmented button {
-  position: relative;
-  z-index: 1;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 8px;
-  font-size: 0.68rem;
-  white-space: nowrap;
-  border: none;
-}
-
-.tabs button:hover {
-  transform: none;
-  color: var(--text-strong);
-  background: transparent;
-  border-color: transparent;
-}
-
-.tabs.segmented button:hover {
-  color: var(--text-strong);
-}
-
-.tabs button.active {
-  color: var(--accent-on);
-  background: var(--accent-lime);
-  border-color: var(--accent-lime);
-  font-weight: 500;
-  box-shadow: 0 2px 12px var(--accent-lime-glow);
-}
-
-.tabs.segmented button.active {
-  color: var(--text-primary);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  font-weight: 600;
-}
-
 /* Toolbar */
 .browse-toolbar {
-  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--pane-head-height);
+  padding: 0 14px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.browse-toolbar .search-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -486,32 +486,6 @@ body.workspace-resizing {
 /* ─────────────────────────────────────────────────────────────────────────────
    Combobox (typeahead)
    ───────────────────────────────────────────────────────────────────────────── */
-
-.combobox {
-  position: relative;
-}
-
-.combobox input {
-  width: 100%;
-  height: 44px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  font-size: 0.88rem;
-  transition: all 0.2s ease;
-}
-
-.combobox input:hover {
-  border-color: var(--border-default);
-  background: var(--bg-elevated);
-}
-
-.combobox input:focus {
-  outline: none;
-  border-color: rgba(198, 216, 140, 0.45);
-  background: var(--bg-elevated);
-  box-shadow: 0 0 0 3px var(--accent-lime-soft);
-}
 
 .combobox-list,
 .select-list {
@@ -573,9 +547,32 @@ body.workspace-resizing {
   position: absolute;
   left: 14px;
   top: 50%;
+  display: flex;
   transform: translateY(-50%);
   color: var(--text-tertiary);
   pointer-events: none;
+}
+
+/* The key picked with #Key, echoed inside the search field. */
+.search-key-chip {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--accent-lime-soft);
+  color: var(--accent-lime);
+  font-size: 0.72rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.key-menu {
+  padding-top: 4px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -631,12 +628,39 @@ body.workspace-resizing {
   line-height: 1;
 }
 
-.song-list {
-  list-style: none;
-  padding: 6px;
-  margin: 0;
+/* Host: fixed column header above the scrolling list body. */
+.song-list-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Column header. Its grid tracks are copied from the body by psa150-song-list;
+   the right padding also covers the body's scrollbar so columns line up, and
+   the rule spans the whole sidebar. */
+.song-list-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content max-content max-content;
+  align-items: center;
+  column-gap: 8px;
+  flex-shrink: 0;
+  padding: 10px calc(15px + var(--scrollbar-width, 0px)) 7px 15px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* The body: one grid, rows are subgrids. The header labels set the minimum
+   widths of the No and Key columns (--num-min, --key-min). */
+.song-list {
+  list-style: none;
+  padding: 4px 6px 6px;
+  margin: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(var(--num-min, 0px), max-content)
+    minmax(var(--key-min, 0px), max-content)
+    max-content;
   align-content: start;
   column-gap: 8px;
   row-gap: 1px;
@@ -644,7 +668,7 @@ body.workspace-resizing {
 }
 
 .song-list.hide-numbers {
-  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  grid-template-columns: minmax(0, 1fr) minmax(var(--key-min, 0px), max-content) max-content;
 }
 
 .song-list li {
@@ -699,25 +723,6 @@ body.workspace-resizing {
   margin-left: auto;
   text-align: right;
   white-space: nowrap;
-}
-
-/* Sticky column header row, rendered by psa150-song-list when sorting applies. */
-.song-list li.song-list-header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding-top: 4px;
-  padding-bottom: 5px;
-  border-radius: 0;
-  border-bottom-color: var(--border-subtle);
-  background: rgba(24, 24, 24, 0.96);
-  cursor: default;
-}
-
-.song-list li.song-list-header:hover {
-  background: rgba(24, 24, 24, 0.96);
-  border-color: transparent;
-  border-bottom-color: var(--border-subtle);
 }
 
 .song-list-num {
@@ -816,36 +821,43 @@ body.workspace-resizing {
 }
 
 .song-pane-header {
-  padding: 20px 32px 14px;
+  display: flex;
+  align-items: center;
+  height: var(--pane-head-height);
+  padding: 0 24px 0 32px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-subtle);
   background: linear-gradient(180deg, rgba(198, 216, 140, 0.04) 0%, transparent 100%);
 }
 
+/* Correction bar and "On screen" line: pinned at the top of the song body so
+   the headings keep one height. */
+.song-notices {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+  padding: 12px 32px;
+  background: rgba(22, 22, 22, 0.94);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .stanza-navigation {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
-  max-height: 120px;
-  overflow-y: auto;
+  align-items: center;
 }
 
-.live-song {
-  max-width: 220px;
-  padding: 0 8px;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 0.72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stanza-navigation button {
-  min-width: 36px;
+.stanza-navigation-title {
+  align-self: center;
+  margin-right: 6px;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
 .song-pane-header-row {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -860,6 +872,9 @@ body.workspace-resizing {
   margin: 0;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-display);
   font-size: clamp(1.5rem, 3vw, 2.25rem);
   font-weight: 400;
@@ -868,8 +883,18 @@ body.workspace-resizing {
   letter-spacing: -0.01em;
 }
 
+/* Song number and key (and category / CCLI below), top right inside the song
+   text block. */
 .song-title-meta {
-  flex-shrink: 0;
+  float: right;
+  margin: 0 0 12px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.song-title-meta-line {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -880,7 +905,7 @@ body.workspace-resizing {
 
 .song-title-meta-num {
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
 }
 
 .song-title-meta-key {
@@ -889,8 +914,7 @@ body.workspace-resizing {
 }
 
 .song-meta-bar {
-  margin-top: 6px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
@@ -914,6 +938,7 @@ body.workspace-resizing {
 }
 
 .song-content {
+  position: relative;
   padding: 24px 32px 32px;
   font-family: var(--font-ui);
   font-size: 0.95rem;
@@ -1027,7 +1052,6 @@ body.workspace-resizing {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 10px;
   padding: 8px 12px;
   border-radius: var(--radius-md);
   background: rgba(198, 216, 140, 0.08);
@@ -1354,15 +1378,217 @@ select option {
    Setlist Toolbar
    ───────────────────────────────────────────────────────────────────────────── */
 
-.setlist-fields {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 12px;
+.view-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-strong);
 }
 
-.setlist-actions {
-  display: flex;
+.setlist-picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.view-title-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-lime-soft);
+  color: var(--accent-lime);
+}
+
+.view-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+
+.setlist-empty {
+  flex: 1;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+/* Song actions on the title row: edit, favourite star, add to setlist. */
+/* Pill group like the app bar's toolbar groups (.toolbar-group). */
+.song-actions {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.song-pane-save + .song-actions {
+  margin-left: 0;
+}
+
+.setlist-anchor {
+  position: relative;
+}
+
+.song-action-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.song-action-btn svg {
+  transition:
+    fill var(--dur-base) var(--ease-standard),
+    transform var(--dur-base) var(--ease-standard);
+}
+
+.song-action-btn:hover {
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-color: var(--border-subtle);
+}
+
+.song-action-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-lime-soft);
+}
+
+/* Star: favourite, filled amber like the star column in the song list. */
+.star-btn.active {
+  color: var(--warning);
+}
+
+.star-btn.active svg {
+  fill: var(--warning);
+  animation: pop-in 260ms var(--ease-decelerate);
+}
+
+.star-btn.active:hover {
+  background: rgba(208, 194, 76, 0.12);
+  border-color: rgba(208, 194, 76, 0.3);
+}
+
+/* Add to setlist: grey plus; lime check while the song is in the active setlist. */
+.setlist-btn.active {
+  color: var(--accent-lime);
+}
+
+.setlist-btn.active svg {
+  filter: drop-shadow(0 0 6px var(--accent-lime-glow));
+  animation: pop-in 260ms var(--ease-decelerate);
+}
+
+.setlist-btn.active:hover {
+  background: var(--accent-lime-soft);
+  border-color: rgba(198, 216, 140, 0.3);
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.8); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.setlist-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.setlist-menu-heading,
+.key-menu-heading,
+.setlist-menu-label {
+  display: block;
+  padding: 6px 10px 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.setlist-menu-list {
+  display: grid;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.setlist-menu-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 400;
+  text-align: left;
+}
+
+.setlist-menu-item:hover,
+.setlist-menu-item:focus-visible {
+  outline: none;
+  background: var(--accent-lime-soft);
+}
+
+.setlist-menu-check {
+  display: grid;
+  place-items: center;
+  color: var(--accent-lime);
+}
+
+.setlist-menu-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setlist-menu-item.current .setlist-menu-name {
+  font-weight: 600;
+}
+
+.setlist-menu-count {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.setlist-menu-new {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.setlist-menu-new-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 4px 4px;
+}
+
+.setlist-menu-new-row input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1371,6 +1597,10 @@ select option {
 
 .settings-section {
   margin-bottom: 24px;
+}
+
+.settings-error {
+  color: var(--error);
 }
 
 .settings-section h3 {
@@ -2690,4 +2920,168 @@ body.stage-projection {
   line-height: 1.45;
   white-space: pre-wrap;
   color: #f0f0f0;
+}
+
+.search-wrap:has(.search-key-chip) input {
+  padding-right: 72px;
+}
+
+/* Slim app bar: compact buttons in the projection group match the icon row. */
+.projection-toolbar .toolbar-btn {
+  height: 30px;
+  padding: 0 12px;
+}
+
+.projection-toolbar .toolbar-btn.icon-only {
+  padding: 0 8px;
+}
+
+/* Row under the app bar: activity bar, then the workspace. */
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Activity bar (as in VS Code): the song list's views, one icon each. */
+.activity-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 48px;
+  flex-shrink: 0;
+  padding: 8px 0;
+  background: var(--bg-glass);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.activity-spacer {
+  flex: 1;
+}
+
+.activity-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.activity-btn:hover {
+  color: var(--text-primary);
+}
+
+.activity-btn.active {
+  color: var(--text-primary);
+}
+
+/* Active view: a lime edge on the left, like VS Code's indicator. */
+.activity-btn.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent-lime);
+  box-shadow: 0 0 8px var(--accent-lime-glow);
+}
+
+.activity-btn:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 2px var(--accent-lime-soft);
+}
+
+.activity-btn.attention {
+  color: var(--warning);
+}
+
+.activity-btn.spinning svg {
+  animation: spin 1.1s linear infinite;
+}
+
+.activity-btn:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.projection-toolbar .toolbar-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  border-color: transparent;
+  background: transparent;
+}
+
+.projection-toolbar .toolbar-icon:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-default);
+}
+
+/* Settings: configurable keyboard shortcuts. */
+.shortcut-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 8px 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+
+.shortcut-row:hover {
+  background: var(--bg-elevated);
+}
+
+.shortcut-row.recording {
+  border-color: rgba(198, 216, 140, 0.35);
+  background: var(--accent-lime-soft);
+}
+
+.shortcut-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.shortcut-key {
+  min-width: 96px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.shortcut-key:hover {
+  border-color: var(--border-strong);
+}
+
+.shortcut-row.recording .shortcut-key {
+  border-color: var(--accent-lime);
+  color: var(--accent-lime);
+}
+
+.shortcut-fixed-heading {
+  margin: 20px 0 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }

@@ -26,7 +26,7 @@ sources:
   - id: lib
     resource: /src-tauri/src/lib.rs
     title: Startup restore and the 1 s poll thread
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-09-23T18:00:00Z }
 ---
 
 # Songs folder and app data
@@ -49,6 +49,7 @@ Windows `app_data_dir` is `%APPDATA%\com.sevenfold.psalm150`.
 | --- | --- | --- |
 | `index.sqlite` | [library index](library-index.md) | Search index, history, favourites |
 | `setlists/*.json` | [setlists](setlists.md) | One file per setlist |
+| `vsb-sync.json` | [VSB sync](vsb-sync.md) | Links and hashes from the last VSB sync |
 | `hold_slides/` | — | Created and listed by `list_hold_slides`, never written |
 | `theme.json` | [config](config.md) | `SlideTheme`; written by MDB import or `save_theme` |
 | `favorites.json` | — | Helpers exist in `config.rs` but nothing calls them; favourites live in SQLite |

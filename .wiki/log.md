@@ -1,5 +1,24 @@
 # Directory Update Log
 
+## 2026-09-23
+* **Sync**: Configurable keyboard shortcuts (Settings, Keyboard shortcuts; `config.shortcuts` now used): Alt+S adds the selected song to the active setlist (or opens the menu when none is active), Alt+F toggles favourite, plus Ctrl+F, B, → and ←. Enter, Esc, arrows up/down and digits stay fixed.
+* **Sync**: The setlist heart became an add-to-setlist button: a plain + (grey), or a ✓ (lime) while the song is in the active setlist.
+* **Sync**: Song list views (Search, Setlist, History, Favourites) moved to a VS Code-style activity bar left of the song list, with VSB sync at its bottom; the app bar keeps one group, Project and Settings.
+* **Sync**: Slimmer app bar (30 px controls, 16 px icons, smaller brand mark); Search button leftmost in the views group; the window Restore glyph is the standard two overlapping squares.
+* **Sync**: Search heading and song heading share one height (`--pane-head-height`); category/CCLI, the correction bar and "On screen" moved into the song body; the Setlist picker sits in its heading row. The song list header moved out of the scroll body so the scrollbar starts below it and its rule spans the sidebar.
+* **Sync**: Song actions (Edit, star, heart) sit in a pill toolbar group like the app bar.
+* **Sync**: Song number and key moved from the title row to the top right of the song text block.
+* **Sync**: Numbered stanza buttons removed; stanzas switch with the number keys (or a click on the stanza). Esc that ends a projection clears and focuses the search field (new event `projection-escaped` from the global shortcut).
+* **Sync**: Projecting from the search field (Enter) no longer leaves focus there, so the 1–9 stanza keys work straight away.
+* **Sync**: App bar — the brand stands alone on the left; Project (ghost style, with Prev/Next/Blank while projecting) and the views group (VSB sync, Setlist, History, Favourites, Settings) sit on the right. Edit moved to the song title row as an icon next to a new favourite star and the setlist heart. No setlist is active by default: picking one in the Setlist view, or adding a song while none is active, makes it active.
+* **Sync**: A red setlist heart removes the song from the current setlist in one click; only a grey heart opens the setlist menu.
+* **Sync**: VSB sync writes edits and deletions back to a song server through the device token (`PUT`/`DELETE /songs/{id}` with base revisions from the export's `psa150-manifest.json`, saved as `manifest.json` beside the replica); server-library syncs wait while projecting.
+* **Sync**: App icon and brand mark are a cross with rising music notes (source `src-tauri/icons/app-icon.svg`, generated with `tauri icon`). The song list's sticky header sits flush at the top with a full-width rule.
+* **Sync**: Operator console — the tab bar is gone. Search is always the default view; `#` in the search field opens the key list below it and `#Key` filters by key (`search-query.ts`, tested). The app bar has a primary group (Project; Prev/Next/Blank only while projecting; Setlist; Edit) and a right-aligned group (VSB sync, History, Favourites, Settings), all with icons from `icons.ts`. "Now showing" left the app bar.
+* **Creation**: Setlist heart on the song title row (grey, red when in the current setlist) with a menu to add to any setlist or create one named with today's Windows short date. New commands `add_to_setlist`, `remove_from_setlist`, `format_short_date`. The Setlist view picks a setlist and projects the next song client-side.
+* **Creation**: [VSB sync](concepts/vsb-sync.md) — two-way synchronisation with a linked Visual Song Book `.mdb`, also for song-server libraries: link hashes in `vsb-sync.json`, Psalm150 wins conflicts, Access ODBC writer (`odbc-api`), backups before writes, start-up/every-minute/on-demand runs with a progress hairline. New config `vsb_sync`, commands `set_vsb_database` and `sync_vsb_database`, events `vsb-sync-progress` and `vsb-sync-finished`.
+* **Sync**: MDB import places chords at their column on the untrimmed VSB row (indented chord rows were shifted left). VSB and ChordPro chord regexes are compiled once.
+
 ## 2026-09-13
 * **Creation**: The Settings dialog now uses a persistent category menu and a top-level “Find a setting” search. The search filters to matching setting groups and preserves all existing library, server, projection, search, remote, report, and shortcut controls.
 * **Sync**: Song loading is now preview-only and `project_song` creates an explicit active session. Console, audience and stage consume one revisioned `projection-updated` snapshot; saving the active song updates immediately while previewing or saving another song leaves it untouched. The stage keeps its text while the audience is blank.

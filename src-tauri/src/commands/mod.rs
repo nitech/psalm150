@@ -10,4 +10,5 @@ pub mod server_library;
 pub mod setlist_cmd;
 pub mod song;
 pub mod song_v2;
+pub mod vsb_sync_cmd;
 pub mod web_search_cmd;
