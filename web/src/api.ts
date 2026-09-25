@@ -1,6 +1,9 @@
 import type {
+  DesktopAuthCode,
+  DesktopTokenResponse,
   DeviceToken,
   DeviceTokenSummary,
+  ServerInfo,
   Session,
   SetupStatus,
   SongDetail,
@@ -20,6 +23,10 @@ export class ApiError extends Error {
 
 export class SongServerApi {
   constructor(private readonly token: () => string | null) {}
+
+  info(): Promise<ServerInfo> {
+    return this.request("/info");
+  }
 
   setupStatus(): Promise<SetupStatus> {
     return this.request("/setup");
@@ -84,6 +91,22 @@ export class SongServerApi {
 
   async revokeDeviceToken(id: string): Promise<void> {
     await this.requestEmpty(`/device-tokens/${id}`, { method: "DELETE" });
+  }
+
+  /** Approve a desktop: a one-time code for its loopback redirect. */
+  createDesktopAuthCode(deviceName: string, codeChallenge: string): Promise<DesktopAuthCode> {
+    return this.request("/desktop-auth/codes", {
+      method: "POST",
+      body: JSON.stringify({ device_name: deviceName, code_challenge: codeChallenge }),
+    });
+  }
+
+  /** Used by desktops, not by this client; listed so the contract stays public. */
+  exchangeDesktopAuthCode(code: string, codeVerifier: string): Promise<DesktopTokenResponse> {
+    return this.request("/desktop-auth/token", {
+      method: "POST",
+      body: JSON.stringify({ code, code_verifier: codeVerifier }),
+    });
   }
 
   async exportSongs(): Promise<Blob> {

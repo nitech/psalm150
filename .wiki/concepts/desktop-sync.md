@@ -14,7 +14,7 @@ sources:
   - id: api
     resource: /api/src/api.rs
     title: import_songs (device path), export_songs
-generated: { by: agent, at: 2026-09-23T19:00:00Z }
+generated: { by: agent, at: 2026-09-24T12:00:00Z }
 ---
 
 # Desktop sync
@@ -24,6 +24,17 @@ pulls; the operator does not edit it in the desktop. The server has no
 sync-specific endpoint. The protocol is public calls with a `psa_d_` token
 ([auth and roles](auth-and-roles.md)). A desktop linked to a Visual Song Book
 database also writes VSB changes back through the song endpoints (below).
+
+## Connecting
+
+The desktop first pings `GET /api/v1/info` (public) to confirm the URL is a
+Psalm150 song server (`service = "psalm150-song-server"`,
+`desktop_sign_in = true`). It then gets its `psa_d_` token through the
+browser sign-in: the person approves the desktop in the web client and the
+desktop exchanges a one-time code plus its PKCE verifier at
+`POST /desktop-auth/token`
+([auth and roles](auth-and-roles.md#desktop-browser-sign-in)). Pasting a token
+made in the web client's **Connect desktop** dialog still works as a fallback.
 
 ## One sync
 

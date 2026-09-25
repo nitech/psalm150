@@ -167,3 +167,43 @@ pub struct ImportSongsResponse {
     pub songs: Vec<SongSummary>,
     pub skipped_existing: usize,
 }
+
+/// `GET /info`: a cheap, public "is this a Psalm150 song server?" ping.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ServerInfo {
+    /// Always `psalm150-song-server`.
+    pub service: &'static str,
+    pub version: &'static str,
+    pub initialized: bool,
+    /// The server supports browser sign-in for desktops (`/desktop-auth/*`).
+    pub desktop_sign_in: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateDesktopAuthCodeRequest {
+    pub device_name: String,
+    /// BASE64URL-NOPAD(SHA256(code_verifier)); only the S256 method exists.
+    pub code_challenge: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DesktopAuthCodeResponse {
+    /// One-time code, valid for five minutes.
+    pub code: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct DesktopTokenRequest {
+    pub code: String,
+    pub code_verifier: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DesktopTokenResponse {
+    /// A normal `psa_d_` device token.
+    pub token: String,
+    pub device_id: Uuid,
+    pub device_name: String,
+    pub church_name: String,
+}

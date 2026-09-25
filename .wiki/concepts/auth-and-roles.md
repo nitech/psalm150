@@ -17,7 +17,13 @@ sources:
   - id: mig
     resource: /api/migrations/0001_initial.sql
     title: users, memberships, sessions, device_tokens
-generated: { by: agent, at: 2026-09-23T19:00:00Z }
+  - id: mig3
+    resource: /api/migrations/0003_desktop_auth_codes.sql
+    title: desktop_auth_codes
+  - id: webmain
+    resource: /web/src/main.ts
+    title: Desktop consent screen
+generated: { by: agent, at: 2026-09-24T12:00:00Z }
 ---
 
 # Auth and roles
@@ -38,6 +44,7 @@ successful use updates `last_used_at` with a best-effort write.
 | --- | --- | --- | --- |
 | `psa_s_` | Person session | `PSA150_SESSION_HOURS` (default 168 = 7 days) | One user in one church, carrying that membership's role |
 | `psa_d_` | Desktop credential | Until revoked | One church, treated as role `viewer` with `is_device = true` |
+| `psa_c_` | Desktop sign-in code (not a bearer token) | 5 minutes, single use | Exchanged once at `POST /desktop-auth/token`; stored hashed in `desktop_auth_codes` |
 
 A session is rejected if it has expired, if the user is disabled
 (`users.disabled_at`) or if the membership has gone. A desktop token is
@@ -58,6 +65,7 @@ an `Actor` (person or device) for the audit columns.
 | Create, edit or delete a song | yes | 403 | **yes**, recorded as the device (so a desktop can keep Visual Song Book in step) |
 | Import songs | yes | 403 | yes, see [import](import-export.md) |
 | Create, list or revoke desktop tokens | yes | 403 | 403 |
+| Approve a desktop sign-in (`POST /desktop-auth/codes`) | yes | 403 | 403 |
 
 Owner and leader behave the same today. Owner-only administration and recovery
 are designed in [/docs/architecture.md](../../docs/architecture.md) but not
@@ -91,7 +99,45 @@ Editors create tokens with a name of 1–120 characters (for example
 ([web client](web-client.md)). The list shows only active tokens, with
 `last_used_at`. Revoking sets `revoked_at`, and a revoked token cannot be
 restored. The desktop pastes the token into Settings, and the client checks
-that it starts with `psa_d_` ([desktop sync](desktop-sync.md)).
+that it starts with `psa_d_` ([desktop sync](desktop-sync.md)). Pasting is
+the manual fallback; the usual path is the browser sign-in below.
+
+## Desktop browser sign-in
+
+The desktop can connect without anyone pasting a token. It is an
+authorization-code exchange with PKCE (S256 only) over a loopback redirect:
+
+1. The desktop makes a random `code_verifier`, computes
+   `code_challenge = BASE64URL-NOPAD(SHA256(code_verifier))`, listens on a
+   loopback port and opens the default browser at
+   `/?desktop_redirect=<loopback URL>&state=<opaque>&code_challenge=<challenge>&device_name=<name>`.
+2. The [web client](web-client.md#desktop-sign-in) signs the person in with
+   username and password as usual and asks "Connect this desktop?", naming the
+   device and the church.
+3. **Connect** calls `POST /desktop-auth/codes` (editor session only; viewers
+   and desktop tokens get 403). The server stores `hash_token(code)`, the
+   church, the approving user, the trimmed device name and the challenge in
+   `desktop_auth_codes`, valid 5 minutes, and returns the `psa_c_` code. The
+   browser goes to `<loopback URL>?code=<code>&state=<state>`.
+   **Cancel** goes to `<loopback URL>?error=access_denied&state=<state>`.
+4. The desktop checks `state` and calls `POST /desktop-auth/token` with
+   `{code, code_verifier}` and no bearer. The server burns the code first
+   (`UPDATE … SET used_at = now() WHERE code_hash = $1 AND used_at IS NULL
+   AND expires_at > now() RETURNING …`), so a code is spent even when the
+   verifier is wrong. It then compares the verifier's S256 value with the
+   stored challenge in constant time, checks that the approving user is still
+   enabled and still an owner or leader of that church, and in one transaction
+   creates an ordinary `psa_d_` device token (named after the device,
+   `created_by` the approver). Response 201
+   `{token, device_id, device_name, church_name}`.
+
+Every failure in step 4 (unknown, expired or used code, wrong verifier,
+approver disabled or demoted) is the same 400
+`the sign-in code is invalid or has expired`. The resulting token appears in
+the device list and is revoked like any other. Used and expired rows are never
+deleted (only indexed by `desktop_auth_codes_expiry_idx`). The web client only
+redirects to `http:` loopback URLs (`127.0.0.1`, `localhost`, `[::1]`) with an
+explicit port; anything else shows "This desktop sign-in link is not valid".
 
 ## Not built
 

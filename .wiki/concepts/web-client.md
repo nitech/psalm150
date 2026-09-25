@@ -20,7 +20,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-09-23T00:00:00Z }
+generated: { by: agent, at: 2026-09-24T12:00:00Z }
 ---
 
 # Web client
@@ -34,9 +34,11 @@ needs a matching change there.
 
 ## Screens
 
-- **Boot** calls `GET /setup`. If the server is not initialised, it shows
+- **Boot** first checks the query string for a desktop sign-in request
+  ([below](#desktop-sign-in)). It then calls `GET /setup`. If the server is not initialised, it shows
   **Setup** ("Begin your library"). If it is, it shows **Sign-in** when the
-  stored session is missing or expired, and the **Library** otherwise. If the
+  stored session is missing or expired, and the **Library** otherwise (the
+  desktop consent screen instead when a desktop request is pending). If the
   server cannot be reached, it shows "The Song Server is not reachable" with a
   retry button.
 - **Library** has a side rail and a main pane:
@@ -53,9 +55,35 @@ needs a matching change there.
   title/author/language/verse template. Saving an existing song sends its
   current `revision_id` as the base, so a 409 shows up as the form message
   ([songs and revisions](songs-and-revisions.md)).
-- **Connect desktop dialog** creates a named token and shows it once with a
+- **Connect desktop dialog** (the manual fallback to browser sign-in) creates a named token and shows it once with a
   copy button. It lists active tokens with "Last used" and a **Revoke** button
   ([auth and roles](auth-and-roles.md)).
+
+## Desktop sign-in
+
+The desktop opens the root URL with
+`?desktop_redirect=<loopback URL>&state=…&code_challenge=…&device_name=…`
+(the API serves `web/dist` without an SPA fallback, so only the root works).
+`readDesktopRequest` accepts the redirect only when it parses as an `http:`
+URL whose hostname is exactly `127.0.0.1`, `localhost` or `[::1]` with an
+explicit port, and the challenge is 43–128 base64url characters. Otherwise the
+page shows "This desktop sign-in link is not valid" and never redirects.
+
+- Signed out: the normal sign-in screen, with the lede "Sign in to connect
+  <device> to this song server."
+- Signed in (or right after sign-in or setup): **Connect this desktop?**,
+  naming the device and `session.church_name`, with **Connect**, **Cancel**
+  and "Use another account".
+- **Connect** calls `POST /desktop-auth/codes` and then
+  `location.replace(<redirect>?code=…&state=…)`, built with `URL.searchParams`
+  so any existing query on the redirect is kept. A viewer session, or a 403,
+  shows "Only leaders can connect a desktop. Ask a leader to sign in." and
+  leaves only Cancel. A 401 returns to sign-in.
+- **Cancel** goes to `<redirect>?error=access_denied&state=…`.
+
+Because the session lives in `sessionStorage`, the tab the desktop opens
+usually starts signed out. The whole flow is in
+[auth and roles](auth-and-roles.md#desktop-browser-sign-in).
 
 ## State
 

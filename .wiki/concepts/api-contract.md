@@ -20,7 +20,7 @@ sources:
   - id: webapi
     resource: /web/src/api.ts
     title: Web client wrapper
-generated: { by: agent, at: 2026-09-23T19:00:00Z }
+generated: { by: agent, at: 2026-09-24T12:00:00Z }
 ---
 
 # API contract
@@ -38,12 +38,15 @@ and viewer sessions ([auth and roles](auth-and-roles.md)).
 | Method | Path | Auth | Success | Notes | Web | Desktop |
 | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/health` | none | 200 `{status, database, version}` | Runs `SELECT 1`; a database failure gives 500 | – | – |
+| GET | `/info` | none | 200 `{service: "psalm150-song-server", version, initialized, desktop_sign_in: true}` | One query, same as `GET /setup`; the desktop's "is this a Psalm150 server?" ping | – | yes |
 | GET | `/setup` | none | 200 `{initialized}` | | yes | – |
 | POST | `/setup` | none | 201 `SessionResponse` | 409 once done; password at least 10 characters | yes | – |
 | POST | `/session` | none | 200 `SessionResponse` | 401 `username or password is incorrect` | yes | – |
 | POST | `/device-tokens` | editor | 201 `{id, name, token, created_at}` | Name 1–120 characters after trimming | yes | – |
 | GET | `/device-tokens` | editor | 200 list | Active tokens only, sorted by name | yes | – |
 | DELETE | `/device-tokens/{id}` | editor | 204 | 404 if unknown or already revoked | yes | – |
+| POST | `/desktop-auth/codes` | editor | 201 `{code, expires_at}` | Body `{device_name, code_challenge}`; name 1–120 characters after trimming; challenge 43–128 of `[A-Za-z0-9_-]`; code `psa_c_…`, valid 5 minutes | yes (consent screen) | – |
+| POST | `/desktop-auth/token` | none | 201 `{token, device_id, device_name, church_name}` | Body `{code, code_verifier}`; single use; every failure is 400 `the sign-in code is invalid or has expired` | – | yes |
 | GET | `/songs?q=&limit=` | any token | 200 `SongSummary[]` | `limit` defaults to 100, clamped to 1–200 | yes (no `limit`) | – |
 | POST | `/songs` | editor or desktop | 201 `SongSummary` | | yes | – |
 | GET | `/songs/{id}` | any token | 200 `SongDetail` | 404 when missing or in another church | yes | – |
@@ -54,6 +57,9 @@ and viewer sessions ([auth and roles](auth-and-roles.md)).
 | GET | `/songs/export` | any token | 200 `application/zip` | `psa150-library.zip`, with `psa150-manifest.json` | yes | yes |
 
 ## Validation and limits
+
+- Desktop browser sign-in (`/desktop-auth/*`) is described in
+  [auth and roles](auth-and-roles.md#desktop-browser-sign-in).
 
 - ChordPro source must not be blank and must be at most 1,000,000 bytes
   (`validate_chordpro`). Otherwise the server returns 400.

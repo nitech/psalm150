@@ -11,7 +11,9 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
 use utoipa::{OpenApi, openapi::OpenApi as OpenApiDocument};
 use uuid::Uuid;
@@ -26,9 +28,10 @@ use crate::{
     chordpro,
     error::{AppError, ErrorBody},
     models::{
-        CreateDeviceTokenRequest, CreateSongRequest, DeleteSongQuery, DeviceTokenResponse,
+        CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest, CreateSongRequest, DeleteSongQuery,
+        DesktopAuthCodeResponse, DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse,
         DeviceTokenSummary, ExportManifestEntry, HealthResponse, ImportSongInput,
-        ImportSongsRequest, ImportSongsResponse, LoginRequest, RevisionSummary, Role,
+        ImportSongsRequest, ImportSongsResponse, LoginRequest, RevisionSummary, Role, ServerInfo,
         SessionResponse, SetupRequest, SetupStatus, SongDetail, SongQuery, SongSummary,
         UpdateSongRequest,
     },
@@ -46,12 +49,15 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
     ),
     paths(
         health,
+        server_info,
         setup_status,
         setup,
         login,
         list_device_tokens,
         create_device_token,
         revoke_device_token,
+        create_desktop_auth_code,
+        exchange_desktop_auth_code,
         list_songs,
         create_song,
         get_song,
@@ -64,6 +70,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
     components(schemas(
         ErrorBody,
         HealthResponse,
+        ServerInfo,
         SetupStatus,
         SetupRequest,
         LoginRequest,
@@ -72,6 +79,10 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         CreateDeviceTokenRequest,
         DeviceTokenResponse,
         DeviceTokenSummary,
+        CreateDesktopAuthCodeRequest,
+        DesktopAuthCodeResponse,
+        DesktopTokenRequest,
+        DesktopTokenResponse,
         CreateSongRequest,
         UpdateSongRequest,
         SongSummary,
@@ -89,6 +100,7 @@ struct ApiDoc;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
+        .route("/info", get(server_info))
         .route("/setup", get(setup_status).post(setup))
         .route("/session", post(login))
         .route(
@@ -99,6 +111,8 @@ pub fn router() -> Router<AppState> {
             "/device-tokens/{device_id}",
             axum::routing::delete(revoke_device_token),
         )
+        .route("/desktop-auth/codes", post(create_desktop_auth_code))
+        .route("/desktop-auth/token", post(exchange_desktop_auth_code))
         .route("/songs", get(list_songs).post(create_song))
         .route(
             "/songs/import",
@@ -128,14 +142,29 @@ async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, A
     }))
 }
 
+#[utoipa::path(get, path = "/api/v1/info", responses((status = 200, body = ServerInfo)))]
+async fn server_info(State(state): State<AppState>) -> Result<Json<ServerInfo>, AppError> {
+    Ok(Json(ServerInfo {
+        service: "psalm150-song-server",
+        version: env!("CARGO_PKG_VERSION"),
+        initialized: is_initialized(&state.pool).await?,
+        desktop_sign_in: true,
+    }))
+}
+
 #[utoipa::path(get, path = "/api/v1/setup", responses((status = 200, body = SetupStatus)))]
 async fn setup_status(State(state): State<AppState>) -> Result<Json<SetupStatus>, AppError> {
-    let initialized = sqlx::query_scalar::<_, bool>(
+    Ok(Json(SetupStatus {
+        initialized: is_initialized(&state.pool).await?,
+    }))
+}
+
+async fn is_initialized(pool: &PgPool) -> Result<bool, AppError> {
+    Ok(sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS (SELECT 1 FROM instance_settings WHERE id = 1)",
     )
-    .fetch_one(&state.pool)
-    .await?;
-    Ok(Json(SetupStatus { initialized }))
+    .fetch_one(pool)
+    .await?)
 }
 
 #[utoipa::path(
@@ -256,13 +285,30 @@ async fn create_device_token(
 ) -> Result<impl IntoResponse, AppError> {
     let auth = authenticate(&headers, &state).await?;
     let user_id = auth.require_editor()?;
-    let name = request.name.trim();
+    let name = validate_device_name(&request.name)?;
+    let mut transaction = state.pool.begin().await?;
+    let device = insert_device_token(&mut transaction, auth.church_id, user_id, name).await?;
+    transaction.commit().await?;
+    Ok((StatusCode::CREATED, Json(device)))
+}
+
+fn validate_device_name(name: &str) -> Result<&str, AppError> {
+    let name = name.trim();
     if name.is_empty() || name.len() > 120 {
         return Err(AppError::BadRequest(
             "device name must contain 1 to 120 characters".into(),
         ));
     }
+    Ok(name)
+}
 
+/// Issues a new desktop (`psa_d_`) token; only its hash is stored.
+async fn insert_device_token(
+    transaction: &mut Transaction<'_, Postgres>,
+    church_id: Uuid,
+    created_by: Uuid,
+    name: &str,
+) -> Result<DeviceTokenResponse, AppError> {
     let id = Uuid::new_v4();
     let token = new_token("psa_d_");
     let created_at = Utc::now();
@@ -271,23 +317,154 @@ async fn create_device_token(
          VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(id)
-    .bind(auth.church_id)
+    .bind(church_id)
     .bind(name)
     .bind(hash_token(&token))
-    .bind(user_id)
+    .bind(created_by)
     .bind(created_at)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(DeviceTokenResponse {
+        id,
+        name: name.to_string(),
+        token,
+        created_at,
+    })
+}
+
+/// How long a desktop sign-in code stays valid.
+const DESKTOP_AUTH_CODE_MINUTES: i64 = 5;
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/desktop-auth/codes",
+    request_body = CreateDesktopAuthCodeRequest,
+    responses(
+        (status = 201, body = DesktopAuthCodeResponse),
+        (status = 400, body = ErrorBody),
+        (status = 401, body = ErrorBody),
+        (status = 403, body = ErrorBody)
+    )
+)]
+async fn create_desktop_auth_code(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<CreateDesktopAuthCodeRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    let user_id = auth.require_editor()?;
+    let device_name = validate_device_name(&request.device_name)?;
+    let challenge = request.code_challenge.as_str();
+    let valid_challenge = (43..=128).contains(&challenge.len())
+        && challenge
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_');
+    if !valid_challenge {
+        return Err(AppError::BadRequest(
+            "code_challenge must be 43 to 128 base64url characters (S256)".into(),
+        ));
+    }
+
+    let code = new_token("psa_c_");
+    let expires_at = Utc::now() + chrono::Duration::minutes(DESKTOP_AUTH_CODE_MINUTES);
+    sqlx::query(
+        "INSERT INTO desktop_auth_codes
+         (code_hash, church_id, user_id, device_name, code_challenge, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(hash_token(&code))
+    .bind(auth.church_id)
+    .bind(user_id)
+    .bind(device_name)
+    .bind(challenge)
+    .bind(expires_at)
     .execute(&state.pool)
     .await?;
 
     Ok((
         StatusCode::CREATED,
-        Json(DeviceTokenResponse {
-            id,
-            name: name.to_string(),
-            token,
-            created_at,
+        Json(DesktopAuthCodeResponse { code, expires_at }),
+    ))
+}
+
+#[derive(sqlx::FromRow)]
+struct ConsumedCode {
+    church_id: Uuid,
+    user_id: Uuid,
+    device_name: String,
+    code_challenge: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/desktop-auth/token",
+    request_body = DesktopTokenRequest,
+    responses((status = 201, body = DesktopTokenResponse), (status = 400, body = ErrorBody))
+)]
+async fn exchange_desktop_auth_code(
+    State(state): State<AppState>,
+    Json(request): Json<DesktopTokenRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let invalid = || AppError::BadRequest("the sign-in code is invalid or has expired".into());
+
+    // Burn the code in its own statement so it stays single use even when
+    // the verifier below turns out to be wrong.
+    let consumed = sqlx::query_as::<_, ConsumedCode>(
+        "UPDATE desktop_auth_codes SET used_at = now()
+         WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now()
+         RETURNING church_id, user_id, device_name, code_challenge",
+    )
+    .bind(hash_token(&request.code))
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(invalid)?;
+
+    let expected = URL_SAFE_NO_PAD.encode(Sha256::digest(request.code_verifier.as_bytes()));
+    if !constant_time_eq(expected.as_bytes(), consumed.code_challenge.as_bytes()) {
+        return Err(invalid());
+    }
+
+    let mut transaction = state.pool.begin().await?;
+    // The approving person must still be an active leader of the church.
+    let church_name = sqlx::query_scalar::<_, String>(
+        "SELECT c.name
+         FROM memberships m
+         JOIN users u ON u.id = m.user_id AND u.disabled_at IS NULL
+         JOIN churches c ON c.id = m.church_id
+         WHERE m.user_id = $1 AND m.church_id = $2 AND m.role IN ('owner', 'leader')",
+    )
+    .bind(consumed.user_id)
+    .bind(consumed.church_id)
+    .fetch_optional(&mut *transaction)
+    .await?
+    .ok_or_else(invalid)?;
+    let device = insert_device_token(
+        &mut transaction,
+        consumed.church_id,
+        consumed.user_id,
+        &consumed.device_name,
+    )
+    .await?;
+    transaction.commit().await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(DesktopTokenResponse {
+            token: device.token,
+            device_id: device.id,
+            device_name: device.name,
+            church_name,
         }),
     ))
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .fold(0u8, |difference, (a, b)| difference | (a ^ b))
+            == 0
 }
 
 #[utoipa::path(

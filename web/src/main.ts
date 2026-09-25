@@ -13,10 +13,29 @@ let search = "";
 let busy = false;
 const api = new SongServerApi(() => session?.token ?? null);
 
+/**
+ * A desktop asking to be connected through the browser. The desktop opens
+ * `/?desktop_redirect=…&state=…&code_challenge=…&device_name=…`; after the
+ * person approves, the browser returns to the desktop's loopback URL with a
+ * one-time code (or `error=access_denied`).
+ */
+interface DesktopRequest {
+  redirect: URL;
+  state: string;
+  codeChallenge: string;
+  deviceName: string;
+}
+
+const desktopRequest = readDesktopRequest();
+
 void boot();
 
 async function boot(): Promise<void> {
   try {
+    if (desktopRequest === "invalid") {
+      renderDesktopInvalid();
+      return;
+    }
     const status = await api.setupStatus();
     if (!status.initialized) {
       renderSetup();
@@ -24,7 +43,7 @@ async function boot(): Promise<void> {
       clearSession();
       renderLogin();
     } else {
-      await loadLibrary();
+      await showSignedIn();
     }
   } catch (error) {
     renderFatal(error);
@@ -59,9 +78,12 @@ function renderSetup(): void {
 }
 
 function renderLogin(): void {
+  const desktop = pendingDesktop();
   app.innerHTML = authFrame(
     "Return to the songs",
-    "Sign in to tend your church’s shared library.",
+    desktop
+      ? `Sign in to connect <strong>${escapeHtml(desktop.deviceName)}</strong> to this song server.`
+      : "Sign in to tend your church’s shared library.",
     `<form class="auth-form" id="login-form">
       <label>Username<input name="username" autocomplete="username" required autofocus /></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
@@ -84,12 +106,110 @@ async function submitAuth(form: HTMLFormElement, action: () => Promise<Session>)
   try {
     session = await action();
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    await loadLibrary();
+    await showSignedIn();
   } catch (error) {
     if (message) message.textContent = errorMessage(error);
   } finally {
     setFormBusy(form, false);
   }
+}
+
+async function showSignedIn(): Promise<void> {
+  if (pendingDesktop()) {
+    renderDesktopConsent();
+  } else {
+    await loadLibrary();
+  }
+}
+
+function readDesktopRequest(): DesktopRequest | "invalid" | null {
+  const params = new URLSearchParams(location.search);
+  const target = params.get("desktop_redirect");
+  if (target === null) return null;
+  let redirect: URL;
+  try {
+    redirect = new URL(target);
+  } catch {
+    return "invalid";
+  }
+  // Only hand codes to a loopback listener on this computer, never to a
+  // remote site that crafted the link.
+  const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(redirect.hostname);
+  if (redirect.protocol !== "http:" || !loopback || !redirect.port) return "invalid";
+  const codeChallenge = params.get("code_challenge") ?? "";
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(codeChallenge)) return "invalid";
+  const deviceName = (params.get("device_name") ?? "").trim().slice(0, 120) || "this desktop";
+  return { redirect, state: params.get("state") ?? "", codeChallenge, deviceName };
+}
+
+function pendingDesktop(): DesktopRequest | null {
+  return desktopRequest && desktopRequest !== "invalid" ? desktopRequest : null;
+}
+
+/** Leave for the desktop's loopback URL, keeping any query it already had. */
+function returnToDesktop(desktop: DesktopRequest, result: Record<string, string>): void {
+  const url = new URL(desktop.redirect.href);
+  for (const [key, value] of Object.entries(result)) url.searchParams.set(key, value);
+  url.searchParams.set("state", desktop.state);
+  location.replace(url.href);
+}
+
+function renderDesktopInvalid(): void {
+  app.innerHTML = authFrame(
+    "This desktop sign-in link is not valid",
+    "Start the connection again from the Psalm150 desktop app. Nothing has been shared.",
+    `<a class="secondary desktop-link" href="/">Open the song library</a>`,
+  );
+}
+
+function renderDesktopConsent(): void {
+  const desktop = pendingDesktop();
+  if (!desktop || !session) return;
+  const forbiddenMessage = "Only leaders can connect a desktop. Ask a leader to sign in.";
+  const canConnect = session.role !== "viewer";
+  app.innerHTML = authFrame(
+    "Connect this desktop?",
+    `<strong>${escapeHtml(desktop.deviceName)}</strong> will be connected to <strong>${escapeHtml(session.church_name)}</strong>’s song library. It can read the songs and keep them in sync, including adding, editing and deleting songs.`,
+    `<form class="auth-form" id="desktop-consent">
+      <p class="desktop-account">Signed in as <strong>${escapeHtml(session.display_name)}</strong> · <button type="button" class="link-button" id="switch-account">Use another account</button></p>
+      <p class="form-message" role="status">${canConnect ? "" : forbiddenMessage}</p>
+      <div class="consent-actions">
+        ${canConnect ? `<button class="primary" type="submit" id="desktop-connect">Connect <span>→</span></button>` : ""}
+        <button class="secondary" type="button" id="desktop-cancel">Cancel</button>
+      </div>
+    </form>`,
+  );
+
+  document.querySelector("#desktop-cancel")?.addEventListener("click", () => {
+    returnToDesktop(desktop, { error: "access_denied" });
+  });
+  document.querySelector("#switch-account")?.addEventListener("click", () => {
+    clearSession();
+    renderLogin();
+  });
+  document.querySelector<HTMLFormElement>("#desktop-consent")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const message = form.querySelector<HTMLElement>(".form-message");
+    setFormBusy(form, true);
+    try {
+      const { code } = await api.createDesktopAuthCode(desktop.deviceName, desktop.codeChallenge);
+      returnToDesktop(desktop, { code });
+    } catch (error) {
+      setFormBusy(form, false);
+      if (error instanceof ApiError && error.status === 401) {
+        clearSession();
+        renderLogin();
+        return;
+      }
+      if (error instanceof ApiError && error.status === 403) {
+        form.querySelector("#desktop-connect")?.remove();
+        if (message) message.textContent = forbiddenMessage;
+        return;
+      }
+      if (message) message.textContent = errorMessage(error);
+    }
+  });
 }
 
 async function loadLibrary(): Promise<void> {

@@ -51,3 +51,25 @@ export interface ExportManifestEntry {
   revision_id: string;
   content_hash: string;
 }
+
+/** `GET /info`: public "is this a Psalm150 song server?" ping. */
+export interface ServerInfo {
+  service: "psalm150-song-server";
+  version: string;
+  initialized: boolean;
+  desktop_sign_in: boolean;
+}
+
+/** One-time desktop sign-in code, valid for five minutes. */
+export interface DesktopAuthCode {
+  code: string;
+  expires_at: string;
+}
+
+/** `POST /desktop-auth/token` result: a normal desktop token. */
+export interface DesktopTokenResponse {
+  token: string;
+  device_id: string;
+  device_name: string;
+  church_name: string;
+}

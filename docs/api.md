@@ -15,6 +15,13 @@ Authenticated requests send `Authorization: Bearer <token>`.
   or delete existing songs.
 - Only a hash of either token is stored by the server.
 
+A desktop normally gets its `psa_d_` credential through browser sign-in: it
+opens the web interface at
+`/?desktop_redirect=<loopback URL>&state=<opaque>&code_challenge=<S256 challenge>&device_name=<name>`,
+a leader signs in and approves, and the browser returns to the loopback URL
+with a one-time `psa_c_` code (valid five minutes). The desktop exchanges that
+code and its PKCE verifier at `POST /api/v1/desktop-auth/token`.
+
 The first owner is created through `POST /api/v1/setup`, which becomes
 unavailable after successful initialization. Passwords are hashed with Argon2.
 
@@ -23,12 +30,15 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Check API and PostgreSQL availability |
+| `GET` | `/api/v1/info` | Public ping: service name, version, `initialized`, `desktop_sign_in` |
 | `GET` | `/api/v1/setup` | Determine whether first-run setup is available |
 | `POST` | `/api/v1/setup` | Create the first church, owner, and session |
 | `POST` | `/api/v1/session` | Sign in and issue a person session |
 | `POST` | `/api/v1/device-tokens` | Create a scoped desktop sync credential |
 | `GET` | `/api/v1/device-tokens` | List active desktop credentials |
 | `DELETE` | `/api/v1/device-tokens/{id}` | Revoke a desktop credential |
+| `POST` | `/api/v1/desktop-auth/codes` | Leader approves a desktop: one-time sign-in code for a PKCE challenge |
+| `POST` | `/api/v1/desktop-auth/token` | Desktop exchanges code and verifier for a desktop credential (no bearer) |
 | `GET` | `/api/v1/songs` | List or search current song revisions |
 | `POST` | `/api/v1/songs` | Create a song and its first revision |
 | `GET` | `/api/v1/songs/{id}` | Read the current ChordPro source and metadata |
