@@ -13,8 +13,9 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 
 * [ChordPro dialect](concepts/chordpro-dialect.md) - Parser semantics, section kinds, the blank-line stanza rule, what a rewrite drops
 * [Songs folder and app data](concepts/songs-folder.md) - The synced folder contract, per-library app data, watcher and dirty flag, startup staging
-* [Library index](concepts/library-index.md) - SQLite schema, what search actually matches, history, favourites
+* [Library index](concepts/library-index.md) - SQLite schema, word search with spelling tolerance and match ranks, history, favourites
 * [MDB import](concepts/mdb-import.md) - Visual Song Book `.mdb` to ChordPro, theme from PageSetup, progress and cancel
+* [Server library](concepts/server-library.md) - Song server as the library: address check, browser sign-in over a loopback redirect (PKCE), offline copy and manifest, saving edits to the server
 * [VSB sync](concepts/vsb-sync.md) - Two-way sync with a linked VSB database: hashes and links, Psalm150-wins conflicts, Access ODBC writer, backups, write-back to a song server
 * [Web search](concepts/web-search.md) - DuckDuckGo discovery, site scrapers, chord-chart conversion, preview vs save
 * [Duplicate review](concepts/duplicate-review.md) - Exact candidate grouping, side-by-side human review, pair decisions, recoverable delete and restore

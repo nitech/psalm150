@@ -11,7 +11,10 @@ sources:
   - id: library-cmd
     resource: /src-tauri/src/commands/library.rs
     title: search_songs, list_by_key, get_history, toggle_favorite commands
-generated: { by: agent, at: 2026-09-23T20:00:00Z }
+  - id: search
+    resource: /src-tauri/src/search.rs
+    title: Word matching, spelling tolerance and match ranks (unit tested)
+generated: { by: agent, at: 2026-09-24T21:10:00Z }
 ---
 
 # Library index
@@ -25,14 +28,15 @@ scan (`rebuild_from_songs`: delete all, insert all, refill FTS) and patched by
 | Table | Columns | Notes |
 | --- | --- | --- |
 | `songs` | `id, filename UNIQUE, title, title_sort, song_num, key, category, tags, ccli, body_plain, modified_at` | `title_sort` = upper-cased title; `body_plain` = every lyric line joined by newlines; `modified_at` = file mtime, RFC 3339 |
-| `song_search` | FTS5 over `title, body_plain, tags` (content table `songs`) | **Populated but never queried**: search uses `LIKE` |
+| `song_search` | FTS5 over `title, body_plain, tags` (content table `songs`) | **Populated but never queried**: search runs in Rust ([search semantics](#search-semantics)) |
 | `history` | `filename, title, accessed_at` | Appended once by `project_song` for each library-song projection session |
 | `favorites` | `filename` | Toggled by `toggle_favorite` |
 
 ## `SongRow`
 
 `id, filename, title, title_sort, song_num, key, category, tags, ccli,
-modified_at, favorite`: the shape the song list renders. The console
+modified_at, favorite`, plus `match_rank` (0–3) on search hits only: the
+shape the song list renders. The console
 synthesises rows with null number and key for the History view (and for
 setlist items whose file is missing).
 
@@ -41,10 +45,26 @@ setlist items whose file is missing).
 `search_songs(query, favorites_only)`:
 
 - Empty query: `list_all` (every song, `ORDER BY title_sort`).
-- Otherwise `LIKE %q%` on `title`, `body_plain` and `tags`, plus `song_num`
-  cast to text `LIKE %q%` with a leading `#` stripped (so `#227` and `227`
-  both hit). No ranking; results come back alphabetical by `title_sort`.
-- `favorites_only` becomes an `INNER JOIN favorites`.
+- Otherwise `search.rs`: the query is split into words, and **every word**
+  must appear in the title or in the lyrics and tags (`body_plain` + `tags`).
+  Text is lower-cased, common accents are folded (é → e), apostrophes are
+  dropped (it's → its); æ, ø and å stay distinct letters.
+- A word matches exactly when it occurs anywhere in the field (so a prefix
+  being typed matches). Otherwise it may match a word of the field with
+  **spelling mistakes**: none for words of up to 3 letters, one for 4–6, two
+  for 7 or more. Insertions, deletions, substitutions and swapped neighbours
+  each count as one (optimal string alignment); a word still being typed is
+  also compared with the start of longer words ("haleluj" finds
+  "Hallelujah").
+- A number-only query (`227`, `#227`) also matches `song_num` as a substring.
+- Each hit gets `match_rank`: 0 every word in the title (or the number), 1
+  in the title with a mistake, 2 in title/lyrics/tags, 3 the same with a
+  mistake. Results come back by rank, then title.
+- `favorites_only` filters to favourites.
+- The prepared text of every song is cached on the `Database` after the first
+  search and dropped by `rebuild_from_songs`, `upsert_song` and
+  `delete_song`. With about 1,000 songs a search takes 10–50 ms in a debug
+  build.
 
 `list_by_key(key)` is an exact match; `list_keys` / `list_categories` return
 the distinct non-empty values. `list_by_category`, `renumber_songs` and
@@ -59,8 +79,9 @@ with the star on the song title row (`toggle_favorite`, `list_favorites`).
 ## Ordering in the console
 
 Sorting by Song / No / Key happens client-side over the returned rows
-([operator console](operator-console.md)); the SQL order only matters for the
-History and Setlist views. `#Key` in the search field uses `list_by_key`
+([operator console](operator-console.md)), **within** each `match_rank`, so
+title hits stay above lyric hits; the SQL order only matters for the History
+and Setlist views. `#Key` in the search field uses `list_by_key`
 intersected with the text search.
 
 ## Related

@@ -21,6 +21,8 @@ export interface SongRow {
   ccli: string | null;
   modified_at: string | null;
   favorite: boolean;
+  /** Search hits only: 0 title, 1 title misspelt, 2 lyrics or tags, 3 lyrics misspelt. */
+  match_rank?: number;
 }
 
 export interface SlideLine {
@@ -163,8 +165,16 @@ export interface ImportProgress {
   song_title: string;
 }
 
+/** Answer to the quick "is this a Psalm150 song server?" check. */
+export interface ServerProbe {
+  url: string;
+  initialized: boolean;
+  /** False for servers that still need a pasted desktop token. */
+  desktop_sign_in: boolean;
+}
+
 export interface ServerSyncProgress {
-  phase: "preparing" | "uploading" | "downloading" | "activating";
+  phase: "signing in" | "preparing" | "uploading" | "downloading" | "activating";
   label: string;
   current: number;
   total: number | null;
@@ -398,6 +408,10 @@ export const api = {
   setReadOnly: (readOnly: boolean) => invoke<void>("set_read_only", { readOnly }),
   connectServerLibrary: (url: string, token: string) =>
     invoke<LibraryStatus>("connect_server_library", { url, token }),
+  probeSongServer: (url: string) => invoke<ServerProbe>("probe_song_server", { url }),
+  signInServerLibrary: (url: string) =>
+    invoke<LibraryStatus>("sign_in_server_library", { url }),
+  cancelServerSignIn: () => invoke<void>("cancel_server_sign_in"),
   syncServerLibrary: () => invoke<LibraryStatus>("sync_server_library"),
   disconnectServerLibrary: () => invoke<void>("disconnect_server_library"),
   setWebSearchEnabled: (enabled: boolean) =>

@@ -42,6 +42,20 @@ const RESERVED = new Set([
   ..."0123456789".split(""),
 ]);
 
+export type BrowseView = "search" | "setlist" | "history" | "favorites";
+
+/**
+ * Fixed combos that pick what the song list shows. Ctrl+E and Ctrl+1 both go
+ * to Search and select the text in the search field.
+ */
+export const VIEW_SHORTCUTS: Readonly<Record<string, BrowseView>> = {
+  "Ctrl+E": "search",
+  "Ctrl+1": "search",
+  "Ctrl+2": "setlist",
+  "Ctrl+3": "history",
+  "Ctrl+4": "favorites",
+};
+
 const MODIFIER_KEYS = new Set(["Control", "Alt", "Shift", "Meta", "AltGraph", "OS"]);
 
 /**
@@ -119,6 +133,9 @@ export function shortcutProblem(
   const key = combo.split("+").pop() ?? "";
   if (combo === key && RESERVED.has(key)) {
     return `${formatCombo(combo)} is already used for lists, stanzas or closing`;
+  }
+  if (VIEW_SHORTCUTS[combo]) {
+    return `${formatCombo(combo)} is already used to switch the song list`;
   }
   if (/^Shift\+/.test(combo) && combo.split("+").length === 2 && key.length === 1) {
     return "Shift with a single character types text; add Ctrl or Alt";

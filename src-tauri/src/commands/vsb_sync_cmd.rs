@@ -232,6 +232,7 @@ async fn send_server_ops(
                 chordpro,
             } => server::update_song(url, token, &song_id, &base_revision_id, &chordpro)
                 .await
+                .map(|_| ())
                 .map_err(|error| format!("{title}: {error}")),
             ServerOp::Delete {
                 song_id,

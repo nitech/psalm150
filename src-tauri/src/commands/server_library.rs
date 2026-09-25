@@ -452,7 +452,7 @@ async fn download_export(
     Ok(bytes)
 }
 
-fn normalize_server_url(value: &str) -> Result<String, String> {
+pub(crate) fn normalize_server_url(value: &str) -> Result<String, String> {
     let mut url = url::Url::parse(value.trim())
         .map_err(|_| "Enter a complete server URL, including http:// or https://".to_string())?;
     if !matches!(url.scheme(), "http" | "https") {
@@ -528,7 +528,9 @@ pub(crate) fn read_manifest(
     config::server_library_root(app, server_url)
         .ok()
         .and_then(|root| fs::read(root.join(MANIFEST_FILE)).ok())
-        .and_then(|bytes| serde_json::from_slice::<Vec<crate::vsb_sync::ServerSongRef>>(&bytes).ok())
+        .and_then(|bytes| {
+            serde_json::from_slice::<Vec<crate::vsb_sync::ServerSongRef>>(&bytes).ok()
+        })
         .map(|entries| {
             entries
                 .into_iter()
@@ -536,6 +538,18 @@ pub(crate) fn read_manifest(
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn write_manifest(
+    app: &AppHandle,
+    server_url: &str,
+    manifest: &std::collections::HashMap<String, crate::vsb_sync::ServerSongRef>,
+) -> Result<(), String> {
+    let mut entries = manifest.values().collect::<Vec<_>>();
+    entries.sort_by(|a, b| a.filename.cmp(&b.filename));
+    let bytes = serde_json::to_vec(&entries).map_err(|error| error.to_string())?;
+    let path = config::server_library_root(app, server_url)?.join(MANIFEST_FILE);
+    fs::write(path, bytes).map_err(|error| error.to_string())
 }
 
 fn song_endpoint(server_url: &str, song_id: &str) -> Result<url::Url, String> {
@@ -571,13 +585,18 @@ async fn song_response(response: reqwest::Response) -> Result<(), String> {
 }
 
 /// Replace a server song's text, based on the revision this PC last saw.
+/// Returns the server's new revision id when the response names one.
 pub(crate) async fn update_song(
     server_url: &str,
     token: &str,
     song_id: &str,
     base_revision_id: &str,
     chordpro: &str,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
+    #[derive(Deserialize)]
+    struct Updated {
+        revision_id: String,
+    }
     let response = song_client()?
         .put(song_endpoint(server_url, song_id)?)
         .header(AUTHORIZATION, format!("Bearer {token}"))
@@ -589,7 +608,65 @@ pub(crate) async fn update_song(
         .send()
         .await
         .map_err(|error| format!("could not reach the song server: {error}"))?;
-    song_response(response).await
+    if !response.status().is_success() {
+        song_response(response).await?;
+        return Ok(None);
+    }
+    let body = response.text().await.unwrap_or_default();
+    Ok(serde_json::from_str::<Updated>(&body)
+        .ok()
+        .map(|updated| updated.revision_id))
+}
+
+/// Save an edit made in a server library: send it to the song server (a
+/// newer server edit answers 409 and nothing changes), then update the
+/// offline copy and the manifest's revision so the next edit builds on it.
+pub(crate) async fn save_song(
+    app: &AppHandle,
+    server_url: &str,
+    folder_hash: &str,
+    folder: &Path,
+    filename: &str,
+    content: &str,
+    expected_hash: &str,
+) -> Result<(), String> {
+    let current = fs::read_to_string(crate::library::files::song_path(folder, filename)?)
+        .map_err(|error| error.to_string())?;
+    if crate::library::files::content_hash(&current) != expected_hash {
+        return Err("SONG_CHANGED_ON_DISK: Reload the song before saving".into());
+    }
+    let mut manifest = read_manifest(app, server_url);
+    let song = manifest.get(filename).cloned().ok_or_else(|| {
+        "This song is not on the song server yet. Synchronize the server library, then try again."
+            .to_string()
+    })?;
+    let token = read_token(app)?;
+    let revision = update_song(server_url, &token, &song.id, &song.revision_id, content)
+        .await
+        .map_err(|error| {
+            if error.starts_with("changed on the song server") {
+                "Not saved: this song was changed on the song server in the meantime. \
+                 Synchronize the library (Settings, Church server) to get that version, then edit again."
+                    .to_string()
+            } else {
+                format!("Not saved: {error}")
+            }
+        })?;
+    crate::library::files::replace_song(
+        app,
+        folder_hash,
+        folder,
+        filename,
+        content,
+        expected_hash,
+    )?;
+    if let Some(revision_id) = revision {
+        if let Some(entry) = manifest.get_mut(filename) {
+            entry.revision_id = revision_id;
+        }
+        write_manifest(app, server_url, &manifest)?;
+    }
+    Ok(())
 }
 
 /// Delete a server song unless it changed since `base_revision_id`.

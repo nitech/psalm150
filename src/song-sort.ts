@@ -42,7 +42,9 @@ export function parseSongSort(raw: string | null | undefined): SongSort {
 }
 
 /**
- * Sorted copy of the rows. Rows without a value for the column go last in both
+ * Sorted copy of the rows. Search hits keep their match rank first (title
+ * matches before lyric matches, exact before misspelt); within a rank the
+ * column decides. Rows without a value for the column go last in both
  * directions; ties fall back to title, then to the incoming order.
  */
 export function sortSongs(songs: readonly SongRow[], sort: SongSort): SongRow[] {
@@ -50,6 +52,8 @@ export function sortSongs(songs: readonly SongRow[], sort: SongSort): SongRow[] 
   return songs
     .map((song, index) => ({ song, index }))
     .sort((a, b) => {
+      const byRank = (a.song.match_rank ?? 0) - (b.song.match_rank ?? 0);
+      if (byRank !== 0) return byRank;
       const av = columnValue(a.song, sort.column);
       const bv = columnValue(b.song, sort.column);
       if (av == null || bv == null) {

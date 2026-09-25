@@ -33,7 +33,7 @@ commands are real and tested but reachable only over IPC.
 | `get_songs_folder` | → `Option<String>` | no |
 | `rescan_songs` | → `LibraryStatus` | yes |
 | `list_foreign_files`, `list_conflicts` | → `Vec<String>` | no (status carries them) |
-| `search_songs` | `query, favoritesOnly` → `Vec<SongRow>` | yes |
+| `search_songs` | `query, favoritesOnly` → `Vec<SongRow>` with `match_rank`, best first ([search semantics](library-index.md#search-semantics)) | yes |
 | `list_by_key` | `key` → `Vec<SongRow>` | yes |
 | `list_keys`, `list_categories` | → `Vec<String>` | keys yes, categories no |
 | `get_history` | `limit` → `Vec<(filename, title, accessed_at)>` | yes |
@@ -47,8 +47,8 @@ commands are real and tested but reachable only over IPC.
 | `load_song` | `filename` → read-only `SongDetail { parsed, projection, content_hash }` preview | yes |
 | `preview_web_song` | `content` → read-only `SongDetail` preview | yes |
 | `project_song` | exactly one of `filename` / `content` → `ProjectionSnapshot`; starts a new active session and logs a library song once | yes |
-| `save_song` | `filename, content, expectedHash` → `SongDetail`; rejects an external edit and refreshes an active song immediately | yes |
-| `save_song_lines` | `filename, expectedHash, edits[{sectionIndex,lineIndex,text}]` → `SongDetail`; Rust uses parser source-line mappings | yes |
+| `save_song` | async; `filename, content, expectedHash` → `SongDetail`; rejects an external edit and refreshes an active song immediately; in a [server library](server-library.md) saves to the song server first | yes |
+| `save_song_lines` | async; `filename, expectedHash, edits[{sectionIndex,lineIndex,text}]` → `SongDetail`; Rust uses parser source-line mappings; server libraries as `save_song` | yes |
 | `save_web_song` | `content` → `SongDetail`; collision-free number/title filename | yes |
 | `delete_song` | `filename` → `RecoveryItem`; blocks active and setlist-referenced files | yes |
 | `renumber_songs` | `plans[{from,to}]` → messages | no |
@@ -60,6 +60,20 @@ commands are real and tested but reachable only over IPC.
 | `mark_duplicate_keep_both` | `leftHash, rightHash` | yes |
 | `list_recovery_items`, `restore_recovery_item` | → recoverable copies / restored filename | yes |
 | `search_web_songs` | `query` → `Vec<WebSearchCandidate>` | yes |
+
+## Song server
+
+| Command | Arguments → result | UI |
+| --- | --- | --- |
+| `probe_song_server` | `url` → `ServerProbe { url, initialized, desktop_sign_in }`; errors when nothing Psalm150 answers | yes (Settings, while typing) |
+| `sign_in_server_library` | `url` → `LibraryStatus`; browser sign-in over a loopback redirect, then synchronise ([server library](server-library.md)); error `SIGN_IN_CANCELLED: …` when cancelled | yes |
+| `cancel_server_sign_in` | stops a waiting sign-in | yes |
+| `connect_server_library` | `url, token` → `LibraryStatus` (pasted `psa_d_` token) | yes (token fallback) |
+| `sync_server_library`, `disconnect_server_library` | → `LibraryStatus` / `()` | yes |
+
+Event `server-sync-progress` `{ phase, label, current, total, unit }` reports
+upload, download and activation; the console adds its own `signing in` phase
+while the browser is open.
 
 ## Projection
 

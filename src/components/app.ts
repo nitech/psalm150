@@ -37,6 +37,7 @@ import {
   hasCommandModifier,
   resolveShortcuts,
   shortcutProblem,
+  VIEW_SHORTCUTS,
   type ShortcutAction,
   type ShortcutMap,
 } from "../shortcuts";
@@ -83,6 +84,12 @@ import { isWebResultId, webResultId, webResultIndex } from "./song-list-ids";
 
 /** What the browse pane lists: search results, or one of the toolbar views. */
 type BrowseMode = "search" | "history" | "favorites" | "setlist";
+/** The Settings check of the typed server URL. */
+type ServerProbeState =
+  | { status: "idle" }
+  | { status: "checking" }
+  | { status: "ok"; desktopSignIn: boolean; initialized: boolean }
+  | { status: "error"; message: string };
 type ToastTone = "info" | "success" | "error";
 type SettingsSectionId =
   | "library"
@@ -120,6 +127,8 @@ const BROWSE_PANE_WIDTH_KEY = "psa150-browse-pane-width";
 const BROWSE_PANE_MIN = 280;
 const BROWSE_PANE_MAX = 720;
 const BROWSE_PANE_DEFAULT = 340;
+/** Wait after typing in the server URL field before checking it. */
+const SERVER_PROBE_DELAY_MS = 450;
 const WEB_SEARCH_DEBOUNCE_MS = 650;
 const SONG_SORT_KEY = "psa150-song-sort";
 const CURRENT_SETLIST_KEY = "psa150-current-setlist";
@@ -145,6 +154,8 @@ export class Psa150App extends Psa150Element {
     serverUrl: { state: true },
     serverToken: { state: true },
     serverSyncing: { state: true },
+    serverProbe: { state: true },
+    serverSignInWaiting: { state: true },
     serverSyncProgress: { state: true },
     webSearchEnabled: { state: true },
     displays: { state: true },
@@ -213,6 +224,8 @@ export class Psa150App extends Psa150Element {
   declare serverUrl: string;
   declare serverToken: string;
   declare serverSyncing: boolean;
+  declare serverProbe: ServerProbeState;
+  declare serverSignInWaiting: boolean;
   declare serverSyncProgress: ServerSyncProgress | null;
   declare webSearchEnabled: boolean;
   declare displays: DisplayInfo[];
@@ -274,6 +287,8 @@ export class Psa150App extends Psa150Element {
   private webSearchGeneration = 0;
   private unlistenImport: UnlistenFn | null = null;
   private unlistenServerSync: UnlistenFn | null = null;
+  private serverProbeTimer: ReturnType<typeof setTimeout> | null = null;
+  private serverProbeGeneration = 0;
   private unlistenLibrary: UnlistenFn | null = null;
   private unlistenProjection: UnlistenFn | null = null;
   private unlistenProjectionClosed: UnlistenFn | null = null;
@@ -285,6 +300,8 @@ export class Psa150App extends Psa150Element {
   private importBusy = false;
   private keysLoaded = false;
   private songsRefreshGeneration = 0;
+  /** The current mouse press on the search field is what focuses it. */
+  private searchClickFocuses = false;
   private splitterDragging = false;
   private sortedSongsCache: { songs: SongRow[]; sort: SongSort; sorted: SongRow[] } | null = null;
   private stanzaNumberInput = new StanzaNumberInput();
@@ -310,6 +327,8 @@ export class Psa150App extends Psa150Element {
     this.serverUrl = "";
     this.serverToken = "";
     this.serverSyncing = false;
+    this.serverProbe = { status: "idle" };
+    this.serverSignInWaiting = false;
     this.serverSyncProgress = null;
     this.webSearchEnabled = true;
     this.displays = [];
@@ -594,6 +613,7 @@ export class Psa150App extends Psa150Element {
       if (generation !== this.songsRefreshGeneration) return;
       this.songs = songs;
       if (this.browseMode === "search") {
+        void this.selectOnlyHit();
         void this.maybeSearchWeb(generation);
       } else {
         this.webResults = [];
@@ -607,6 +627,15 @@ export class Psa150App extends Psa150Element {
         void this.maybeSearchWeb(generation);
       }
     }
+  }
+
+  /** A search with exactly one hit selects and shows it; focus stays in the field. */
+  private async selectOnlyHit() {
+    if (!this.query.trim() || this.songs.length !== 1) return;
+    const only = this.songs[0].filename;
+    if (only === this.currentFilename) return;
+    if (this.editOpen || hasPendingEdits(this.adhocPendingEdits)) return;
+    await this.selectSong(only);
   }
 
   /** Items of the current setlist in service order, with titles from the index. */
@@ -739,10 +768,15 @@ export class Psa150App extends Psa150Element {
   }
 
   private canAdhocEdit(): boolean {
-    if (this.readOnly) return false;
+    if (!this.songEditsAllowed()) return false;
     if (!this.currentSong) return false;
     if (this.currentFilename && isWebResultId(this.currentFilename)) return false;
     return Boolean(this.currentSong.projection.filename);
+  }
+
+  /** Song edits save to the folder, or to the song server for a server library. */
+  private songEditsAllowed(): boolean {
+    return !this.readOnly || Boolean(this.serverLibrary);
   }
 
   private selectedSongIsActive(): boolean {
@@ -928,7 +962,8 @@ export class Psa150App extends Psa150Element {
         this.currentSong.content_hash,
       );
       this.editorValue = this.currentSong.parsed.raw;
-      this.showToast("Song saved", "success");
+      this.editOpen = false;
+      this.showToast(this.serverLibrary ? "Song saved to the song server" : "Song saved", "success");
       await this.refreshSongs();
       return true;
     } catch (err) {
@@ -982,7 +1017,7 @@ export class Psa150App extends Psa150Element {
         collectLineEdits(this.adhocPendingEdits),
       );
       this.resetAdhocEdits();
-      this.showToast("Corrections saved", "success");
+      this.showToast(this.serverLibrary ? "Corrections saved to the song server" : "Corrections saved", "success");
       await this.refreshSongs();
       return true;
     } catch (err) {
@@ -1193,6 +1228,7 @@ export class Psa150App extends Psa150Element {
     try {
       await this.unlistenServerSync?.();
       this.unlistenServerSync = await listen<ServerSyncProgress>("server-sync-progress", (event) => {
+        this.serverSignInWaiting = false;
         this.serverSyncProgress = event.payload;
       });
     } catch (error) {
@@ -1221,13 +1257,7 @@ export class Psa150App extends Psa150Element {
       return;
     }
     if (!(await this.confirmDiscardPendingEdits())) return;
-    if (!this.serverLibrary && (this.libraryStatus?.song_count ?? 0) > 0) {
-      const accepted = await confirm(
-        `Connecting will add any of these ${this.libraryStatus?.song_count} local songs that the server does not already have, then download the merged library. Exact matches are skipped; differing versions remain separate. Your original files stay unchanged. Continue?`,
-        { title: "Merge with server library", kind: "warning" },
-      );
-      if (!accepted) return;
-    }
+    if (!(await this.confirmServerMerge())) return;
     await this.beginServerSyncProgress();
     try {
       this.libraryStatus = await api.connectServerLibrary(url, token);
@@ -1238,6 +1268,78 @@ export class Psa150App extends Psa150Element {
     } catch (error) {
       this.showToast(error instanceof Error ? error.message : String(error), "error");
     } finally {
+      await this.endServerSyncProgress();
+    }
+  }
+
+  /** Connecting uploads local-only songs; ask first when there are any. */
+  private async confirmServerMerge(): Promise<boolean> {
+    if (this.serverLibrary || (this.libraryStatus?.song_count ?? 0) === 0) return true;
+    return confirm(
+      `Connecting will add any of these ${this.libraryStatus?.song_count} local songs that the server does not already have, then download the merged library. Exact matches are skipped; differing versions remain separate. Your original files stay unchanged. Continue?`,
+      { title: "Merge with server library", kind: "warning" },
+    );
+  }
+
+  /** Server URL field: check it is a song server shortly after typing stops. */
+  private onServerUrlInput(value: string) {
+    this.serverUrl = value;
+    if (this.serverProbeTimer) clearTimeout(this.serverProbeTimer);
+    const generation = ++this.serverProbeGeneration;
+    if (!value.trim()) {
+      this.serverProbe = { status: "idle" };
+      return;
+    }
+    this.serverProbe = { status: "checking" };
+    this.serverProbeTimer = setTimeout(async () => {
+      this.serverProbeTimer = null;
+      try {
+        const probe = await api.probeSongServer(value);
+        if (generation !== this.serverProbeGeneration) return;
+        this.serverProbe = {
+          status: "ok",
+          desktopSignIn: probe.desktop_sign_in,
+          initialized: probe.initialized,
+        };
+      } catch (error) {
+        if (generation !== this.serverProbeGeneration) return;
+        this.serverProbe = {
+          status: "error",
+          message: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }, SERVER_PROBE_DELAY_MS);
+  }
+
+  /** Sign in on the server in the browser; the desktop receives its token. */
+  private async signInServerLibrary() {
+    const url = this.serverUrl.trim();
+    if (!url) return;
+    if (!(await this.confirmDiscardPendingEdits())) return;
+    if (!(await this.confirmServerMerge())) return;
+    await this.beginServerSyncProgress();
+    this.serverSignInWaiting = true;
+    this.serverSyncProgress = {
+      phase: "signing in",
+      label: "Finish signing in in your browser",
+      current: 0,
+      total: null,
+      unit: "steps",
+    };
+    try {
+      this.libraryStatus = await api.signInServerLibrary(url);
+      this.applyConfig(await api.getConfig());
+      await this.refreshSongs();
+      this.showToast(`Connected: ${this.libraryStatus.song_count} songs available offline`, "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith("SIGN_IN_CANCELLED")) {
+        this.showToast("Sign-in cancelled");
+      } else {
+        this.showToast(message, "error");
+      }
+    } finally {
+      this.serverSignInWaiting = false;
       await this.endServerSyncProgress();
     }
   }
@@ -1280,6 +1382,49 @@ export class Psa150App extends Psa150Element {
   private formatServerSyncTime(value: string): string {
     const date = new Date(value);
     return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
+  }
+
+  /** Settings, Church server, not connected: URL check, browser sign-in, token fallback. */
+  private renderServerConnect(): TemplateResult {
+    const probe = this.serverProbe;
+    const signInReady = probe.status === "ok" && probe.desktopSignIn && probe.initialized;
+    const needsToken = probe.status === "ok" && !probe.desktopSignIn;
+    let status: TemplateResult | typeof nothing = nothing;
+    if (probe.status === "checking") {
+      status = html`<p class="server-probe" role="status">Checking the address…</p>`;
+    } else if (probe.status === "error") {
+      status = html`<p class="server-probe error" role="status">${probe.message}</p>`;
+    } else if (probe.status === "ok" && !probe.initialized) {
+      status = html`<p class="server-probe error" role="status">This song server has not been set up yet. Open it in a browser to create the church first.</p>`;
+    } else if (probe.status === "ok") {
+      status = html`<p class="server-probe ok" role="status">Psalm150 song server found${needsToken ? " · this server needs a desktop token" : ""}</p>`;
+    }
+    return html`
+      <p class="settings-hint">Connect to your church's Psalm150 song server. You sign in with your server username and password in the browser. Local-only songs are then added to the server and the merged library is downloaded for offline use; exact content matches are not duplicated.</p>
+      <label class="settings-field server-url-field">
+        <span>Server URL</span>
+        <input
+          type="url"
+          inputmode="url"
+          placeholder="https://songs.example.org"
+          .value=${this.serverUrl}
+          ?disabled=${this.serverSyncing}
+          @input=${(event: Event) => this.onServerUrlInput((event.target as HTMLInputElement).value)}
+        />
+      </label>
+      ${status}
+      <div class="settings-actions">
+        ${this.serverSignInWaiting
+          ? html`<button class="ghost" @click=${() => api.cancelServerSignIn()}>Cancel sign-in</button>`
+          : html`<button class="primary" ?disabled=${!signInReady || this.serverSyncing} @click=${() => this.signInServerLibrary()}>${this.serverSyncing ? "Connecting…" : "Sign in with browser"}</button>`}
+      </div>
+      ${this.renderServerSyncProgress()}
+      <details class="server-token-fallback" ?open=${needsToken}>
+        <summary>Use a desktop token instead</summary>
+        <p class="settings-hint">Paste a desktop token created under Connect desktop on the server.</p>
+        <label class="settings-field"><span>Desktop token</span><input type="password" autocomplete="off" placeholder="psa_d_…" .value=${this.serverToken} @input=${(event: Event) => (this.serverToken = (event.target as HTMLInputElement).value)} /></label>
+        <button class="secondary" ?disabled=${this.serverSyncing || !this.serverUrl.trim()} @click=${() => this.connectServerLibrary()}>Connect with token</button>
+      </details>`;
   }
 
   private renderServerSyncProgress() {
@@ -1642,6 +1787,15 @@ export class Psa150App extends Psa150Element {
     requestAnimationFrame(() => this.focusSearchField(true));
   }
 
+  /** Ctrl+E and Ctrl+1–4: open a view (never toggles back to Search). */
+  private async showBrowseMode(mode: BrowseMode) {
+    if (mode === "search") {
+      await this.showSearch();
+    } else if (this.browseMode !== mode) {
+      await this.setBrowseMode(mode);
+    }
+  }
+
   /** Toolbar views toggle: pressing the active one returns to search. */
   private async setBrowseMode(mode: BrowseMode) {
     this.browseMode = this.browseMode === mode ? "search" : mode;
@@ -1650,6 +1804,26 @@ export class Psa150App extends Psa150Element {
     await this.refreshSongs();
     await this.updateComplete;
     this.focusActiveBrowseField();
+  }
+
+  /** The search field selects its text whenever it gains focus, so typing replaces it. */
+  private onSearchFocus(event: FocusEvent) {
+    (event.target as HTMLInputElement).select();
+  }
+
+  /** A click that focuses the field would collapse the selection on mouseup; keep it. */
+  private onSearchMouseDown(event: MouseEvent) {
+    this.searchClickFocuses = document.activeElement !== event.target;
+  }
+
+  private onSearchMouseUp(event: MouseEvent) {
+    if (!this.searchClickFocuses) return;
+    this.searchClickFocuses = false;
+    const input = event.target as HTMLInputElement;
+    if (input.selectionStart === input.selectionEnd) {
+      event.preventDefault();
+      input.select();
+    }
   }
 
   private async onSearchInput(event: Event) {
@@ -1681,6 +1855,11 @@ export class Psa150App extends Psa150Element {
   }
 
   // ── Toast ──────────────────────────────────────────────────────────────
+
+  private anyModalOpen(): boolean {
+    return this.editOpen || this.settingsOpen || this.importOpen ||
+      this.importReportOpen || this.duplicatesOpen;
+  }
 
   private showToast(msg: string, tone: ToastTone = "info") {
     this.toastMsg = msg;
@@ -1863,6 +2042,12 @@ export class Psa150App extends Psa150Element {
     const action = combo ? actionForCombo(this.shortcuts, combo) : null;
     const modalOpen = this.editOpen || this.settingsOpen || this.importOpen ||
       this.importReportOpen || this.duplicatesOpen;
+    const view = combo ? VIEW_SHORTCUTS[combo] : undefined;
+    if (view && !modalOpen) {
+      event.preventDefault();
+      await this.showBrowseMode(view);
+      return;
+    }
     const typing = isTextEntryTarget(target) || isContentEditableTarget(target);
     if (action && combo && !modalOpen && (hasCommandModifier(combo) || !typing)) {
       if (await this.runShortcut(action)) {
@@ -2094,7 +2279,20 @@ export class Psa150App extends Psa150Element {
         .content=${this.renderImportReportContent()}
         @psa150-close=${() => (this.importReportOpen = false)}
       ></psa150-modal>
+      ${this.anyModalOpen() ? this.renderToast() : nothing}
     `;
+  }
+
+  /**
+   * The toast lives in the title bar; while a dialog is open it is drawn after
+   * the dialogs instead, because the title bar's stacking context would keep
+   * it under the dialog backdrop.
+   */
+  private renderToast() {
+    return html`<span
+      class="toast ${this.toastTone} ${this.toastVisible ? "" : "hidden"} ${this.anyModalOpen() ? "over-modal" : ""}"
+      role="status"
+    >${this.toastMsg}</span>`;
   }
 
   private renderHeader() {
@@ -2117,9 +2315,7 @@ export class Psa150App extends Psa150Element {
           <strong class="brand-name">Psalm150</strong>
         </div>
         <div class="header-end app-no-drag">
-          <span class="toast ${this.toastTone} ${this.toastVisible ? "" : "hidden"}" role="status">
-            ${this.toastMsg}
-          </span>
+          ${this.anyModalOpen() ? nothing : this.renderToast()}
           <span class="badge ${this.libraryStatus?.library_dirty ? "" : "hidden"}">Changed</span>
           <div class="toolbar-group projection-toolbar" role="toolbar" aria-label="Projection and settings">
             <button
@@ -2250,10 +2446,10 @@ export class Psa150App extends Psa150Element {
     `;
     return html`
       <nav class="activity-bar" aria-label="Song list views">
-        ${mode("search", "Search (Ctrl+F)", "search", () => this.showSearch())}
-        ${mode("setlist", "Setlist", "setlist", () => this.setBrowseMode("setlist"))}
-        ${mode("history", "History", "history", () => this.setBrowseMode("history"))}
-        ${mode("favorites", "Favourites", "favorites", () => this.setBrowseMode("favorites"))}
+        ${mode("search", "Search (Ctrl+E or Ctrl+1)", "search", () => this.showSearch())}
+        ${mode("setlist", "Setlist (Ctrl+2)", "setlist", () => this.setBrowseMode("setlist"))}
+        ${mode("history", "History (Ctrl+3)", "history", () => this.setBrowseMode("history"))}
+        ${mode("favorites", "Favourites (Ctrl+4)", "favorites", () => this.setBrowseMode("favorites"))}
         <span class="activity-spacer"></span>
         ${this.vsbSync
           ? html`<button
@@ -2315,6 +2511,9 @@ export class Psa150App extends Psa150Element {
             aria-controls="key-menu"
             aria-autocomplete="list"
             .value=${this.query}
+            @focus=${(e: FocusEvent) => this.onSearchFocus(e)}
+            @mousedown=${(e: MouseEvent) => this.onSearchMouseDown(e)}
+            @mouseup=${(e: MouseEvent) => this.onSearchMouseUp(e)}
             @input=${(e: Event) => this.onSearchInput(e)}
             @click=${(e: Event) => this.updateKeyToken(e.target as HTMLInputElement)}
             @keydown=${(e: KeyboardEvent) => this.onSearchKeydown(e)}
@@ -3131,14 +3330,7 @@ export class Psa150App extends Psa150Element {
               </div>
               ${this.renderServerSyncProgress()}
               <p class="settings-hint settings-note">Synchronization adds exact local-only songs from the remembered local folder, then downloads the complete server library. Projection and browsing continue from the cache when the server is offline.</p>`
-          : html`
-              <p class="settings-hint">Paste a desktop sync token from PSA150 Server. On first connection, local-only songs are added to the server and the merged library is downloaded for offline use. Exact content matches are not duplicated.</p>
-              <div class="settings-fields">
-                <label class="settings-field"><span>Server URL</span><input type="url" inputmode="url" placeholder="https://songs.example.org" .value=${this.serverUrl} @input=${(event: Event) => (this.serverUrl = (event.target as HTMLInputElement).value)} /></label>
-                <label class="settings-field"><span>Desktop token</span><input type="password" autocomplete="off" placeholder="psa_d_…" .value=${this.serverToken} @input=${(event: Event) => (this.serverToken = (event.target as HTMLInputElement).value)} /></label>
-              </div>
-              <button class="primary" ?disabled=${this.serverSyncing} @click=${() => this.connectServerLibrary()}>${this.serverSyncing ? "Connecting…" : "Connect and download"}</button>
-              ${this.renderServerSyncProgress()}`;
+          : this.renderServerConnect();
         break;
       case "vsb":
         content = this.vsbSync
@@ -3208,6 +3400,8 @@ export class Psa150App extends Psa150Element {
             <span><kbd>Enter</kbd> project</span><span><kbd>↑</kbd> <kbd>↓</kbd> songs, or stanzas while projecting</span>
             <span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>
             <span><kbd>#</kbd> in search: pick a key</span><span><kbd>Esc</kbd> close projection</span>
+            <span><kbd>Ctrl</kbd> + <kbd>E</kbd> search</span>
+            <span><kbd>Ctrl</kbd> + <kbd>1</kbd>–<kbd>4</kbd> Search, Setlist, History, Favourites</span>
           </div>`;
         break;
     }

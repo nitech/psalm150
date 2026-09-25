@@ -8,6 +8,7 @@ import {
   normalizeCombo,
   resolveShortcuts,
   shortcutProblem,
+  VIEW_SHORTCUTS,
 } from "../src/shortcuts";
 
 function key(key: string, code: string, mods: Partial<Record<"ctrlKey" | "altKey" | "shiftKey" | "metaKey", boolean>> = {}) {
@@ -51,6 +52,15 @@ describe("shortcutProblem", () => {
     expect(shortcutProblem(DEFAULT_SHORTCUTS, "blank", "Alt+S")).toMatch(/Add the selected song/);
     expect(shortcutProblem(DEFAULT_SHORTCUTS, "blank", "Alt+B")).toBeNull();
     expect(shortcutProblem(DEFAULT_SHORTCUTS, "blank", "B")).toBeNull();
+  });
+
+  it("keeps Ctrl+E and Ctrl+1–4 for the song list views", () => {
+    expect(shortcutProblem(DEFAULT_SHORTCUTS, "blank", "Ctrl+E")).toMatch(/switch the song list/);
+    expect(shortcutProblem(DEFAULT_SHORTCUTS, "focus_search", "Ctrl+4")).toMatch(/switch the song list/);
+    expect(shortcutProblem(DEFAULT_SHORTCUTS, "blank", "Ctrl+5")).toBeNull();
+    expect(comboFromEvent(key("1", "Numpad1", { ctrlKey: true }))).toBe("Ctrl+1");
+    expect(VIEW_SHORTCUTS["Ctrl+E"]).toBe("search");
+    expect(VIEW_SHORTCUTS["Ctrl+3"]).toBe("history");
   });
 
   it("formats combos for display", () => {

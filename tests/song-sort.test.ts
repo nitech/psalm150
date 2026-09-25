@@ -66,6 +66,27 @@ describe("sortSongs", () => {
     ]);
   });
 
+  it("keeps better search matches first, then sorts by the column", () => {
+    const hits = [
+      { ...row("Zion", 1, "A"), match_rank: 0 },
+      { ...row("Above All", 2, "B"), match_rank: 2 },
+      { ...row("Awesome God", 3, "C"), match_rank: 0 },
+      { ...row("Alive", 4, "D"), match_rank: 3 },
+    ];
+    expect(titles(sortSongs(hits, DEFAULT_SONG_SORT))).toEqual([
+      "Awesome God",
+      "Zion",
+      "Above All",
+      "Alive",
+    ]);
+    expect(titles(sortSongs(hits, { column: "song_num", direction: "desc" }))).toEqual([
+      "Awesome God",
+      "Zion",
+      "Above All",
+      "Alive",
+    ]);
+  });
+
   it("does not mutate the input", () => {
     const copy = [...songs];
     sortSongs(songs, { column: "key", direction: "desc" });

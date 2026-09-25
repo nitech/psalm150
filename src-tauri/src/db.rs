@@ -1,9 +1,12 @@
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 use crate::library::chordpro::ParsedSong;
+use crate::search::{Query, SearchDoc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SongRow {
@@ -18,10 +21,16 @@ pub struct SongRow {
     pub ccli: Option<String>,
     pub modified_at: Option<String>,
     pub favorite: bool,
+    /// Search hits only: how well the song matched, 0 (title) to 3 (fuzzy text).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_rank: Option<u8>,
 }
 
 pub struct Database {
     conn: Connection,
+    /// Every song with its prepared search text; built on the first search
+    /// and dropped whenever the songs table changes.
+    search_cache: RefCell<Option<Vec<(SongRow, SearchDoc)>>>,
 }
 
 impl Database {
@@ -30,7 +39,10 @@ impl Database {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let conn = Connection::open(path).map_err(|e| e.to_string())?;
-        let db = Self { conn };
+        let db = Self {
+            conn,
+            search_cache: RefCell::new(None),
+        };
         db.migrate()?;
         Ok(db)
     }
@@ -79,6 +91,7 @@ impl Database {
     }
 
     pub fn rebuild_from_songs(&self, songs: &[ParsedSong]) -> Result<(), String> {
+        self.search_cache.replace(None);
         let tx = self
             .conn
             .unchecked_transaction()
@@ -122,6 +135,7 @@ impl Database {
     }
 
     pub fn upsert_song(&self, song: &ParsedSong) -> Result<(), String> {
+        self.search_cache.replace(None);
         let body_plain = plain_body(song);
         let title_sort = song.meta.title.to_uppercase();
         self.conn
@@ -174,6 +188,7 @@ impl Database {
     }
 
     pub fn delete_song(&self, filename: &str) -> Result<(), String> {
+        self.search_cache.replace(None);
         self.conn
             .execute("DELETE FROM songs WHERE filename = ?1", params![filename])
             .map_err(|e| e.to_string())?;
@@ -186,33 +201,63 @@ impl Database {
         Ok(())
     }
 
+    /// Songs whose title, lyrics or tags contain every word of `query`,
+    /// allowing spelling mistakes ([`crate::search`]). Best matches first,
+    /// then by title.
     pub fn search(&self, query: &str, favorites_only: bool) -> Result<Vec<SongRow>, String> {
-        if query.trim().is_empty() {
+        let parsed = Query::parse(query);
+        if parsed.is_empty() {
             return self.list_all(favorites_only);
         }
-        let trimmed = query.trim();
-        let like = format!("%{trimmed}%");
-        let num_like = format!("%{}%", trimmed.strip_prefix('#').unwrap_or(trimmed));
-        let sql = if favorites_only {
-            "SELECT s.id, s.filename, s.title, s.title_sort, s.song_num, s.key, s.category, s.tags, s.ccli, s.modified_at,
-                    1 as favorite
-             FROM songs s
-             INNER JOIN favorites f ON f.filename = s.filename
-             WHERE s.title LIKE ?1 OR s.body_plain LIKE ?1 OR s.tags LIKE ?1 OR CAST(s.song_num AS TEXT) LIKE ?2
-             ORDER BY s.title_sort"
-        } else {
-            "SELECT s.id, s.filename, s.title, s.title_sort, s.song_num, s.key, s.category, s.tags, s.ccli, s.modified_at,
-                    CASE WHEN f.filename IS NOT NULL THEN 1 ELSE 0 END as favorite
-             FROM songs s
-             LEFT JOIN favorites f ON f.filename = s.filename
-             WHERE s.title LIKE ?1 OR s.body_plain LIKE ?1 OR s.tags LIKE ?1 OR CAST(s.song_num AS TEXT) LIKE ?2
-             ORDER BY s.title_sort"
-        };
-        let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map(params![like, num_like], map_song_row)
+        let favorites = self.list_favorites()?.into_iter().collect::<HashSet<_>>();
+        if self.search_cache.borrow().is_none() {
+            let docs = self.load_search_docs()?;
+            self.search_cache.replace(Some(docs));
+        }
+        let cache = self.search_cache.borrow();
+        let mut hits = cache
+            .iter()
+            .flatten()
+            .filter(|(song, _)| !favorites_only || favorites.contains(&song.filename))
+            .filter_map(|(song, doc)| {
+                let rank = parsed.rank(doc)?;
+                Some(SongRow {
+                    favorite: favorites.contains(&song.filename),
+                    match_rank: Some(rank as u8),
+                    ..song.clone()
+                })
+            })
+            .collect::<Vec<_>>();
+        // Stable: equal ranks keep the title order of the cache.
+        hits.sort_by_key(|song| song.match_rank);
+        Ok(hits)
+    }
+
+    fn load_search_docs(&self) -> Result<Vec<(SongRow, SearchDoc)>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, filename, title, title_sort, song_num, key, category, tags, ccli, modified_at,
+                        0 as favorite, body_plain
+                 FROM songs
+                 ORDER BY title_sort",
+            )
             .map_err(|e| e.to_string())?;
-        collect_rows(rows)
+        let rows = stmt
+            .query_map([], |row| {
+                let song = map_song_row(row)?;
+                let body = row.get::<_, String>(11)?;
+                let doc = SearchDoc::new(
+                    &song.title,
+                    &body,
+                    song.tags.as_deref().unwrap_or_default(),
+                    song.song_num,
+                );
+                Ok((song, doc))
+            })
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn list_all(&self, favorites_only: bool) -> Result<Vec<SongRow>, String> {
@@ -408,6 +453,7 @@ fn map_song_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SongRow> {
         ccli: row.get(8)?,
         modified_at: row.get(9)?,
         favorite: row.get::<_, i64>(10)? != 0,
+        match_rank: None,
     })
 }
 

@@ -9,6 +9,7 @@ pub mod library;
 pub mod print;
 pub mod projection;
 pub mod remote;
+pub mod search;
 pub mod setlist;
 pub mod stage;
 pub mod vsb_sync;
@@ -85,6 +86,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
@@ -275,6 +277,9 @@ pub fn run() {
             commands::remote_cmd::stop_remote,
             commands::remote_cmd::get_remote_status,
             commands::server_library::connect_server_library,
+            commands::server_sign_in::probe_song_server,
+            commands::server_sign_in::sign_in_server_library,
+            commands::server_sign_in::cancel_server_sign_in,
             commands::server_library::sync_server_library,
             commands::server_library::disconnect_server_library,
             commands::web_search_cmd::search_web_songs,

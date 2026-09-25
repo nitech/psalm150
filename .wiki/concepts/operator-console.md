@@ -38,7 +38,7 @@ sources:
   - id: icons
     resource: /src/icons.ts
     title: Toolbar icon set (Lucide geometry)
-generated: { by: agent, at: 2026-09-23T20:00:00Z }
+generated: { by: agent, at: 2026-09-24T21:10:00Z }
 ---
 
 # Operator console
@@ -82,7 +82,17 @@ There is no "Now showing" text in the app bar. The stanza row shows
 | Setlist | activity bar | items of the current setlist, titles from the index | service order, no header |
 
 View buttons toggle: pressing the active one, or the view's close button,
-returns to Search.
+returns to Search. **Ctrl+1–4** open Search, Setlist, History and Favourites
+(they never toggle back), and the activity bar tooltips name them.
+
+**Search field**: it selects all of its text whenever it gains focus
+(keyboard, Ctrl+E / Ctrl+F / Ctrl+1, the Search button, or a click: the
+mouseup that would collapse the selection is cancelled for the click that
+focuses it), so typing replaces the previous search. Search matches words in
+titles, lyrics and tags and tolerates spelling mistakes
+([library index](library-index.md#search-semantics)). When a search returns
+**exactly one song**, it is selected and shown at once while focus stays in
+the field (skipped while the editor or unsaved corrections are open).
 
 **Key search**: typing `#` in the search field opens a list of the library's
 keys under the field (prefix match on what follows, arrow keys, Enter or Tab
@@ -149,6 +159,8 @@ flex row (title + source) spanning all columns and do not widen them.
 | Alt+S (configurable) | a library song selected, also while typing | add it to the active setlist; with none active, open the add-to-setlist menu |
 | Alt+F (configurable) | a library song selected, also while typing | toggle favourite |
 | Ctrl+F (configurable) | anywhere | focus search (returns to the Search view) |
+| Ctrl+E, Ctrl+1 (fixed) | anywhere outside dialogs | Search view, focus the field and select its text |
+| Ctrl+2 / Ctrl+3 / Ctrl+4 (fixed) | anywhere outside dialogs | Setlist / History / Favourites view |
 | Down / Up, Enter / Tab, Esc | key list open in the search field | move, choose the key, close the list |
 | Esc | in order | close the setlist menu, leave ad hoc edit, close Edit, close Settings, stop projection (then clear and focus the search field) |
 
@@ -170,8 +182,8 @@ different song do not. These shortcuts belong to the operator console.
 **Configurable shortcuts** (`src/shortcuts.ts`, tested): Settings, Keyboard
 shortcuts lists each action with its combo; click it, press new keys (Esc
 cancels, Backspace clears), or Reset to defaults. Saved as
-`config.shortcuts`. Enter, Esc, ↑/↓, Tab and the digits are fixed and cannot
-be assigned; a bare Shift+letter is refused, and so is a combo another action
+`config.shortcuts`. Enter, Esc, ↑/↓, Tab, the digits, Ctrl+E and Ctrl+1–4
+(`VIEW_SHORTCUTS`) are fixed and cannot be assigned; a bare Shift+letter is refused, and so is a combo another action
 uses. Combos with Ctrl, Alt or Meta fire inside text fields too; plain keys
 only outside them. Letters come from `KeyboardEvent.code`, so Alt combos work
 on layouts where Alt changes the character.
@@ -220,7 +232,8 @@ Keyboard shortcuts; the current category stays focused in the main pane. The men
 marks matching menu items, so a term such as "display", "remote", or
 "import" leads directly to its controls.
 
-Library: folder path, Choose Songs Folder, Import MDB, Rescan, manual
+Church server: see [server library](server-library.md) (address check,
+Sign in with browser, token fallback, Synchronize, Disconnect). Library: folder path, Choose Songs Folder, Import MDB, Rescan, manual
 [duplicate review](duplicate-review.md), song numbers toggle. Projection:
 Congregation display (Primary / Simulated / monitors), Stage display, "Also
 show stage window", "Read-only library". Visual Song Book: link or unlink a
@@ -232,14 +245,19 @@ Shortcut legend.
 
 ## Edit modal
 
-Raw ChordPro textarea: Save (`save_song`, raw text plus expected content hash),
+Raw ChordPro textarea: Save (`save_song`, raw text plus expected content hash;
+closes the editor on success; in a [server library](server-library.md) the
+save goes to the song server),
 recoverable Delete (with title and filename confirmation), Transpose plus/minus
 (`set_transpose`, active slides). An external file change rejects save and
 keeps the draft. Web results open here too, but there is no real file to edit.
 
 ## Toasts and bootstrap
 
-4 s toasts (info / success / error). On start: `get_config` then
+4 s toasts (info / success / error). They sit in the app bar; while a dialog
+is open the toast is drawn after the dialogs, centred at the top
+(`.toast.over-modal`), because the app bar's stacking context would keep it
+under the dialog backdrop. On start: `get_config` then
 `applyConfig`, then the folder/status polling described in
 [songs folder](songs-folder.md). The main window takes focus on connect and
 again after opening projection, unless the audience is the simulated window.

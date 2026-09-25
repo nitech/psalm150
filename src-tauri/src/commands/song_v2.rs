@@ -5,6 +5,7 @@ use slug::slugify;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::commands::projection_cmd::{build_snapshot, emit_snapshot, ProjectionSnapshot};
+use crate::commands::server_library;
 use crate::config::load_theme;
 use crate::library::chordpro::{parse_chordpro, serialize_chordpro, LyricLine, ParsedSong};
 use crate::library::files::{
@@ -213,17 +214,26 @@ fn preserve_position(old: &ProjectionState, new: &mut ProjectionState) {
     new.blank = old.blank;
 }
 
-fn save_content(
+/// Where a save goes: the songs folder, or the song server behind a server
+/// library's offline copy.
+enum SaveTarget {
+    Folder,
+    Server(String),
+}
+
+async fn save_content(
     app: &AppHandle,
     state: &AppState,
     filename: String,
     content: String,
     expected_hash: String,
 ) -> Result<SongDetail, String> {
-    let (folder, folder_hash) = with_state(state, |runtime| {
-        if runtime.read_only {
-            return Err("Library is in read-only mode".into());
-        }
+    let (folder, folder_hash, target) = with_state(state, |runtime| {
+        let target = match &runtime.config.server_library {
+            Some(server) => SaveTarget::Server(server.url.clone()),
+            None if runtime.read_only => return Err("Library is in read-only mode".into()),
+            None => SaveTarget::Folder,
+        };
         Ok((
             runtime
                 .songs_folder
@@ -233,16 +243,33 @@ fn save_content(
                 .folder_hash
                 .clone()
                 .ok_or_else(|| "No library open".to_string())?,
+            target,
         ))
     })?;
-    replace_song(
-        app,
-        &folder_hash,
-        &folder,
-        &filename,
-        &content,
-        &expected_hash,
-    )?;
+    match target {
+        SaveTarget::Folder => {
+            replace_song(
+                app,
+                &folder_hash,
+                &folder,
+                &filename,
+                &content,
+                &expected_hash,
+            )?;
+        }
+        SaveTarget::Server(url) => {
+            server_library::save_song(
+                app,
+                &url,
+                &folder_hash,
+                &folder,
+                &filename,
+                &content,
+                &expected_hash,
+            )
+            .await?;
+        }
+    }
     let parsed = parse_chordpro(&content, &filename);
     let theme = theme_for(app, Some(&folder_hash));
     let (saved, snapshot, index_error) = with_state(state, |runtime| {
@@ -278,18 +305,18 @@ fn save_content(
 }
 
 #[tauri::command]
-pub fn save_song(
+pub async fn save_song(
     app: AppHandle,
     state: State<'_, AppState>,
     filename: String,
     content: String,
     expected_hash: String,
 ) -> Result<SongDetail, String> {
-    save_content(&app, &state, filename, content, expected_hash)
+    save_content(&app, &state, filename, content, expected_hash).await
 }
 
 #[tauri::command]
-pub fn save_song_lines(
+pub async fn save_song_lines(
     app: AppHandle,
     state: State<'_, AppState>,
     filename: String,
@@ -297,7 +324,7 @@ pub fn save_song_lines(
     edits: Vec<SongLineEdit>,
 ) -> Result<SongDetail, String> {
     let folder = with_state(&state, |runtime| {
-        if runtime.read_only {
+        if runtime.read_only && runtime.config.server_library.is_none() {
             return Err("Library is in read-only mode".into());
         }
         runtime
@@ -311,7 +338,7 @@ pub fn save_song_lines(
     }
     let parsed = parse_chordpro(&raw, &filename);
     let patched = apply_line_edits(&raw, &parsed, &edits)?;
-    save_content(&app, &state, filename, patched, expected_hash)
+    save_content(&app, &state, filename, patched, expected_hash).await
 }
 
 #[tauri::command]

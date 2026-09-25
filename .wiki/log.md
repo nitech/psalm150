@@ -1,5 +1,12 @@
 # Directory Update Log
 
+## 2026-09-24
+* **Creation**: [Server library](concepts/server-library.md) page. Connecting no longer needs a pasted token: Settings checks the server URL as it is typed (`probe_song_server`, `GET /api/v1/info`) and **Sign in with browser** (`sign_in_server_library`, `cancel_server_sign_in`) opens the default browser on the server, receives a one-time code on a `127.0.0.1` loopback redirect and exchanges it with a PKCE verifier for a desktop token. The token field moved into a "Use a desktop token instead" section.
+* **Sync**: Saving in a server library works: `save_song` / `save_song_lines` are async and send the edit to the song server with the manifest revision as base (409 → nothing changes, the message says to synchronize), then update the offline copy and the manifest revision. Before, the save failed on the forced read-only flag and the error toast was hidden behind the editor.
+* **Sync**: Toasts are drawn above open dialogs; the raw editor closes after a successful save.
+* **Sync**: Search matches every word in title, lyrics or tags with spelling tolerance (`src-tauri/src/search.rs`, cached per index); hits carry `match_rank` and the list sorts by rank before the chosen column. A search with exactly one hit selects and shows it.
+* **Sync**: Fixed shortcuts Ctrl+E (search, text selected) and Ctrl+1–4 (Search, Setlist, History, Favourites); the search field selects its text whenever it gains focus.
+
 ## 2026-09-23
 * **Sync**: Configurable keyboard shortcuts (Settings, Keyboard shortcuts; `config.shortcuts` now used): Alt+S adds the selected song to the active setlist (or opens the menu when none is active), Alt+F toggles favourite, plus Ctrl+F, B, → and ←. Enter, Esc, arrows up/down and digits stay fixed.
 * **Sync**: The setlist heart became an add-to-setlist button: a plain + (grey), or a ✓ (lime) while the song is in the active setlist.
