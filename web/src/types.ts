@@ -73,3 +73,94 @@ export interface DesktopTokenResponse {
   device_name: string;
   church_name: string;
 }
+
+export type SetItemKind = "song" | "blank";
+
+/** The song a set item points at, at its current revision. */
+export interface SetSongRef {
+  revision_id: string;
+  title: string;
+  song_number: string | null;
+  authors: string;
+}
+
+export interface SetItem {
+  id: string;
+  kind: SetItemKind;
+  song_id: string | null;
+  /** Semitones, -11 to 11. */
+  transpose: number;
+  note: string;
+  /** Null when the song was deleted after it was added. */
+  song: SetSongRef | null;
+}
+
+export interface SetItemInput {
+  id?: string;
+  kind: SetItemKind;
+  song_id?: string | null;
+  transpose?: number;
+  note?: string;
+}
+
+export interface SetSummary {
+  id: string;
+  name: string;
+  /** `YYYY-MM-DD` */
+  service_date: string | null;
+  version: number;
+  item_count: number;
+  updated_at: string;
+}
+
+export interface SetDetail {
+  id: string;
+  name: string;
+  service_date: string | null;
+  version: number;
+  updated_at: string;
+  items: SetItem[];
+}
+
+/** What a desktop reports about its projection. */
+export interface DesktopState {
+  accepts_commands: boolean;
+  projecting: boolean;
+  blanked: boolean;
+  song_id: string | null;
+  song_title: string | null;
+  slide_index: number | null;
+  slide_labels: string[];
+  set_id: string | null;
+  set_item_index: number | null;
+}
+
+export interface RemoteDesktop {
+  device_id: string;
+  name: string;
+  online: boolean;
+  last_seen: string;
+  state: DesktopState;
+}
+
+export type RemoteAction =
+  | "next"
+  | "previous"
+  | "blank"
+  | "show_slide"
+  | "project_song"
+  | "project_set_item";
+
+export interface RemoteCommandRequest {
+  action: RemoteAction;
+  slide_index?: number;
+  song_id?: string;
+  set_id?: string;
+  item_index?: number;
+}
+
+export interface RemoteCommand extends RemoteCommandRequest {
+  id: string;
+  issued_by: string;
+  issued_at: string;
+}

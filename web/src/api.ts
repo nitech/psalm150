@@ -3,7 +3,13 @@ import type {
   DesktopTokenResponse,
   DeviceToken,
   DeviceTokenSummary,
+  RemoteCommand,
+  RemoteCommandRequest,
+  RemoteDesktop,
   ServerInfo,
+  SetDetail,
+  SetItemInput,
+  SetSummary,
   Session,
   SetupStatus,
   SongDetail,
@@ -68,6 +74,45 @@ export class SongServerApi {
     return this.request(`/songs/${id}`, {
       method: "PUT",
       body: JSON.stringify({ base_revision_id: baseRevisionId, chordpro }),
+    });
+  }
+
+  listSets(): Promise<SetSummary[]> {
+    return this.request("/sets");
+  }
+
+  getSet(id: string): Promise<SetDetail> {
+    return this.request(`/sets/${id}`);
+  }
+
+  createSet(input: { name: string; service_date: string | null; items: SetItemInput[] }): Promise<SetDetail> {
+    return this.request("/sets", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  /** 409 when someone else changed the set since `baseVersion`. */
+  updateSet(
+    id: string,
+    baseVersion: number,
+    input: { name: string; service_date: string | null; items: SetItemInput[] },
+  ): Promise<SetDetail> {
+    return this.request(`/sets/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ base_version: baseVersion, ...input }),
+    });
+  }
+
+  async deleteSet(id: string, baseVersion: number): Promise<void> {
+    await this.requestEmpty(`/sets/${id}?base_version=${baseVersion}`, { method: "DELETE" });
+  }
+
+  listDesktops(): Promise<RemoteDesktop[]> {
+    return this.request("/remote/desktops");
+  }
+
+  sendRemoteCommand(deviceId: string, command: RemoteCommandRequest): Promise<RemoteCommand> {
+    return this.request(`/remote/desktops/${deviceId}/commands`, {
+      method: "POST",
+      body: JSON.stringify(command),
     });
   }
 

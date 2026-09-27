@@ -1,17 +1,24 @@
+import "./psa150-tokens.css";
 import "./styles.css";
 import { ApiError, SongServerApi } from "./api.ts";
-import type { DeviceToken, Session, SongDetail, SongSummary } from "./types.ts";
+import type { AppContext, Cleanup, View } from "./context.ts";
+import { icon, type IconName } from "./icons.ts";
+import type { Session } from "./types.ts";
+import { errorMessage, escapeHtml, readPreference, setFormBusy, showToast } from "./ui.ts";
+import { moreView } from "./views/more.ts";
+import { remoteDesktop, remoteList } from "./views/remote.ts";
+import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
+import { songDetail, songEditor, songList } from "./views/songs.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 if (!app) throw new Error("Application mount point is missing");
 
 const SESSION_KEY = "psa150-server-session";
 let session = readSession();
-let songs: SongSummary[] = [];
-let selected: SongDetail | null = null;
-let search = "";
 let busy = false;
 const api = new SongServerApi(() => session?.token ?? null);
+
+applyTheme();
 
 /**
  * A desktop asking to be connected through the browser. The desktop opens
@@ -43,7 +50,7 @@ async function boot(): Promise<void> {
       clearSession();
       renderLogin();
     } else {
-      await showSignedIn();
+      showSignedIn();
     }
   } catch (error) {
     renderFatal(error);
@@ -52,14 +59,14 @@ async function boot(): Promise<void> {
 
 function renderSetup(): void {
   app.innerHTML = authFrame(
-    "Begin your library",
-    "Create the first church and owner. Everything remains under your church’s care.",
-    `<form class="auth-form" id="setup-form">
+    "Set up your song server",
+    "Create your church and the first owner account. The songs stay on this server, under your church's care.",
+    `<form class="stack" id="setup-form">
       <label>Church name<input name="church" autocomplete="organization" required /></label>
       <label>Your name<input name="owner" autocomplete="name" required /></label>
-      <label>Username<input name="username" autocomplete="username" required /></label>
+      <label>Username<input name="username" autocomplete="username" autocapitalize="none" required /></label>
       <label>Password<input name="password" type="password" minlength="10" autocomplete="new-password" required /></label>
-      <button class="primary wide" type="submit">Create the library <span>→</span></button>
+      <button class="button primary wide" type="submit">Create the library</button>
       <p class="form-message" role="status"></p>
     </form>`,
   );
@@ -80,14 +87,14 @@ function renderSetup(): void {
 function renderLogin(): void {
   const desktop = pendingDesktop();
   app.innerHTML = authFrame(
-    "Return to the songs",
+    "Sign in",
     desktop
       ? `Sign in to connect <strong>${escapeHtml(desktop.deviceName)}</strong> to this song server.`
-      : "Sign in to tend your church’s shared library.",
-    `<form class="auth-form" id="login-form">
-      <label>Username<input name="username" autocomplete="username" required autofocus /></label>
+      : "Your church's songs and sets, on any device.",
+    `<form class="stack" id="login-form">
+      <label>Username<input name="username" autocomplete="username" autocapitalize="none" required autofocus /></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
-      <button class="primary wide" type="submit">Open the library <span>→</span></button>
+      <button class="button primary wide" type="submit">Sign in</button>
       <p class="form-message" role="status"></p>
     </form>`,
   );
@@ -106,7 +113,7 @@ async function submitAuth(form: HTMLFormElement, action: () => Promise<Session>)
   try {
     session = await action();
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    await showSignedIn();
+    showSignedIn();
   } catch (error) {
     if (message) message.textContent = errorMessage(error);
   } finally {
@@ -114,11 +121,11 @@ async function submitAuth(form: HTMLFormElement, action: () => Promise<Session>)
   }
 }
 
-async function showSignedIn(): Promise<void> {
+function showSignedIn(): void {
   if (pendingDesktop()) {
     renderDesktopConsent();
   } else {
-    await loadLibrary();
+    renderShell();
   }
 }
 
@@ -158,7 +165,7 @@ function renderDesktopInvalid(): void {
   app.innerHTML = authFrame(
     "This desktop sign-in link is not valid",
     "Start the connection again from the Psalm150 desktop app. Nothing has been shared.",
-    `<a class="secondary desktop-link" href="/">Open the song library</a>`,
+    `<a class="button secondary wide" href="/">Open the song library</a>`,
   );
 }
 
@@ -169,13 +176,13 @@ function renderDesktopConsent(): void {
   const canConnect = session.role !== "viewer";
   app.innerHTML = authFrame(
     "Connect this desktop?",
-    `<strong>${escapeHtml(desktop.deviceName)}</strong> will be connected to <strong>${escapeHtml(session.church_name)}</strong>’s song library. It can read the songs and keep them in sync, including adding, editing and deleting songs.`,
-    `<form class="auth-form" id="desktop-consent">
-      <p class="desktop-account">Signed in as <strong>${escapeHtml(session.display_name)}</strong> · <button type="button" class="link-button" id="switch-account">Use another account</button></p>
+    `<strong>${escapeHtml(desktop.deviceName)}</strong> will be connected to <strong>${escapeHtml(session.church_name)}</strong>'s song library. It can read the songs and sets and keep them in sync, including adding, editing and deleting songs and sets.`,
+    `<form class="stack" id="desktop-consent">
+      <p class="muted">Signed in as <strong>${escapeHtml(session.display_name)}</strong> · <button type="button" class="link-button" id="switch-account">Use another account</button></p>
       <p class="form-message" role="status">${canConnect ? "" : forbiddenMessage}</p>
-      <div class="consent-actions">
-        ${canConnect ? `<button class="primary" type="submit" id="desktop-connect">Connect <span>→</span></button>` : ""}
-        <button class="secondary" type="button" id="desktop-cancel">Cancel</button>
+      <div class="form-actions">
+        <button class="button secondary" type="button" id="desktop-cancel">Cancel</button>
+        ${canConnect ? `<button class="button primary" type="submit" id="desktop-connect">Connect</button>` : ""}
       </div>
     </form>`,
   );
@@ -212,254 +219,126 @@ function renderDesktopConsent(): void {
   });
 }
 
-async function loadLibrary(): Promise<void> {
-  try {
-    songs = await api.listSongs(search);
-    if (selected && !songs.some((song) => song.id === selected?.id)) selected = null;
-    renderLibrary();
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      clearSession();
-      renderLogin();
-      return;
-    }
-    throw error;
-  }
+/* ── Signed-in shell and routing ─────────────────────────────────────────── */
+
+interface Route {
+  pattern: RegExp;
+  view: View;
+  tab: Tab;
 }
 
-function renderLibrary(): void {
-  if (!session) return;
-  const initials = session.display_name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+type Tab = "songs" | "sets" | "remote" | "more";
 
-  app.innerHTML = `<div class="library-shell">
-    <aside class="rail">
-      <div class="brand"><span class="brand-cross" aria-hidden="true">✦</span><div><strong>PSA150</strong><small>Song Library</small></div></div>
-      <div class="psalm-mark" aria-hidden="true">150</div>
-      <nav aria-label="Library sections">
-        <button class="nav-item active"><span>01</span>Songs</button>
-        <button class="nav-item" disabled title="Planned for a later phase"><span>02</span>Plans <em>Later</em></button>
-        <button class="nav-item" disabled title="Planned for a later phase"><span>03</span>People <em>Later</em></button>
-      </nav>
-      <div class="rail-foot"><span class="pulse"></span><span>Private church server</span></div>
-    </aside>
-    <main class="workspace">
-      <header class="topbar">
-        <div><p class="eyebrow">${escapeHtml(session.church_name)}</p><h1>Song library</h1></div>
-        <div class="account"><div><strong>${escapeHtml(session.display_name)}</strong><small>${session.role}</small></div><span class="avatar">${escapeHtml(initials)}</span><button class="quiet" id="logout" title="Sign out">↗</button></div>
-      </header>
-      <section class="toolbar" aria-label="Song actions">
-        <form class="search" id="search-form"><span aria-hidden="true">⌕</span><input name="search" value="${escapeHtml(search)}" placeholder="Find a title, lyric, number…" aria-label="Search songs" /></form>
-        <input id="file-import" type="file" accept=".pro,.cho,.chordpro,text/plain" multiple hidden />
-        <button class="secondary" id="import">Import ChordPro</button>
-        <button class="secondary" id="export" ${songs.length ? "" : "disabled"}>Export</button>
-        <button class="secondary desktop-access" id="connect-device">Connect desktop <span aria-hidden="true">↗</span></button>
-        <button class="primary" id="new-song">New song <span>＋</span></button>
-      </section>
-      <section class="library-body">
-        <div class="song-index">
-          <div class="index-heading"><span>${songs.length} ${songs.length === 1 ? "song" : "songs"}</span><span>Updated</span></div>
-          <div class="song-list">${renderSongRows()}</div>
-        </div>
-        <aside class="detail-pane${selected ? " open" : ""}" aria-label="Song detail">${renderDetail()}</aside>
-      </section>
-    </main>
+const ROUTES: Route[] = [
+  { pattern: /^\/songs$/, view: songList, tab: "songs" },
+  { pattern: /^\/songs\/new$/, view: (ctx) => songEditor(ctx, []), tab: "songs" },
+  { pattern: /^\/songs\/([0-9a-f-]{36})$/, view: songDetail, tab: "songs" },
+  { pattern: /^\/songs\/([0-9a-f-]{36})\/edit$/, view: songEditor, tab: "songs" },
+  { pattern: /^\/sets$/, view: setList, tab: "sets" },
+  { pattern: /^\/sets\/new$/, view: (ctx) => setEditor(ctx, []), tab: "sets" },
+  { pattern: /^\/sets\/([0-9a-f-]{36})$/, view: setDetail, tab: "sets" },
+  { pattern: /^\/sets\/([0-9a-f-]{36})\/edit$/, view: setEditor, tab: "sets" },
+  { pattern: /^\/sets\/([0-9a-f-]{36})\/play\/(\d+)$/, view: setPlay, tab: "sets" },
+  { pattern: /^\/remote$/, view: remoteList, tab: "remote" },
+  { pattern: /^\/remote\/([0-9a-f-]{36})$/, view: remoteDesktop, tab: "remote" },
+  { pattern: /^\/more$/, view: moreView, tab: "more" },
+];
+
+const TABS: Array<{ tab: Tab; label: string; icon: IconName; href: string }> = [
+  { tab: "songs", label: "Songs", icon: "songs", href: "#/songs" },
+  { tab: "sets", label: "Sets", icon: "sets", href: "#/sets" },
+  { tab: "remote", label: "Remote", icon: "remote", href: "#/remote" },
+  { tab: "more", label: "More", icon: "more", href: "#/more" },
+];
+
+let cleanup: Cleanup | void;
+let routeToken = 0;
+let hashListener: (() => void) | null = null;
+
+function renderShell(): void {
+  if (!session) return;
+  app.innerHTML = `<div class="shell">
+    <nav class="tabbar" aria-label="Sections">
+      <div class="brand" aria-hidden="true"><span class="brand-mark">150</span><span>PSA150</span></div>
+      ${TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}">${icon(tab.icon)}<span>${tab.label}</span></a>`).join("")}
+    </nav>
+    <main class="page" id="page" tabindex="-1"></main>
   </div>
-  <dialog id="song-dialog" class="editor-dialog"></dialog>
-  <dialog id="device-dialog" class="token-dialog"></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
 
-  document.body.classList.toggle("detail-open", Boolean(selected));
-  bindLibraryEvents();
-}
-
-function renderSongRows(): string {
-  if (!songs.length) {
-    return `<div class="empty-state"><span class="empty-note">♪</span><h2>${search ? "No songs found" : "A library ready to be filled"}</h2><p>${search ? "Try another title or a line from the lyrics." : "Import your ChordPro folder or begin with one song."}</p></div>`;
+  if (!hashListener) {
+    hashListener = () => void route();
+    window.addEventListener("hashchange", hashListener);
   }
-  return songs.map((song, index) => `<button class="song-row ${selected?.id === song.id ? "selected" : ""}" data-song-id="${song.id}" style="--order:${index}">
-    <span class="song-number">${escapeHtml(song.song_number ?? String(index + 1).padStart(2, "0"))}</span>
-    <span class="song-identity"><strong>${escapeHtml(song.title)}</strong><small>${escapeHtml(song.authors || "Author not recorded")}${song.language ? ` · ${escapeHtml(song.language.toUpperCase())}` : ""}</small></span>
-    <time datetime="${song.updated_at}">${relativeDate(song.updated_at)}</time><span class="row-arrow">→</span>
-  </button>`).join("");
-}
-
-function renderDetail(): string {
-  if (!selected) {
-    return `<div class="detail-empty"><span>SELECT A SONG</span><div class="staff" aria-hidden="true">𝄞</div><p>Lyrics, metadata, and the current ChordPro source will appear here.</p></div>`;
+  if (!location.hash || location.hash === "#" || location.hash === "#/") {
+    history.replaceState(null, "", "#/sets");
   }
-  const lyricText = selected.chordpro
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("{") && line.trim())
-    .map((line) => line.replace(/\[[^\]]*\]/g, ""))
-    .join("\n");
-  return `<div class="detail-content">
-    <button class="detail-close" id="close-detail" aria-label="Back to songs">← Back</button>
-    <p class="eyebrow">Current revision</p>
-    <h2>${escapeHtml(selected.title)}</h2>
-    <p class="detail-byline">${escapeHtml(selected.authors || "Author not recorded")}</p>
-    <pre class="lyric-preview">${escapeHtml(lyricText || "No lyric lines yet.")}</pre>
-    <dl><div><dt>Revision</dt><dd>${selected.revision_id.slice(0, 8)}</dd></div><div><dt>Language</dt><dd>${escapeHtml(selected.language?.toUpperCase() ?? "—")}</dd></div></dl>
-    <button class="primary wide" id="edit-song">Edit ChordPro <span>→</span></button>
-  </div>`;
+  void route();
 }
 
-function bindLibraryEvents(): void {
-  document.querySelector("#logout")?.addEventListener("click", () => {
-    clearSession();
-    renderLogin();
+async function route(): Promise<void> {
+  if (!session) return;
+  const main = document.querySelector<HTMLElement>("#page");
+  if (!main) return;
+  const path = location.hash.replace(/^#/, "").split("?")[0] || "/sets";
+  const match = ROUTES.map((entry) => ({ entry, found: entry.pattern.exec(path) })).find((candidate) => candidate.found);
+  if (!match?.found) {
+    history.replaceState(null, "", "#/sets");
+    return route();
+  }
+
+  if (typeof cleanup === "function") cleanup();
+  cleanup = undefined;
+  const token = ++routeToken;
+  document.querySelectorAll<HTMLElement>("[data-tab]").forEach((tab) => {
+    const on = tab.dataset.tab === match.entry.tab;
+    tab.classList.toggle("on", on);
+    if (on) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
   });
-  document.querySelector<HTMLFormElement>("#search-form")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    search = String(new FormData(event.currentTarget as HTMLFormElement).get("search") ?? "");
-    await run(() => loadLibrary());
-  });
-  document.querySelectorAll<HTMLElement>("[data-song-id]").forEach((row) => row.addEventListener("click", async () => {
-    await run(async () => {
-      selected = await api.getSong(String(row.dataset.songId));
-      renderLibrary();
-    });
-  }));
-  document.querySelector("#close-detail")?.addEventListener("click", () => {
-    selected = null;
-    renderLibrary();
-  });
-  document.querySelector("#new-song")?.addEventListener("click", () => openEditor());
-  document.querySelector("#edit-song")?.addEventListener("click", () => openEditor(selected ?? undefined));
-  document.querySelector("#import")?.addEventListener("click", () => document.querySelector<HTMLInputElement>("#file-import")?.click());
-  document.querySelector<HTMLInputElement>("#file-import")?.addEventListener("change", async (event) => {
-    const input = event.currentTarget as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
-    if (!files.length) return;
-    await run(async () => {
-      const payload = await Promise.all(files.map(async (file) => ({ filename: file.name, chordpro: await file.text() })));
-      const result = await api.importSongs(payload);
-      search = "";
-      songs = await api.listSongs();
-      renderLibrary();
-      const skipped = result.skipped_existing
-        ? ` ${result.skipped_existing} already ${result.skipped_existing === 1 ? "exists" : "exist"}.`
-        : "";
-      showToast(`Imported ${result.songs.length} ${result.songs.length === 1 ? "song" : "songs"}.${skipped}`);
-    });
-  });
-  document.querySelector("#export")?.addEventListener("click", () => void run(exportLibrary));
-  document.querySelector("#connect-device")?.addEventListener("click", () => void run(openDeviceDialog));
+  document.body.dataset.route = path.split("/").slice(0, 4).join("/").replace(/[0-9a-f-]{36}/g, "id").replace(/\/\d+$/, "");
+  main.classList.add("loading");
+
+  try {
+    const result = await match.entry.view(context(main), match.found.slice(1));
+    if (token !== routeToken) {
+      if (typeof result === "function") result();
+      return;
+    }
+    cleanup = result;
+    main.classList.remove("loading");
+    window.scrollTo({ top: 0 });
+  } catch (error) {
+    if (token !== routeToken) return;
+    main.classList.remove("loading");
+    if (error instanceof ApiError && error.status === 401) {
+      signOut();
+      return;
+    }
+    main.innerHTML = `<div class="empty-state"><h2>${error instanceof ApiError && error.status === 404 ? "Not found" : "Could not load this page"}</h2><p>${escapeHtml(errorMessage(error))}</p><a class="button secondary" href="#/sets">Go to sets</a></div>`;
+  }
 }
 
-function openEditor(song?: SongDetail): void {
-  const dialog = document.querySelector<HTMLDialogElement>("#song-dialog");
-  if (!dialog) return;
-  const initial = song?.chordpro ?? "{title: }\n{author: }\n{language: }\n\n{start_of_verse}\n\n{end_of_verse}\n";
-  dialog.innerHTML = `<form method="dialog" class="editor-form" id="editor-form">
-    <header><div><p class="eyebrow">${song ? "Edit current revision" : "Add to the library"}</p><h2>${song ? escapeHtml(song.title) : "New song"}</h2></div><button class="dialog-close" value="cancel" aria-label="Close">×</button></header>
-    <label for="chordpro">ChordPro source</label>
-    <textarea id="chordpro" name="chordpro" spellcheck="true">${escapeHtml(initial)}</textarea>
-    <footer><p class="form-message" role="status"></p><button class="secondary" value="cancel">Cancel</button><button class="primary" id="save-song" value="default">Save revision <span>→</span></button></footer>
-  </form>`;
-  dialog.showModal();
-  requestAnimationFrame(() => dialog.querySelector<HTMLTextAreaElement>("textarea")?.focus());
-
-  dialog.querySelector<HTMLFormElement>("#editor-form")?.addEventListener("submit", async (event) => {
-    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return;
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const source = String(new FormData(form).get("chordpro") ?? "");
-    setFormBusy(form, true);
-    try {
-      if (song) {
-        selected = await api.updateSong(song.id, song.revision_id, source);
+function context(main: HTMLElement): AppContext {
+  return {
+    api,
+    session: session!,
+    canEdit: session!.role !== "viewer",
+    main,
+    navigate(target: string, replace = false) {
+      if (location.hash === target) {
+        void route();
+      } else if (replace) {
+        history.replaceState(null, "", target);
+        void route();
       } else {
-        const created = await api.createSong(source);
-        selected = await api.getSong(created.id);
+        location.hash = target;
       }
-      songs = await api.listSongs(search);
-      dialog.close();
-      renderLibrary();
-      showToast(song ? "Saved a new revision." : "Added the song.");
-    } catch (error) {
-      const message = form.querySelector<HTMLElement>(".form-message");
-      if (message) message.textContent = errorMessage(error);
-    } finally {
-      setFormBusy(form, false);
-    }
-  });
-}
-
-async function openDeviceDialog(): Promise<void> {
-  const dialog = document.querySelector<HTMLDialogElement>("#device-dialog");
-  if (!dialog) return;
-  const devices = await api.listDeviceTokens();
-  const deviceRows = devices.length
-    ? `<div class="device-list"><p class="eyebrow">Connected desktops</p>${devices.map((device) => `<div><span><strong>${escapeHtml(device.name)}</strong><small>${device.last_used_at ? `Last used ${relativeDate(device.last_used_at)}` : "Not used yet"}</small></span><button type="button" class="revoke-device" data-device-id="${device.id}">Revoke</button></div>`).join("")}</div>`
-    : "";
-  dialog.innerHTML = `<form method="dialog" class="device-form" id="device-form">
-    <button class="dialog-close" value="cancel" aria-label="Close">×</button>
-    <p class="eyebrow">Offline-capable replica</p><h2>Connect a desktop</h2>
-    <p>Name the projection computer. The token is shown once and can read the church library and add songs that are not already there. It cannot change or delete existing songs.</p>
-    <label>Computer name<input name="name" placeholder="Sanctuary PC" required maxlength="120" /></label>
-    <p class="form-message" role="status"></p>
-    <button class="primary wide" id="create-token" value="default">Create connection token <span>→</span></button>
-    ${deviceRows}
-  </form>`;
-  dialog.showModal();
-  dialog.querySelector<HTMLInputElement>("input")?.focus();
-  dialog.querySelector<HTMLFormElement>("#device-form")?.addEventListener("submit", async (event) => {
-    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return;
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    setFormBusy(form, true);
-    try {
-      const token = await api.createDeviceToken(String(new FormData(form).get("name")));
-      renderToken(dialog, token);
-    } catch (error) {
-      const message = form.querySelector<HTMLElement>(".form-message");
-      if (message) message.textContent = errorMessage(error);
-      setFormBusy(form, false);
-    }
-  });
-  dialog.querySelectorAll<HTMLButtonElement>(".revoke-device").forEach((button) => {
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      try {
-        await api.revokeDeviceToken(String(button.dataset.deviceId));
-        button.closest("div")?.remove();
-        showToast("Desktop access revoked.");
-      } catch (error) {
-        button.disabled = false;
-        showToast(errorMessage(error), true);
-      }
-    });
-  });
-}
-
-function renderToken(dialog: HTMLDialogElement, device: DeviceToken): void {
-  dialog.innerHTML = `<div class="device-form token-result"><button class="dialog-close" id="close-token" aria-label="Close">×</button>
-    <p class="eyebrow">${escapeHtml(device.name)}</p><h2>Token created</h2>
-    <p>Copy this token now. For safety, the server will not show it again.</p>
-    <code>${escapeHtml(device.token)}</code>
-    <button class="primary wide" id="copy-token">Copy token <span>⧉</span></button>
-  </div>`;
-  dialog.querySelector("#close-token")?.addEventListener("click", () => dialog.close());
-  dialog.querySelector("#copy-token")?.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(device.token);
-    showToast("Connection token copied.");
-  });
-}
-
-async function exportLibrary(): Promise<void> {
-  const blob = await api.exportSongs();
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = "psa150-library.zip";
-  anchor.click();
-  URL.revokeObjectURL(url);
-  showToast("Library export prepared.");
+    },
+    run,
+    signOut,
+    applyTheme,
+  };
 }
 
 async function run(action: () => Promise<void>): Promise<void> {
@@ -469,6 +348,10 @@ async function run(action: () => Promise<void>): Promise<void> {
   try {
     await action();
   } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      signOut();
+      return;
+    }
     showToast(errorMessage(error), true);
   } finally {
     busy = false;
@@ -476,15 +359,38 @@ async function run(action: () => Promise<void>): Promise<void> {
   }
 }
 
+function signOut(): void {
+  if (typeof cleanup === "function") cleanup();
+  cleanup = undefined;
+  clearSession();
+  renderLogin();
+}
+
+/** Theme preference: light, dark, or (unset) follow the system. */
+function applyTheme(): void {
+  const theme = readPreference("theme");
+  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  const dark = theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  if (meta) meta.content = dark ? "#060606" : "#f4f4f1";
+}
+
 function authFrame(title: string, copy: string, form: string): string {
-  return `<main class="auth-shell">
-    <section class="auth-story"><div class="auth-brand"><span>✦</span> PSA150</div><div class="scripture-mark" aria-hidden="true">150</div><blockquote>“Let everything that has breath praise the Lord.”</blockquote><p>Psalm 150:6</p></section>
-    <section class="auth-panel"><div class="auth-card"><p class="eyebrow">Your church · Your songs</p><h1>${title}</h1><p class="lede">${copy}</p>${form}</div><small class="privacy-note">Private by default · Self-hosted · Made for worship</small></section>
+  return `<main class="auth">
+    <div class="auth-card">
+      <div class="brand large"><span class="brand-mark">150</span><span>PSA150</span></div>
+      <h1>${escapeHtml(title)}</h1>
+      <p class="lede">${copy}</p>
+      ${form}
+    </div>
+    <p class="fine-print">"Let everything that has breath praise the Lord." Psalm 150:6</p>
   </main>`;
 }
 
 function renderFatal(error: unknown): void {
-  app.innerHTML = `<main class="fatal"><span>PSA150</span><h1>The Song Server is not reachable.</h1><p>${escapeHtml(errorMessage(error))}</p><button onclick="location.reload()">Try again</button></main>`;
+  app.innerHTML = `<main class="auth"><div class="auth-card"><div class="brand large"><span class="brand-mark">150</span><span>PSA150</span></div><h1>The song server is not reachable</h1><p class="lede">${escapeHtml(errorMessage(error))}</p><button class="button primary wide" id="retry">Try again</button></div></main>`;
+  document.querySelector("#retry")?.addEventListener("click", () => location.reload());
 }
 
 function readSession(): Session | null {
@@ -498,45 +404,9 @@ function readSession(): Session | null {
 
 function clearSession(): void {
   session = null;
-  selected = null;
-  sessionStorage.removeItem(SESSION_KEY);
-  document.body.classList.remove("detail-open");
-}
-
-function setFormBusy(form: HTMLFormElement, value: boolean): void {
-  form.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>("input,button,textarea")
-    .forEach((control) => { control.disabled = value; });
-  form.classList.toggle("busy", value);
-}
-
-function showToast(message: string, error = false): void {
-  const toast = document.querySelector<HTMLElement>("#toast");
-  if (!toast) return;
-  toast.textContent = message;
-  toast.classList.toggle("error", error);
-  toast.classList.add("visible");
-  window.setTimeout(() => toast.classList.remove("visible"), 3200);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong.";
-}
-
-function relativeDate(value: string): string {
-  const date = new Date(value);
-  const days = Math.floor((Date.now() - date.getTime()) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 14) return `${days} days ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "'": "&#39;",
-    '"': "&quot;",
-  })[character] ?? character);
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Nothing stored.
+  }
 }
