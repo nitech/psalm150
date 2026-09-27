@@ -116,11 +116,15 @@ within a minute."
 **When it runs** (`server_sets::sync_sets`): every 60 s in the background
 (`POLL_INTERVAL`, spawned in `setup()`), shortly after each local setlist
 edit (`request_sync`), at the end of a full library `synchronize`, and on the
-`sync_server_sets` command (no button calls it yet). Background runs never
-overlap; a request during a run causes one more run afterwards. Nothing
+`sync_server_sets` command (no button calls it yet). Runs never overlap,
+whoever starts them (`SYNC_LOCK`); a background request during a run causes
+one more run afterwards. Nothing
 happens without a connected server library and a stored token.
 
-**1. Upload.** Each `dirty` setlist is sent with the device token:
+**1. Upload.** Each `dirty` setlist, and each setlist without server state
+(made before sets were shared), is sent with the device token. A set the
+server refuses with an unexpected status stays dirty for the next run while
+the others go up:
 
 - never uploaded (`version` null): `POST /api/v1/sets` with the setlist's own
   `id`;

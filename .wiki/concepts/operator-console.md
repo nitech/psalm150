@@ -135,7 +135,7 @@ In a server library the setlists are the church's shared sets. On
 `setlists-changed` the console reloads them (and the Setlist view) and toasts
 conflicts ("“<name>” was changed elsewhere; your changes are kept as a copy")
 and song items left out of an upload ("N setlist song(s) are not on the song
-server and were left out"). See [server library, sets](server-library.md#sets).
+server and were removed from the set"). See [server library, sets](server-library.md#sets).
 
 **remote-project** (from the [song server remote](remote-control.md#through-the-song-server)):
 the console chooses the named setlist if any, selects the song, projects it

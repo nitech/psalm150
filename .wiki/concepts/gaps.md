@@ -41,7 +41,7 @@ generated: { by: agent, at: 2026-09-27T12:00:00Z }
   - Song items whose song is not on the server are left out of the upload (toast only); once the upload succeeds the local copy is replaced by the server's, so those items disappear from this PC too.
   - Hold items are uploaded as `blank` and come back as blank items; `arrangement` is not synced; item transposes are clamped to −11…11.
   - A 5xx or other unexpected answer for one set stops the run before the remaining sets and the download.
-  - `sync_server_sets` has no button; the 60 s timer and edits are the only triggers besides a full Synchronize. The full Synchronize and `sync_server_sets` call the sync directly, outside the guard that keeps background runs from overlapping.
+  - `sync_server_sets` has no button; the 60 s timer and edits are the only triggers besides a full Synchronize.
 - **Remote control**: the LAN page can only step slides and blank, and its PIN travels in clear over HTTP. The song server remote can project songs and set items but is opt-in (off by default) and only works in a server library ([remote control](remote-control.md)).
 - **Web search**: the title is the first scraped line, often a lyric ([web search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
