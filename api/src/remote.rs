@@ -359,23 +359,25 @@ async fn validate_command(
             }
         }
         RemoteAction::ProjectSetItem => {
-            let (Some(set_id), Some(_)) = (request.set_id, request.item_index) else {
+            let (Some(set_id), Some(item_index)) = (request.set_id, request.item_index) else {
                 return Err(AppError::BadRequest(
                     "project_set_item needs set_id and item_index".into(),
                 ));
             };
-            let exists = sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS (SELECT 1 FROM song_sets
-                 WHERE id = $1 AND church_id = $2 AND deleted_at IS NULL)",
+            let items = sqlx::query_scalar::<_, i64>(
+                "SELECT (SELECT count(*) FROM song_set_items i WHERE i.set_id = s.id)
+                 FROM song_sets s
+                 WHERE s.id = $1 AND s.church_id = $2 AND s.deleted_at IS NULL",
             )
             .bind(set_id)
             .bind(church_id)
-            .fetch_one(&state.pool)
-            .await?;
-            if exists {
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound("set was not found".into()))?;
+            if i64::from(item_index) < items {
                 Ok(())
             } else {
-                Err(AppError::NotFound("set was not found".into()))
+                Err(AppError::BadRequest("item_index is outside the set".into()))
             }
         }
     }

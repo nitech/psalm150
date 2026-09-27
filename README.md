@@ -56,7 +56,7 @@ already prepared service.
 - Immutable song revision history and explicit conflict handling.
 - Provenance between originals, translations, adaptations, arrangements,
   corrections, and added verses.
-- Shared plans that are read-only by default.
+- Shared service sets (plans) that viewers read and leaders edit.
 - Simple owner, leader, and viewer access.
 - Optional public profiles and public, unlisted, or private song sharing.
 - Import, export, backup, restore, and database migration tooling.
@@ -64,8 +64,10 @@ already prepared service.
 - An optional web interface built entirely on the public API.
 - Docker images for `linux/amd64` and `linux/arm64`.
 
-General-purpose social networking, live projection control, and automatic
-upstream updates to imported songs are not server responsibilities.
+General-purpose social networking, live projection, and automatic upstream
+updates to imported songs are not server responsibilities. The server may relay
+remote-control commands from a leader's phone to a desktop that allows it, but
+the desktop keeps control of the projection and works without the server.
 
 AI-assisted audio and lyric processing is future scope, not part of the initial
 server release. The foundational song, planning, projection, and sharing
@@ -83,7 +85,7 @@ connection.
 
 ```text
 api/        Rust/Axum API and PostgreSQL migrations
-web/        Independent Vite administration client
+web/        Independent mobile-first Vite web client
 docs/       Architecture and delivery notes
 ```
 

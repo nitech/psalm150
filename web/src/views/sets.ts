@@ -316,7 +316,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const set: SetDetail = await ctx.api.getSet(setId);
   const index = Math.max(0, Math.min(set.items.length - 1, Number(indexParam) || 0));
   const item = set.items[index];
-  const songCache = new Map<string, SongDetail>();
   const options = readReaderOptions();
   let extraTranspose = 0;
   let following = readPreference("follow") === "on";
@@ -418,7 +417,15 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
 
   // Keep the phone awake while reading from it.
   const nav = navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<{ release(): Promise<void> }> } };
-  nav.wakeLock?.request("screen").then((lock) => { wakeLock = lock; }).catch(() => undefined);
+  const lockScreen = () => {
+    nav.wakeLock?.request("screen").then((lock) => { wakeLock = lock; }).catch(() => undefined);
+  };
+  // The browser drops the lock when the page is hidden; take it again.
+  const visibility = () => {
+    if (document.visibilityState === "visible") lockScreen();
+  };
+  document.addEventListener("visibilitychange", visibility);
+  lockScreen();
 
   render();
   void poll();
@@ -428,9 +435,13 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     ctx.main.removeEventListener("touchstart", touchStart);
     ctx.main.removeEventListener("touchend", touchEnd);
     document.removeEventListener("keydown", keys);
+    document.removeEventListener("visibilitychange", visibility);
     void wakeLock?.release().catch(() => undefined);
   };
 }
+
+/** Songs already opened in a service view, so moving back and forth is instant. */
+const songCache = new Map<string, SongDetail>();
 
 async function loadSong(ctx: AppContext, cache: Map<string, SongDetail>, id: string): Promise<SongDetail | null> {
   if (cache.has(id)) return cache.get(id)!;

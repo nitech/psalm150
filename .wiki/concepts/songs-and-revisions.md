@@ -17,7 +17,7 @@ sources:
   - id: arch
     resource: /docs/architecture.md
     title: Revision history vs provenance (design)
-generated: { by: agent, at: 2026-09-23T19:00:00Z }
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # Songs and revisions
@@ -91,6 +91,6 @@ with more than 100 songs shows only the first 100 in title order.
 
 ## Not built
 
-Deleting songs, provenance links (translation, arrangement, fork…), alternate
+Undeleting songs, provenance links (translation, arrangement, fork…), alternate
 titles, language-aware search, and fetching or restoring a past revision. See
 [gaps](gaps.md) and `/TODO.md`.

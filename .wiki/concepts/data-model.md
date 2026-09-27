@@ -1,7 +1,7 @@
 ---
 type: Contract
 title: Data model
-description: The PostgreSQL schema from migration 0001 — tables, keys, indexes, cascade rules, church scoping — and how migrations run at startup.
+description: The PostgreSQL schema from migrations 0001–0004 — tables (including song_sets and song_set_items), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
 tags: [postgres, schema, migrations, sqlx]
 status: stable
 sources:
@@ -11,10 +11,13 @@ sources:
   - id: mig3
     resource: /api/migrations/0003_desktop_auth_codes.sql
     title: Desktop sign-in codes
+  - id: mig4
+    resource: /api/migrations/0004_song_sets.sql
+    title: Sets
   - id: main
     resource: /api/src/main.rs
     title: sqlx::migrate! at startup, pool size
-generated: { by: agent, at: 2026-09-24T12:00:00Z }
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # Data model
@@ -39,11 +42,16 @@ exist yet ([gaps](gaps.md)).
 | `desktop_auth_codes` | `code_hash CHAR(64)` | One-time desktop sign-in codes: `church_id`, `user_id` (the approver), `device_name`, `code_challenge` (S256), `created_at`, `expires_at` (5 minutes), `used_at` |
 | `songs` | `id` | `church_id`, `current_revision_id`, `deleted_at`, `deleted_by`, `deleted_by_device` |
 | `song_revisions` | `id` | `song_id`, `parent_revision_id`, the extracted `title` / `song_number` / `authors` / `language`, the full `chordpro`, `content_hash CHAR(64)`, `created_by`, `created_by_device` |
+| `song_sets` | `id` (may be client-chosen) | `church_id`, `name` (not blank), `service_date DATE`, `version INTEGER` (starts at 1), `created_by` / `created_by_device`, `updated_by` / `updated_by_device`, `created_at`, `updated_at`, `deleted_at` |
+| `song_set_items` | `id` | `set_id`, `position` (≥ 0, `UNIQUE (set_id, position)`), `kind` in `song` / `blank`, `song_id`, `transpose SMALLINT` (−11 to 11), `note` (at most 500 characters) |
 
 Migration `0002_device_song_edits.sql` added the three audit columns; the
 device ones reference `device_tokens(id)` with `ON DELETE SET NULL`.
 Migration `0003_desktop_auth_codes.sql` added `desktop_auth_codes`
 ([auth and roles](auth-and-roles.md#desktop-browser-sign-in)).
+Migration `0004_song_sets.sql` added `song_sets` and `song_set_items`
+([sets](sets.md)). Remote-control state is not stored in the database
+([remote control](remote-control.md)).
 
 `songs.current_revision_id` and `song_revisions.song_id` point at each other.
 The foreign key from songs to revisions is added after both tables exist, with
@@ -52,8 +60,12 @@ pointer is updated, all in one transaction.
 
 ## Church scoping
 
-Every church-owned row reaches `church_id` directly (`songs`, `sessions`,
-`device_tokens`, `desktop_auth_codes`, `memberships`) or through its song (`song_revisions`).
+Every church-owned row reaches `church_id` directly (`songs`, `song_sets`,
+`sessions`, `device_tokens`, `desktop_auth_codes`, `memberships`), through its
+song (`song_revisions`) or through its set (`song_set_items`).
+`song_set_items.song_id` references `songs(id)` without a church check in the
+schema; `sets.rs` checks that every song belongs to the caller's church before
+it writes items.
 Handlers always filter on `auth.church_id`, so a song id from another church
 returns 404, not 403. `songs` also has `UNIQUE (id, church_id)` so that later
 tables can reference a church-scoped song.
@@ -61,11 +73,15 @@ tables can reference a church-scoped song.
 ## Cascades
 
 Deleting a church cascades to memberships, sessions, device tokens, desktop
-sign-in codes and songs,
-and from songs to revisions. Deleting a user cascades to memberships,
-sessions and desktop sign-in codes. It sets `song_revisions.created_by` to null, but it is **blocked** by
-`device_tokens.created_by`, which has no `ON DELETE` rule. `DELETE /songs/{id}`
-only sets `deleted_at`; no endpoint removes rows.
+sign-in codes, songs and sets, from songs to revisions, and from sets to their
+items. Deleting a song row sets `song_set_items.song_id` to null (the item
+stays). Deleting a user cascades to memberships, sessions and desktop sign-in
+codes. It sets `song_revisions.created_by` and the `song_sets` audit columns
+to null, but it is **blocked** by `device_tokens.created_by`, which has no
+`ON DELETE` rule. Deleting a device token sets the `*_by_device` columns to
+null. `DELETE /songs/{id}` and `DELETE /sets/{id}` only set `deleted_at`; no
+endpoint removes rows. `PUT /sets/{id}` deletes and re-inserts that set's
+items.
 
 ## Indexes
 
@@ -74,14 +90,17 @@ only sets `deleted_at`; no endpoint removes rows.
   job; used and expired codes stay in the table.
 - `songs_church_idx (church_id) WHERE deleted_at IS NULL`.
 - `song_revisions_song_idx (song_id, created_at DESC)`, for revision lists.
+- `song_sets_church_date_idx (church_id, service_date DESC NULLS LAST,
+  updated_at DESC) WHERE deleted_at IS NULL`, matching the set list order.
+- `song_set_items_song_idx (song_id)`, for the `ON DELETE SET NULL` from songs.
 - `song_revisions_title_lower_idx (lower(title))`, for sorting. Search uses
   leading-wildcard `ILIKE`, which this index cannot serve
   ([songs and revisions](songs-and-revisions.md#search)).
 
 ## Stored but unused
 
-- `songs.deleted_at` is honoured by every read, but nothing sets it: there is
-  no delete endpoint.
+- The `song_sets` audit columns (`created_by`, `updated_by` and their device
+  twins) are written but never returned.
 - `users.disabled_at` is honoured at sign-in and on every session check, but
   nothing sets it.
 - `churches.slug` is written at setup and never read.

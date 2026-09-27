@@ -25,22 +25,30 @@ cargo clippy --manifest-path api/Cargo.toml --all-targets --all-features -- -D w
 cargo fmt --manifest-path api/Cargo.toml --all -- --check
 cd web && bun install && bun run dev                       # proxies /api to :8080
 cd web && bun run build                                    # tsc --noEmit + vite build
+cd web && bun run test                                     # vitest
 ```
 
 ## Rules that are easy to break
 
 - Every church-owned query filters on the caller's `church_id`.
 - Desktop (`psa_d_`) tokens may read, import, create, edit and delete songs
-  (`require_song_editor`); `require_editor` must keep rejecting them for token
-  management and anything else that is not song content. Device writes record
-  the device (`created_by_device`, `deleted_by_device`).
+  and sets (`require_song_editor`); `require_editor` must keep rejecting them
+  for token management, desktop approval, sending remote commands and anything
+  else that is not church content. Device writes record the device
+  (`created_by_device`, `updated_by_device`, `deleted_by_device`).
+- Remote steering (`POST /remote/desktops/{id}/commands`) is `require_editor`:
+  person owners and leaders only. The `/remote/desktop*` routes accept only
+  desktop tokens. The relay is in memory; do not assume it survives a restart.
 - Store tokens only as SHA-256 hashes; never log a raw token.
 - Revisions are immutable. Song updates go through the `base_revision_id`
   check under the `FOR UPDATE` lock; a stale base is `409`, never last-write-wins.
+  Set updates and deletes do the same with `base_version`.
 - Import dedup hashes the exact ChordPro bytes. Changing the hash input changes
   sync behaviour for every connected desktop; coordinate with the client.
 - The web client has no private contract. New handlers and schemas go in the
   `ApiDoc` `paths(...)` / `components(...)` lists, and `web/src/types.ts`
   mirrors `api/src/models.rs` by hand.
 - Migrations in `api/migrations/` are append-only; they run at startup.
+- `web/src/psa150-tokens.css` must stay byte-identical to the desktop's
+  `src/psa150-tokens.css` (the desktop repo is canonical); change both together.
 - Docs and wiki describe behaviour, not models. Say "the agent".

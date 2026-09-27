@@ -11,8 +11,9 @@ Authenticated requests send `Authorization: Bearer <token>`.
 - Person sessions begin with `psa_s_`, expire, and carry the person's church
   membership and role.
 - Desktop credentials begin with `psa_d_` and are scoped to one church. They
-  may read the library and submit imports of exact new content, but cannot edit
-  or delete existing songs.
+  may read the library, import, create, edit and delete songs and sets, and
+  use the remote-control desktop endpoints. They cannot manage credentials,
+  approve other desktops or send remote commands.
 - Only a hash of either token is stored by the server.
 
 A desktop normally gets its `psa_d_` credential through browser sign-in: it
@@ -25,7 +26,7 @@ code and its PKCE verifier at `POST /api/v1/desktop-auth/token`.
 The first owner is created through `POST /api/v1/setup`, which becomes
 unavailable after successful initialization. Passwords are hashed with Argon2.
 
-## Phase 1 resources
+## Resources
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -47,6 +48,17 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `GET` | `/api/v1/songs/{id}/revisions` | List immutable revision metadata |
 | `POST` | `/api/v1/songs/import` | Import up to 500 ChordPro songs, skipping exact content matches |
 | `GET` | `/api/v1/songs/export` | Download current songs as a ZIP of `.pro` files plus `psa150-manifest.json` |
+| `GET` | `/api/v1/sets?from=&limit=` | List the church's sets (newest service date first) |
+| `GET` | `/api/v1/sets/snapshot` | Every set with its items, for desktops to keep offline |
+| `POST` | `/api/v1/sets` | Create a set, optionally with a client-chosen id |
+| `GET` | `/api/v1/sets/{id}` | Read a set and its items |
+| `PUT` | `/api/v1/sets/{id}` | Replace a set's name, date and items from an expected base version |
+| `DELETE` | `/api/v1/sets/{id}?base_version=` | Delete a set (soft); a stale base version is `409` |
+| `PUT` | `/api/v1/remote/desktop` | Desktop reports its projection state |
+| `DELETE` | `/api/v1/remote/desktop` | Desktop leaves remote control |
+| `GET` | `/api/v1/remote/desktop/commands?wait=` | Desktop collects queued commands, waiting up to 30 seconds |
+| `GET` | `/api/v1/remote/desktops` | List the church's desktops and what they show |
+| `POST` | `/api/v1/remote/desktops/{device_id}/commands` | Leader sends a command to a desktop |
 
 ## Conflict contract
 
@@ -60,3 +72,43 @@ Desktop credentials have append-only import access: the server compares SHA-256
 content hashes, skips exact matches, and returns `skipped_existing`. A song with
 different content is added as a separate song; automatic title-based merging
 would risk destroying legitimate translations or arrangements.
+
+## Sets
+
+A set is an ordered list of items for one service, shared by the whole church.
+Every signed-in person and desktop may read sets; owners, leaders and desktop
+credentials may change them. An item is a `song` (a song of the same church,
+with `transpose` from −11 to 11) or a `blank` screen, each with an optional
+note of up to 500 characters. A set holds at most 200 items and its name 1–200
+characters. Reads include each song's current title and revision; a song
+deleted after it was added appears with `song: null`.
+
+A client may choose a new set's `id`, so a desktop can create a set offline and
+upload it later without creating it twice. `POST` with an id that already
+exists returns `409 Conflict`.
+
+### Set conflict contract
+
+Every set has a `version`, starting at 1 and increased by each change.
+`PUT /sets/{id}` requires `base_version`, and `DELETE /sets/{id}` accepts it.
+The server locks the set while checking that base. A stale base returns HTTP
+`409 Conflict` and changes nothing; the client must reload the set and apply
+its change again. `PUT` replaces all items, so a client sends the full list,
+keeping item `id`s to preserve their identity. The server keeps no history of
+earlier versions. The Psalm150 desktop keeps its losing edit as a separate
+copy of the set.
+
+## Remote relay
+
+A desktop that allows remote control reports its projection state with
+`PUT /remote/desktop` and long-polls `GET /remote/desktop/commands?wait=`
+(0–30 seconds). Anyone signed in to the church may list desktops; a desktop is
+`online` when heard from within 45 seconds. Owners and leaders (person sessions
+only) send `next`, `previous`, `blank`, `show_slide`, `project_song` or
+`project_set_item`. The server answers `202 Accepted`, `404` when the desktop
+is not online, and `409` when it does not accept commands.
+
+The relay keeps everything in memory. Commands expire after 30 seconds, at most
+20 wait per desktop, and a restart forgets all desktops until they report
+again. It works with a single server process. The desktop remains in charge of
+projection and keeps running without the server.

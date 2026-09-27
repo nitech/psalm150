@@ -18,7 +18,10 @@ sources:
   - id: api
     resource: /api/src/api.rs
     title: What exists
-generated: { by: agent, at: 2026-09-23T19:00:00Z }
+  - id: remote
+    resource: /api/src/remote.rs
+    title: In-memory remote relay
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # Gaps and backlog
@@ -27,7 +30,7 @@ generated: { by: agent, at: 2026-09-23T19:00:00Z }
 
 | Area | Open | Where it stands |
 | --- | --- | --- |
-| Domain | Song deletion semantics, provenance links, plans, search languages and alternate titles | `songs.deleted_at` exists but has no endpoint. The rest has no schema |
+| Domain | Song conflict preservation, provenance links, search languages and alternate titles | Songs have soft delete (`DELETE /songs/{id}`) but no undelete. Plans are built as [sets](sets.md), shared read-only with viewers. The rest has no schema |
 | Policy | Visibility (private/unlisted/public), publication policy, attribution and licensing | Nothing built. Every song is private to its church |
 | Sync | Offline outbox, conflicts kept for review, cross-server import, portable metadata export, migration and offline-edit upload | Phase 1 merge-then-pull only ([desktop sync](desktop-sync.md)) |
 | API | Rules for compatibility and deprecation between versions; guidance for outside integrations | Only `v1` |
@@ -38,7 +41,14 @@ generated: { by: agent, at: 2026-09-23T19:00:00Z }
 
 - **Conflicts** are designed to keep both versions. The code rejects a stale
   base with 409 and stores nothing
-  ([songs and revisions](songs-and-revisions.md)).
+  ([songs and revisions](songs-and-revisions.md)). For sets, keeping both is
+  done by the desktop, not the server: it saves its losing edit as a copy
+  named "(changes from <computer>)" ([desktop sync](desktop-sync.md#sets)). The
+  web client only reports the 409.
+- **Live projection control** was listed in the README as not a server
+  responsibility. The server now relays remote commands, but only in memory;
+  the desktop still owns projection and runs without it
+  ([remote control](remote-control.md)).
 - **Owner vs leader** differ in the design. In the code they have the same
   powers ([auth and roles](auth-and-roles.md)).
 - **Multi-architecture images** are promised. CI builds one architecture and
@@ -51,6 +61,15 @@ generated: { by: agent, at: 2026-09-23T19:00:00Z }
 
 - **No logout, no session cleanup**: sign-out in the web client leaves the
   token valid, and expired sessions pile up.
+- **Sessions are per tab**: the web client keeps the session in
+  `sessionStorage`, so a phone must sign in again whenever its browser closes
+  or drops the tab, including before a service ([web client](web-client.md)).
+- **Remote relay is in memory and single-instance**: a restart forgets every
+  desktop and queued command until desktops report again, and running more
+  than one server process would split desktops between them
+  ([remote control](remote-control.md)).
+- **Sets** keep no history and cannot be undeleted. `GET /sets` has no paging
+  past 500, and the web client shows only the newest 100 ([sets](sets.md)).
 - **No member management**: only the setup owner exists. Viewers and extra
   leaders cannot be added, and there is no password change or reset.
 - **Sign-in with several churches** always opens the oldest membership.
@@ -60,7 +79,8 @@ generated: { by: agent, at: 2026-09-23T19:00:00Z }
 - **Import dedup** is by exact bytes against current revisions only.
   `filename` is ignored.
 - **Export** holds the whole ZIP in memory; beyond the id manifest it carries no metadata.
-- **Deleted songs** can only be restored in the database; there is no undelete endpoint.
+- **Deleted songs** can only be restored in the database; there is no undelete
+  endpoint. The web client cannot delete songs.
 - **Revision history** can be listed through the API but not viewed in the web
   client, and an old revision's source cannot be fetched.
 - **No rate limit** on `/session` or `/setup`.
@@ -71,7 +91,9 @@ generated: { by: agent, at: 2026-09-23T19:00:00Z }
 
 ## Stored or served but unused
 
-- `songs.deleted_at`, `users.disabled_at`: read everywhere, never set.
+- `users.disabled_at`: read everywhere, never set.
+- `song_sets` audit columns (`created_by`, `updated_by` and the device
+  twins): written, never returned.
 - `churches.slug`: written at setup, never read.
 - `sessions_expiry_idx`: no query uses it.
 - `GET /songs/{id}/revisions`: no caller in the web client or the desktop.

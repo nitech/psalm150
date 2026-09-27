@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Desktop sync
-description: The Phase 1 merge-then-pull protocol between the Psalm150 desktop and the server — what each side does, what the desktop token can change, and the offline guarantees.
+description: The Phase 1 merge-then-pull protocol between the Psalm150 desktop and the server, set sync through the sets snapshot with offline-created ids and conflict copies, what the desktop token can change, and the offline guarantees.
 tags: [sync, desktop, replica, offline, phase-1]
 status: stable
 sources:
@@ -14,16 +14,20 @@ sources:
   - id: api
     resource: /api/src/api.rs
     title: import_songs (device path), export_songs
-generated: { by: agent, at: 2026-09-24T12:00:00Z }
+  - id: sets
+    resource: /api/src/sets.rs
+    title: sets_snapshot, create_set (client id), update_set (base_version)
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # Desktop sync
 
 The server-backed desktop library is a **read-only copy** that the desktop
-pulls; the operator does not edit it in the desktop. The server has no
-sync-specific endpoint. The protocol is public calls with a `psa_d_` token
-([auth and roles](auth-and-roles.md)). A desktop linked to a Visual Song Book
-database also writes VSB changes back through the song endpoints (below).
+pulls; the operator does not edit it in the desktop. The protocol is public
+calls with a `psa_d_` token ([auth and roles](auth-and-roles.md)); the only
+endpoint made mainly for desktops is `GET /sets/snapshot`. A desktop linked to
+a Visual Song Book database also writes VSB changes back through the song
+endpoints, and every desktop keeps the church's sets in step (below).
 
 ## Connecting
 
@@ -67,6 +71,36 @@ host, no credentials), applies a 10 s connect and 120 s request timeout, and
 caps the size of the export download. The client's own wiki covers its
 settings and cache.
 
+## Sets
+
+In a server library the desktop's setlists mirror the church's sets, with the
+same ids ([sets](sets.md)). The client side is
+`src-tauri/src/commands/server_sets.rs` in the client repo. It runs after a
+library sync, after each local setlist change, and every 60 s while
+connected:
+
+1. **Upload.** Each local setlist changed since its last upload (or never
+   uploaded) is sent with the device token. One the server has seen goes to
+   `PUT /sets/{id}` with its `base_version`. A new one, possibly made offline,
+   goes to `POST /sets` with its own `id`, so a retried upload cannot create a
+   second set. Song items refer to server song ids from the export manifest;
+   items whose song has no server id are left out and counted.
+2. **Conflict.** A 409 (someone changed the set first) or 404 (deleted
+   elsewhere) does not overwrite anything. The desktop keeps the server's
+   version under the set's id and saves its own edit as a new local set named
+   "<name> (changes from <computer>)" with fresh item ids, which goes up as a
+   new set at the next pass. The server itself stores nothing on a 409.
+3. **Download.** `GET /sets/snapshot` returns every live set with items. Song
+   ids the desktop does not have yet (added on a phone since the last library
+   download) are fetched one by one with `GET /songs/{id}`, written to the
+   offline folder, indexed and added to the manifest. Clean local setlists are
+   replaced by the server's; ones with unsent edits are kept. A setlist that
+   was uploaded before and is no longer in the snapshot was deleted elsewhere
+   and is removed.
+
+A server without sets answers 404 (or 405 through a proxy) on the snapshot;
+the desktop then reports sets as unsupported and keeps its local setlists.
+
 ## Guarantees
 
 - **Offline projection.** The last valid cache opens at startup and projects
@@ -79,6 +113,8 @@ settings and cache.
   immediately.
 - **The merge step only adds.** A local song that differs from its server
   version by even one byte is uploaded again as a **separate** song.
+- **Sets are never overwritten silently.** A stale set upload is a 409; the
+  desktop keeps both versions, the server keeps only its own.
 - **PostgreSQL is canonical** once a desktop is connected.
 
 ## Known consequences

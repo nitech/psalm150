@@ -20,14 +20,15 @@ not yet complete.
 - [x] Specify churches, users, memberships, and simple roles.
 - [ ] Specify songs, immutable revisions, conflicts, and deletion semantics.
 - [ ] Specify typed provenance relationships and public source references.
-- [ ] Specify plans and read-only-by-default sharing.
+- [x] Specify plans and read-only-by-default sharing.
+- [x] Implement church sets (service song lists) with version-checked edits.
 - [x] Design the initial PostgreSQL migration, indexes, and transactional boundaries.
 - [ ] Define search behavior, including languages and alternate titles.
 
 ## Authentication and policy
 
 - [x] Choose password authentication and initial-owner provisioning for people.
-- [x] Define revocable, scoped desktop credentials with read and append-only import access.
+- [x] Define revocable, scoped desktop credentials that read, import, edit and delete songs and sets.
 - [ ] Define private, unlisted, and public content visibility.
 - [ ] Define instance-level publication and contribution policies.
 - [ ] Define attribution, authorship, and licensing requirements.
@@ -39,6 +40,7 @@ not yet complete.
 - [ ] Define snapshot import and provenance recording between servers.
 - [ ] Define a complete ChordPro-based export and portable metadata format.
 - [x] Implement exact-content folder merge to the server and a read-only desktop replica.
+- [x] Synchronize sets with desktops, including sets created offline.
 - [ ] Define the later migration and offline-edit upload workflows.
 
 ## API and interfaces
@@ -47,6 +49,9 @@ not yet complete.
 - [x] Publish generated OpenAPI JSON.
 - [ ] Define compatibility and deprecation rules for API versions.
 - [x] Build the initial web interface as an ordinary API consumer.
+- [x] Rebuild the web interface mobile-first for reading and leading from a phone.
+- [x] Relay remote control from leaders' phones to desktops that allow it.
+- [ ] Keep remote control working across server restarts and several server instances.
 - [x] Define and implement Phase 1 merge-then-pull PSA150-client synchronization.
 - [ ] Define additional integration guidance for external church websites.
 

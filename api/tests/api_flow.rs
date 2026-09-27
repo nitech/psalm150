@@ -749,6 +749,33 @@ async fn remote_control_flow(pool: PgPool) {
     )
     .await;
     assert_eq!(missing.0, StatusCode::BAD_REQUEST);
+    let set = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&session),
+        Some(json!({ "name": "Evening", "items": [{ "kind": "song", "song_id": song }] })),
+    )
+    .await;
+    let set_id = set.1["id"].clone();
+    let outside = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "project_set_item", "set_id": set_id, "item_index": 1 })),
+    )
+    .await;
+    assert_eq!(outside.0, StatusCode::BAD_REQUEST);
+    let inside = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "project_set_item", "set_id": set_id, "item_index": 0 })),
+    )
+    .await;
+    assert_eq!(inside.0, StatusCode::ACCEPTED);
 
     // Viewers watch but do not steer.
     let viewer = viewer_session(&app, &pool).await;
@@ -777,6 +804,7 @@ async fn remote_control_flow(pool: PgPool) {
     assert_eq!(received.1[0]["action"], "next");
     assert_eq!(received.1[1]["action"], "project_song");
     assert_eq!(received.1[1]["song_id"], song);
+    assert_eq!(received.1[2]["action"], "project_set_item");
     let empty = send(
         &app,
         "GET",

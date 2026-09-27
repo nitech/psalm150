@@ -74,7 +74,8 @@ export async function moreView(ctx: AppContext): Promise<void> {
     anchor.href = url;
     anchor.download = "psa150-library.zip";
     anchor.click();
-    URL.revokeObjectURL(url);
+    // Some browsers start the download after click() returns.
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     showToast("Library export prepared.");
   }));
 

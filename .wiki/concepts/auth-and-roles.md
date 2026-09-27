@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Auth and roles
-description: First-run setup, password sign-in, psa_s_ sessions and psa_d_ desktop tokens, what each role and token may do, and what is missing (logout, members, multi-church sign-in).
+description: First-run setup, password sign-in, psa_s_ sessions and psa_d_ desktop tokens, what each role and token may do with songs, sets and remote control, and what is missing (logout, members, multi-church sign-in).
 tags: [auth, sessions, tokens, roles, setup, security]
 status: stable
 sources:
@@ -20,10 +20,16 @@ sources:
   - id: mig3
     resource: /api/migrations/0003_desktop_auth_codes.sql
     title: desktop_auth_codes
+  - id: sets
+    resource: /api/src/sets.rs
+    title: Set handlers (require_song_editor)
+  - id: remote
+    resource: /api/src/remote.rs
+    title: Remote relay (desktop-only routes, require_editor for commands)
   - id: webmain
     resource: /web/src/main.ts
     title: Desktop consent screen
-generated: { by: agent, at: 2026-09-24T12:00:00Z }
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # Auth and roles
@@ -55,9 +61,12 @@ request reads the database.
 
 `Role` is `owner`, `leader` or `viewer` (a `CHECK` on `memberships.role`).
 `can_edit()` is true for owner and leader. `require_editor()` also refuses any
-desktop token, even though device tokens are role viewer. Song content uses
-`require_song_editor()` instead, which also admits desktop tokens and returns
-an `Actor` (person or device) for the audit columns.
+desktop token, even though device tokens are role viewer. Church content
+(songs and sets) uses `require_song_editor()` instead, which also admits
+desktop tokens and returns an `Actor` (person or device) for the audit
+columns. The remote relay's desktop routes accept **only** a desktop token
+(`require_device` in `remote.rs`), and sending a command uses
+`require_editor`.
 
 | Action | Owner / Leader | Viewer session | Desktop token |
 | --- | --- | --- | --- |
@@ -66,6 +75,11 @@ an `Actor` (person or device) for the audit columns.
 | Import songs | yes | 403 | yes, see [import](import-export.md) |
 | Create, list or revoke desktop tokens | yes | 403 | 403 |
 | Approve a desktop sign-in (`POST /desktop-auth/codes`) | yes | 403 | 403 |
+| List, read sets; sets snapshot | yes | yes | yes |
+| Create, edit or delete a set | yes | 403 | **yes**, recorded as the device ([sets](sets.md)) |
+| List the church's desktops for remote control | yes | yes | yes |
+| Send a remote command to a desktop | yes | 403 | 403 |
+| Report state, leave, collect commands (`/remote/desktop*`) | 403 | 403 | yes ([remote control](remote-control.md)) |
 
 Owner and leader behave the same today. Owner-only administration and recovery
 are designed in [/docs/architecture.md](../../docs/architecture.md) but not
