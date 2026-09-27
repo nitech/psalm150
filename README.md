@@ -23,7 +23,7 @@ bun run tauri
    - **Use Local Songs Folder** for a directory containing only `.pro` / `.cho` files (for example, a Dropbox folder), or
    - **Church song server** for a read-only offline replica using a desktop token created by PSA150 Server.
 3. **Import MDB** converts a legacy Visual Song Book `.mdb` songbook into a local ChordPro folder.
-4. Search, project to the audience window, and manage setlists locally.
+4. Search, project to the audience window, and manage setlists (kept on this PC for a local folder; shared with the church's sets on the song server for a server library).
 
 A server-backed library downloads into managed app storage. On first
 connection and each explicit synchronization, the client adds ChordPro

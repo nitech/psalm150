@@ -22,7 +22,10 @@ sources:
     title: Typed invoke wrappers and shared types
   - id: css
     resource: /src/styles.css
-    title: Design system and layout
+    title: Console aliases for the shared tokens, layout
+  - id: tokens
+    resource: /src/psa150-tokens.css
+    title: Shared PSA150 design tokens
   - id: stanza-number-input
     resource: /src/stanza-number-input.ts
     title: Multi-digit stanza shortcut input
@@ -38,7 +41,7 @@ sources:
   - id: icons
     resource: /src/icons.ts
     title: Toolbar icon set (Lucide geometry)
-generated: { by: agent, at: 2026-09-24T21:10:00Z }
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # Operator console
@@ -47,8 +50,9 @@ generated: { by: agent, at: 2026-09-24T21:10:00Z }
 and IPC. Presentational pieces: `psa150-song-list`, `psa150-modal`,
 and `psa150-select` (custom dropdown; native selects cannot be themed on
 WebView2). Icons come from `icons.ts`. Everything renders into light DOM so
-`styles.css` applies; its tokens mirror `designsystem.json`, a reference file
-the app never loads.
+`styles.css` applies. Its colours, type, radii and motion alias the shared
+[design tokens](design-tokens.md) in `psa150-tokens.css`, and `index.html`
+sets `data-theme="dark"`, so the console is always dark.
 
 ## Layout
 
@@ -119,7 +123,24 @@ There is no default active setlist. One becomes active when the operator
 picks it in the Setlist view's dropdown, or when a song is added (or a new
 setlist created) while none is active; adding to another setlist later leaves
 the active one alone. The choice is remembered in
-`localStorage["psa150-current-setlist"]`. See [setlists](setlists.md).
+`localStorage["psa150-current-setlist"]` and reported to the backend with
+`set_active_setlist` (the song server remote names it to phones). See
+[setlists](setlists.md).
+
+**Next song** in the Setlist view projects the next song item and then
+applies that item's transpose (`set_transpose`), so a key chosen for the set
+is used.
+
+In a server library the setlists are the church's shared sets. On
+`setlists-changed` the console reloads them (and the Setlist view) and toasts
+conflicts ("“<name>” was changed elsewhere; your changes are kept as a copy")
+and song items left out of an upload ("N setlist song(s) are not on the song
+server and were left out"). See [server library, sets](server-library.md#sets).
+
+**remote-project** (from the [song server remote](remote-control.md#through-the-song-server)):
+the console chooses the named setlist if any, selects the song, projects it
+through the same path as Enter, applies the transpose and toasts "Projected
+from <name>'s phone".
 
 ## Song list columns
 
@@ -233,7 +254,10 @@ marks matching menu items, so a term such as "display", "remote", or
 "import" leads directly to its controls.
 
 Church server: see [server library](server-library.md) (address check,
-Sign in with browser, token fallback, Synchronize, Disconnect). Library: folder path, Choose Songs Folder, Import MDB, Rescan, manual
+Sign in with browser, token fallback, Synchronize, Disconnect). While
+connected it also shows a note that setlists are the church's shared sets
+and the checkbox **Allow remote control through the song server**
+(`server_remote_enabled`; [remote control](remote-control.md#through-the-song-server)). Library: folder path, Choose Songs Folder, Import MDB, Rescan, manual
 [duplicate review](duplicate-review.md), song numbers toggle. Projection:
 Congregation display (Primary / Simulated / monitors), Stage display, "Also
 show stage window", "Read-only library". Visual Song Book: link or unlink a

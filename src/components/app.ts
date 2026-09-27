@@ -1673,7 +1673,7 @@ export class Psa150App extends Psa150Element {
       this.showToast(`“${name}” was changed elsewhere; your changes are kept as a copy`, "info");
     }
     if (report.skipped_items) {
-      this.showToast(`${report.skipped_items} setlist song(s) are not on the song server and were left out`, "info");
+      this.showToast(`${report.skipped_items} setlist song(s) are not on the song server and were removed from the set`, "info");
     }
   }
 

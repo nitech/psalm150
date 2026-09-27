@@ -17,7 +17,7 @@ sources:
   - id: app
     resource: /src/components/app.ts
     title: Operator console component
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # Psalm150
@@ -32,7 +32,7 @@ appear on the optional **stage window** (musicians).
 | Half | Where | Role |
 | --- | --- | --- |
 | Rust core (`src-tauri/`) | One process, `psalm150_lib::run()` | Owns all state: config, songs folder, SQLite index, the current `ProjectionState`, setlists, remote server |
-| Web UI (`src/`) | Three webviews: `index.html`, `audience.html`, `stage.html` | Lit components in light DOM sharing one `styles.css`; talk to Rust with `invoke` and `listen` |
+| Web UI (`src/`) | Three webviews: `index.html`, `audience.html`, `stage.html` | Lit components in light DOM sharing one `styles.css` built on the shared [design tokens](concepts/design-tokens.md); talk to Rust with `invoke` and `listen` |
 
 `RuntimeState` lives behind a `parking_lot::Mutex` in `AppState`; every command
 goes through `with_state`. The rule that keeps Windows from deadlocking: build
@@ -79,7 +79,9 @@ automatically; they go through [manual duplicate review](concepts/duplicate-revi
 ## Where to look
 
 - Operating it: [operator console](concepts/operator-console.md),
-  [setlists](concepts/setlists.md), [config](concepts/config.md).
+  [setlists](concepts/setlists.md), [config](concepts/config.md),
+  [server library](concepts/server-library.md),
+  [remote control](concepts/remote-control.md).
 - Contracts: [IPC contract](concepts/ipc-contract.md),
   [ChordPro dialect](concepts/chordpro-dialect.md),
   [songs folder](concepts/songs-folder.md).

@@ -14,7 +14,7 @@ sources:
   - id: client
     resource: /src/projection-client.ts
     title: Wrappers used by the audience page
-generated: { by: agent, at: 2026-09-23T20:00:00Z }
+generated: { by: agent, at: 2026-09-27T12:00:00Z }
 ---
 
 # IPC contract
@@ -69,7 +69,9 @@ commands are real and tested but reachable only over IPC.
 | `sign_in_server_library` | `url` → `LibraryStatus`; browser sign-in over a loopback redirect, then synchronise ([server library](server-library.md)); error `SIGN_IN_CANCELLED: …` when cancelled | yes |
 | `cancel_server_sign_in` | stops a waiting sign-in | yes |
 | `connect_server_library` | `url, token` → `LibraryStatus` (pasted `psa_d_` token) | yes (token fallback) |
-| `sync_server_library`, `disconnect_server_library` | → `LibraryStatus` / `()` | yes |
+| `sync_server_library`, `disconnect_server_library` | → `LibraryStatus` / `()`; a full sync ends with a sets sync | yes |
+| `sync_server_sets` | async → `SetSyncReport`; uploads dirty setlists and mirrors the server's sets ([sets](server-library.md#sets)); errors when no server library is connected | no (wrapper `syncServerSets` only; runs every 60 s and after edits anyway) |
+| `set_server_remote_enabled` | `enabled` → `()`; saves `server_remote_enabled` ([song server remote](remote-control.md#through-the-song-server)) | yes (Settings, Church server) |
 
 Event `server-sync-progress` `{ phase, label, current, total, unit }` reports
 upload, download and activation; the console adds its own `signing in` phase
@@ -95,8 +97,9 @@ while the browser is open.
 
 | Command | Args → Result | UI |
 | --- | --- | --- |
-| `list_setlists`, `create_setlist` `name, date` | → `Vec<Setlist>` / `Setlist` | yes |
-| `add_to_setlist`, `remove_from_setlist` | `id, filename` → `Setlist` | yes (add-to-setlist menu) |
+| `list_setlists`, `create_setlist` `name, date` | → `Vec<Setlist>` / `Setlist`; in a server library create marks the setlist dirty and starts an upload | yes |
+| `add_to_setlist`, `remove_from_setlist` | `id, filename` → `Setlist`; server library as above | yes (add-to-setlist menu) |
+| `set_active_setlist` | `id: Option<String>`; the console's chosen setlist, read by the song server remote | yes |
 | `format_short_date` | → `Option<String>`, today in the Windows short date format | yes |
 | `load_setlist`, `save_setlist`, `setlist_advance`, `setlist_previous`, `list_hold_slides` | | no |
 | `set_vsb_database` | `path: Option<String>` → `Option<VsbSyncConfig>`; reads the file once to validate | yes |
@@ -125,6 +128,8 @@ while the browser is open.
 | `import-complete` | `ImportReport` | nobody (the command's return is used) |
 | `vsb-sync-progress` | `{ label, current, total }` | console progress hairline and sync icon |
 | `vsb-sync-finished` | `{ report: VsbSyncReport?, error? }` | console refreshes config, toasts changes or errors |
+| `setlists-changed` | `SetSyncReport { uploaded, downloaded, conflicts[], skipped_items, fetched_songs, unsupported }`; background runs emit it only when something changed | console reloads setlists (and the Setlist view), toasts conflicts and skipped items |
+| `remote-project` | `RemoteProject { filename, transpose, set_id?, item_index?, issued_by }` from the [song server remote](remote-control.md#through-the-song-server) | console selects the setlist and song, projects, applies the transpose |
 
 Each page subscribes before fetching `get_projection_snapshot`, closing the
 startup race without targeted events or `window.eval` delivery.

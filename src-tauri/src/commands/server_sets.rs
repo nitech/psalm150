@@ -142,10 +142,15 @@ struct Context {
 
 /// Push dirty setlists, then mirror the server's sets. `None` when no server
 /// library is connected (nothing to do).
+/// One sync at a time, whoever starts it (timer, edit, library sync,
+/// button): two at once could upload a new set twice.
+static SYNC_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub(crate) async fn sync_sets(
     app: &AppHandle,
     state: &AppState,
 ) -> Result<Option<SetSyncReport>, String> {
+    let _guard = SYNC_LOCK.lock().await;
     let Some((url, folder)) = with_state(state, |runtime| {
         Ok(
             match (&runtime.config.server_library, &runtime.songs_folder) {
@@ -313,9 +318,11 @@ async fn push_dirty(
                         .into(),
                 );
             }
-            Err(status) => {
-                return Err(format!("The song server answered {status} to a set upload"))
-            }
+            // Try the others; this one stays dirty for the next run.
+            Err(status) => eprintln!(
+                "[server] the song server answered {status} to the upload of {}",
+                setlist.name
+            ),
         }
     }
     Ok(())
