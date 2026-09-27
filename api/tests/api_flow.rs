@@ -398,6 +398,445 @@ async fn desktop_browser_sign_in_flow(pool: PgPool) {
     assert_eq!(disabled.0, StatusCode::BAD_REQUEST);
 }
 
+/// Sets up the server and returns (owner session, desktop token).
+async fn owner_and_desktop(app: &Router) -> (String, String) {
+    let setup = send(
+        app,
+        "POST",
+        "/api/v1/setup",
+        None,
+        Some(json!({
+            "church_name": "Test Church",
+            "owner_name": "Test Owner",
+            "username": "owner",
+            "password": "long-test-password"
+        })),
+    )
+    .await;
+    assert_eq!(setup.0, StatusCode::CREATED);
+    let session = setup.1["token"].as_str().expect("session").to_string();
+    let device = send(
+        app,
+        "POST",
+        "/api/v1/device-tokens",
+        Some(&session),
+        Some(json!({ "name": "Sanctuary PC" })),
+    )
+    .await;
+    assert_eq!(device.0, StatusCode::CREATED);
+    let device = device.1["token"]
+        .as_str()
+        .expect("device token")
+        .to_string();
+    (session, device)
+}
+
+async fn viewer_session(app: &Router, pool: &PgPool) -> String {
+    let church_id = sqlx::query_scalar::<_, uuid::Uuid>("SELECT id FROM churches LIMIT 1")
+        .fetch_one(pool)
+        .await
+        .expect("church");
+    let hash = psa150_server::auth::hash_password("viewer-password-1".into())
+        .await
+        .expect("hash");
+    let user_id = uuid::Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO users (id, display_name, username, password_hash) VALUES ($1, 'Viewer', 'viewer', $2)",
+    )
+    .bind(user_id)
+    .bind(hash)
+    .execute(pool)
+    .await
+    .expect("viewer");
+    sqlx::query("INSERT INTO memberships (user_id, church_id, role) VALUES ($1, $2, 'viewer')")
+        .bind(user_id)
+        .bind(church_id)
+        .execute(pool)
+        .await
+        .expect("membership");
+    let login = send(
+        app,
+        "POST",
+        "/api/v1/session",
+        None,
+        Some(json!({ "username": "viewer", "password": "viewer-password-1" })),
+    )
+    .await;
+    assert_eq!(login.0, StatusCode::OK);
+    login.1["token"].as_str().expect("viewer token").to_string()
+}
+
+async fn create_song(app: &Router, token: &str, title: &str) -> (String, String) {
+    let created = send(
+        app,
+        "POST",
+        "/api/v1/songs",
+        Some(token),
+        Some(json!({ "chordpro": format!("{{title: {title}}}\n\n[G]Words") })),
+    )
+    .await;
+    assert_eq!(created.0, StatusCode::CREATED);
+    (
+        created.1["id"].as_str().expect("id").to_string(),
+        created.1["revision_id"]
+            .as_str()
+            .expect("revision")
+            .to_string(),
+    )
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn sets_flow(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (session, desktop) = owner_and_desktop(&app).await;
+    let (grace, grace_revision) = create_song(&app, &session, "Amazing Grace").await;
+    let (vision, _) = create_song(&app, &session, "Be Thou My Vision").await;
+
+    // A desktop creates a set offline with its own id, then uploads it.
+    let set_id = uuid::Uuid::new_v4().to_string();
+    let created = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&desktop),
+        Some(json!({
+            "id": set_id,
+            "name": "  Sunday morning ",
+            "service_date": "2026-10-04",
+            "items": [
+                { "kind": "song", "song_id": grace, "transpose": 2, "note": "Capo 2" },
+                { "kind": "blank" }
+            ]
+        })),
+    )
+    .await;
+    assert_eq!(created.0, StatusCode::CREATED);
+    assert_eq!(created.1["id"], set_id);
+    assert_eq!(created.1["name"], "Sunday morning");
+    assert_eq!(created.1["version"], 1);
+    assert_eq!(created.1["items"][0]["song"]["title"], "Amazing Grace");
+    assert_eq!(created.1["items"][0]["song"]["revision_id"], grace_revision);
+    assert_eq!(created.1["items"][0]["transpose"], 2);
+    assert_eq!(created.1["items"][1]["kind"], "blank");
+    let grace_item = created.1["items"][0]["id"].clone();
+
+    // Uploading the same offline set twice does not create a second one.
+    let again = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&desktop),
+        Some(json!({ "id": set_id, "name": "Duplicate" })),
+    )
+    .await;
+    assert_eq!(again.0, StatusCode::CONFLICT);
+
+    // A leader on a phone reorders it, keeping item identity.
+    let updated = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/sets/{set_id}"),
+        Some(&session),
+        Some(json!({
+            "base_version": 1,
+            "name": "Sunday morning",
+            "service_date": "2026-10-04",
+            "items": [
+                { "kind": "song", "song_id": vision },
+                { "id": grace_item, "kind": "song", "song_id": grace, "transpose": 2 }
+            ]
+        })),
+    )
+    .await;
+    assert_eq!(updated.0, StatusCode::OK);
+    assert_eq!(updated.1["version"], 2);
+    assert_eq!(updated.1["items"][1]["id"], grace_item);
+    assert_eq!(updated.1["items"][0]["song"]["title"], "Be Thou My Vision");
+
+    // The desktop's edit based on version 1 is refused, not merged.
+    let stale = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/sets/{set_id}"),
+        Some(&desktop),
+        Some(json!({ "base_version": 1, "name": "Old", "items": [] })),
+    )
+    .await;
+    assert_eq!(stale.0, StatusCode::CONFLICT);
+
+    // Viewers read sets but cannot change them.
+    let viewer = viewer_session(&app, &pool).await;
+    let list = send(&app, "GET", "/api/v1/sets", Some(&viewer), None).await;
+    assert_eq!(list.0, StatusCode::OK);
+    assert_eq!(list.1[0]["item_count"], 2);
+    let refused = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&viewer),
+        Some(json!({ "name": "Mine" })),
+    )
+    .await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+
+    // Songs must exist in this library; bad shapes are rejected.
+    let unknown = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&session),
+        Some(
+            json!({ "name": "X", "items": [{ "kind": "song", "song_id": uuid::Uuid::new_v4() }] }),
+        ),
+    )
+    .await;
+    assert_eq!(unknown.0, StatusCode::BAD_REQUEST);
+    let no_song = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&session),
+        Some(json!({ "name": "X", "items": [{ "kind": "song" }] })),
+    )
+    .await;
+    assert_eq!(no_song.0, StatusCode::BAD_REQUEST);
+    let transpose = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&session),
+        Some(json!({ "name": "X", "items": [{ "kind": "song", "song_id": grace, "transpose": 12 }] })),
+    )
+    .await;
+    assert_eq!(transpose.0, StatusCode::BAD_REQUEST);
+
+    // A deleted song stays in the set without its details.
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{vision}"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    let snapshot = send(&app, "GET", "/api/v1/sets/snapshot", Some(&desktop), None).await;
+    assert_eq!(snapshot.0, StatusCode::OK);
+    assert_eq!(snapshot.1.as_array().map(Vec::len), Some(1));
+    assert_eq!(snapshot.1[0]["items"][0]["song"], Value::Null);
+    assert_eq!(snapshot.1[0]["items"][1]["song"]["title"], "Amazing Grace");
+
+    // Deleting needs the current version when one is given.
+    let stale_delete = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/sets/{set_id}?base_version=1"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(stale_delete.0, StatusCode::CONFLICT);
+    let removed = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/sets/{set_id}?base_version=2"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(removed.0, StatusCode::NO_CONTENT);
+    let gone = send(
+        &app,
+        "GET",
+        &format!("/api/v1/sets/{set_id}"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(gone.0, StatusCode::NOT_FOUND);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn remote_control_flow(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (session, desktop) = owner_and_desktop(&app).await;
+    let (song, _) = create_song(&app, &session, "Amazing Grace").await;
+
+    // Nothing is online yet.
+    let none = send(&app, "GET", "/api/v1/remote/desktops", Some(&session), None).await;
+    assert_eq!(none.1, json!([]));
+
+    // Only desktop tokens report state.
+    let not_device = send(
+        &app,
+        "PUT",
+        "/api/v1/remote/desktop",
+        Some(&session),
+        Some(json!({ "accepts_commands": true })),
+    )
+    .await;
+    assert_eq!(not_device.0, StatusCode::FORBIDDEN);
+
+    let report = send(
+        &app,
+        "PUT",
+        "/api/v1/remote/desktop",
+        Some(&desktop),
+        Some(json!({
+            "accepts_commands": false,
+            "projecting": true,
+            "song_title": "Amazing Grace",
+            "slide_index": 0,
+            "slide_labels": ["Verse 1", "Chorus"]
+        })),
+    )
+    .await;
+    assert_eq!(report.0, StatusCode::NO_CONTENT);
+    let listed = send(&app, "GET", "/api/v1/remote/desktops", Some(&session), None).await;
+    assert_eq!(listed.1[0]["name"], "Sanctuary PC");
+    assert_eq!(listed.1[0]["online"], true);
+    assert_eq!(listed.1[0]["state"]["slide_labels"][1], "Chorus");
+    let device_id = listed.1[0]["device_id"]
+        .as_str()
+        .expect("device id")
+        .to_string();
+    let commands_uri = format!("/api/v1/remote/desktops/{device_id}/commands");
+
+    // The operator has not allowed remote control.
+    let refused = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "next" })),
+    )
+    .await;
+    assert_eq!(refused.0, StatusCode::CONFLICT);
+
+    send(
+        &app,
+        "PUT",
+        "/api/v1/remote/desktop",
+        Some(&desktop),
+        Some(json!({ "accepts_commands": true })),
+    )
+    .await;
+    let sent = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "next" })),
+    )
+    .await;
+    assert_eq!(sent.0, StatusCode::ACCEPTED);
+    assert_eq!(sent.1["issued_by"], "Test Owner");
+    let project = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "project_song", "song_id": song })),
+    )
+    .await;
+    assert_eq!(project.0, StatusCode::ACCEPTED);
+    let missing = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "show_slide" })),
+    )
+    .await;
+    assert_eq!(missing.0, StatusCode::BAD_REQUEST);
+
+    // Viewers watch but do not steer.
+    let viewer = viewer_session(&app, &pool).await;
+    let viewer_list = send(&app, "GET", "/api/v1/remote/desktops", Some(&viewer), None).await;
+    assert_eq!(viewer_list.0, StatusCode::OK);
+    let viewer_command = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&viewer),
+        Some(json!({ "action": "blank" })),
+    )
+    .await;
+    assert_eq!(viewer_command.0, StatusCode::FORBIDDEN);
+
+    // The desktop receives the queued commands in order, once.
+    let received = send(
+        &app,
+        "GET",
+        "/api/v1/remote/desktop/commands",
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(received.0, StatusCode::OK);
+    assert_eq!(received.1[0]["action"], "next");
+    assert_eq!(received.1[1]["action"], "project_song");
+    assert_eq!(received.1[1]["song_id"], song);
+    let empty = send(
+        &app,
+        "GET",
+        "/api/v1/remote/desktop/commands?wait=0",
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(empty.1, json!([]));
+
+    // A long poll wakes up when a command arrives.
+    let waiter = {
+        let app = app.clone();
+        let desktop = desktop.clone();
+        tokio::spawn(async move {
+            send(
+                &app,
+                "GET",
+                "/api/v1/remote/desktop/commands?wait=10",
+                Some(&desktop),
+                None,
+            )
+            .await
+        })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    let started = std::time::Instant::now();
+    send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "blank" })),
+    )
+    .await;
+    let woke = waiter.await.expect("waiter");
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    assert_eq!(woke.1[0]["action"], "blank");
+
+    // Leaving takes the desktop off the list's online commands path.
+    let left = send(
+        &app,
+        "DELETE",
+        "/api/v1/remote/desktop",
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(left.0, StatusCode::NO_CONTENT);
+    let offline = send(
+        &app,
+        "POST",
+        &commands_uri,
+        Some(&session),
+        Some(json!({ "action": "next" })),
+    )
+    .await;
+    assert_eq!(offline.0, StatusCode::NOT_FOUND);
+}
+
 async fn send_raw(app: &Router, uri: &str, token: &str) -> StatusCode {
     let request = Request::builder()
         .method("GET")
@@ -414,10 +853,7 @@ async fn send_raw(app: &Router, uri: &str, token: &str) -> StatusCode {
 
 fn test_app(pool: PgPool) -> Router {
     app(
-        AppState {
-            pool,
-            session_hours: 1,
-        },
+        AppState::new(pool, 1),
         PathBuf::from("directory-that-does-not-exist"),
     )
 }

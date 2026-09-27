@@ -31,8 +31,9 @@ pub struct Actor {
 }
 
 impl AuthContext {
-    /// Song create, edit and delete: leaders and editors, and desktop tokens,
-    /// which keep a church's desktops and their Visual Song Book in sync.
+    /// Church content (songs and sets) create, edit and delete: leaders and
+    /// owners, and desktop tokens, which keep a church's desktops, their sets
+    /// and their Visual Song Book in sync.
     pub fn require_song_editor(&self) -> Result<Actor, AppError> {
         if self.is_device {
             return Ok(self.actor());

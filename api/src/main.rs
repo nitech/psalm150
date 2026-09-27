@@ -24,13 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     axum::serve(
         listener,
-        app(
-            AppState {
-                pool,
-                session_hours: config.session_hours,
-            },
-            config.web_dist,
-        ),
+        app(AppState::new(pool, config.session_hours), config.web_dist),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;

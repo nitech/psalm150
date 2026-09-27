@@ -4,8 +4,10 @@ pub mod chordpro;
 pub mod config;
 pub mod error;
 pub mod models;
+pub mod remote;
+pub mod sets;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -15,6 +17,18 @@ use tower_http::{compression::CompressionLayer, services::ServeDir, trace::Trace
 pub struct AppState {
     pub pool: PgPool,
     pub session_hours: i64,
+    /// In-memory relay for remote control through the server.
+    pub remote: Arc<remote::RemoteHub>,
+}
+
+impl AppState {
+    pub fn new(pool: PgPool, session_hours: i64) -> Self {
+        Self {
+            pool,
+            session_hours,
+            remote: Arc::default(),
+        }
+    }
 }
 
 pub fn app(state: AppState, web_dist: PathBuf) -> Router {

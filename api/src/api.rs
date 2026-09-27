@@ -28,12 +28,14 @@ use crate::{
     chordpro,
     error::{AppError, ErrorBody},
     models::{
-        CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest, CreateSongRequest, DeleteSongQuery,
-        DesktopAuthCodeResponse, DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse,
-        DeviceTokenSummary, ExportManifestEntry, HealthResponse, ImportSongInput,
-        ImportSongsRequest, ImportSongsResponse, LoginRequest, RevisionSummary, Role, ServerInfo,
-        SessionResponse, SetupRequest, SetupStatus, SongDetail, SongQuery, SongSummary,
-        UpdateSongRequest,
+        CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest, CreateSetRequest,
+        CreateSongRequest, DeleteSongQuery, DesktopAuthCodeResponse, DesktopState,
+        DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse, DeviceTokenSummary,
+        ExportManifestEntry, HealthResponse, ImportSongInput, ImportSongsRequest,
+        ImportSongsResponse, LoginRequest, RemoteAction, RemoteCommand, RemoteCommandRequest,
+        RemoteDesktop, RevisionSummary, Role, ServerInfo, SessionResponse, SetDetail, SetItem,
+        SetItemInput, SetItemKind, SetSongRef, SetSummary, SetupRequest, SetupStatus, SongDetail,
+        SongQuery, SongSummary, UpdateSetRequest, UpdateSongRequest,
     },
 };
 
@@ -65,7 +67,18 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         delete_song,
         list_revisions,
         import_songs,
-        export_songs
+        export_songs,
+        crate::sets::list_sets,
+        crate::sets::sets_snapshot,
+        crate::sets::create_set,
+        crate::sets::get_set,
+        crate::sets::update_set,
+        crate::sets::delete_set,
+        crate::remote::report_desktop_state,
+        crate::remote::leave_remote,
+        crate::remote::wait_for_commands,
+        crate::remote::list_desktops,
+        crate::remote::send_command
     ),
     components(schemas(
         ErrorBody,
@@ -91,7 +104,20 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         ImportSongInput,
         ImportSongsRequest,
         ImportSongsResponse,
-        ExportManifestEntry
+        ExportManifestEntry,
+        SetItemKind,
+        SetItemInput,
+        CreateSetRequest,
+        UpdateSetRequest,
+        SetSummary,
+        SetSongRef,
+        SetItem,
+        SetDetail,
+        DesktopState,
+        RemoteDesktop,
+        RemoteAction,
+        RemoteCommandRequest,
+        RemoteCommand
     )),
     tags((name = "PSA150", description = "PSA150 Song Server"))
 )]
@@ -124,6 +150,8 @@ pub fn router() -> Router<AppState> {
             get(get_song).put(update_song).delete(delete_song),
         )
         .route("/songs/{song_id}/revisions", get(list_revisions))
+        .merge(crate::sets::router())
+        .merge(crate::remote::router())
 }
 
 pub async fn openapi() -> Json<OpenApiDocument> {
