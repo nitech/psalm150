@@ -186,6 +186,8 @@ export interface Setlist {
   name: string;
   date: string;
   items: SetlistItem[];
+  /** Server library only: the song server's copy of this set. */
+  server?: { version: number | null; dirty: boolean } | null;
 }
 
 export interface SetlistItem {
@@ -194,6 +196,28 @@ export interface SetlistItem {
   transpose?: number | null;
   arrangement?: string | null;
   id?: string | null;
+  /** Free text for the team, from a song server set. */
+  note?: string | null;
+}
+
+/** Result of synchronizing sets with the song server. */
+export interface SetSyncReport {
+  uploaded: number;
+  downloaded: number;
+  /** Names of sets whose edit on this PC was kept as a copy. */
+  conflicts: string[];
+  skipped_items: number;
+  fetched_songs: number;
+  unsupported: boolean;
+}
+
+/** A leader's phone asked (through the song server) to project a song. */
+export interface RemoteProject {
+  filename: string;
+  transpose: number;
+  set_id: string | null;
+  item_index: number | null;
+  issued_by: string;
 }
 
 export interface SongLineEdit {
@@ -257,6 +281,8 @@ export interface AppConfig {
   audience_monitor?: string | null;
   stage_monitor?: string | null;
   remote_enabled: boolean;
+  /** Leaders may steer this PC through the connected song server. */
+  server_remote_enabled?: boolean;
   remote_pin?: string | null;
   remote_port: number;
   key_format_compressed: boolean;
@@ -413,6 +439,9 @@ export const api = {
     invoke<LibraryStatus>("sign_in_server_library", { url }),
   cancelServerSignIn: () => invoke<void>("cancel_server_sign_in"),
   syncServerLibrary: () => invoke<LibraryStatus>("sync_server_library"),
+  syncServerSets: () => invoke<SetSyncReport>("sync_server_sets"),
+  setServerRemoteEnabled: (enabled: boolean) => invoke<void>("set_server_remote_enabled", { enabled }),
+  setActiveSetlist: (id: string | null) => invoke<void>("set_active_setlist", { id }),
   disconnectServerLibrary: () => invoke<void>("disconnect_server_library"),
   setWebSearchEnabled: (enabled: boolean) =>
     invoke<void>("set_web_search_enabled", { enabled }),

@@ -11,6 +11,9 @@ pub struct SetlistItem {
     pub transpose: Option<i32>,
     pub arrangement: Option<String>,
     pub id: Option<String>,
+    /// Free text for the team (from a song server set).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +30,18 @@ pub struct Setlist {
     pub name: String,
     pub date: String,
     pub items: Vec<SetlistItem>,
+    /// Present in a server library: how this setlist relates to the song
+    /// server's set with the same id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server: Option<ServerSetState>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ServerSetState {
+    /// The server version this copy is based on; `None` until first uploaded.
+    pub version: Option<i32>,
+    /// Changed on this PC and not yet accepted by the server.
+    pub dirty: bool,
 }
 
 pub struct SetlistStore {
@@ -82,6 +97,7 @@ impl SetlistStore {
             name: name.into(),
             date: date.into(),
             items: vec![],
+            server: None,
         };
         self.save(&setlist)?;
         self.active = Some(setlist.clone());
@@ -101,10 +117,33 @@ impl SetlistStore {
         let mut setlist: Setlist = serde_json::from_str(&text).map_err(|e| e.to_string())?;
         change(&mut setlist);
         self.save(&setlist)?;
-        if self.active.as_ref().is_some_and(|active| active.id == setlist.id) {
+        if self
+            .active
+            .as_ref()
+            .is_some_and(|active| active.id == setlist.id)
+        {
             self.active = Some(setlist.clone());
         }
         Ok(setlist)
+    }
+
+    /// Read one setlist without making it active.
+    pub fn get(&self, id: &str) -> Result<Setlist, String> {
+        let path = self.root.join(format!("{id}.json"));
+        let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&text).map_err(|e| e.to_string())
+    }
+
+    /// Remove a setlist file; the active copy is cleared when it matches.
+    pub fn remove(&mut self, id: &str) -> Result<(), String> {
+        let path = self.root.join(format!("{id}.json"));
+        if path.exists() {
+            fs::remove_file(path).map_err(|e| e.to_string())?;
+        }
+        if self.active.as_ref().is_some_and(|active| active.id == id) {
+            self.active = None;
+        }
+        Ok(())
     }
 
     pub fn active(&self) -> Option<&Setlist> {

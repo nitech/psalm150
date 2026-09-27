@@ -16,8 +16,10 @@ import {
   type ProjectionState,
   type ProjectionSnapshot,
   type RecoveryItem,
+  type RemoteProject,
   type RemoteStatus,
   type ServerLibraryConfig,
+  type SetSyncReport,
   type ServerSyncProgress,
   type Setlist,
   type SongDetail,
@@ -173,6 +175,7 @@ export class Psa150App extends Psa150Element {
     setlistMenuOpen: { state: true },
     newSetlistName: { state: true },
     vsbSync: { state: true },
+    serverRemoteEnabled: { state: true },
     vsbProgress: { state: true },
     vsbSyncing: { state: true },
     editorValue: { state: true },
@@ -246,6 +249,7 @@ export class Psa150App extends Psa150Element {
   declare setlistMenuOpen: boolean;
   declare newSetlistName: string;
   declare vsbSync: VsbSyncConfig | null;
+  declare serverRemoteEnabled: boolean;
   declare vsbProgress: VsbSyncProgress | null;
   declare vsbSyncing: boolean;
   declare editorValue: string;
@@ -297,6 +301,8 @@ export class Psa150App extends Psa150Element {
   private unlistenWindowResize: UnlistenFn | null = null;
   private unlistenVsbProgress: UnlistenFn | null = null;
   private unlistenVsbFinished: UnlistenFn | null = null;
+  private unlistenSetlistsChanged: UnlistenFn | null = null;
+  private unlistenRemoteProject: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
   private songsRefreshGeneration = 0;
@@ -346,6 +352,7 @@ export class Psa150App extends Psa150Element {
     this.setlistMenuOpen = false;
     this.newSetlistName = "";
     this.vsbSync = null;
+    this.serverRemoteEnabled = false;
     this.vsbProgress = null;
     this.vsbSyncing = false;
     this.editorValue = "";
@@ -461,6 +468,12 @@ export class Psa150App extends Psa150Element {
       this.unlistenVsbFinished = await listen<VsbSyncFinished>("vsb-sync-finished", (event) => {
         void this.onVsbSyncFinished(event.payload);
       });
+      this.unlistenSetlistsChanged = await listen<SetSyncReport>("setlists-changed", (event) => {
+        void this.onSetlistsChanged(event.payload);
+      });
+      this.unlistenRemoteProject = await listen<RemoteProject>("remote-project", (event) => {
+        void this.onRemoteProject(event.payload);
+      });
       this.applyProjectionSnapshot(await api.getProjectionSnapshot());
       this.shortcuts = resolveShortcuts(await api.getShortcuts().catch(() => null));
     } catch (err) {
@@ -485,6 +498,8 @@ export class Psa150App extends Psa150Element {
     this.unlistenWindowResize?.();
     this.unlistenVsbProgress?.();
     this.unlistenVsbFinished?.();
+    this.unlistenSetlistsChanged?.();
+    this.unlistenRemoteProject?.();
     document.removeEventListener("pointerdown", this.onDocumentPointerDown);
     void this.unlistenImport?.();
     void this.unlistenServerSync?.();
@@ -1189,6 +1204,7 @@ export class Psa150App extends Psa150Element {
     this.stageMonitor = config.stage_monitor ?? "";
     this.showSongNumbers = config.show_song_numbers !== false;
     this.vsbSync = config.vsb_sync ?? null;
+    this.serverRemoteEnabled = Boolean(config.server_remote_enabled);
     if (!this.webSearchEnabled) {
       this.cancelWebSearch();
     }
@@ -1646,11 +1662,53 @@ export class Psa150App extends Psa150Element {
     }
     const wanted = this.currentSetlist?.id ?? readLocal(CURRENT_SETLIST_KEY);
     this.currentSetlist = this.setlists.find((setlist) => setlist.id === wanted) ?? null;
+    void api.setActiveSetlist(this.currentSetlist?.id ?? null).catch(() => undefined);
+  }
+
+  /** Sets changed on the song server (or this PC's edits were uploaded). */
+  private async onSetlistsChanged(report: SetSyncReport) {
+    await this.refreshSetlists();
+    if (this.browseMode === "setlist") await this.refreshSongs();
+    for (const name of report.conflicts) {
+      this.showToast(`“${name}” was changed elsewhere; your changes are kept as a copy`, "info");
+    }
+    if (report.skipped_items) {
+      this.showToast(`${report.skipped_items} setlist song(s) are not on the song server and were left out`, "info");
+    }
+  }
+
+  /** A leader's phone asked to project a song or a set item. */
+  private async onRemoteProject(request: RemoteProject) {
+    try {
+      if (request.set_id) {
+        await this.refreshSetlists();
+        const setlist = this.setlists.find((candidate) => candidate.id === request.set_id);
+        if (setlist && this.currentSetlist?.id !== setlist.id) await this.chooseSetlist(setlist);
+      }
+      await this.selectSong(request.filename);
+      if (this.currentFilename !== request.filename) return;
+      await this.projectLoadedSong();
+      if (request.transpose) this.applyProjectionSnapshot(await api.setTranspose(request.transpose));
+      if (request.issued_by) this.showToast(`Projected from ${request.issued_by}'s phone`, "info");
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  private async onServerRemoteChange(enabled: boolean) {
+    try {
+      await api.setServerRemoteEnabled(enabled);
+      this.serverRemoteEnabled = enabled;
+      this.showToast(enabled ? "Leaders can now steer this PC from their phones" : "Remote control through the song server is off", enabled ? "success" : "info");
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   private async chooseSetlist(setlist: Setlist | null) {
     this.currentSetlist = setlist;
     writeLocal(CURRENT_SETLIST_KEY, setlist?.id ?? null);
+    void api.setActiveSetlist(setlist?.id ?? null).catch(() => undefined);
     if (this.browseMode === "setlist") await this.refreshSongs();
   }
 
@@ -1742,17 +1800,18 @@ export class Psa150App extends Psa150Element {
 
   /** Project the setlist song after the one on screen (or the first). */
   private async projectNextInSetlist() {
-    const files = (this.currentSetlist?.items ?? [])
-      .filter((item) => item.type === "song" && item.file)
-      .map((item) => item.file!);
-    const index = files.indexOf(this.activeSelectionId ?? "");
-    const next = files[index + 1];
+    const songs = (this.currentSetlist?.items ?? []).filter((item) => item.type === "song" && item.file);
+    const index = songs.findIndex((item) => item.file === this.activeSelectionId);
+    const next = songs[index + 1];
     if (!next) {
-      this.showToast(files.length ? "End of the setlist" : "The setlist is empty");
+      this.showToast(songs.length ? "End of the setlist" : "The setlist is empty");
       return;
     }
-    await this.selectSong(next);
-    if (this.currentFilename === next) await this.projectLoadedSong();
+    await this.selectSong(next.file!);
+    if (this.currentFilename !== next.file) return;
+    await this.projectLoadedSong();
+    // The set's key for this song (a leader may have transposed it).
+    if (next.transpose) this.applyProjectionSnapshot(await api.setTranspose(next.transpose));
   }
 
   // ── Favourites ─────────────────────────────────────────────────────────
@@ -3329,7 +3388,10 @@ export class Psa150App extends Psa150Element {
                 <button class="ghost" ?disabled=${this.serverSyncing} @click=${() => this.disconnectServerLibrary()}>${this.lastLocalSongsFolder ? "Return to local library" : "Disconnect"}</button>
               </div>
               ${this.renderServerSyncProgress()}
-              <p class="settings-hint settings-note">Synchronization adds exact local-only songs from the remembered local folder, then downloads the complete server library. Projection and browsing continue from the cache when the server is offline.</p>`
+              <p class="settings-hint settings-note">Synchronization adds exact local-only songs from the remembered local folder, then downloads the complete server library. Projection and browsing continue from the cache when the server is offline.</p>
+              <p class="settings-hint settings-note">Setlists are the church's shared sets: changes here are sent to the server, and sets made on a phone arrive within a minute. If a set was changed elsewhere at the same time, your version is kept as a copy.</p>
+              <label class="settings-check"><input type="checkbox" .checked=${this.serverRemoteEnabled} @change=${(e: Event) => this.onServerRemoteChange((e.target as HTMLInputElement).checked)} /><span>Allow remote control through the song server</span></label>
+              <p class="settings-hint">Leaders signed in to the song server can change slides, blank the screen and project songs from their phones, from anywhere. This PC stays in charge: everything also works without the server.</p>`
           : this.renderServerConnect();
         break;
       case "vsb":

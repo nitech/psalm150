@@ -1,20 +1,19 @@
 {
     "$schema": "https://schemas.local/design-tokens/v1",
     "meta": {
-      "name": "Vance Biometrics — Clinical Dashboard Design System",
-      "version": "1.0.0",
-      "description": "Design tokens and component specs reverse-engineered from a dark, data-dense clinical/biometrics dashboard featuring a 3D anatomical viewer, glassmorphic overlays, and a single lime accent over a near-black canvas.",
-      "source": "Derived from 6 provided UI renders. Color values were sampled from the images; because the renders use depth-of-field blur and glow, accent values are normalized to clean, production-ready equivalents and may differ by a few units from any original source file.",
-      "tokenModel": "Flat token model. References use the alias syntax \"{path.to.token}\". Semantic tokens alias the raw palette; component tokens alias semantic (or palette) tokens. Resolve one or two hops to get the literal value. rgba()-based tokens (borders, glass, glows) are stored as literals.",
+      "name": "PSA150 Design System",
+      "version": "1.1.0",
+      "description": "Reference design tokens and component specs for PSA150: the Psalm150 desktop console and the PSA150 Song Server web client. Near-black canvas (dark theme) or warm off-white (light theme), with one lime accent for active and selected state. The runtime source of truth is src/psa150-tokens.css, mirrored byte-for-byte in PSA150-server/web/src/psa150-tokens.css.",
+      "source": "Started from a dark dashboard reference. The values in src/psa150-tokens.css are what both PSA150 apps ship; where this file and that stylesheet differ, the stylesheet wins.",
+      "tokenModel": "Flat token model. References use the alias syntax \"{path.to.token}\". Semantic tokens alias the raw palette; component tokens alias semantic (or palette) tokens. rgba()-based tokens (borders, glass, glows) are stored as literals.",
       "designPrinciples": [
-        "Near-black canvas with layered dark surfaces; the data is the light source.",
-        "A single lime/chartreuse accent (#C6D88C) signals active state, selection, and 'optimal'. Used sparingly.",
-        "Semaphore status system: lime/green = good, amber/gold = caution, red = alert. Surfaced as a 3px indicator bar on every metric.",
-        "Glassmorphism for floating layers (detail popups, anatomy tags, image folders): translucent dark fill + backdrop blur + soft hairline border.",
-        "Depth communicated through blur and colored glow (danger = red radial glow) rather than heavy shadows.",
-        "Generous corner radii (16–24px on surfaces, full pills on controls).",
-        "Light-weight numerals (weight 300) at large sizes for metric values, with units in muted secondary gray.",
-        "Quiet UI chrome (low-contrast labels, hairline borders) so anomalies and accents read instantly."
+        "Dark by default for the operator console; a light theme with the same accent for daylight use of the web client.",
+        "A single lime accent (#C6D88C) signals active state and selection. Used sparingly; in the light theme, accent text uses the deeper #5F6F2A.",
+        "Status colours: green = done or saved, amber = caution, red = danger or destructive.",
+        "Glass (translucent fill, backdrop blur, hairline border) only for floating layers such as dialogs and toolbars.",
+        "Generous corner radii (16-24px on surfaces, full pills on controls).",
+        "Quiet chrome with low-contrast labels and hairline borders, so lyrics, chords and the live state read first.",
+        "The same words and icons in both apps: song, set, key, section, project, blank."
       ]
     },
   

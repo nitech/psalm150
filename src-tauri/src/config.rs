@@ -34,6 +34,10 @@ pub struct AppConfig {
     pub audience_monitor: Option<String>,
     pub stage_monitor: Option<String>,
     pub remote_enabled: bool,
+    /// Let leaders steer this desktop from their phones through the
+    /// connected song server (opt-in, server library only).
+    #[serde(default)]
+    pub server_remote_enabled: bool,
     pub remote_pin: Option<String>,
     pub remote_port: u16,
     pub key_format_compressed: bool,
@@ -65,6 +69,7 @@ impl Default for AppConfig {
             audience_monitor: None,
             stage_monitor: None,
             remote_enabled: false,
+            server_remote_enabled: false,
             remote_pin: None,
             remote_port: 8757,
             key_format_compressed: false,

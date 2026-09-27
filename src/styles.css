@@ -1,40 +1,44 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Psalm150 — Vance Biometrics Clinical Dashboard Design System
-   Tokens (color, type, radii, shadow, motion) mirror designsystem.json:
-   near-black canvas, single muted-lime accent (#C6D88C), glassmorphic overlays.
+   Psalm150 console styles.
+   Colours, type, radii and motion come from the shared PSA150 design tokens
+   (psa150-tokens.css, mirrored in the PSA150 Song Server web client). The
+   names below are the console's own aliases for those tokens; the console
+   always uses the dark theme (index.html sets data-theme="dark").
    ───────────────────────────────────────────────────────────────────────────── */
+
+@import "./psa150-tokens.css";
 
 :root {
   color-scheme: dark;
 
-  /* Core palette — Vance Biometrics clinical dashboard */
-  --bg-deep: #060606;        /* canvas (neutral black) */
-  --bg-canvas: #060606;
-  --bg-surface: #1e1e1e;     /* neutral 800 — surface */
-  --bg-elevated: #242424;    /* neutral 750 — raised */
-  --bg-subtle: #141414;      /* neutral 900 — sunken control */
-  --bg-muted: #0c0c0c;       /* neutral 950 — deep sunken */
-  --bg-glass: rgba(28, 28, 28, 0.72);
-  --bg-scrim: rgba(0, 0, 0, 0.55);
+  /* Surfaces */
+  --bg-deep: var(--psa-bg-canvas);
+  --bg-canvas: var(--psa-bg-canvas);
+  --bg-surface: var(--psa-bg-surface);
+  --bg-elevated: var(--psa-bg-elevated);
+  --bg-subtle: var(--psa-bg-subtle);
+  --bg-muted: var(--psa-bg-sunken);
+  --bg-glass: var(--psa-bg-glass);
+  --bg-scrim: var(--psa-bg-scrim);
 
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-subtle: var(--psa-border-subtle);
+  --border-default: var(--psa-border);
+  --border-strong: var(--psa-border-strong);
 
-  --text-primary: #ffffff;
-  --text-strong: #f4f4f4;
-  --text-secondary: #9a9a9a;
-  --text-tertiary: #6a6a6a;
-  --text-placeholder: #555555;
+  --text-primary: var(--psa-text);
+  --text-strong: var(--psa-text-strong);
+  --text-secondary: var(--psa-text-secondary);
+  --text-tertiary: var(--psa-text-tertiary);
+  --text-placeholder: var(--psa-text-placeholder);
 
-  /* Lime accent (#C6D88C) — active / selected / optimal, used sparingly */
-  --accent-lime: #c6d88c;
-  --accent-lime-bright: #cfe09b;   /* hover (lime 300) */
-  --accent-lime-pressed: #b3c977;  /* pressed (lime 500) */
-  --accent-lime-soft: rgba(198, 216, 140, 0.12);
-  --accent-lime-medium: rgba(198, 216, 140, 0.22);
-  --accent-lime-glow: rgba(198, 216, 140, 0.25);
-  --accent-on: #1a1a1a;            /* text / icon on lime (neutral 850) */
+  /* PSA150 accent: active / selected, used sparingly */
+  --accent-lime: var(--psa-accent);
+  --accent-lime-bright: var(--psa-accent-hover);
+  --accent-lime-pressed: var(--psa-accent-pressed);
+  --accent-lime-soft: var(--psa-accent-soft);
+  --accent-lime-medium: var(--psa-accent-medium);
+  --accent-lime-glow: var(--psa-accent-glow);
+  --accent-on: var(--psa-on-accent);
 
   /* Legacy token aliases */
   --accent-primary: var(--accent-lime);
@@ -42,22 +46,22 @@
   --accent-primary-medium: var(--accent-lime-medium);
   --accent-primary-glow: var(--accent-lime-glow);
 
-  --accent-secondary: #46c081;   /* green 400 — positive */
-  --accent-secondary-soft: rgba(70, 192, 129, 0.12);
+  --accent-secondary: var(--psa-positive);
+  --accent-secondary-soft: var(--psa-positive-soft);
 
-  --accent-warm: #e0454c;        /* red 500 — danger */
-  --accent-warm-soft: rgba(224, 69, 76, 0.12);
+  --accent-warm: var(--psa-danger);
+  --accent-warm-soft: var(--psa-danger-soft);
 
-  --success: #c6d88c;            /* optimal */
-  --positive: #46c081;           /* green 400 */
-  --warning: #d0c24c;            /* amber 500 — caution */
-  --error: #e0454c;              /* red 500 — alert */
+  --success: var(--psa-accent);
+  --positive: var(--psa-positive);
+  --warning: var(--psa-warning);
+  --error: var(--psa-danger);
 
   /* Effects */
-  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-xs: var(--psa-shadow-sm);
+  --shadow-sm: var(--psa-shadow-sm);
+  --shadow-md: var(--psa-shadow-md);
+  --shadow-lg: var(--psa-shadow-lg);
   --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.6);
   --shadow-glow: 0 0 24px var(--accent-lime-glow);
   --glow-danger: 0 0 40px rgba(224, 69, 76, 0.35);
@@ -65,26 +69,26 @@
   /* Shared height of the search heading and the song-name heading. */
   --pane-head-height: 73px;
 
-  --radius-xs: 8px;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
-  --radius-xl: 24px;
+  --radius-xs: var(--psa-radius-xs);
+  --radius-sm: var(--psa-radius-sm);
+  --radius-md: var(--psa-radius-md);
+  --radius-lg: var(--psa-radius-lg);
+  --radius-xl: var(--psa-radius-xl);
   --radius-2xl: 28px;
-  --radius-full: 9999px;
+  --radius-full: var(--psa-radius-full);
 
   --blur-glass: blur(20px);
 
-  /* Motion — calm, precise */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-decelerate: cubic-bezier(0, 0, 0, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
+  /* Motion */
+  --ease-standard: var(--psa-ease-standard);
+  --ease-decelerate: var(--psa-ease-decelerate);
+  --dur-fast: var(--psa-dur-fast);
+  --dur-base: var(--psa-dur-base);
 
-  /* Typography — neo-grotesque with light-weight numerals */
-  --font-ui: "Geist", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Geist", "Inter", system-ui, sans-serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  /* Typography */
+  --font-ui: var(--psa-font-ui);
+  --font-display: var(--psa-font-display);
+  --font-mono: var(--psa-font-mono);
 
   font-family: var(--font-ui);
   background: var(--bg-canvas);

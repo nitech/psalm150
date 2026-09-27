@@ -248,6 +248,16 @@ pub(crate) async fn synchronize(
         runtime.config.save(app)
     })?;
 
+    // Sets refer to the songs just downloaded; bring them in step too. A
+    // failure here leaves the song library usable.
+    match crate::commands::server_sets::sync_sets(app, state).await {
+        Ok(Some(report)) => {
+            let _ = app.emit("setlists-changed", &report);
+        }
+        Ok(None) => {}
+        Err(error) => eprintln!("[server] set sync failed: {error}"),
+    }
+
     emit_sync_progress(
         app,
         "activating",
@@ -540,7 +550,7 @@ pub(crate) fn read_manifest(
         .unwrap_or_default()
 }
 
-fn write_manifest(
+pub(crate) fn write_manifest(
     app: &AppHandle,
     server_url: &str,
     manifest: &std::collections::HashMap<String, crate::vsb_sync::ServerSongRef>,

@@ -178,6 +178,8 @@ pub fn run() {
             });
 
             commands::vsb_sync_cmd::spawn_background_sync(app.handle());
+            commands::server_sets::spawn_background(app.handle());
+            commands::server_remote::spawn_background(app.handle());
 
             if let Some(ref folder) = config.last_songs_folder {
                 let path = PathBuf::from(folder);
@@ -288,6 +290,9 @@ pub fn run() {
             commands::setlist_cmd::add_to_setlist,
             commands::setlist_cmd::remove_from_setlist,
             commands::setlist_cmd::format_short_date,
+            commands::setlist_cmd::set_active_setlist,
+            commands::server_sets::sync_server_sets,
+            commands::server_remote::set_server_remote_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
