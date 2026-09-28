@@ -1,8 +1,8 @@
 name: Shared UI
 
 # Fails when src/shared/ drifts from the song server's shared/ folder.
-# The server repo is private, so this needs a PSA150_SERVER_TOKEN secret: a
-# fine-grained token with read access to the contents of nitech/PSA150-server.
+# The server repo is private, so this needs a PSA150_SERVER_DEPLOY_KEY secret:
+# the private half of a read-only deploy key on nitech/PSA150-server.
 # Without the secret the check is skipped with a warning.
 
 on:
@@ -13,22 +13,22 @@ jobs:
   check:
     runs-on: ubuntu-latest
     env:
-      SERVER_TOKEN: ${{ secrets.PSA150_SERVER_TOKEN }}
+      SERVER_KEY: ${{ secrets.PSA150_SERVER_DEPLOY_KEY }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Skip without a server token
-        if: env.SERVER_TOKEN == ''
-        run: echo "::warning::PSA150_SERVER_TOKEN is not set; shared UI check skipped."
+      - name: Skip without a server key
+        if: env.SERVER_KEY == ''
+        run: echo "::warning::PSA150_SERVER_DEPLOY_KEY is not set; shared UI check skipped."
 
       - uses: actions/checkout@v4
-        if: env.SERVER_TOKEN != ''
+        if: env.SERVER_KEY != ''
         with:
           repository: nitech/PSA150-server
-          token: ${{ env.SERVER_TOKEN }}
+          ssh-key: ${{ env.SERVER_KEY }}
           path: server
           sparse-checkout: shared
 
       - name: Compare src/shared/ with the server
-        if: env.SERVER_TOKEN != ''
+        if: env.SERVER_KEY != ''
         run: PSA150_SERVER_DIR=server node scripts/sync-shared.mjs --check

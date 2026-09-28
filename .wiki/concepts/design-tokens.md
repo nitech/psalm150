@@ -33,8 +33,8 @@ next to `shared/icons.ts` (icon paths). This repo keeps a mirror of both in
 `src/shared/`: `bun run sync:shared` copies them from a server checkout
 (`../PSA150-server`, or `PSA150_SERVER_DIR`) and `bun run check:shared`
 fails when they differ. The `Shared UI` workflow runs the check on every
-push; it needs a `PSA150_SERVER_TOKEN` secret with read access to the server
-repo and is skipped with a warning without one. Edit the files in the server
+push; it needs a `PSA150_SERVER_DEPLOY_KEY` secret (a read-only deploy key on the server
+repo) and is skipped with a warning without one. Edit the files in the server
 repo, never in the mirror. `src/icons.ts` wraps the shared paths in Lit.
 
 It defines only `--psa-*` custom properties:

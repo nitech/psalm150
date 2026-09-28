@@ -1,7 +1,7 @@
 # Directory Update Log
 
 ## 2026-09-28
-* **Shared UI assets**: The song server repo's `shared/` folder is now canonical for the design tokens and icon paths. This repo mirrors them in `src/shared/` (`bun run sync:shared`); `bun run check:shared` and the new `Shared UI` workflow fail when the mirror drifts (the workflow needs a `PSA150_SERVER_TOKEN` secret). `src/icons.ts` wraps the shared paths with Lit's `unsafeSVG`; the console's icons are unchanged. Pages touched: [design tokens](concepts/design-tokens.md), gaps, operator-console, index.
+* **Shared UI assets**: The song server repo's `shared/` folder is now canonical for the design tokens and icon paths. This repo mirrors them in `src/shared/` (`bun run sync:shared`); `bun run check:shared` and the new `Shared UI` workflow fail when the mirror drifts (the workflow reads the server repo with the `PSA150_SERVER_DEPLOY_KEY` secret, a read-only deploy key). `src/icons.ts` wraps the shared paths with Lit's `unsafeSVG`; the console's icons are unchanged. Pages touched: [design tokens](concepts/design-tokens.md), gaps, operator-console, index.
 
 ## 2026-09-27
 * **Creation**: [Design tokens](concepts/design-tokens.md) page. `src/psa150-tokens.css` holds the shared `--psa-*` tokens (dark and light themes), mirrored byte-for-byte in the song server's `web/src/psa150-tokens.css`; `styles.css` imports it and keeps its own names as aliases; `index.html`, `audience.html` and `stage.html` set `data-theme="dark"`. `designsystem.json` is now the "PSA150 Design System" reference and names the stylesheet as the source of truth.
