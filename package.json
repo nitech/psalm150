@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "tauri": "node scripts/tauri.mjs",
     "test": "vitest run",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "sync:shared": "node scripts/sync-shared.mjs",
+    "check:shared": "node scripts/sync-shared.mjs --check"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",

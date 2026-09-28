@@ -30,7 +30,7 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 # Platform
 
 * [Config and theme](concepts/config.md) - `config.json` fields with consumers, per-library `SlideTheme`, stored-but-unused settings
-* [Design tokens](concepts/design-tokens.md) - Shared `psa150-tokens.css` mirrored in the song server, dark/light themes, console aliases, `designsystem.json` as reference
+* [Design tokens](concepts/design-tokens.md) - Shared `psa150-tokens.css` and icons mirrored from the song server in `src/shared/`, dark/light themes, console aliases, `designsystem.json` as reference
 * [IPC contract](concepts/ipc-contract.md) - Every Tauri command and event, grouped, with whether the UI calls it
 * [Remote control](concepts/remote-control.md) - PIN-guarded LAN remote for next/prev/blank, and the opt-in song server remote that also projects songs and set items
 * [Reports](concepts/reports.md) - CCLI usage log and CSV export, printable songbook HTML

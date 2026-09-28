@@ -1,12 +1,12 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Psalm150 console styles.
    Colours, type, radii and motion come from the shared PSA150 design tokens
-   (psa150-tokens.css, mirrored in the PSA150 Song Server web client). The
+   (shared/psa150-tokens.css, mirrored from the PSA150 Song Server). The
    names below are the console's own aliases for those tokens; the console
    always uses the dark theme (index.html sets data-theme="dark").
    ───────────────────────────────────────────────────────────────────────────── */
 
-@import "./psa150-tokens.css";
+@import "./shared/psa150-tokens.css";
 
 :root {
   color-scheme: dark;

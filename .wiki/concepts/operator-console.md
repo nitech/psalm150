@@ -24,7 +24,7 @@ sources:
     resource: /src/styles.css
     title: Console aliases for the shared tokens, layout
   - id: tokens
-    resource: /src/psa150-tokens.css
+    resource: /src/shared/psa150-tokens.css
     title: Shared PSA150 design tokens
   - id: stanza-number-input
     resource: /src/stanza-number-input.ts

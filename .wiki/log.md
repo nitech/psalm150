@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-09-28
+* **Shared UI assets**: The song server repo's `shared/` folder is now canonical for the design tokens and icon paths. This repo mirrors them in `src/shared/` (`bun run sync:shared`); `bun run check:shared` and the new `Shared UI` workflow fail when the mirror drifts (the workflow needs a `PSA150_SERVER_TOKEN` secret). `src/icons.ts` wraps the shared paths with Lit's `unsafeSVG`; the console's icons are unchanged. Pages touched: [design tokens](concepts/design-tokens.md), gaps, operator-console, index.
+
 ## 2026-09-27
 * **Creation**: [Design tokens](concepts/design-tokens.md) page. `src/psa150-tokens.css` holds the shared `--psa-*` tokens (dark and light themes), mirrored byte-for-byte in the song server's `web/src/psa150-tokens.css`; `styles.css` imports it and keeps its own names as aliases; `index.html`, `audience.html` and `stage.html` set `data-theme="dark"`. `designsystem.json` is now the "PSA150 Design System" reference and names the stylesheet as the source of truth.
 * **Sync**: Sets sync ([server library](concepts/server-library.md#sets), [setlists](concepts/setlists.md)): in a server library setlists mirror the church's sets (same ids, `Setlist.server { version, dirty }`, `SetlistItem.note`). Edits are marked dirty and uploaded (`POST` with the id, or `PUT` with `base_version`); 409/404 keeps the server's version and saves the local edit as "<name> (changes from <computer>)"; songs not on the server are left out (`skipped_items`). Then `GET /sets/snapshot`, missing songs are fetched with `GET /songs/{id}` and indexed, and clean setlists are replaced by the server's. Runs every 60 s, after edits, after a full Synchronize and on the new `sync_server_sets`; emits `setlists-changed`.

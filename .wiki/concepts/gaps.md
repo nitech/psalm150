@@ -50,7 +50,7 @@ generated: { by: agent, at: 2026-09-27T12:00:00Z }
 - **Simulated display** is not a true miniature: the theme font is fixed px, so the 960 px window relies on the fit scaler more than a 1920 px projector would; MDB margins may be twips ([audience display](audience-display.md), [MDB import](mdb-import.md)).
 - **Reports**: CCLI export only reaches the devtools console; the songbook has no lyrics ([reports](reports.md)).
 - `history_days` and `key_format_compressed` are stored but unused ([config](config.md)).
-- **Design tokens**: the two copies of `psa150-tokens.css` (here and in the song server repo) are kept identical by hand; nothing checks them. `designsystem.json` is reference only and still carries component specs (anatomy tags, metric values, nav pills) from the original dashboard reference ([design tokens](design-tokens.md)).
+- **Design tokens**: `designsystem.json` is reference only and still carries component specs (anatomy tags, metric values, nav pills) from the original dashboard reference ([design tokens](design-tokens.md)).
 - Stray/unused: `src-tauri/2` (npm log), `.live-preview` CSS with no markup, `config::load_favorites/save_favorites`.
 
 ## Commands without UI
