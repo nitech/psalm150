@@ -1,53 +1,55 @@
 import { ApiError } from "../api.ts";
 import { emptyState, pageHead, routeQuery, type AppContext, type Cleanup } from "../context.ts";
+import { groupSets } from "../current-set.ts";
 import { icon } from "../icons.ts";
 import {
   bindReaderControls,
+  keyLabel,
   prepareSong,
   readReaderOptions,
-  readerControls,
+  readerPanel,
+  readerToggle,
   renderSongBody,
   stepTranspose,
 } from "../song-render.ts";
 import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetSummary, SongDetail } from "../types.ts";
 import {
+  dateBadge,
   errorMessage,
   escapeHtml,
   readPreference,
   serviceDate,
   setFormBusy,
   showToast,
+  startPolling,
   today,
   transposeLabel,
   writePreference,
 } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
 
-function setRow(set: SetSummary): string {
-  const [, month, day] = (set.service_date ?? "").split("-");
-  const monthName = set.service_date
-    ? new Date(Number(set.service_date.slice(0, 4)), Number(month) - 1, 1).toLocaleDateString(undefined, { month: "short" })
-    : "";
+function setRow(set: SetSummary, currentId?: string): string {
   return `<a class="list-row" href="#/sets/${set.id}">
-    <span class="date-badge">${set.service_date ? `<strong>${Number(day)}</strong><small>${escapeHtml(monthName)}</small>` : "<small>No date</small>"}</span>
-    <span class="row-main"><strong>${escapeHtml(set.name)}</strong><small>${serviceDate(set.service_date)} · ${set.item_count} ${set.item_count === 1 ? "item" : "items"}</small></span>
+    ${dateBadge(set.service_date)}
+    <span class="row-main"><strong>${escapeHtml(set.name)}${set.id === currentId ? ` <span class="badge">Current</span>` : ""}</strong><small>${serviceDate(set.service_date)} · ${set.item_count} ${set.item_count === 1 ? "item" : "items"}</small></span>
     ${icon("next")}
   </a>`;
 }
 
 export async function setList(ctx: AppContext): Promise<void> {
   const sets = await ctx.api.listSets();
-  const now = today();
-  const upcoming = sets.filter((set) => !set.service_date || set.service_date >= now).reverse();
-  const past = sets.filter((set) => set.service_date && set.service_date < now);
+  const { upcoming, undated, past } = groupSets(sets, today());
+  const currentId = ctx.currentSet.value?.id;
+  const rows = (group: SetSummary[]) => `<div class="list">${group.map((set) => setRow(set, currentId)).join("")}</div>`;
   ctx.main.innerHTML = `${pageHead({
     title: "Sets",
     subtitle: ctx.session.church_name,
     actions: ctx.canEdit ? `<a class="icon-button accent" href="#/sets/new" aria-label="New set">${icon("plus")}</a>` : "",
   })}
   ${sets.length ? "" : emptyState("No sets yet", ctx.canEdit ? "Make a set for the next service; the desktop picks it up at its next synchronization." : "Leaders make sets for each service. They will appear here.")}
-  ${upcoming.length ? `<h2 class="list-heading">Upcoming</h2><div class="list">${upcoming.map(setRow).join("")}</div>` : ""}
-  ${past.length ? `<h2 class="list-heading">Earlier</h2><div class="list">${past.map(setRow).join("")}</div>` : ""}`;
+  ${upcoming.length ? `<h2 class="list-heading">Upcoming</h2>${rows(upcoming)}` : ""}
+  ${undated.length ? `<h2 class="list-heading">No date</h2>${rows(undated)}` : ""}
+  ${past.length ? `<h2 class="list-heading">Earlier</h2>${rows(past)}` : ""}`;
 }
 
 function itemTitle(item: SetItem): string {
@@ -55,14 +57,24 @@ function itemTitle(item: SetItem): string {
   return item.song?.title ?? "Deleted song";
 }
 
-export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<void> {
+export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cleanup> {
   const set = await ctx.api.getSet(setId);
+  const over = Boolean(set.service_date && set.service_date < today());
+  const currentStatus = () => {
+    if (ctx.currentSet.value?.id === set.id) {
+      return `<p class="current-note">${icon("check")}<span>Current set on this phone${ctx.canEdit ? ": songs you add go here" : ""}.${ctx.currentSet.chosen
+        ? ` <button type="button" class="link-button" data-current="auto">Use the next service instead</button>`
+        : ""}</span></p>`;
+    }
+    return over ? "" : `<button type="button" class="button secondary small" data-current="choose">${icon("check")}Make this the current set</button>`;
+  };
   ctx.main.innerHTML = `${pageHead({
     title: set.name,
     subtitle: serviceDate(set.service_date, true),
     back: "#/sets",
-    actions: ctx.canEdit ? `<a class="icon-button" href="#/sets/${set.id}/edit" aria-label="Edit set">${icon("edit")}</a>` : "",
+    actions: ctx.canEdit ? `<a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="Edit set">${icon("edit")}</a>` : "",
   })}
+  <div id="current-status">${currentStatus()}</div>
   ${set.items.length
     ? `<a class="button primary wide" href="#/sets/${set.id}/play/0">${icon("play")}Open for the service</a>
        <ol class="list numbered">${set.items.map((item, index) => `<li>
@@ -74,6 +86,20 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<voi
         </a></li>`).join("")}</ol>`
     : emptyState("This set is empty", ctx.canEdit ? "Edit the set to add songs." : "A leader has not added songs yet.")}
   <p class="fine-print">Updated ${new Date(set.updated_at).toLocaleString()} · version ${set.version}</p>`;
+
+  const status = ctx.main.querySelector<HTMLElement>("#current-status")!;
+  status.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-current]");
+    if (!button) return;
+    void ctx.run(async () => {
+      await ctx.currentSet.choose(button.dataset.current === "choose" ? set.id : null);
+      const now = ctx.currentSet.value;
+      showToast(now ? `${now.name} is the current set.` : "No upcoming set.");
+    });
+  });
+  return ctx.currentSet.subscribe(() => {
+    status.innerHTML = currentStatus();
+  });
 }
 
 interface Draft {
@@ -87,7 +113,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     ctx.navigate(setId ? `#/sets/${setId}` : "#/sets", true);
     return;
   }
-  const existing = setId ? await ctx.api.getSet(setId) : null;
+  const existing = setId ? await ctx.api.getSet(setId, { fresh: true }) : null;
   const draft: Draft = existing
     ? {
         name: existing.name,
@@ -148,6 +174,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     list.innerHTML = draft.items.length
       ? draft.items.map((item, index) => `<li class="edit-row" data-index="${index}">
         <div class="edit-row-main">
+          <span class="grip" data-grip aria-hidden="true" title="Drag to reorder">${icon("grip")}</span>
           <span class="row-lead">${index + 1}</span>
           <span class="row-main"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.subtitle) || "&nbsp;"}</small></span>
           <div class="row-tools">
@@ -194,6 +221,43 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     }
     renderItems();
   });
+  // Drag a row by its grip to reorder; the arrow buttons stay for keyboards.
+  list.addEventListener("pointerdown", (event) => {
+    const grip = (event.target as HTMLElement).closest<HTMLElement>("[data-grip]");
+    const row = grip?.closest<HTMLElement>("[data-index]");
+    if (!grip || !row) return;
+    event.preventDefault();
+    const pointer = event.pointerId;
+    row.classList.add("dragging");
+    const rows = () => [...list.querySelectorAll<HTMLElement>("[data-index]")];
+    const move = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointer) return;
+      const before = rows().find((other) => {
+        if (other === row) return false;
+        const box = other.getBoundingClientRect();
+        return moveEvent.clientY < box.top + box.height / 2;
+      });
+      if (before) {
+        if (row.nextElementSibling !== before) list.insertBefore(row, before);
+      } else if (list.lastElementChild !== row) {
+        list.append(row);
+      }
+      if (moveEvent.clientY < 96) window.scrollBy(0, -12);
+      else if (moveEvent.clientY > window.innerHeight - 180) window.scrollBy(0, 12);
+    };
+    const end = (endEvent: PointerEvent) => {
+      if (endEvent.pointerId !== pointer) return;
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", end);
+      document.removeEventListener("pointercancel", end);
+      const order = rows().map((other) => Number(other.dataset.index));
+      draft.items = order.map((position) => draft.items[position]);
+      renderItems();
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", end);
+    document.addEventListener("pointercancel", end);
+  });
   list.addEventListener("input", (event) => {
     const input = event.target as HTMLInputElement;
     const row = input.closest<HTMLElement>("[data-index]");
@@ -204,7 +268,8 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     draft.items.push({ id: crypto.randomUUID(), kind: "blank", note: "", transpose: 0, title: "Blank screen", subtitle: "" });
     renderItems();
   });
-  form.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker(ctx, (song) => {
+  const inDraft = (songId: string) => draft.items.filter((item) => item.song_id === songId).length;
+  form.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker(ctx, inDraft, (song) => {
     draft.items.push({
       id: crypto.randomUUID(),
       kind: "song",
@@ -227,6 +292,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
         throw error;
       }
       showToast("Set deleted.");
+      void ctx.currentSet.refresh().catch(() => undefined);
       ctx.navigate("#/sets", true);
     });
   });
@@ -247,6 +313,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
         ? await ctx.api.updateSet(existing.id, existing.version, input)
         : await ctx.api.createSet(input);
       showToast(existing ? "Set saved." : "Set created.");
+      void ctx.currentSet.refresh().catch(() => undefined);
       ctx.navigate(`#/sets/${saved.id}`, true);
     } catch (error) {
       setFormBusy(form, false);
@@ -261,7 +328,11 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
 }
 
 /** Search sheet that adds songs one tap at a time and stays open. */
-function openSongPicker(ctx: AppContext, onPick: (song: { id: string; title: string; song_number: string | null }) => void): void {
+function openSongPicker(
+  ctx: AppContext,
+  inDraft: (songId: string) => number,
+  onPick: (song: { id: string; title: string; song_number: string | null }) => void,
+): void {
   const sheet = openSheet(`<h2>Add songs</h2>
     <div class="search-field">${icon("search")}<input type="search" id="picker-search" placeholder="Title, number or a line" aria-label="Search songs" autocomplete="off" enterkeyhint="search" /></div>
     <div class="list" id="picker-results"></div>
@@ -275,10 +346,13 @@ function openSongPicker(ctx: AppContext, onPick: (song: { id: string; title: str
     try {
       const songs = await ctx.api.listSongs(input.value.trim());
       if (mine !== request) return;
-      results.innerHTML = songs.slice(0, 50).map((song) => `<button class="list-row" data-song="${song.id}" data-title="${escapeHtml(song.title)}" data-number="${escapeHtml(song.song_number ?? "")}">
+      results.innerHTML = songs.slice(0, 50).map((song) => {
+        const added = inDraft(song.id) > 0;
+        return `<button class="list-row${added ? " added" : ""}" data-song="${song.id}" data-title="${escapeHtml(song.title)}" data-number="${escapeHtml(song.song_number ?? "")}">
         <span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
-        <span class="row-main"><strong>${escapeHtml(song.title)}</strong><small>${escapeHtml(song.authors || "")}</small></span>${icon("plus")}
-      </button>`).join("") || `<p class="muted pad">No songs found.</p>`;
+        <span class="row-main"><strong>${escapeHtml(song.title)}</strong><small>${added ? "Already in this set · tap to add again" : escapeHtml(song.authors || "")}</small></span>${icon(added ? "check" : "plus")}
+      </button>`;
+      }).join("") || `<p class="muted pad">No songs found.</p>`;
     } catch (error) {
       results.innerHTML = `<p class="form-message pad">${escapeHtml(errorMessage(error))}</p>`;
     }
@@ -290,10 +364,13 @@ function openSongPicker(ctx: AppContext, onPick: (song: { id: string; title: str
   results.addEventListener("click", (event) => {
     const row = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-song]");
     if (!row) return;
+    const again = row.classList.contains("added");
     onPick({ id: String(row.dataset.song), title: String(row.dataset.title), song_number: row.dataset.number || null });
     row.classList.add("added");
+    const small = row.querySelector("small");
+    if (small) small.textContent = "Already in this set · tap to add again";
     row.querySelector(".icon")?.replaceWith(document.createRange().createContextualFragment(icon("check")));
-    showToast(`Added ${row.dataset.title}.`);
+    showToast(`Added ${row.dataset.title}${again ? " again" : ""}.`);
   });
   sheet.querySelector("#picker-done")?.addEventListener("click", () => closeSheet(sheet));
   void load();
@@ -319,7 +396,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const options = readReaderOptions();
   let extraTranspose = 0;
   let following = readPreference("follow") === "on";
-  let pollTimer = 0;
   let wakeLock: { release(): Promise<void> } | null = null;
   const go = (next: number) => ctx.navigate(`#/sets/${set.id}/play/${next}`, true);
 
@@ -330,6 +406,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
 
   const song = item.kind === "song" && item.song_id ? await loadSong(ctx, songCache, item.song_id) : null;
   let desktops: RemoteDesktop[] = [];
+  let renderedTarget = "";
 
   const render = () => {
     const prev = set.items[index - 1];
@@ -337,15 +414,19 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     const transpose = stepTranspose(item.transpose, extraTranspose);
     const display = song ? prepareSong(song.chordpro, transpose) : null;
     const target = pickDesktop(desktops);
+    renderedTarget = target && ctx.canEdit ? `${target.device_id}:${target.name}` : "";
+    const key = display ? keyLabel(display, transpose) : "";
     ctx.main.innerHTML = `<div class="play">
       ${pageHead({
         title: itemTitle(item),
         subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
         back: `#/sets/${set.id}`,
-        actions: `<button class="icon-button${following ? " on" : ""}" id="follow" aria-pressed="${following}" aria-label="Follow the desktop" title="Follow the desktop">${icon("follow")}</button>`,
+        autohide: true,
+        actions: `<button class="icon-button ghost${following ? " on" : ""}" id="follow" aria-pressed="${following}" aria-label="Follow the desktop" title="Follow the desktop">${icon("follow")}</button>${display ? readerToggle(options) : ""}`,
+        panel: display ? readerPanel(display, options, transpose) : "",
       })}
+      ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
       ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
-      ${display ? readerControls(display, options, transpose) : ""}
       ${target && ctx.canEdit ? `<button class="button secondary wide" id="project-here">${icon("remote")}Project this on ${escapeHtml(target.name)}</button>` : ""}
       ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : emptyState("This song was deleted", "It is no longer in the library.")}
       <nav class="play-nav" aria-label="Set navigation">
@@ -366,7 +447,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
       following = !following;
       writePreference("follow", following ? "on" : null);
       render();
-      if (following) void poll();
+      if (following) poller.soon(0);
     });
     ctx.main.querySelector("#project-here")?.addEventListener("click", () => void ctx.run(async () => {
       const desktop = pickDesktop(desktops);
@@ -377,7 +458,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   };
 
   const poll = async () => {
-    window.clearTimeout(pollTimer);
     try {
       desktops = await ctx.api.listDesktops();
     } catch {
@@ -388,8 +468,10 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
       go(leader.state.set_item_index!);
       return;
     }
-    render();
-    pollTimer = window.setTimeout(poll, following ? 2500 : 15000);
+    // Re-render only when the "Project this" button changes, so a poll never
+    // interrupts a tap or resets the page.
+    const target = pickDesktop(desktops);
+    if ((target && ctx.canEdit ? `${target.device_id}:${target.name}` : "") !== renderedTarget) render();
   };
 
   // Swipe left/right to move through the set.
@@ -428,10 +510,10 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   lockScreen();
 
   render();
-  void poll();
+  const poller = startPolling(poll, () => (following ? 2500 : 15000));
 
   return () => {
-    window.clearTimeout(pollTimer);
+    poller.stop();
     ctx.main.removeEventListener("touchstart", touchStart);
     ctx.main.removeEventListener("touchend", touchEnd);
     document.removeEventListener("keydown", keys);

@@ -54,16 +54,19 @@ generated: { by: agent, at: 2026-09-27T12:00:00Z }
 - **Multi-architecture images** are promised. CI builds one architecture and
   publishes nothing ([build and CI](build-and-ci.md)).
 - **Name**: the client and the repo folder are Psalm150, but the crate, image,
-  env vars, token prefixes, `sessionStorage` key and README still say PSA150.
+  env vars, token prefixes, the session storage key and README still say PSA150.
   The README calls the client repo `PSA150-client`.
 
 ## Behaviour gaps seen in the code
 
 - **No logout, no session cleanup**: sign-out in the web client leaves the
   token valid, and expired sessions pile up.
-- **Sessions are per tab**: the web client keeps the session in
-  `sessionStorage`, so a phone must sign in again whenever its browser closes
-  or drops the tab, including before a service ([web client](web-client.md)).
+- **Session in localStorage**: the web client keeps the session token where
+  page scripts can read it, so it lasts across app launches. An httpOnly cookie
+  would keep it out of reach of scripts, but needs server support
+  ([web client](web-client.md)).
+- **Offline is read-only**: the installed web client shows saved songs and
+  sets offline, but edits need a connection; there is no outbox.
 - **Remote relay is in memory and single-instance**: a restart forgets every
   desktop and queued command until desktops report again, and running more
   than one server process would split desktops between them
@@ -74,8 +77,7 @@ generated: { by: agent, at: 2026-09-27T12:00:00Z }
   leaders cannot be added, and there is no password change or reset.
 - **Sign-in with several churches** always opens the oldest membership.
 - **Search** is unranked `ILIKE` over the full source (chords and directives
-  match). `%` and `_` are not escaped. The web client shows only the first 100
-  results with no paging.
+  match). `%` and `_` are not escaped.
 - **Import dedup** is by exact bytes against current revisions only.
   `filename` is ignored.
 - **Export** holds the whole ZIP in memory; beyond the id manifest it carries no metadata.

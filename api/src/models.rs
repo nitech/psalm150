@@ -115,6 +115,8 @@ pub struct ExportManifestEntry {
 pub struct SongQuery {
     pub q: Option<String>,
     pub limit: Option<i64>,
+    /// Rows to skip, for paging through a library larger than `limit`.
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow, ToSchema)]

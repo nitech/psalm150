@@ -548,7 +548,11 @@ async fn revoke_device_token(
 #[utoipa::path(
     get,
     path = "/api/v1/songs",
-    params(("q" = Option<String>, Query), ("limit" = Option<i64>, Query)),
+    params(
+        ("q" = Option<String>, Query),
+        ("limit" = Option<i64>, Query),
+        ("offset" = Option<i64>, Query)
+    ),
     responses((status = 200, body = [SongSummary]), (status = 401, body = ErrorBody))
 )]
 async fn list_songs(
@@ -560,6 +564,7 @@ async fn list_songs(
     let search = query.q.unwrap_or_default().trim().to_string();
     let pattern = format!("%{search}%");
     let limit = query.limit.unwrap_or(100).clamp(1, 200);
+    let offset = query.offset.unwrap_or(0).max(0);
 
     let songs = sqlx::query_as::<_, SongSummary>(
         "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors,
@@ -569,13 +574,14 @@ async fn list_songs(
          WHERE s.church_id = $1 AND s.deleted_at IS NULL
            AND ($2 = '' OR r.title ILIKE $3 OR r.authors ILIKE $3
                 OR coalesce(r.song_number, '') ILIKE $3 OR r.chordpro ILIKE $3)
-         ORDER BY lower(r.title), r.created_at DESC
-         LIMIT $4",
+         ORDER BY lower(r.title), r.created_at DESC, s.id
+         LIMIT $4 OFFSET $5",
     )
     .bind(auth.church_id)
     .bind(&search)
     .bind(pattern)
     .bind(limit)
+    .bind(offset)
     .fetch_all(&state.pool)
     .await?;
 

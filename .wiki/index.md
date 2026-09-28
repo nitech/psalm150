@@ -18,7 +18,7 @@ Optional, self-hosted, API-first song library for Psalm150: a Rust/Axum API on P
 
 # Operating
 
-* [Web client](concepts/web-client.md) - Mobile-first hash-routed app: song reader with chords and transpose, set editor, service view with swipe and Follow, remote screen, More (theme, import/export, desktops); role handling; storage; shared design tokens; desktop consent screen
+* [Web client](concepts/web-client.md) - Mobile-first hash-routed app: sticky bars, the current set with one-tap adding and Undo, paged song list, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and Follow, remote screen, More (install, theme, import/export, desktops); installable app with offline copies; role handling; storage; shared design tokens; desktop consent screen
 * [Deployment and config](concepts/deployment.md) - Env vars with defaults, Docker Compose, the three-stage image, headless mode, shutdown
 * [Build and CI](concepts/build-and-ci.md) - Commands per half, the API integration tests and web vitest tests and their coverage, the three CI jobs
 * [Gaps and backlog](concepts/gaps.md) - TODO status, design-vs-code differences, behaviour gaps, unused schema and endpoints

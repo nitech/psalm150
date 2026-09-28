@@ -85,9 +85,11 @@ conflict store does not exist yet. Today's 409 is the groundwork for it
 current revision's `title`, `authors`, `song_number` and the **full ChordPro
 source**. So a lyric line matches, but so does a chord name or a directive.
 `%` and `_` in the query are not escaped and act as wildcards. Results are
-unranked and sorted by `lower(title)`, then newest. `limit` defaults to 100 and
-is clamped to 1–200. The web client never sends `limit` or pages, so a library
-with more than 100 songs shows only the first 100 in title order.
+unranked and sorted by `lower(title)`, then newest, then song id, so the order
+is stable. `limit` defaults to 100 and is clamped to 1–200; `offset` (default 0,
+negative counts as 0) skips that many rows, so a client pages with
+`limit`/`offset`. The web client loads 100 at a time as you scroll
+([web client](web-client.md)).
 
 ## Not built
 

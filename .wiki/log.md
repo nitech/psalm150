@@ -1,6 +1,9 @@
 # Directory Update Log
 
 ## 2026-09-28
+* **Web client UX**: A per-phone **current set** (the next service unless one is chosen on the phone) with a bar above the tab bar, one-tap ＋/✓ on song rows and an **Add to <set>** button on the song page, each with Undo; edits read fresh and retry a 409 once. Sticky header bar (title appears once the large title scrolls away; auto-hides while reading), sticky song search, reader settings in a panel under the bar, Back restores the scroll position. Song list pages 100 at a time. Undated sets get a "No date" group. Set editor: drag by grip, picker marks songs already in the set. Polling stops while the page is hidden. Installable: favicon, touch and maskable icons, `manifest.webmanifest`, and `sw.js` caching the app, bundles and song/set reads for offline use (the current set's songs are fetched ahead). The session moved from `sessionStorage` to `localStorage`; sign-out clears cached data.
+* **API**: `GET /songs` takes `offset` for paging; order gains `s.id` as a final tiebreak.
+* Pages touched: web-client, api-contract, songs-and-revisions, auth-and-roles, gaps, index. `/docs/api.md` updated.
 * **Shared UI assets**: `shared/psa150-tokens.css` and `shared/icons.ts` are now canonical here for both apps (the desktop used to own the tokens). The web client imports them directly; the Docker build copies `shared/`. The desktop mirrors them in `src/shared/` and its CI fails when the mirror drifts. Icons merged: the web client now uses the desktop's `edit` and `blank` geometry.
 * Pages touched: web-client. `/AGENTS.md` updated to match.
 

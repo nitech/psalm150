@@ -1,4 +1,5 @@
 import type { SongServerApi } from "./api.ts";
+import type { CurrentSet } from "./current-set.ts";
 import { icon } from "./icons.ts";
 import type { Session } from "./types.ts";
 import { escapeHtml } from "./ui.ts";
@@ -9,12 +10,17 @@ export interface AppContext {
   session: Session;
   /** Owners and leaders change songs and sets and steer desktops. */
   canEdit: boolean;
+  /** The set this phone adds songs to (see `current-set.ts`). */
+  currentSet: CurrentSet;
   /** The screen's container; a view owns its contents. */
   main: HTMLElement;
   /** Go to a route such as `#/sets/…`; `replace` keeps history short. */
   navigate(route: string, replace?: boolean): void;
-  /** Runs an action with the busy state and error toasts; 401 signs out. */
-  run(action: () => Promise<void>): Promise<void>;
+  /**
+   * Runs an action with error toasts; 401 signs out. By default one action
+   * runs at a time; `exclusive: false` lets quick taps (adding songs) overlap.
+   */
+  run(action: () => Promise<void>, options?: { exclusive?: boolean }): Promise<void>;
   signOut(): void;
   /** Re-reads the theme preference and applies it. */
   applyTheme(): void;
@@ -24,23 +30,37 @@ export interface AppContext {
 export type Cleanup = () => void;
 export type View = (ctx: AppContext, params: string[]) => Promise<Cleanup | void>;
 
+/**
+ * The page's top: a sticky bar (back, actions, and the title once the large
+ * title has scrolled away) above a large title that scrolls with the page.
+ * `panel` is extra content that drops down from the bar, such as the reader
+ * settings. `autohide` slides the bar away while reading downwards.
+ */
 export function pageHead(options: {
   title: string;
   subtitle?: string;
   back?: string;
   actions?: string;
+  panel?: string;
+  autohide?: boolean;
 }): string {
-  const back = options.back
-    ? `<a class="icon-button" href="${options.back}" aria-label="Back">${icon("back")}</a>`
-    : "";
-  return `<header class="page-head">
-    ${back}
-    <div class="page-titles">
+  const titles = `<div class="page-titles">
       ${options.subtitle ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>` : ""}
       <h1>${escapeHtml(options.title)}</h1>
-    </div>
-    <div class="page-actions">${options.actions ?? ""}</div>
-  </header>`;
+    </div>`;
+  if (!options.back && !options.actions && !options.panel) return titles;
+  const back = options.back
+    ? `<a class="icon-button ghost" href="${options.back}" aria-label="Back">${icon("back")}</a>`
+    : "";
+  return `<header class="app-bar${options.autohide ? " autohide" : ""}">
+      <div class="app-bar-row">
+        ${back}
+        <p class="bar-title" aria-hidden="true">${escapeHtml(options.title)}</p>
+        <div class="page-actions">${options.actions ?? ""}</div>
+      </div>
+      ${options.panel ?? ""}
+    </header>
+    ${titles}`;
 }
 
 export function emptyState(title: string, copy: string): string {

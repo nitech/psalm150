@@ -18,6 +18,18 @@ import type {
 
 const API_ROOT = "/api/v1";
 
+/** `fetch`, with a readable error when the phone has no connection. */
+async function send(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new ApiError(
+      navigator.onLine ? "The song server did not answer. Try again." : "You are offline. Try again when you are connected.",
+      0,
+    );
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -54,9 +66,14 @@ export class SongServerApi {
     });
   }
 
-  listSongs(search = ""): Promise<SongSummary[]> {
-    const query = search ? `?q=${encodeURIComponent(search)}` : "";
-    return this.request(`/songs${query}`);
+  /** One page of songs in title order; a short page means there are no more. */
+  listSongs(search = "", page: { limit?: number; offset?: number } = {}): Promise<SongSummary[]> {
+    const query = new URLSearchParams();
+    if (search) query.set("q", search);
+    if (page.limit) query.set("limit", String(page.limit));
+    if (page.offset) query.set("offset", String(page.offset));
+    const text = query.toString();
+    return this.request(`/songs${text ? `?${text}` : ""}`);
   }
 
   getSong(id: string): Promise<SongDetail> {
@@ -81,8 +98,9 @@ export class SongServerApi {
     return this.request("/sets");
   }
 
-  getSet(id: string): Promise<SetDetail> {
-    return this.request(`/sets/${id}`);
+  /** `fresh` skips the offline copy: use it for a read that an edit builds on. */
+  getSet(id: string, options: { fresh?: boolean } = {}): Promise<SetDetail> {
+    return this.request(`/sets/${id}`, options.fresh ? { cache: "no-store" } : {});
   }
 
   createSet(input: { name: string; service_date: string | null; items: SetItemInput[] }): Promise<SetDetail> {
@@ -155,7 +173,7 @@ export class SongServerApi {
   }
 
   async exportSongs(): Promise<Blob> {
-    const response = await fetch(`${API_ROOT}/songs/export`, {
+    const response = await send(`${API_ROOT}/songs/export`, {
       headers: this.headers(false),
     });
     if (!response.ok) {
@@ -165,7 +183,7 @@ export class SongServerApi {
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${API_ROOT}${path}`, {
+    const response = await send(`${API_ROOT}${path}`, {
       ...init,
       headers: { ...this.headers(Boolean(init.body)), ...init.headers },
     });
@@ -176,7 +194,7 @@ export class SongServerApi {
   }
 
   private async requestEmpty(path: string, init: RequestInit): Promise<void> {
-    const response = await fetch(`${API_ROOT}${path}`, {
+    const response = await send(`${API_ROOT}${path}`, {
       ...init,
       headers: { ...this.headers(Boolean(init.body)), ...init.headers },
     });

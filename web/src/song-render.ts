@@ -7,6 +7,8 @@ export interface ReaderOptions {
   chords: boolean;
   /** Text scale step, -2 to 4. */
   size: number;
+  /** Whether the settings panel under the bar is open; not saved. */
+  panelOpen?: boolean;
 }
 
 export function readReaderOptions(): ReaderOptions {
@@ -65,6 +67,22 @@ export function readerControls(song: DisplaySong, options: ReaderOptions, transp
   </div>`;
 }
 
+/** The bar button that opens the reader settings panel. */
+export function readerToggle(options: ReaderOptions): string {
+  return `<button class="icon-button ghost${options.panelOpen ? " on" : ""}" data-reader="panel" aria-controls="reader-panel" aria-expanded="${Boolean(options.panelOpen)}" aria-label="Text and chords" title="Text and chords">${icon("text")}</button>`;
+}
+
+/** The reader settings, dropping down from the sticky bar. */
+export function readerPanel(song: DisplaySong, options: ReaderOptions, transpose: number | null): string {
+  return `<div class="reader-panel" id="reader-panel"${options.panelOpen ? "" : " hidden"}>${readerControls(song, options, transpose)}</div>`;
+}
+
+/** "Key G +2", or "" when the song has no key and is not transposed. */
+export function keyLabel(song: DisplaySong, transpose: number): string {
+  if (!song.key && !transpose) return "";
+  return `${song.key ? `Key ${song.key}` : "Transposed"}${transpose ? ` ${transposeLabel(transpose)}` : ""}`;
+}
+
 /**
  * Wires the controls rendered by `readerControls`. `onChange` re-renders;
  * transpose changes are reported as a step so the caller keeps its own value.
@@ -77,6 +95,13 @@ export function bindReaderControls(
   root.querySelectorAll<HTMLButtonElement>("[data-reader]").forEach((button) => {
     button.addEventListener("click", () => {
       switch (button.dataset.reader) {
+        case "panel": {
+          options.panelOpen = !options.panelOpen;
+          root.querySelector("#reader-panel")?.toggleAttribute("hidden", !options.panelOpen);
+          button.classList.toggle("on", options.panelOpen);
+          button.setAttribute("aria-expanded", String(options.panelOpen));
+          return;
+        }
         case "chords":
           options.chords = !options.chords;
           break;

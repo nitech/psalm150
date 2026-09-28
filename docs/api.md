@@ -40,7 +40,7 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `DELETE` | `/api/v1/device-tokens/{id}` | Revoke a desktop credential |
 | `POST` | `/api/v1/desktop-auth/codes` | Leader approves a desktop: one-time sign-in code for a PKCE challenge |
 | `POST` | `/api/v1/desktop-auth/token` | Desktop exchanges code and verifier for a desktop credential (no bearer) |
-| `GET` | `/api/v1/songs` | List or search current song revisions |
+| `GET` | `/api/v1/songs?q=&limit=&offset=` | List or search current song revisions in title order; page with `limit` (1–200, default 100) and `offset` |
 | `POST` | `/api/v1/songs` | Create a song and its first revision |
 | `GET` | `/api/v1/songs/{id}` | Read the current ChordPro source and metadata |
 | `PUT` | `/api/v1/songs/{id}` | Create a revision from an expected base revision |

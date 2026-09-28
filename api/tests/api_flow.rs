@@ -398,6 +398,39 @@ async fn desktop_browser_sign_in_flow(pool: PgPool) {
     assert_eq!(disabled.0, StatusCode::BAD_REQUEST);
 }
 
+#[sqlx::test(migrations = "./migrations")]
+async fn songs_page_in_title_order(pool: PgPool) {
+    let app = test_app(pool);
+    let (token, _) = owner_and_desktop(&app).await;
+    for title in ["Gamma", "Alpha", "Be Thou My Vision", "Beta"] {
+        create_song(&app, &token, title).await;
+    }
+    let titles = |page: &Value| -> Vec<String> {
+        page.as_array()
+            .expect("song page")
+            .iter()
+            .map(|song| song["title"].as_str().expect("title").to_string())
+            .collect()
+    };
+
+    // `offset` skips rows in title order (a space sorts before a letter), so
+    // pages never overlap.
+    let first = send(&app, "GET", "/api/v1/songs?limit=2", Some(&token), None).await;
+    let second = send(
+        &app,
+        "GET",
+        "/api/v1/songs?limit=2&offset=2",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(second.0, StatusCode::OK);
+    assert_eq!(titles(&first.1), ["Alpha", "Be Thou My Vision"]);
+    assert_eq!(titles(&second.1), ["Beta", "Gamma"]);
+    let past_end = send(&app, "GET", "/api/v1/songs?offset=50", Some(&token), None).await;
+    assert!(titles(&past_end.1).is_empty());
+}
+
 /// Sets up the server and returns (owner session, desktop token).
 async fn owner_and_desktop(app: &Router) -> (String, String) {
     let setup = send(

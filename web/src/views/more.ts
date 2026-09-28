@@ -1,5 +1,6 @@
 import { pageHead, type AppContext } from "../context.ts";
 import { icon } from "../icons.ts";
+import { installOption, promptInstall } from "../install.ts";
 import type { DeviceToken } from "../types.ts";
 import { errorMessage, escapeHtml, readPreference, relativeDate, setFormBusy, showToast, writePreference } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
@@ -8,6 +9,7 @@ export async function moreView(ctx: AppContext): Promise<void> {
   const theme = readPreference("theme") ?? "system";
   const devices = ctx.canEdit ? await ctx.api.listDeviceTokens() : [];
   const session = ctx.session;
+  const install = installOption();
 
   ctx.main.innerHTML = `${pageHead({ title: "More", subtitle: session.church_name })}
   <section class="card account-card">
@@ -20,6 +22,13 @@ export async function moreView(ctx: AppContext): Promise<void> {
   <div class="segmented" role="radiogroup" aria-label="Theme">
     ${["system", "light", "dark"].map((value) => `<button role="radio" aria-checked="${theme === value}" class="${theme === value ? "on" : ""}" data-theme-choice="${value}">${value === "system" ? "Automatic" : value === "light" ? "Light" : "Dark"}</button>`).join("")}
   </div>
+
+  ${install === "none" ? "" : `<h2 class="list-heading">App</h2>
+  <div class="list">
+    ${install === "prompt"
+      ? `<button class="list-row" id="install">${icon("install")}<span class="row-main"><strong>Install PSA150</strong><small>Opens like an app, stays signed in and keeps the current set for offline use</small></span></button>`
+      : `<div class="list-row static">${icon("install")}<span class="row-main"><strong>Add to your Home Screen</strong><small>In Safari, tap Share, then Add to Home Screen. It opens like an app and keeps the current set for offline use.</small></span></div>`}
+  </div>`}
 
   <h2 class="list-heading">Library</h2>
   <div class="list">
@@ -38,6 +47,10 @@ export async function moreView(ctx: AppContext): Promise<void> {
   <p class="fine-print">PSA150 Song Server · private to your church</p>`;
 
   ctx.main.querySelector("#sign-out")?.addEventListener("click", () => ctx.signOut());
+  ctx.main.querySelector("#install")?.addEventListener("click", () => void ctx.run(async () => {
+    if (await promptInstall()) showToast("PSA150 is installed.");
+    ctx.navigate("#/more", true);
+  }));
   ctx.main.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach((button) => {
     button.addEventListener("click", () => {
       const value = button.dataset.themeChoice!;

@@ -2,13 +2,13 @@ import { ApiError } from "../api.ts";
 import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.ts";
 import { icon } from "../icons.ts";
 import type { RemoteCommandRequest, RemoteDesktop, SetDetail } from "../types.ts";
-import { errorMessage, escapeHtml, relativeDate, showToast, today, writePreference } from "../ui.ts";
+import { groupSets } from "../current-set.ts";
+import { errorMessage, escapeHtml, relativeDate, showToast, startPolling, today, writePreference } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
 
 const POLL_MS = 2000;
 
 export async function remoteList(ctx: AppContext): Promise<Cleanup> {
-  let timer = 0;
   const render = (desktops: RemoteDesktop[]) => {
     ctx.main.innerHTML = `${pageHead({ title: "Remote", subtitle: ctx.session.church_name })}
     <p class="muted">Steer a projection computer from this phone. The desktop must be connected to this song server and allow remote control in its Settings.</p>
@@ -26,10 +26,10 @@ export async function remoteList(ctx: AppContext): Promise<Cleanup> {
       if (error instanceof ApiError && error.status === 401) return ctx.signOut();
       ctx.main.innerHTML = `${pageHead({ title: "Remote" })}<p class="form-message">${escapeHtml(errorMessage(error))}</p>`;
     }
-    timer = window.setTimeout(poll, POLL_MS * 2);
   };
-  await poll();
-  return () => window.clearTimeout(timer);
+  const poller = startPolling(poll, () => POLL_MS * 2);
+  await poller.first;
+  return () => poller.stop();
 }
 
 function desktopSummary(desktop: RemoteDesktop): string {
@@ -42,7 +42,6 @@ function desktopSummary(desktop: RemoteDesktop): string {
 
 export async function remoteDesktop(ctx: AppContext, [deviceId]: string[]): Promise<Cleanup> {
   writePreference("desktop", deviceId);
-  let timer = 0;
   let desktop: RemoteDesktop | undefined;
   let sending = false;
 
@@ -53,8 +52,7 @@ export async function remoteDesktop(ctx: AppContext, [deviceId]: string[]): Prom
       await ctx.api.sendRemoteCommand(desktop.device_id, command);
       if (label) showToast(label);
       // Look again soon so the new slide shows.
-      window.clearTimeout(timer);
-      timer = window.setTimeout(poll, 600);
+      poller.soon(600);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) return ctx.signOut();
       showToast(errorMessage(error), true);
@@ -109,7 +107,6 @@ export async function remoteDesktop(ctx: AppContext, [deviceId]: string[]): Prom
   };
 
   const poll = async () => {
-    window.clearTimeout(timer);
     try {
       const desktops = await ctx.api.listDesktops();
       desktop = desktops.find((entry) => entry.device_id === deviceId);
@@ -117,16 +114,17 @@ export async function remoteDesktop(ctx: AppContext, [deviceId]: string[]): Prom
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) return ctx.signOut();
     }
-    timer = window.setTimeout(poll, POLL_MS);
   };
-  await poll();
-  return () => window.clearTimeout(timer);
+  const poller = startPolling(poll, () => POLL_MS);
+  await poller.first;
+  return () => poller.stop();
 }
 
 type Send = (command: RemoteCommandRequest, label?: string) => Promise<void>;
 
 async function pickFromSet(ctx: AppContext, send: Send): Promise<void> {
-  const sets = (await ctx.api.listSets()).filter((set) => !set.service_date || set.service_date >= today()).reverse();
+  const { upcoming, undated } = groupSets(await ctx.api.listSets(), today());
+  const sets = [...upcoming, ...undated];
   const sheet = openSheet(`<h2>Project from a set</h2><div class="list" id="set-choices">
     ${sets.map((set) => `<button class="list-row" data-set="${set.id}"><span class="row-main"><strong>${escapeHtml(set.name)}</strong><small>${set.item_count} items</small></span>${icon("next")}</button>`).join("") || `<p class="muted pad">No upcoming sets.</p>`}
   </div>`);

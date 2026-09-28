@@ -31,6 +31,14 @@ export function serviceDate(value: string | null, long = false): string {
     : { weekday: "short", day: "numeric", month: "short" });
 }
 
+/** The day-and-month tile shown beside a set. */
+export function dateBadge(value: string | null): string {
+  if (!value) return `<span class="date-badge"><small>No date</small></span>`;
+  const [year, month, day] = value.split("-").map(Number);
+  const monthName = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "short" });
+  return `<span class="date-badge"><strong>${day}</strong><small>${escapeHtml(monthName)}</small></span>`;
+}
+
 /** Today as `YYYY-MM-DD` in local time. */
 export function today(): string {
   const now = new Date();
@@ -46,14 +54,82 @@ export function setFormBusy(form: HTMLElement, value: boolean): void {
 
 let toastTimer = 0;
 
-export function showToast(message: string, error = false): void {
+export interface ToastOptions {
+  error?: boolean;
+  /** A button in the toast, such as Undo. The toast then stays a little longer. */
+  action?: { label: string; run: () => void };
+}
+
+export function showToast(message: string, options: boolean | ToastOptions = false): void {
   const toast = document.querySelector<HTMLElement>("#toast");
   if (!toast) return;
-  toast.textContent = message;
+  const { error = false, action } = typeof options === "boolean" ? { error: options } : options;
+  const text = document.createElement("span");
+  text.textContent = message;
+  toast.replaceChildren(text);
+  if (action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "toast-action";
+    button.textContent = action.label;
+    button.addEventListener("click", () => {
+      toast.classList.remove("visible");
+      action.run();
+    }, { once: true });
+    toast.append(button);
+  }
   toast.classList.toggle("error", error);
+  toast.classList.toggle("has-action", Boolean(action));
   toast.classList.add("visible");
   window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => toast.classList.remove("visible"), 3200);
+  toastTimer = window.setTimeout(() => toast.classList.remove("visible"), action ? 6000 : 3200);
+}
+
+export interface Poller {
+  /** Resolves after the first tick. */
+  first: Promise<void>;
+  /** Tick again after `delay` ms instead of the usual interval. */
+  soon(delay: number): void;
+  stop(): void;
+}
+
+/**
+ * Runs `tick` now and then every `interval()` ms, but only while the page is
+ * visible: a locked phone or a background tab does not keep asking the server.
+ * Coming back to the page ticks at once.
+ */
+export function startPolling(tick: () => Promise<void>, interval: () => number): Poller {
+  let timer = 0;
+  let stopped = false;
+  let running = false;
+  const schedule = (delay: number) => {
+    window.clearTimeout(timer);
+    if (!stopped && !document.hidden) timer = window.setTimeout(run, delay);
+  };
+  const run = async (): Promise<void> => {
+    if (stopped || running) return;
+    running = true;
+    try {
+      await tick();
+    } finally {
+      running = false;
+      schedule(interval());
+    }
+  };
+  const visibility = () => {
+    if (document.hidden) window.clearTimeout(timer);
+    else void run();
+  };
+  document.addEventListener("visibilitychange", visibility);
+  return {
+    first: run(),
+    soon: (delay) => schedule(delay),
+    stop() {
+      stopped = true;
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", visibility);
+    },
+  };
 }
 
 export function transposeLabel(semitones: number): string {

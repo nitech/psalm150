@@ -155,8 +155,9 @@ explicit port; anything else shows "This desktop sign-in link is not valid".
 
 ## Not built
 
-- **No logout endpoint.** The web client's sign-out only clears
-  `sessionStorage`. The session token stays valid until it expires. Expired
+- **No logout endpoint.** The web client's sign-out only clears the stored
+  session (`localStorage`) and its cached songs and sets. The session token
+  stays valid until it expires. Expired
   rows are never deleted (only indexed by `sessions_expiry_idx`).
 - **No member management.** Only the setup owner exists. Viewers and extra
   leaders cannot be created, and passwords cannot be changed or reset.

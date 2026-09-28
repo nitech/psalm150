@@ -2,9 +2,11 @@ import "../../shared/psa150-tokens.css";
 import "./styles.css";
 import { ApiError, SongServerApi } from "./api.ts";
 import type { AppContext, Cleanup, View } from "./context.ts";
+import { CurrentSet } from "./current-set.ts";
 import { icon, type IconName } from "./icons.ts";
-import type { Session } from "./types.ts";
-import { errorMessage, escapeHtml, readPreference, setFormBusy, showToast } from "./ui.ts";
+import "./install.ts";
+import type { SetDetail, Session } from "./types.ts";
+import { dateBadge, errorMessage, escapeHtml, readPreference, setFormBusy, showToast } from "./ui.ts";
 import { moreView } from "./views/more.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
 import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
@@ -17,8 +19,12 @@ const SESSION_KEY = "psa150-server-session";
 let session = readSession();
 let busy = false;
 const api = new SongServerApi(() => session?.token ?? null);
+const currentSet = new CurrentSet(api);
+/** The first load of the current set, so the first screen can show it. */
+let currentReady: Promise<unknown> = Promise.resolve();
 
 applyTheme();
+registerServiceWorker();
 
 /**
  * A desktop asking to be connected through the browser. The desktop opens
@@ -112,7 +118,7 @@ async function submitAuth(form: HTMLFormElement, action: () => Promise<Session>)
   setFormBusy(form, true);
   try {
     session = await action();
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    storeSession(session);
     showSignedIn();
   } catch (error) {
     if (message) message.textContent = errorMessage(error);
@@ -264,12 +270,24 @@ function renderShell(): void {
     </nav>
     <main class="page" id="page" tabindex="-1"></main>
   </div>
+  <div class="dock" id="dock">
+    <p class="offline-bar" id="offline-bar" role="status" hidden>${icon("offline")}<span>Offline. Showing the songs and sets saved on this phone.</span></p>
+    <a class="current-bar" id="current-bar" hidden></a>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
 
   if (!hashListener) {
     hashListener = () => void route();
     window.addEventListener("hashchange", hashListener);
+    startShellListeners();
   }
+  currentSet.subscribe(renderCurrentBar);
+  renderCurrentBar(currentSet.value);
+  showOffline();
+  new ResizeObserver(([entry]) => {
+    document.body.style.setProperty("--dock-h", `${Math.round(entry.contentRect.height)}px`);
+  }).observe(document.querySelector("#dock")!);
+  currentReady = currentSet.refresh().catch(() => undefined);
   if (!location.hash || location.hash === "#" || location.hash === "#/") {
     history.replaceState(null, "", "#/sets");
   }
@@ -297,9 +315,11 @@ async function route(): Promise<void> {
     else tab.removeAttribute("aria-current");
   });
   document.body.dataset.route = path.split("/").slice(0, 4).join("/").replace(/[0-9a-f-]{36}/g, "id").replace(/\/\d+$/, "");
+  document.body.classList.remove("bar-away", "title-away", "scrolled");
   main.classList.add("loading");
 
   try {
+    await currentReady;
     const result = await match.entry.view(context(main), match.found.slice(1));
     if (token !== routeToken) {
       if (typeof result === "function") result();
@@ -307,7 +327,10 @@ async function route(): Promise<void> {
     }
     cleanup = result;
     main.classList.remove("loading");
-    window.scrollTo({ top: 0 });
+    // Back and Forward return to where you were; anything else starts at the top.
+    const saved = (history.state as { scrollY?: number } | null)?.scrollY;
+    window.scrollTo({ top: saved ?? 0 });
+    updateScrollState();
   } catch (error) {
     if (token !== routeToken) return;
     main.classList.remove("loading");
@@ -335,16 +358,20 @@ function context(main: HTMLElement): AppContext {
         location.hash = target;
       }
     },
+    currentSet,
     run,
     signOut,
     applyTheme,
   };
 }
 
-async function run(action: () => Promise<void>): Promise<void> {
-  if (busy) return;
-  busy = true;
-  document.body.classList.add("is-busy");
+async function run(action: () => Promise<void>, options: { exclusive?: boolean } = {}): Promise<void> {
+  const exclusive = options.exclusive ?? true;
+  if (exclusive && busy) return;
+  if (exclusive) {
+    busy = true;
+    document.body.classList.add("is-busy");
+  }
   try {
     await action();
   } catch (error) {
@@ -354,8 +381,10 @@ async function run(action: () => Promise<void>): Promise<void> {
     }
     showToast(errorMessage(error), true);
   } finally {
-    busy = false;
-    document.body.classList.remove("is-busy");
+    if (exclusive) {
+      busy = false;
+      document.body.classList.remove("is-busy");
+    }
   }
 }
 
@@ -363,7 +392,119 @@ function signOut(): void {
   if (typeof cleanup === "function") cleanup();
   cleanup = undefined;
   clearSession();
+  currentSet.clear();
+  void clearCachedData();
   renderLogin();
+}
+
+/* ── Current set bar, offline notice, scrolling ──────────────────────────── */
+
+function renderCurrentBar(set: SetDetail | null): void {
+  const bar = document.querySelector<HTMLAnchorElement>("#current-bar");
+  if (!bar) return;
+  bar.hidden = !set;
+  if (!set) return;
+  const songs = set.items.filter((item) => item.kind === "song").length;
+  const previous = bar.dataset.count;
+  bar.href = `#/sets/${set.id}`;
+  bar.dataset.count = String(songs);
+  bar.setAttribute("aria-label", `Current set: ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
+  bar.innerHTML = `${dateBadge(set.service_date)}
+    <span class="row-main"><small>Current set</small><strong>${escapeHtml(set.name)}</strong></span>
+    <span class="current-count">${songs} ${songs === 1 ? "song" : "songs"}</span>${icon("next")}`;
+  // A small pulse when a song lands in the set.
+  if (previous !== undefined && previous !== String(songs)) {
+    bar.classList.remove("bump");
+    void bar.offsetWidth;
+    bar.classList.add("bump");
+  }
+}
+
+function showOffline(): void {
+  document.querySelector<HTMLElement>("#offline-bar")?.toggleAttribute("hidden", navigator.onLine);
+}
+
+let lastScrollY = 0;
+let scrollFrame = 0;
+let scrollSaveTimer = 0;
+
+/**
+ * Scroll-driven chrome: the bar gets a border once the page moves, shows the
+ * title once the large title is under it, and (on reading screens) slides
+ * away while reading down and returns on any scroll up.
+ */
+function updateScrollState(): void {
+  const y = window.scrollY;
+  const body = document.body;
+  body.classList.toggle("scrolled", y > 4);
+  const bar = document.querySelector<HTMLElement>("#page .app-bar");
+  const title = document.querySelector<HTMLElement>("#page .page-titles h1");
+  body.classList.toggle("title-away", Boolean(bar && title && title.getBoundingClientRect().bottom < bar.offsetHeight));
+  const delta = y - lastScrollY;
+  const panelOpen = Boolean(document.querySelector("#reader-panel:not([hidden])"));
+  if (y < 160 || panelOpen) {
+    body.classList.remove("bar-away");
+    lastScrollY = y;
+  } else if (Math.abs(delta) >= 12) {
+    body.classList.toggle("bar-away", delta > 0);
+    lastScrollY = y;
+  }
+}
+
+function startShellListeners(): void {
+  history.scrollRestoration = "manual";
+  window.addEventListener("scroll", () => {
+    if (!scrollFrame) {
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        updateScrollState();
+      });
+    }
+    // Remember the position in this history entry, for Back. Safari limits
+    // how often replaceState may run, so only once scrolling settles.
+    window.clearTimeout(scrollSaveTimer);
+    scrollSaveTimer = window.setTimeout(() => {
+      try {
+        history.replaceState({ ...(history.state ?? {}), scrollY: window.scrollY }, "");
+      } catch {
+        // Too many updates; the next pause saves it.
+      }
+    }, 250);
+  }, { passive: true });
+
+  const refresh = () => {
+    if (session) void currentSet.refresh().catch(() => undefined);
+  };
+  window.addEventListener("online", () => {
+    showOffline();
+    refresh();
+  });
+  window.addEventListener("offline", showOffline);
+  // Someone may have changed the set while the phone was in a pocket.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refresh();
+  });
+}
+
+/* ── App install and offline support ─────────────────────────────────────── */
+
+function registerServiceWorker(): void {
+  if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  });
+  // The first time the worker takes over, save the current set for offline use.
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (session) void currentSet.refresh().catch(() => undefined);
+  });
+}
+
+/** Removes cached songs and sets, so the next person on this phone sees none. */
+async function clearCachedData(): Promise<void> {
+  if (!("caches" in window)) return;
+  for (const key of await caches.keys()) {
+    if (key.startsWith("psa150-api")) await caches.delete(key);
+  }
 }
 
 /** Theme preference: light, dark, or (unset) follow the system. */
@@ -393,20 +534,38 @@ function renderFatal(error: unknown): void {
   document.querySelector("#retry")?.addEventListener("click", () => location.reload());
 }
 
+/**
+ * The session lives in localStorage so an installed app, which the phone
+ * closes often, stays signed in until the session expires or you sign out.
+ * Older versions kept it in sessionStorage; it moves over on first read.
+ */
 function readSession(): Session | null {
   try {
-    const stored = sessionStorage.getItem(SESSION_KEY);
-    return stored ? JSON.parse(stored) as Session : null;
+    const stored = localStorage.getItem(SESSION_KEY) ?? sessionStorage.getItem(SESSION_KEY);
+    const parsed = stored ? JSON.parse(stored) as Session : null;
+    if (parsed) storeSession(parsed);
+    return parsed;
   } catch {
     return null;
   }
 }
 
-function clearSession(): void {
-  session = null;
+function storeSession(value: Session): void {
   try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(value));
     sessionStorage.removeItem(SESSION_KEY);
   } catch {
-    // Nothing stored.
+    // Storage is blocked: the session lasts as long as this page.
+  }
+}
+
+function clearSession(): void {
+  session = null;
+  for (const storage of [localStorage, sessionStorage]) {
+    try {
+      storage.removeItem(SESSION_KEY);
+    } catch {
+      // Nothing stored.
+    }
   }
 }

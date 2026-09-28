@@ -56,7 +56,7 @@ includes desktop tokens and viewer sessions
 | DELETE | `/device-tokens/{id}` | editor | 204 | 404 if unknown or already revoked | yes | – |
 | POST | `/desktop-auth/codes` | editor | 201 `{code, expires_at}` | Body `{device_name, code_challenge}`; name 1–120 characters after trimming; challenge 43–128 of `[A-Za-z0-9_-]`; code `psa_c_…`, valid 5 minutes | yes (consent screen) | – |
 | POST | `/desktop-auth/token` | none | 201 `{token, device_id, device_name, church_name}` | Body `{code, code_verifier}`; single use; every failure is 400 `the sign-in code is invalid or has expired` | – | yes |
-| GET | `/songs?q=&limit=` | any token | 200 `SongSummary[]` | `limit` defaults to 100, clamped to 1–200 | yes (no `limit`) | – |
+| GET | `/songs?q=&limit=&offset=` | any token | 200 `SongSummary[]` | `limit` defaults to 100, clamped to 1–200; `offset` skips rows (default 0) in title order | yes (pages of 100) | – |
 | POST | `/songs` | editor or desktop | 201 `SongSummary` | | yes | – |
 | GET | `/songs/{id}` | any token | 200 `SongDetail` | 404 when missing or in another church | yes | yes (songs a set needs that it lacks) |
 | PUT | `/songs/{id}` | editor or desktop | 200 `SongDetail` | Body `{base_revision_id, chordpro}`; 409 when the base is stale | yes | yes (VSB sync) |
