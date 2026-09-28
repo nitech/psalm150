@@ -3,6 +3,7 @@ WORKDIR /source/web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY web/ ./
+COPY shared/ /source/shared/
 RUN bun run build
 
 FROM rust:1.94-bookworm AS api-builder

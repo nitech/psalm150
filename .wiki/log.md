@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-09-28
+* **Shared UI assets**: `shared/psa150-tokens.css` and `shared/icons.ts` are now canonical here for both apps (the desktop used to own the tokens). The web client imports them directly; the Docker build copies `shared/`. The desktop mirrors them in `src/shared/` and its CI fails when the mirror drifts. Icons merged: the web client now uses the desktop's `edit` and `blank` geometry.
+* Pages touched: web-client. `/AGENTS.md` updated to match.
+
 ## 2026-09-27
 * **Sets**: Church sets (ordered song lists for a service). New `GET /sets?from=&limit=`, `GET /sets/snapshot`, `POST /sets` (optional client id, 409 when taken), `GET /sets/{id}`, `PUT /sets/{id}` (`base_version`, 409 when stale, items replaced) and `DELETE /sets/{id}?base_version=` (soft). Reads for any token; writes through `require_song_editor` (owners, leaders, desktops). Migration `0004_song_sets.sql` (`song_sets`, `song_set_items`). The desktop syncs sets through the snapshot, fetches missing songs one by one and keeps a losing edit as a copy. New page [sets](concepts/sets.md).
 * **Remote control**: In-memory relay (`AppState.remote`). Desktops `PUT`/`DELETE /remote/desktop` and long-poll `GET /remote/desktop/commands?wait=`; any token lists `GET /remote/desktops`; person leaders send `POST /remote/desktops/{device_id}/commands` (202; 404 not online, 409 not accepting). 45 s online window, 30 s command expiry, 20 queued, 24 h forget, lost on restart. New page [remote control](concepts/remote-control.md).

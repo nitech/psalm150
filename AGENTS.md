@@ -49,6 +49,6 @@ cd web && bun run test                                     # vitest
   `ApiDoc` `paths(...)` / `components(...)` lists, and `web/src/types.ts`
   mirrors `api/src/models.rs` by hand.
 - Migrations in `api/migrations/` are append-only; they run at startup.
-- `web/src/psa150-tokens.css` must stay byte-identical to the desktop's
-  `src/psa150-tokens.css` (the desktop repo is canonical); change both together.
+- `shared/` (design tokens and icons) is canonical for both apps. The desktop
+  mirrors it with `bun run sync:shared`; edit here, then sync the desktop.
 - Docs and wiki describe behaviour, not models. Say "the agent".

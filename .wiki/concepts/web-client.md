@@ -36,8 +36,11 @@ sources:
     resource: /web/src/types.ts
     title: Response types (mirrors models.rs by hand)
   - id: tokens
-    resource: /web/src/psa150-tokens.css
-    title: Shared design tokens (copy of the desktop's)
+    resource: /shared/psa150-tokens.css
+    title: Shared design tokens (canonical; the desktop mirrors them)
+  - id: shared-icons
+    resource: /shared/icons.ts
+    title: Shared icon paths (canonical; the desktop mirrors them)
   - id: styles
     resource: /web/src/styles.css
     title: Layout and components
@@ -196,9 +199,11 @@ usually starts signed out. The whole flow is in
 
 ## Design tokens and themes
 
-`web/src/psa150-tokens.css` is a byte-identical copy of the desktop's
-`src/psa150-tokens.css` (the desktop repo is canonical); change both in the
-same change set. `<html data-theme="light|dark">` picks a theme; without the
+`shared/psa150-tokens.css` (design tokens) and `shared/icons.ts` (icon paths)
+are the canonical copies for both apps. `web/src/icons.ts` wraps the paths in
+an SVG string; the desktop wraps them in Lit and keeps a mirror in its
+`src/shared/`, refreshed with `bun run sync:shared` and checked in its CI.
+Edit the files here, never in the mirror. `<html data-theme="light|dark">` picks a theme; without the
 attribute the system setting decides. "Automatic" removes the attribute. The
 `theme-color` meta follows the chosen theme.
 

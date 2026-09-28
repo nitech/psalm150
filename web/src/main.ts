@@ -1,4 +1,4 @@
-import "./psa150-tokens.css";
+import "../../shared/psa150-tokens.css";
 import "./styles.css";
 import { ApiError, SongServerApi } from "./api.ts";
 import type { AppContext, Cleanup, View } from "./context.ts";
