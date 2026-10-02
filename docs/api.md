@@ -23,6 +23,10 @@ a leader signs in and approves, and the browser returns to the loopback URL
 with a one-time `psa_c_` code (valid five minutes). The desktop exchanges that
 code and its PKCE verifier at `POST /api/v1/desktop-auth/token`.
 
+An owner may make the church's library public (`PUT /api/v1/church`). Anyone
+may then search and read its songs through `/api/v1/public/songs` without a
+bearer token. Sets, revisions, export and every write still need a token.
+
 The first owner is created through `POST /api/v1/setup`, which becomes
 unavailable after successful initialization. Passwords are hashed with Argon2.
 
@@ -31,7 +35,11 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Check API and PostgreSQL availability |
-| `GET` | `/api/v1/info` | Public ping: service name, version, `initialized`, `desktop_sign_in` |
+| `GET` | `/api/v1/info` | Public ping: service name, version, `initialized`, `desktop_sign_in`, `public_library`, `public_library_name` |
+| `GET` | `/api/v1/church` | The signed-in church and its settings (`public_library`) |
+| `PUT` | `/api/v1/church` | Owner opens the library to everyone, read only, or closes it (`{public_library}`) |
+| `GET` | `/api/v1/public/songs?q=&limit=&offset=` | Search public libraries without signing in (same paging as `/songs`) |
+| `GET` | `/api/v1/public/songs/{id}` | Read a song in a public library without signing in |
 | `GET` | `/api/v1/setup` | Determine whether first-run setup is available |
 | `POST` | `/api/v1/setup` | Create the first church, owner, and session |
 | `POST` | `/api/v1/session` | Sign in and issue a person session |

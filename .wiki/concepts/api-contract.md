@@ -26,7 +26,7 @@ sources:
   - id: webapi
     resource: /web/src/api.ts
     title: Web client wrapper
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-02T12:00:00Z }
 ---
 
 # API contract
@@ -38,7 +38,8 @@ accepts it (`CompressionLayer`). Human notes live in [/docs/api.md](../../docs/a
 
 ## Endpoints
 
-"Editor" means a person session whose role is `owner` or `leader`
+"Owner" means a person session whose role is `owner`
+(`AuthContext::require_owner`). "Editor" means a person session whose role is `owner` or `leader`
 (`AuthContext::require_editor`). "Editor or desktop" adds desktop tokens
 (`require_song_editor`). "Desktop" means a `psa_d_` token only. "Any token"
 includes desktop tokens and viewer sessions
@@ -47,7 +48,11 @@ includes desktop tokens and viewer sessions
 | Method | Path | Auth | Success | Notes | Web | Desktop |
 | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/health` | none | 200 `{status, database, version}` | Runs `SELECT 1`; a database failure gives 500 | – | – |
-| GET | `/info` | none | 200 `{service: "psalm150-song-server", version, initialized, desktop_sign_in: true}` | One query, same as `GET /setup`; the desktop's "is this a Psalm150 server?" ping | – | yes |
+| GET | `/info` | none | 200 `{service: "psalm150-song-server", version, initialized, desktop_sign_in: true, public_library, public_library_name}` | The desktop's "is this a Psalm150 server?" ping. `public_library` is true when any church's library is public; `public_library_name` is that church's name when exactly one is | yes (boot) | yes |
+| GET | `/church` | any token | 200 `{id, name, public_library}` | The caller's church | yes (owners, More) | – |
+| PUT | `/church` | owner | 200 `{id, name, public_library}` | Body `{public_library}`; 403 for leaders, viewers and desktops | yes | – |
+| GET | `/public/songs?q=&limit=&offset=` | none | 200 `SongSummary[]` | Same search and paging as `/songs`, over every church whose library is public; empty when none is | yes (signed out) | – |
+| GET | `/public/songs/{id}` | none | 200 `SongDetail` | 404 when missing, deleted or in a private library | yes (signed out) | – |
 | GET | `/setup` | none | 200 `{initialized}` | | yes | – |
 | POST | `/setup` | none | 201 `SessionResponse` | 409 once done; password at least 10 characters | yes | – |
 | POST | `/session` | none | 200 `SessionResponse` | 401 `username or password is incorrect` | yes | – |
@@ -101,7 +106,7 @@ Every error is JSON `{"error": "<message>"}` (`ErrorBody`).
 | --- | --- |
 | `BadRequest` | 400 |
 | `Unauthorized` | 401 (missing, unknown, expired or revoked token) |
-| `Forbidden` | 403 (desktop token or viewer calling an editor route; person session calling a desktop-only `/remote/desktop*` route) |
+| `Forbidden` | 403 (desktop token or viewer calling an editor route; anyone but a person owner calling `PUT /church`; person session calling a desktop-only `/remote/desktop*` route) |
 | `NotFound` | 404 |
 | `Conflict` | 409 (setup already done; stale `base_revision_id` or `base_version`; set id already taken; desktop does not accept remote control) |
 | `Database`, `Internal` | 500, logged with `tracing::error!`. The message is generic |

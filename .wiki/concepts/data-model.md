@@ -1,7 +1,7 @@
 ---
 type: Contract
 title: Data model
-description: The PostgreSQL schema from migrations 0001–0004 — tables (including song_sets and song_set_items), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
+description: The PostgreSQL schema from migrations 0001–0005 — tables (including song_sets and song_set_items, and churches.public_library), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
 tags: [postgres, schema, migrations, sqlx]
 status: stable
 sources:
@@ -14,10 +14,13 @@ sources:
   - id: mig4
     resource: /api/migrations/0004_song_sets.sql
     title: Sets
+  - id: mig5
+    resource: /api/migrations/0005_public_library.sql
+    title: Public library flag
   - id: main
     resource: /api/src/main.rs
     title: sqlx::migrate! at startup, pool size
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-02T12:00:00Z }
 ---
 
 # Data model
@@ -34,7 +37,7 @@ exist yet ([gaps](gaps.md)).
 | Table | Key | Purpose |
 | --- | --- | --- |
 | `instance_settings` | `id SMALLINT = 1` | Singleton row. Its presence means setup is done |
-| `churches` | `id` | Name and unique `slug` |
+| `churches` | `id` | Name, unique `slug`, `public_library BOOLEAN` (default false; songs readable without a token) |
 | `users` | `id` | `display_name`, `username` (unique on `lower()`), Argon2 `password_hash`, `disabled_at` |
 | `memberships` | `(user_id, church_id)` | `role` in `owner` / `leader` / `viewer` |
 | `sessions` | `token_hash CHAR(64)` | Person sessions: `church_id`, `expires_at`, `last_used_at` |
@@ -50,7 +53,9 @@ device ones reference `device_tokens(id)` with `ON DELETE SET NULL`.
 Migration `0003_desktop_auth_codes.sql` added `desktop_auth_codes`
 ([auth and roles](auth-and-roles.md#desktop-browser-sign-in)).
 Migration `0004_song_sets.sql` added `song_sets` and `song_set_items`
-([sets](sets.md)). Remote-control state is not stored in the database
+([sets](sets.md)). Migration `0005_public_library.sql` added
+`churches.public_library` ([auth and roles](auth-and-roles.md#public-library)).
+Remote-control state is not stored in the database
 ([remote control](remote-control.md)).
 
 `songs.current_revision_id` and `song_revisions.song_id` point at each other.

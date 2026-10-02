@@ -1,5 +1,5 @@
 import { ApiError } from "../api.ts";
-import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.ts";
+import { emptyState, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets, itemInputs } from "../current-set.ts";
 import { icon } from "../icons.ts";
 import {
@@ -13,7 +13,7 @@ import {
   stepTranspose,
 } from "../song-render.ts";
 import type { SongSummary } from "../types.ts";
-import { errorMessage, escapeHtml, serviceDate, setFormBusy, showToast, today } from "../ui.ts";
+import { copyText, errorMessage, escapeHtml, serviceDate, setFormBusy, showToast, today } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
 let lastSearch = "";
@@ -29,10 +29,10 @@ interface SongRef {
   title: string;
 }
 
-export async function songList(ctx: AppContext): Promise<Cleanup> {
+export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   ctx.main.innerHTML = `${pageHead({
     title: "Songs",
-    subtitle: ctx.session.church_name,
+    subtitle: ctx.libraryName,
     actions: ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song">${icon("plus")}</a>` : "",
   })}
   <div class="search-field sticky">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number, author or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>
@@ -71,7 +71,9 @@ export async function songList(ctx: AppContext): Promise<Cleanup> {
           ? html
           : emptyState(
               lastSearch ? "No songs found" : "No songs yet",
-              lastSearch ? "Try another title or a line from the lyrics." : "Import ChordPro files under More, or add a song.",
+              lastSearch
+                ? "Try another title or a line from the lyrics."
+                : ctx.canEdit ? "Import ChordPro files under More, or add a song." : "Songs will appear here once they are added.",
             );
       }
       loaded = offset + songs.length;
@@ -113,12 +115,12 @@ export async function songList(ctx: AppContext): Promise<Cleanup> {
 }
 
 /** The ＋ / ✓ button that puts a song in the current set or takes it out. */
-function addToggle(ctx: AppContext, song: SongRef): string {
+function addToggle(ctx: LibraryContext, song: SongRef): string {
   const inSet = ctx.currentSet.count(song.id) > 0;
   return `<button type="button" class="icon-button small add-toggle${inSet ? " on" : ""}" aria-pressed="${inSet}" data-add="${song.id}" data-title="${escapeHtml(song.title)}">${toggleInner(ctx, song)}</button>`;
 }
 
-function toggleInner(ctx: AppContext, song: SongRef): string {
+function toggleInner(ctx: LibraryContext, song: SongRef): string {
   const set = ctx.currentSet.value;
   const inSet = ctx.currentSet.count(song.id) > 0;
   const label = !set
@@ -127,7 +129,7 @@ function toggleInner(ctx: AppContext, song: SongRef): string {
   return `${icon(inSet ? "check" : "plus")}<span class="sr-only">${escapeHtml(label)}</span>`;
 }
 
-function refreshToggles(ctx: AppContext, root: HTMLElement): void {
+function refreshToggles(ctx: LibraryContext, root: HTMLElement): void {
   root.querySelectorAll<HTMLButtonElement>("[data-add]").forEach((button) => {
     const song = { id: button.dataset.add!, title: button.dataset.title! };
     const inSet = ctx.currentSet.count(song.id) > 0;
@@ -141,7 +143,7 @@ function refreshToggles(ctx: AppContext, root: HTMLElement): void {
  * One tap: add the song to the current set, or take it out if it is there.
  * Both show a toast with Undo. Without a current set, offers the sets.
  */
-function toggleInCurrentSet(ctx: AppContext, song: SongRef, transpose = 0): void {
+function toggleInCurrentSet(ctx: LibraryContext, song: SongRef, transpose = 0): void {
   const store = ctx.currentSet;
   const set = store.value;
   if (!set) {
@@ -165,7 +167,7 @@ function toggleInCurrentSet(ctx: AppContext, song: SongRef, transpose = 0): void
   }, { exclusive: false });
 }
 
-export async function songDetail(ctx: AppContext, [songId]: string[]): Promise<Cleanup> {
+export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promise<Cleanup> {
   const song = await ctx.api.getSong(songId);
   const options = readReaderOptions();
   let transpose = 0;
@@ -188,7 +190,7 @@ export async function songDetail(ctx: AppContext, [songId]: string[]): Promise<C
       title: song.title,
       back: "#/songs",
       autohide: true,
-      actions: `${readerToggle(options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
+      actions: `<button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
       panel: readerPanel(display, options, transpose),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
@@ -203,6 +205,10 @@ export async function songDetail(ctx: AppContext, [songId]: string[]): Promise<C
 
   ctx.main.addEventListener("click", onSetAction);
   function onSetAction(event: Event): void {
+    if ((event.target as HTMLElement).closest("#share-song")) {
+      void shareSong(ctx, song);
+      return;
+    }
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-set-act]");
     if (!button) return;
     if (button.dataset.setAct === "toggle") toggleInCurrentSet(ctx, song, transpose);
@@ -221,8 +227,18 @@ export async function songDetail(ctx: AppContext, [songId]: string[]): Promise<C
   };
 }
 
+/** Copies the song's own address, which opens it straight in the reader. */
+async function shareSong(ctx: LibraryContext, song: SongRef): Promise<void> {
+  const url = `${location.origin}${location.pathname}#/songs/${song.id}`;
+  if (!(await copyText(url))) {
+    window.prompt(`Copy this link to ${song.title}:`, url);
+    return;
+  }
+  showToast(ctx.isPublic ? "Link copied." : "Link copied. Only people who can sign in here can open it.");
+}
+
 /** Bottom sheet: append this song to any upcoming set, or start a new one. */
-export async function openAddToSet(ctx: AppContext, song: SongRef, transpose: number): Promise<void> {
+export async function openAddToSet(ctx: LibraryContext, song: SongRef, transpose: number): Promise<void> {
   const { upcoming, undated } = groupSets(await ctx.api.listSets(), today());
   const sets = [...upcoming, ...undated];
   const currentId = ctx.currentSet.value?.id;

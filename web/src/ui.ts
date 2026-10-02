@@ -52,6 +52,33 @@ export function setFormBusy(form: HTMLElement, value: boolean): void {
   form.classList.toggle("busy", value);
 }
 
+/**
+ * Puts text on the clipboard. The Clipboard API exists only on HTTPS (and
+ * localhost), so a server reached by its LAN address falls back to the older
+ * copy command. False when neither works.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.append(field);
+    field.select();
+    try {
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      field.remove();
+    }
+  }
+}
+
 let toastTimer = 0;
 
 export interface ToastOptions {

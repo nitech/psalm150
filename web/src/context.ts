@@ -4,10 +4,19 @@ import { icon } from "./icons.ts";
 import type { Session } from "./types.ts";
 import { escapeHtml } from "./ui.ts";
 
-/** What every screen gets from the shell. */
-export interface AppContext {
+/**
+ * What the song list and reader get from the shell. A visitor to a public
+ * library has no session; every other screen gets an `AppContext`.
+ */
+export interface LibraryContext {
   api: SongServerApi;
-  session: Session;
+  session: Session | null;
+  /** The church whose songs these are. */
+  libraryName: string;
+  /** Anyone may read the songs without signing in. */
+  isPublic: boolean;
+  /** Tell the shell that an owner opened or closed the library. */
+  setPublic(value: boolean): void;
   /** Owners and leaders change songs and sets and steer desktops. */
   canEdit: boolean;
   /** The set this phone adds songs to (see `current-set.ts`). */
@@ -26,9 +35,16 @@ export interface AppContext {
   applyTheme(): void;
 }
 
+/** What every signed-in screen gets from the shell. */
+export interface AppContext extends LibraryContext {
+  session: Session;
+}
+
 /** A view renders into `ctx.main` and may return a cleanup (timers, listeners). */
 export type Cleanup = () => void;
 export type View = (ctx: AppContext, params: string[]) => Promise<Cleanup | void>;
+/** A view that visitors to a public library may also open. */
+export type LibraryView = (ctx: LibraryContext, params: string[]) => Promise<Cleanup | void>;
 
 /**
  * The page's top: a sticky bar (back, actions, and the title once the large

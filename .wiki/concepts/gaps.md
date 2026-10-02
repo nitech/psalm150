@@ -21,7 +21,7 @@ sources:
   - id: remote
     resource: /api/src/remote.rs
     title: In-memory remote relay
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-02T12:00:00Z }
 ---
 
 # Gaps and backlog
@@ -31,7 +31,7 @@ generated: { by: agent, at: 2026-09-27T12:00:00Z }
 | Area | Open | Where it stands |
 | --- | --- | --- |
 | Domain | Song conflict preservation, provenance links, search languages and alternate titles | Songs have soft delete (`DELETE /songs/{id}`) but no undelete. Plans are built as [sets](sets.md), shared read-only with viewers. The rest has no schema |
-| Policy | Visibility (private/unlisted/public), publication policy, attribution and licensing | Nothing built. Every song is private to its church |
+| Policy | Visibility (private/unlisted/public), publication policy, attribution and licensing | Only an all-or-nothing switch: an owner can make the whole library public, read only ([auth and roles](auth-and-roles.md#public-library)). No per-song visibility, unlisted songs, publication policy or licensing |
 | Sync | Offline outbox, conflicts kept for review, cross-server import, portable metadata export, migration and offline-edit upload | Phase 1 merge-then-pull only ([desktop sync](desktop-sync.md)) |
 | API | Rules for compatibility and deprecation between versions; guidance for outside integrations | Only `v1` |
 | Operations | TLS and reverse-proxy docs, upgrade behaviour, backup, restore and disaster recovery, release and image signing | None |

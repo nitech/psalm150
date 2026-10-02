@@ -29,7 +29,7 @@ sources:
   - id: webmain
     resource: /web/src/main.ts
     title: Desktop consent screen
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-02T12:00:00Z }
 ---
 
 # Auth and roles
@@ -80,10 +80,22 @@ columns. The remote relay's desktop routes accept **only** a desktop token
 | List the church's desktops for remote control | yes | yes | yes |
 | Send a remote command to a desktop | yes | 403 | 403 |
 | Report state, leave, collect commands (`/remote/desktop*`) | 403 | 403 | yes ([remote control](remote-control.md)) |
+| Read church settings (`GET /church`) | yes | yes | yes |
+| Make the library public or private (`PUT /church`) | **owner only**; leaders 403 | 403 | 403 |
 
-Owner and leader behave the same today. Owner-only administration and recovery
-are designed in [/docs/architecture.md](../../docs/architecture.md) but not
-built.
+`require_owner()` admits only a person session with role `owner`. Apart from
+the public-library switch, owner and leader behave the same today. Other
+owner-only administration and recovery are designed in
+[/docs/architecture.md](../../docs/architecture.md) but not built.
+
+## Public library
+
+`churches.public_library` (default false) opens a church's songs to anyone
+without a token: `GET /public/songs` and `GET /public/songs/{id}` read the
+current revision of every live song in churches with the flag on. Nothing else
+is public: sets, revisions, export, the remote relay and every write still
+need a token. `GET /info` tells clients whether any library is public
+(`public_library`) and, when exactly one is, its church name.
 
 ## First-run setup
 

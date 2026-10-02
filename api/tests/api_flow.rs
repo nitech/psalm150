@@ -431,6 +431,97 @@ async fn songs_page_in_title_order(pool: PgPool) {
     assert!(titles(&past_end.1).is_empty());
 }
 
+#[sqlx::test(migrations = "./migrations")]
+async fn public_library_flow(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let (song_id, _) = create_song(&app, &owner, "Amazing Grace").await;
+    let song_uri = format!("/api/v1/public/songs/{song_id}");
+
+    // Private by default: nothing is readable without signing in.
+    let info = send(&app, "GET", "/api/v1/info", None, None).await;
+    assert_eq!(info.1["public_library"], false);
+    assert_eq!(info.1["public_library_name"], Value::Null);
+    let hidden = send(&app, "GET", "/api/v1/public/songs", None, None).await;
+    assert_eq!(hidden.0, StatusCode::OK);
+    assert!(hidden.1.as_array().expect("songs").is_empty());
+    let hidden = send(&app, "GET", &song_uri, None, None).await;
+    assert_eq!(hidden.0, StatusCode::NOT_FOUND);
+
+    // Only a person owner opens the library.
+    let viewer = viewer_session(&app, &pool).await;
+    for token in [&viewer, &desktop] {
+        let denied = send(
+            &app,
+            "PUT",
+            "/api/v1/church",
+            Some(token),
+            Some(json!({ "public_library": true })),
+        )
+        .await;
+        assert_eq!(denied.0, StatusCode::FORBIDDEN);
+    }
+    let church = send(&app, "GET", "/api/v1/church", Some(&viewer), None).await;
+    assert_eq!(church.1["public_library"], false);
+    let opened = send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&owner),
+        Some(json!({ "public_library": true })),
+    )
+    .await;
+    assert_eq!(opened.0, StatusCode::OK);
+    assert_eq!(opened.1["public_library"], true);
+
+    let info = send(&app, "GET", "/api/v1/info", None, None).await;
+    assert_eq!(info.1["public_library"], true);
+    assert_eq!(info.1["public_library_name"], "Test Church");
+    let found = send(&app, "GET", "/api/v1/public/songs?q=grace", None, None).await;
+    assert_eq!(found.1.as_array().expect("songs").len(), 1);
+    let song = send(&app, "GET", &song_uri, None, None).await;
+    assert_eq!(song.0, StatusCode::OK);
+    assert_eq!(song.1["title"], "Amazing Grace");
+
+    // Read only: writes and sets still need a sign-in.
+    let write = send(
+        &app,
+        "POST",
+        "/api/v1/songs",
+        None,
+        Some(json!({ "chordpro": "{title: Spam}" })),
+    )
+    .await;
+    assert_eq!(write.0, StatusCode::UNAUTHORIZED);
+    let sets = send(&app, "GET", "/api/v1/sets", None, None).await;
+    assert_eq!(sets.0, StatusCode::UNAUTHORIZED);
+
+    // Deleted songs are gone from the public library too.
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{song_id}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    let gone = send(&app, "GET", &song_uri, None, None).await;
+    assert_eq!(gone.0, StatusCode::NOT_FOUND);
+
+    let closed = send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&owner),
+        Some(json!({ "public_library": false })),
+    )
+    .await;
+    assert_eq!(closed.1["public_library"], false);
+    let info = send(&app, "GET", "/api/v1/info", None, None).await;
+    assert_eq!(info.1["public_library"], false);
+}
+
 /// Sets up the server and returns (owner session, desktop token).
 async fn owner_and_desktop(app: &Router) -> (String, String) {
     let setup = send(

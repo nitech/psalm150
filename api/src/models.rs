@@ -179,6 +179,25 @@ pub struct ServerInfo {
     pub initialized: bool,
     /// The server supports browser sign-in for desktops (`/desktop-auth/*`).
     pub desktop_sign_in: bool,
+    /// At least one church has made its library public: anyone may read it
+    /// through `/public/songs` without signing in.
+    pub public_library: bool,
+    /// The public library's church name, when exactly one church's is public.
+    pub public_library_name: Option<String>,
+}
+
+/// `GET /church`: the signed-in church and its settings.
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct ChurchSettings {
+    pub id: Uuid,
+    pub name: String,
+    /// Anyone, signed in or not, may read the songs (never the sets).
+    pub public_library: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateChurchRequest {
+    pub public_library: bool,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -1,4 +1,5 @@
 import type {
+  ChurchSettings,
   DesktopAuthCode,
   DesktopTokenResponse,
   DeviceToken,
@@ -66,18 +67,35 @@ export class SongServerApi {
     });
   }
 
-  /** One page of songs in title order; a short page means there are no more. */
+  getChurch(): Promise<ChurchSettings> {
+    return this.request("/church");
+  }
+
+  /** Owners only: open the library to anyone, read only, or close it again. */
+  updateChurch(input: { public_library: boolean }): Promise<ChurchSettings> {
+    return this.request("/church", { method: "PUT", body: JSON.stringify(input) });
+  }
+
+  /**
+   * One page of songs in title order; a short page means there are no more.
+   * Signed out, this reads the public library.
+   */
   listSongs(search = "", page: { limit?: number; offset?: number } = {}): Promise<SongSummary[]> {
     const query = new URLSearchParams();
     if (search) query.set("q", search);
     if (page.limit) query.set("limit", String(page.limit));
     if (page.offset) query.set("offset", String(page.offset));
     const text = query.toString();
-    return this.request(`/songs${text ? `?${text}` : ""}`);
+    return this.request(`${this.songsRoot()}${text ? `?${text}` : ""}`);
   }
 
+  /** Signed out, this reads the public library. */
   getSong(id: string): Promise<SongDetail> {
-    return this.request(`/songs/${id}`);
+    return this.request(`${this.songsRoot()}/${id}`);
+  }
+
+  private songsRoot(): string {
+    return this.token() ? "/songs" : "/public/songs";
   }
 
   createSong(chordpro: string): Promise<SongSummary> {

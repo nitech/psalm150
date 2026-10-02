@@ -9,6 +9,7 @@ export async function moreView(ctx: AppContext): Promise<void> {
   const theme = readPreference("theme") ?? "system";
   const devices = ctx.canEdit ? await ctx.api.listDeviceTokens() : [];
   const session = ctx.session;
+  const church = session.role === "owner" ? await ctx.api.getChurch() : null;
   const install = installOption();
 
   ctx.main.innerHTML = `${pageHead({ title: "More", subtitle: session.church_name })}
@@ -37,6 +38,12 @@ export async function moreView(ctx: AppContext): Promise<void> {
   </div>
   <input id="file-import" type="file" accept=".pro,.cho,.chordpro,text/plain" multiple hidden />
 
+  ${church ? `<h2 class="list-heading">Who can read the songs</h2>
+  <div class="segmented" role="radiogroup" aria-label="Who can read the songs">
+    ${[false, true].map((open) => `<button role="radio" aria-checked="${church.public_library === open}" class="${church.public_library === open ? "on" : ""}" data-public="${open}">${open ? "Everyone" : "Signed-in members"}</button>`).join("")}
+  </div>
+  <p class="muted">With <strong>Everyone</strong>, anyone who opens this server can search and read every song without signing in. Sets, editing and desktops still need a sign-in.</p>` : ""}
+
   ${ctx.canEdit ? `<h2 class="list-heading">Desktops</h2>
   <p class="muted">Projection computers connect with <strong>Sign in with browser</strong> in Psalm150's Settings, under Church server. They keep an offline copy of the songs and sets, and can save song and set changes back.</p>
   <div class="list" id="device-list">
@@ -44,7 +51,21 @@ export async function moreView(ctx: AppContext): Promise<void> {
       <button class="button secondary small revoke" data-device="${device.id}" data-name="${escapeHtml(device.name)}">Revoke</button></div>`).join("") || `<p class="muted pad">No desktops connected.</p>`}
     <button class="list-row" id="new-token">${icon("link")}<span class="row-main"><strong>Create a token by hand</strong><small>For desktops that cannot open a browser</small></span></button>
   </div>` : ""}
-  <p class="fine-print">PSA150 Song Server · private to your church</p>`;
+  <p class="fine-print">PSA150 Song Server · ${ctx.isPublic ? "songs open to everyone, sets private to your church" : "private to your church"}</p>`;
+
+  ctx.main.querySelectorAll<HTMLButtonElement>("[data-public]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const open = button.dataset.public === "true";
+      if (open === church?.public_library) return;
+      if (open && !confirm("Let anyone read every song in this library without signing in?")) return;
+      void ctx.run(async () => {
+        const updated = await ctx.api.updateChurch({ public_library: open });
+        ctx.setPublic(updated.public_library);
+        showToast(updated.public_library ? "The songs are open to everyone." : "The songs are private again.");
+        ctx.navigate("#/more", true);
+      });
+    });
+  });
 
   ctx.main.querySelector("#sign-out")?.addEventListener("click", () => ctx.signOut());
   ctx.main.querySelector("#install")?.addEventListener("click", () => void ctx.run(async () => {

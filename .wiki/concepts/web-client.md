@@ -62,7 +62,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-09-28T13:00:00Z }
+generated: { by: agent, at: 2026-10-02T12:00:00Z }
 ---
 
 # Web client
@@ -77,12 +77,25 @@ hand**, so a change to the API schema needs a matching change there.
 ## Boot and sign-in
 
 Boot first checks the query string for a desktop sign-in request
-([below](#desktop-sign-in)). It then calls `GET /setup`. If the server is not
+([below](#desktop-sign-in)). It then calls `GET /info`. If the server is not
 initialised it shows **Set up your song server** (church, your name, username,
-password of at least 10 characters). Otherwise it shows **Sign in** when the
-stored session is missing or expired, and the signed-in shell (or the desktop
-consent screen) when it is valid. If the server cannot be reached it shows
-"The song server is not reachable" with **Try again**.
+password of at least 10 characters). When the stored session is missing or
+expired it shows the [visitor shell](#public-library-visitors) if
+`public_library` is true (and no desktop is asking to connect), else
+**Sign in**. With a valid session it shows the signed-in shell (or the desktop
+consent screen). If the server cannot be reached it shows "The song server is
+not reachable" with **Try again**.
+
+## Public library visitors
+
+When an owner has made the library public, a signed-out visitor gets a shell
+with two tabs: **Songs** and **Sign in**. Only the routes marked `visitors`
+open (`#/songs` and `#/songs/{id}`, read through `/public/songs`; the default
+route is `#/songs`). The reader shows no edit or add-to-set controls. Any
+members' route, such as a link to a set, opens sign-in instead. Sign-in then
+has **Back to the songs**, and signing in keeps the current route, so a shared
+song link stays on that song. Signing out returns to the visitor shell. The
+subtitle is `public_library_name` from `/info`.
 
 ## Shell and routes
 
@@ -158,7 +171,11 @@ other people's phones and the desktops are not affected.
   off, transpose (only when the song has chords; view only, never saved), and
   text size (−2 to +4). Chords and text size are remembered. The key (with
   any transpose) shows under the title. Shows the first 8 characters of the
-  revision id.
+  revision id. **Share** in the bar copies the song's address
+  (`<origin>/#/songs/{id}`). It uses the Clipboard API, then falls back to
+  `execCommand("copy")` (plain-HTTP LAN addresses have no Clipboard API), then
+  to a prompt. When the library is private, the toast says only people who
+  can sign in can open the link.
 - **Editor**: a raw ChordPro textarea. New songs start from a
   title/author/key/verse template. Saving an existing song sends its
   `revision_id` as the base; a 409 keeps the text and links to the latest
@@ -213,6 +230,8 @@ the browser offers installation, or how to add it to the Home Screen in
 Safari on iPhone and iPad, hidden once installed; **Appearance**: Automatic,
 Light or Dark; **Import ChordPro files** (`.pro`, `.cho`, `.chordpro`, leaders
 only) and **Export the library** (ZIP) ([import and export](import-export.md));
+**Who can read the songs** (owners only): **Signed-in members** or
+**Everyone**, through `PUT /church`, with a confirmation before opening it;
 **Desktops** (leaders only): the active desktop tokens with last use and
 **Revoke**, and **Create a token by hand**, shown once with a copy button, for
 desktops that cannot open a browser ([auth and roles](auth-and-roles.md)).

@@ -1,7 +1,7 @@
 import "../../shared/psa150-tokens.css";
 import "./styles.css";
 import { ApiError, SongServerApi } from "./api.ts";
-import type { AppContext, Cleanup, View } from "./context.ts";
+import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { icon, type IconName } from "./icons.ts";
 import "./install.ts";
@@ -17,6 +17,8 @@ if (!app) throw new Error("Application mount point is missing");
 
 const SESSION_KEY = "psa150-server-session";
 let session = readSession();
+/** The church whose library anyone may read, from `/info`; null when private. */
+let publicLibrary: string | null = null;
 let busy = false;
 const api = new SongServerApi(() => session?.token ?? null);
 const currentSet = new CurrentSet(api);
@@ -49,12 +51,16 @@ async function boot(): Promise<void> {
       renderDesktopInvalid();
       return;
     }
-    const status = await api.setupStatus();
-    if (!status.initialized) {
+    const info = await api.info();
+    publicLibrary = info.public_library ? info.public_library_name ?? "Song library" : null;
+    if (!info.initialized) {
       renderSetup();
     } else if (!session || new Date(session.expires_at) <= new Date()) {
       clearSession();
-      renderLogin();
+      // A public library opens on its songs; a desktop asking to connect
+      // still needs someone to sign in.
+      if (publicLibrary && !pendingDesktop()) renderShell();
+      else renderLogin();
     } else {
       showSignedIn();
     }
@@ -102,9 +108,15 @@ function renderLogin(): void {
       <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
       <button class="button primary wide" type="submit">Sign in</button>
       <p class="form-message" role="status"></p>
+      ${publicLibrary && !desktop ? `<button class="button secondary wide" type="button" id="back-to-songs">Back to the songs</button>` : ""}
     </form>`,
   );
 
+  document.querySelector("#back-to-songs")?.addEventListener("click", () => {
+    // The page behind the sign-in may be one only members can open.
+    if (!visitorRoute(currentPath())) history.replaceState(null, "", "#/songs");
+    renderShell();
+  });
   document.querySelector<HTMLFormElement>("#login-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
@@ -225,20 +237,20 @@ function renderDesktopConsent(): void {
   });
 }
 
-/* ── Signed-in shell and routing ─────────────────────────────────────────── */
+/* ── Shell and routing ───────────────────────────────────────────────────── */
 
-interface Route {
-  pattern: RegExp;
-  view: View;
-  tab: Tab;
-}
+/** `visitors`: open to everyone, signed in or not, when the library is public. */
+type Route = { pattern: RegExp; tab: Tab } & (
+  | { visitors: true; view: LibraryView }
+  | { visitors?: false; view: View }
+);
 
 type Tab = "songs" | "sets" | "remote" | "more";
 
 const ROUTES: Route[] = [
-  { pattern: /^\/songs$/, view: songList, tab: "songs" },
+  { pattern: /^\/songs$/, view: songList, tab: "songs", visitors: true },
   { pattern: /^\/songs\/new$/, view: (ctx) => songEditor(ctx, []), tab: "songs" },
-  { pattern: /^\/songs\/([0-9a-f-]{36})$/, view: songDetail, tab: "songs" },
+  { pattern: /^\/songs\/([0-9a-f-]{36})$/, view: songDetail, tab: "songs", visitors: true },
   { pattern: /^\/songs\/([0-9a-f-]{36})\/edit$/, view: songEditor, tab: "songs" },
   { pattern: /^\/sets$/, view: setList, tab: "sets" },
   { pattern: /^\/sets\/new$/, view: (ctx) => setEditor(ctx, []), tab: "sets" },
@@ -261,12 +273,25 @@ let cleanup: Cleanup | void;
 let routeToken = 0;
 let hashListener: (() => void) | null = null;
 
+function currentPath(): string {
+  return location.hash.replace(/^#/, "").split("?")[0];
+}
+
+function visitorRoute(path: string): boolean {
+  return ROUTES.some((entry) => entry.visitors && entry.pattern.test(path));
+}
+
+/** Signed in, or visiting a public library. */
 function renderShell(): void {
-  if (!session) return;
-  app.innerHTML = `<div class="shell">
+  if (!session && !publicLibrary) return;
+  const tabs = session
+    ? TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}">${icon(tab.icon)}<span>${tab.label}</span></a>`).join("")
+    : `<a class="tab" href="#/songs" data-tab="songs">${icon("songs")}<span>Songs</span></a>
+      <button type="button" class="tab" id="sign-in">${icon("login")}<span>Sign in</span></button>`;
+  app.innerHTML = `<div class="shell${session ? "" : " visitor"}">
     <nav class="tabbar" aria-label="Sections">
       <div class="brand" aria-hidden="true"><span class="brand-mark">150</span><span>PSA150</span></div>
-      ${TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}">${icon(tab.icon)}<span>${tab.label}</span></a>`).join("")}
+      ${tabs}
     </nav>
     <main class="page" id="page" tabindex="-1"></main>
   </div>
@@ -281,28 +306,47 @@ function renderShell(): void {
     window.addEventListener("hashchange", hashListener);
     startShellListeners();
   }
+  document.querySelector("#sign-in")?.addEventListener("click", () => leaveShell(renderLogin));
   currentSet.subscribe(renderCurrentBar);
   renderCurrentBar(currentSet.value);
   showOffline();
   new ResizeObserver(([entry]) => {
     document.body.style.setProperty("--dock-h", `${Math.round(entry.contentRect.height)}px`);
   }).observe(document.querySelector("#dock")!);
-  currentReady = currentSet.refresh().catch(() => undefined);
+  currentReady = session ? currentSet.refresh().catch(() => undefined) : Promise.resolve();
   if (!location.hash || location.hash === "#" || location.hash === "#/") {
-    history.replaceState(null, "", "#/sets");
+    history.replaceState(null, "", homeRoute());
   }
   void route();
 }
 
+/** Members start at their sets; visitors at the songs. */
+function homeRoute(): string {
+  return session ? "#/sets" : "#/songs";
+}
+
+/** Stops the current screen and shows a full-page one, such as sign-in. */
+function leaveShell(render: () => void): void {
+  if (typeof cleanup === "function") cleanup();
+  cleanup = undefined;
+  routeToken++;
+  render();
+}
+
 async function route(): Promise<void> {
-  if (!session) return;
+  if (!session && !publicLibrary) return;
   const main = document.querySelector<HTMLElement>("#page");
   if (!main) return;
-  const path = location.hash.replace(/^#/, "").split("?")[0] || "/sets";
+  const path = currentPath() || homeRoute().slice(1);
   const match = ROUTES.map((entry) => ({ entry, found: entry.pattern.exec(path) })).find((candidate) => candidate.found);
   if (!match?.found) {
-    history.replaceState(null, "", "#/sets");
+    history.replaceState(null, "", homeRoute());
     return route();
+  }
+  if (!session && !match.entry.visitors) {
+    // A members' page, such as a shared set: sign in, then land on it.
+    leaveShell(renderLogin);
+    return;
   }
 
   if (typeof cleanup === "function") cleanup();
@@ -320,7 +364,11 @@ async function route(): Promise<void> {
 
   try {
     await currentReady;
-    const result = await match.entry.view(context(main), match.found.slice(1));
+    const params = match.found.slice(1);
+    const ctx = libraryContext(main);
+    const result = match.entry.visitors
+      ? await match.entry.view(ctx, params)
+      : await match.entry.view({ ...ctx, session: session! }, params);
     if (token !== routeToken) {
       if (typeof result === "function") result();
       return;
@@ -338,15 +386,21 @@ async function route(): Promise<void> {
       signOut();
       return;
     }
-    main.innerHTML = `<div class="empty-state"><h2>${error instanceof ApiError && error.status === 404 ? "Not found" : "Could not load this page"}</h2><p>${escapeHtml(errorMessage(error))}</p><a class="button secondary" href="#/sets">Go to sets</a></div>`;
+    const home = session ? `<a class="button secondary" href="#/sets">Go to sets</a>` : `<a class="button secondary" href="#/songs">Go to songs</a>`;
+    main.innerHTML = `<div class="empty-state"><h2>${error instanceof ApiError && error.status === 404 ? "Not found" : "Could not load this page"}</h2><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
   }
 }
 
-function context(main: HTMLElement): AppContext {
+function libraryContext(main: HTMLElement): LibraryContext {
   return {
     api,
-    session: session!,
-    canEdit: session!.role !== "viewer",
+    session,
+    libraryName: session?.church_name ?? publicLibrary ?? "",
+    isPublic: Boolean(publicLibrary),
+    setPublic(value) {
+      publicLibrary = value ? session?.church_name ?? "Song library" : null;
+    },
+    canEdit: Boolean(session && session.role !== "viewer"),
     main,
     navigate(target: string, replace = false) {
       if (location.hash === target) {
@@ -388,13 +442,16 @@ async function run(action: () => Promise<void>, options: { exclusive?: boolean }
   }
 }
 
+/** Back to the public songs when the library is open, else to sign-in. */
 function signOut(): void {
-  if (typeof cleanup === "function") cleanup();
-  cleanup = undefined;
   clearSession();
   currentSet.clear();
   void clearCachedData();
-  renderLogin();
+  leaveShell(() => {
+    if (!publicLibrary) return renderLogin();
+    if (!visitorRoute(currentPath())) history.replaceState(null, "", "#/songs");
+    renderShell();
+  });
 }
 
 /* ── Current set bar, offline notice, scrolling ──────────────────────────── */

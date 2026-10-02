@@ -1,5 +1,10 @@
 # Directory Update Log
 
+## 2026-10-02
+* **Public library**: An owner can make the church's whole library readable without signing in. Migration `0005_public_library.sql` adds `churches.public_library`. New `GET /church` (any token), `PUT /church` (person owner only, `require_owner`), and token-free `GET /public/songs` and `GET /public/songs/{id}`. `GET /info` gains `public_library` and `public_library_name`. Sets, revisions, export and writes stay behind a token.
+* **Web client**: Boot reads `/info`. With a public library, signed-out visitors get **Songs** and **Sign in** tabs, and members' routes open sign-in. The song reader has **Share**, which copies the song's address. Owners switch **Who can read the songs** under More. `sw.js` caches `/info` and the public song reads. New `login` and `share` icons in `shared/icons.ts`. **Show more songs** stays hidden once the list is complete.
+* Pages touched: api-contract, auth-and-roles, data-model, web-client, gaps, index. `/docs/api.md` updated.
+
 ## 2026-09-28
 * **Web client UX**: A per-phone **current set** (the next service unless one is chosen on the phone) with a bar above the tab bar, one-tap ＋/✓ on song rows and an **Add to <set>** button on the song page, each with Undo; edits read fresh and retry a 409 once. Sticky header bar (title appears once the large title scrolls away; auto-hides while reading), sticky song search, reader settings in a panel under the bar, Back restores the scroll position. Song list pages 100 at a time. Undated sets get a "No date" group. Set editor: drag by grip, picker marks songs already in the set. Polling stops while the page is hidden. Installable: favicon, touch and maskable icons, `manifest.webmanifest`, and `sw.js` caching the app, bundles and song/set reads for offline use (the current set's songs are fetched ahead). The session moved from `sessionStorage` to `localStorage`; sign-out clears cached data.
 * **API**: `GET /songs` takes `offset` for paging; order gains `s.id` as a final tiebreak.

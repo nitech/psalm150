@@ -28,14 +28,14 @@ use crate::{
     chordpro,
     error::{AppError, ErrorBody},
     models::{
-        CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest, CreateSetRequest,
+        ChurchSettings, CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest, CreateSetRequest,
         CreateSongRequest, DeleteSongQuery, DesktopAuthCodeResponse, DesktopState,
         DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse, DeviceTokenSummary,
         ExportManifestEntry, HealthResponse, ImportSongInput, ImportSongsRequest,
         ImportSongsResponse, LoginRequest, RemoteAction, RemoteCommand, RemoteCommandRequest,
         RemoteDesktop, RevisionSummary, Role, ServerInfo, SessionResponse, SetDetail, SetItem,
         SetItemInput, SetItemKind, SetSongRef, SetSummary, SetupRequest, SetupStatus, SongDetail,
-        SongQuery, SongSummary, UpdateSetRequest, UpdateSongRequest,
+        SongQuery, SongSummary, UpdateChurchRequest, UpdateSetRequest, UpdateSongRequest,
     },
 };
 
@@ -55,6 +55,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         setup_status,
         setup,
         login,
+        get_church,
+        update_church,
         list_device_tokens,
         create_device_token,
         revoke_device_token,
@@ -66,6 +68,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         update_song,
         delete_song,
         list_revisions,
+        list_public_songs,
+        get_public_song,
         import_songs,
         export_songs,
         crate::sets::list_sets,
@@ -89,6 +93,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         LoginRequest,
         SessionResponse,
         Role,
+        ChurchSettings,
+        UpdateChurchRequest,
         CreateDeviceTokenRequest,
         DeviceTokenResponse,
         DeviceTokenSummary,
@@ -129,6 +135,7 @@ pub fn router() -> Router<AppState> {
         .route("/info", get(server_info))
         .route("/setup", get(setup_status).post(setup))
         .route("/session", post(login))
+        .route("/church", get(get_church).put(update_church))
         .route(
             "/device-tokens",
             get(list_device_tokens).post(create_device_token),
@@ -150,6 +157,8 @@ pub fn router() -> Router<AppState> {
             get(get_song).put(update_song).delete(delete_song),
         )
         .route("/songs/{song_id}/revisions", get(list_revisions))
+        .route("/public/songs", get(list_public_songs))
+        .route("/public/songs/{song_id}", get(get_public_song))
         .merge(crate::sets::router())
         .merge(crate::remote::router())
 }
@@ -172,11 +181,21 @@ async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, A
 
 #[utoipa::path(get, path = "/api/v1/info", responses((status = 200, body = ServerInfo)))]
 async fn server_info(State(state): State<AppState>) -> Result<Json<ServerInfo>, AppError> {
+    let public = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM churches WHERE public_library ORDER BY created_at LIMIT 2",
+    )
+    .fetch_all(&state.pool)
+    .await?;
     Ok(Json(ServerInfo {
         service: "psalm150-song-server",
         version: env!("CARGO_PKG_VERSION"),
         initialized: is_initialized(&state.pool).await?,
         desktop_sign_in: true,
+        public_library: !public.is_empty(),
+        public_library_name: match public.as_slice() {
+            [name] => Some(name.clone()),
+            _ => None,
+        },
     }))
 }
 
@@ -297,6 +316,55 @@ async fn login(
 
     Ok(Json(
         issue_session(&state.pool, state.session_hours, &user).await?,
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/church",
+    responses((status = 200, body = ChurchSettings), (status = 401, body = ErrorBody))
+)]
+async fn get_church(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<ChurchSettings>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    Ok(Json(
+        sqlx::query_as::<_, ChurchSettings>(
+            "SELECT id, name, public_library FROM churches WHERE id = $1",
+        )
+        .bind(auth.church_id)
+        .fetch_one(&state.pool)
+        .await?,
+    ))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/v1/church",
+    request_body = UpdateChurchRequest,
+    responses(
+        (status = 200, body = ChurchSettings),
+        (status = 401, body = ErrorBody),
+        (status = 403, body = ErrorBody)
+    )
+)]
+async fn update_church(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<UpdateChurchRequest>,
+) -> Result<Json<ChurchSettings>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    auth.require_owner()?;
+    Ok(Json(
+        sqlx::query_as::<_, ChurchSettings>(
+            "UPDATE churches SET public_library = $1 WHERE id = $2
+             RETURNING id, name, public_library",
+        )
+        .bind(request.public_library)
+        .bind(auth.church_id)
+        .fetch_one(&state.pool)
+        .await?,
     ))
 }
 
@@ -561,31 +629,98 @@ async fn list_songs(
     Query(query): Query<SongQuery>,
 ) -> Result<Json<Vec<SongSummary>>, AppError> {
     let auth = authenticate(&headers, &state).await?;
+    Ok(Json(
+        search_songs(&state.pool, Library::Church(auth.church_id), query).await?,
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/public/songs",
+    params(
+        ("q" = Option<String>, Query),
+        ("limit" = Option<i64>, Query),
+        ("offset" = Option<i64>, Query)
+    ),
+    responses((status = 200, body = [SongSummary]))
+)]
+async fn list_public_songs(
+    State(state): State<AppState>,
+    Query(query): Query<SongQuery>,
+) -> Result<Json<Vec<SongSummary>>, AppError> {
+    Ok(Json(
+        search_songs(&state.pool, Library::Public, query).await?,
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/public/songs/{song_id}",
+    params(("song_id" = Uuid, Path)),
+    responses((status = 200, body = SongDetail), (status = 404, body = ErrorBody))
+)]
+async fn get_public_song(
+    State(state): State<AppState>,
+    Path(song_id): Path<Uuid>,
+) -> Result<Json<SongDetail>, AppError> {
+    let song = fetch_song(&state.pool, Library::Public, song_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("song was not found".into()))?;
+    Ok(Json(song))
+}
+
+/// Which songs a read may see.
+#[derive(Clone, Copy)]
+enum Library {
+    /// The signed-in caller's church.
+    Church(Uuid),
+    /// Every church whose owner made the library public; no sign-in.
+    Public,
+}
+
+impl Library {
+    /// Bound as `$1` next to the filter `LIBRARY_FILTER`.
+    fn church_id(self) -> Option<Uuid> {
+        match self {
+            Self::Church(id) => Some(id),
+            Self::Public => None,
+        }
+    }
+}
+
+/// `s` is the song and `c` its church; `$1` is `Library::church_id`.
+const LIBRARY_FILTER: &str =
+    "(s.church_id = $1 OR ($1::uuid IS NULL AND c.public_library)) AND s.deleted_at IS NULL";
+
+async fn search_songs(
+    pool: &PgPool,
+    library: Library,
+    query: SongQuery,
+) -> Result<Vec<SongSummary>, AppError> {
     let search = query.q.unwrap_or_default().trim().to_string();
     let pattern = format!("%{search}%");
     let limit = query.limit.unwrap_or(100).clamp(1, 200);
     let offset = query.offset.unwrap_or(0).max(0);
 
-    let songs = sqlx::query_as::<_, SongSummary>(
+    Ok(sqlx::query_as::<_, SongSummary>(&format!(
         "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors,
                 r.language, r.created_at AS updated_at
          FROM songs s
+         JOIN churches c ON c.id = s.church_id
          JOIN song_revisions r ON r.id = s.current_revision_id
-         WHERE s.church_id = $1 AND s.deleted_at IS NULL
+         WHERE {LIBRARY_FILTER}
            AND ($2 = '' OR r.title ILIKE $3 OR r.authors ILIKE $3
                 OR coalesce(r.song_number, '') ILIKE $3 OR r.chordpro ILIKE $3)
          ORDER BY lower(r.title), r.created_at DESC, s.id
-         LIMIT $4 OFFSET $5",
-    )
-    .bind(auth.church_id)
+         LIMIT $4 OFFSET $5"
+    ))
+    .bind(library.church_id())
     .bind(&search)
     .bind(pattern)
     .bind(limit)
     .bind(offset)
-    .fetch_all(&state.pool)
-    .await?;
-
-    Ok(Json(songs))
+    .fetch_all(pool)
+    .await?)
 }
 
 #[utoipa::path(
@@ -617,7 +752,7 @@ async fn get_song(
     Path(song_id): Path<Uuid>,
 ) -> Result<Json<SongDetail>, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    let song = fetch_song(&state.pool, auth.church_id, song_id)
+    let song = fetch_song(&state.pool, Library::Church(auth.church_id), song_id)
         .await?
         .ok_or_else(|| AppError::NotFound("song was not found".into()))?;
     Ok(Json(song))
@@ -676,7 +811,7 @@ async fn update_song(
     transaction.commit().await?;
 
     Ok(Json(
-        fetch_song(&state.pool, auth.church_id, song_id)
+        fetch_song(&state.pool, Library::Church(auth.church_id), song_id)
             .await?
             .ok_or_else(|| AppError::NotFound("song was not found".into()))?,
     ))
@@ -1009,19 +1144,20 @@ async fn lock_song(
 
 async fn fetch_song(
     pool: &PgPool,
-    church_id: Uuid,
+    library: Library,
     song_id: Uuid,
 ) -> Result<Option<SongDetail>, AppError> {
-    Ok(sqlx::query_as::<_, SongDetail>(
+    Ok(sqlx::query_as::<_, SongDetail>(&format!(
         "SELECT s.id, r.id AS revision_id, r.parent_revision_id, r.title,
                 r.song_number, r.authors, r.language, r.chordpro,
                 r.content_hash, r.created_at AS updated_at
          FROM songs s
+         JOIN churches c ON c.id = s.church_id
          JOIN song_revisions r ON r.id = s.current_revision_id
-         WHERE s.id = $1 AND s.church_id = $2 AND s.deleted_at IS NULL",
-    )
+         WHERE {LIBRARY_FILTER} AND s.id = $2"
+    ))
+    .bind(library.church_id())
     .bind(song_id)
-    .bind(church_id)
     .fetch_optional(pool)
     .await?)
 }

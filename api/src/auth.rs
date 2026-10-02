@@ -51,6 +51,15 @@ impl AuthContext {
         }
     }
 
+    /// Church settings, such as opening the library to the public: owners only.
+    pub fn require_owner(&self) -> Result<Uuid, AppError> {
+        if self.is_device || self.role != Role::Owner {
+            return Err(AppError::Forbidden("owner access is required".into()));
+        }
+        self.user_id
+            .ok_or_else(|| AppError::Forbidden("a person account is required".into()))
+    }
+
     pub fn require_editor(&self) -> Result<Uuid, AppError> {
         if self.is_device || !self.role.can_edit() {
             return Err(AppError::Forbidden("leader access is required".into()));

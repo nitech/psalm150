@@ -58,6 +58,17 @@ export interface ServerInfo {
   version: string;
   initialized: boolean;
   desktop_sign_in: boolean;
+  /** Anyone may read the songs through `/public/songs` without signing in. */
+  public_library: boolean;
+  /** The public library's church, when exactly one church's library is public. */
+  public_library_name: string | null;
+}
+
+/** `GET /church`: the signed-in church and its settings. */
+export interface ChurchSettings {
+  id: string;
+  name: string;
+  public_library: boolean;
 }
 
 /** One-time desktop sign-in code, valid for five minutes. */
