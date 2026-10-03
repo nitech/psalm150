@@ -239,6 +239,9 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 .list-sort button.on { color: var(--psa-accent-text); }
 .list-sort .sort-number { min-width: var(--num-w); justify-content: flex-end; }
 #song-results { --num-w: 36px; }
+/* One line per song: as tall as a comfortable tap, no taller. */
+#song-results .list-row, #song-results .row-link { min-height: var(--psa-touch-target); padding-top: 6px; padding-bottom: 6px; }
+#song-results .song-row { padding-top: 0; padding-bottom: 0; }
 .row-main { display: grid; flex: 1; min-width: 0; }
 .row-main strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-main strong.missing { color: var(--psa-danger); font-style: italic; }
