@@ -33,9 +33,10 @@ interface SongRef {
 export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   ctx.main.innerHTML = `${pageHead({
     title: "Songs",
-    subtitle: ctx.libraryName,
-    // The search field sticks under the bar, so the bar must be there.
-    bar: true,
+    church: ctx.libraryName,
+    // Search comes first: on phones the title moves into the bar, which the
+    // search field sticks under.
+    compact: true,
     actions: ctx.canEdit ?`<a class="icon-button accent" href="#/songs/new" aria-label="New song">${icon("plus")}</a>` : "",
   })}
   <div class="search-field sticky">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number, author or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>

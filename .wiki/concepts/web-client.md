@@ -132,7 +132,11 @@ and, once the large title has scrolled under it, the title; below it a large
 title that scrolls with the page. The bar blends into the page until you
 scroll. On the song reader and the service view it slides away while reading
 down and comes back on any scroll up. Screens with no Back and no actions
-(Remote, More) have only the large title.
+(Remote, More) have only the large title. The church's name over the tab
+screens (Songs, Sets, Remote, More) shows only at 900 px and wider. On phones
+the Songs and Sets lists are `compact`: the title sits in the bar, next to
+the New button, with no large title, so the search field comes right under
+it.
 
 **Scroll position**: Back and Forward return to where you were (the position
 is saved in the history entry once scrolling settles); any other navigation

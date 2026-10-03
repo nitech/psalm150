@@ -198,6 +198,13 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 .page-titles { min-width: 0; margin: var(--psa-space-2) 0 var(--psa-space-4); }
 .page-titles h1 { margin: 0; font-family: var(--psa-font-display); font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .page-actions { display: flex; gap: var(--psa-space-1); margin-left: auto; }
+/* Phones: no church name over the tab screens, and compact screens (the song
+   list) keep their title in the bar instead of a large title. */
+@media (max-width: 899px) {
+  .wide-only { display: none; }
+  .page-titles.compact { display: none; }
+  .app-bar.compact .bar-title { opacity: 1; transform: none; font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; }
+}
 .eyebrow { margin: 0 0 2px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .page-meta { margin: calc(-1 * var(--psa-space-3)) 0 var(--psa-space-4); color: var(--psa-text-secondary); font-size: 14px; }
 .reader-panel { padding: var(--psa-space-2) 6px var(--psa-space-3); border-top: 1px solid var(--psa-border-subtle); }

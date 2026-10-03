@@ -10,7 +10,7 @@ const POLL_MS = 2000;
 
 export async function remoteList(ctx: AppContext): Promise<Cleanup> {
   const render = (desktops: RemoteDesktop[]) => {
-    ctx.main.innerHTML = `${pageHead({ title: "Remote", subtitle: ctx.session.church_name })}
+    ctx.main.innerHTML = `${pageHead({ title: "Remote", church: ctx.session.church_name })}
     <p class="muted">Steer a projection computer from this phone. The desktop must be connected to this song server and allow remote control in its Settings.</p>
     ${desktops.length
       ? `<div class="list">${desktops.map((desktop) => `<a class="list-row" href="#/remote/${desktop.device_id}">

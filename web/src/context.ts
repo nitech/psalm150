@@ -59,18 +59,23 @@ export function pageHead(options: {
   actions?: string;
   panel?: string;
   autohide?: boolean;
-  /** Keep the bar even with nothing in it, for screens with sticky content under it. */
-  bar?: boolean;
+  /** The church's name above the title; left out on phones, where room is short. */
+  church?: string;
+  /** On phones the title sits in the bar and the large title is left out. Implies `bar`. */
+  compact?: boolean;
 }): string {
-  const titles = `<div class="page-titles">
-      ${options.subtitle ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>` : ""}
+  const eyebrow = options.subtitle
+    ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>`
+    : options.church ? `<p class="eyebrow wide-only">${escapeHtml(options.church)}</p>` : "";
+  const titles = `<div class="page-titles${options.compact ? " compact" : ""}">
+      ${eyebrow}
       <h1>${escapeHtml(options.title)}</h1>
     </div>`;
-  if (!options.back && !options.actions && !options.panel && !options.bar) return titles;
+  if (!options.back && !options.actions && !options.panel && !options.compact) return titles;
   const back = options.back
     ? `<a class="icon-button ghost" href="${options.back}" aria-label="Back">${icon("back")}</a>`
     : "";
-  return `<header class="app-bar${options.autohide ? " autohide" : ""}">
+  return `<header class="app-bar${options.autohide ? " autohide" : ""}${options.compact ? " compact" : ""}">
       <div class="app-bar-row">
         ${back}
         <p class="bar-title" aria-hidden="true">${escapeHtml(options.title)}</p>
