@@ -38,7 +38,7 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `GET` | `/api/v1/info` | Public ping: service name, version, `initialized`, `desktop_sign_in`, `public_library`, `public_library_name` |
 | `GET` | `/api/v1/church` | The signed-in church and its settings (`public_library`) |
 | `PUT` | `/api/v1/church` | Owner opens the library to everyone, read only, or closes it (`{public_library}`) |
-| `GET` | `/api/v1/public/songs?q=&limit=&offset=` | Search public libraries without signing in (same paging as `/songs`) |
+| `GET` | `/api/v1/public/songs?q=&limit=&offset=&sort=&direction=` | Search public libraries without signing in (same paging as `/songs`) |
 | `GET` | `/api/v1/public/songs/{id}` | Read a song in a public library without signing in |
 | `GET` | `/api/v1/setup` | Determine whether first-run setup is available |
 | `POST` | `/api/v1/setup` | Create the first church, owner, and session |
@@ -48,7 +48,7 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `DELETE` | `/api/v1/device-tokens/{id}` | Revoke a desktop credential |
 | `POST` | `/api/v1/desktop-auth/codes` | Leader approves a desktop: one-time sign-in code for a PKCE challenge |
 | `POST` | `/api/v1/desktop-auth/token` | Desktop exchanges code and verifier for a desktop credential (no bearer) |
-| `GET` | `/api/v1/songs?q=&limit=&offset=` | List or search current song revisions in title order; page with `limit` (1–200, default 100) and `offset` |
+| `GET` | `/api/v1/songs?q=&limit=&offset=&sort=&direction=` | List or search current song revisions; `sort` `title` (default) or `number` (numeric, songs without a number last), `direction` `asc` or `desc`; page with `limit` (1–200, default 100) and `offset` |
 | `POST` | `/api/v1/songs` | Create a song and its first revision |
 | `GET` | `/api/v1/songs/{id}` | Read the current ChordPro source and metadata |
 | `PUT` | `/api/v1/songs/{id}` | Create a revision from an expected base revision |

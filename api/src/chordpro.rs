@@ -11,6 +11,9 @@ pub struct SongMetadata {
 pub fn metadata(source: &str) -> SongMetadata {
     let mut title = None;
     let mut song_number = None;
+    // The desktop's number, `{meta: song_num=227}`; an explicit
+    // `{number}` or `{song_number}` wins over it.
+    let mut meta_song_number = None;
     let mut language = None;
     let mut authors = Vec::new();
 
@@ -22,6 +25,13 @@ pub fn metadata(source: &str) -> SongMetadata {
         match name.as_str() {
             "title" | "t" if title.is_none() => title = Some(value),
             "number" | "song_number" if song_number.is_none() => song_number = Some(value),
+            "meta" if meta_song_number.is_none() => {
+                if let Some((key, number)) = value.split_once('=')
+                    && key.trim().eq_ignore_ascii_case("song_num")
+                {
+                    meta_song_number = Some(number.trim().to_string());
+                }
+            }
             "language" | "lang" if language.is_none() => language = Some(value),
             "artist" | "composer" | "lyricist" | "author"
                 if !value.is_empty() && !authors.iter().any(|existing| existing == &value) =>
@@ -36,7 +46,9 @@ pub fn metadata(source: &str) -> SongMetadata {
         title: title
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| "Untitled song".into()),
-        song_number: song_number.filter(|value| !value.is_empty()),
+        song_number: song_number
+            .filter(|value| !value.is_empty())
+            .or(meta_song_number.filter(|value| !value.is_empty())),
         authors: authors.join(", "),
         language: language.filter(|value| !value.is_empty()),
     }
@@ -85,6 +97,16 @@ mod tests {
         assert_eq!(parsed.title, "Great Is Thy Faithfulness");
         assert_eq!(parsed.authors, "Thomas Chisholm");
         assert_eq!(parsed.language.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn reads_the_desktop_song_number() {
+        let parsed =
+            metadata("{title: Ten Thousand}\n{meta: ccli=6016351}\n{meta: song_num = 1016 }\n");
+        assert_eq!(parsed.song_number.as_deref(), Some("1016"));
+        let parsed = metadata("{meta: song_num=1016}\n{number: 12a}\n");
+        assert_eq!(parsed.song_number.as_deref(), Some("12a"));
+        assert_eq!(metadata("{meta: song_num=}").song_number, None);
     }
 
     #[test]

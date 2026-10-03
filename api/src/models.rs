@@ -117,6 +117,28 @@ pub struct SongQuery {
     pub limit: Option<i64>,
     /// Rows to skip, for paging through a library larger than `limit`.
     pub offset: Option<i64>,
+    /// `title` (default) or `number`.
+    pub sort: Option<SongSort>,
+    /// `asc` (default) or `desc`.
+    pub direction: Option<SortDirection>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SongSort {
+    #[default]
+    Title,
+    /// By the number's leading digits, numerically ("9" before "10"), then
+    /// the rest of it. Songs without a number come last in both directions.
+    Number,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SortDirection {
+    #[default]
+    Asc,
+    Desc,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow, ToSchema)]

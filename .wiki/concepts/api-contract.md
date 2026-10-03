@@ -26,7 +26,7 @@ sources:
   - id: webapi
     resource: /web/src/api.ts
     title: Web client wrapper
-generated: { by: agent, at: 2026-10-02T12:00:00Z }
+generated: { by: agent, at: 2026-10-03T10:00:00Z }
 ---
 
 # API contract
@@ -51,7 +51,7 @@ includes desktop tokens and viewer sessions
 | GET | `/info` | none | 200 `{service: "psalm150-song-server", version, initialized, desktop_sign_in: true, public_library, public_library_name}` | The desktop's "is this a Psalm150 server?" ping. `public_library` is true when any church's library is public; `public_library_name` is that church's name when exactly one is | yes (boot) | yes |
 | GET | `/church` | any token | 200 `{id, name, public_library}` | The caller's church | yes (owners, More) | – |
 | PUT | `/church` | owner | 200 `{id, name, public_library}` | Body `{public_library}`; 403 for leaders, viewers and desktops | yes | – |
-| GET | `/public/songs?q=&limit=&offset=` | none | 200 `SongSummary[]` | Same search and paging as `/songs`, over every church whose library is public; empty when none is | yes (signed out) | – |
+| GET | `/public/songs?q=&limit=&offset=&sort=&direction=` | none | 200 `SongSummary[]` | Same search and paging as `/songs`, over every church whose library is public; empty when none is | yes (signed out) | – |
 | GET | `/public/songs/{id}` | none | 200 `SongDetail` | 404 when missing, deleted or in a private library | yes (signed out) | – |
 | GET | `/setup` | none | 200 `{initialized}` | | yes | – |
 | POST | `/setup` | none | 201 `SessionResponse` | 409 once done; password at least 10 characters | yes | – |
@@ -61,7 +61,7 @@ includes desktop tokens and viewer sessions
 | DELETE | `/device-tokens/{id}` | editor | 204 | 404 if unknown or already revoked | yes | – |
 | POST | `/desktop-auth/codes` | editor | 201 `{code, expires_at}` | Body `{device_name, code_challenge}`; name 1–120 characters after trimming; challenge 43–128 of `[A-Za-z0-9_-]`; code `psa_c_…`, valid 5 minutes | yes (consent screen) | – |
 | POST | `/desktop-auth/token` | none | 201 `{token, device_id, device_name, church_name}` | Body `{code, code_verifier}`; single use; every failure is 400 `the sign-in code is invalid or has expired` | – | yes |
-| GET | `/songs?q=&limit=&offset=` | any token | 200 `SongSummary[]` | `limit` defaults to 100, clamped to 1–200; `offset` skips rows (default 0) in title order | yes (pages of 100) | – |
+| GET | `/songs?q=&limit=&offset=&sort=&direction=` | any token | 200 `SongSummary[]` | `limit` defaults to 100, clamped to 1–200; `offset` skips rows (default 0); `sort` `title` (default) or `number` (songs without one last), `direction` `asc` (default) or `desc`; 400 for other values | yes (pages of 100) | – |
 | POST | `/songs` | editor or desktop | 201 `SongSummary` | | yes | – |
 | GET | `/songs/{id}` | any token | 200 `SongDetail` | 404 when missing or in another church | yes | yes (songs a set needs that it lacks) |
 | PUT | `/songs/{id}` | editor or desktop | 200 `SongDetail` | Body `{base_revision_id, chordpro}`; 409 when the base is stale | yes | yes (VSB sync) |

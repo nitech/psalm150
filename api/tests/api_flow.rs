@@ -432,6 +432,64 @@ async fn songs_page_in_title_order(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn songs_sort_by_number(pool: PgPool) {
+    let app = test_app(pool);
+    let (token, _) = owner_and_desktop(&app).await;
+    // The desktop's `{meta: song_num=…}` and an explicit `{number}` both count.
+    for (title, number) in [
+        ("Ten", "{meta: song_num=10}"),
+        ("Nine", "{meta: song_num=9}"),
+        ("None", ""),
+        ("Twelve a", "{number: 12a}"),
+        ("Hundred", "{meta: song_num=100}"),
+    ] {
+        let created = send(
+            &app,
+            "POST",
+            "/api/v1/songs",
+            Some(&token),
+            Some(json!({ "chordpro": format!("{{title: {title}}}\n{number}\n\nWords") })),
+        )
+        .await;
+        assert_eq!(created.0, StatusCode::CREATED);
+    }
+    let titles = |page: &Value| -> Vec<String> {
+        page.as_array()
+            .expect("song page")
+            .iter()
+            .map(|song| song["title"].as_str().expect("title").to_string())
+            .collect()
+    };
+
+    let ascending = send(&app, "GET", "/api/v1/songs?sort=number", Some(&token), None).await;
+    assert_eq!(ascending.1[0]["song_number"], "9");
+    assert_eq!(
+        titles(&ascending.1),
+        ["Nine", "Ten", "Twelve a", "Hundred", "None"]
+    );
+    let descending = send(
+        &app,
+        "GET",
+        "/api/v1/songs?sort=number&direction=desc&limit=2&offset=1",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(titles(&descending.1), ["Twelve a", "Ten"]);
+    let by_title = send(
+        &app,
+        "GET",
+        "/api/v1/songs?sort=title&direction=desc",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(titles(&by_title.1)[0], "Twelve a");
+    let bad = send(&app, "GET", "/api/v1/songs?sort=key", Some(&token), None).await;
+    assert_eq!(bad.0, StatusCode::BAD_REQUEST);
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn public_library_flow(pool: PgPool) {
     let app = test_app(pool.clone());
     let (owner, desktop) = owner_and_desktop(&app).await;

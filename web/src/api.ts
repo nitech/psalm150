@@ -14,7 +14,9 @@ import type {
   Session,
   SetupStatus,
   SongDetail,
+  SongSort,
   SongSummary,
+  SortDirection,
 } from "./types.ts";
 
 const API_ROOT = "/api/v1";
@@ -80,11 +82,16 @@ export class SongServerApi {
    * One page of songs in title order; a short page means there are no more.
    * Signed out, this reads the public library.
    */
-  listSongs(search = "", page: { limit?: number; offset?: number } = {}): Promise<SongSummary[]> {
+  listSongs(
+    search = "",
+    page: { limit?: number; offset?: number; sort?: SongSort; direction?: SortDirection } = {},
+  ): Promise<SongSummary[]> {
     const query = new URLSearchParams();
     if (search) query.set("q", search);
     if (page.limit) query.set("limit", String(page.limit));
     if (page.offset) query.set("offset", String(page.offset));
+    if (page.sort && page.sort !== "title") query.set("sort", page.sort);
+    if (page.direction === "desc") query.set("direction", "desc");
     const text = query.toString();
     return this.request(`${this.songsRoot()}${text ? `?${text}` : ""}`);
   }

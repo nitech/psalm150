@@ -59,12 +59,14 @@ export function pageHead(options: {
   actions?: string;
   panel?: string;
   autohide?: boolean;
+  /** Keep the bar even with nothing in it, for screens with sticky content under it. */
+  bar?: boolean;
 }): string {
   const titles = `<div class="page-titles">
       ${options.subtitle ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>` : ""}
       <h1>${escapeHtml(options.title)}</h1>
     </div>`;
-  if (!options.back && !options.actions && !options.panel) return titles;
+  if (!options.back && !options.actions && !options.panel && !options.bar) return titles;
   const back = options.back
     ? `<a class="icon-button ghost" href="${options.back}" aria-label="Back">${icon("back")}</a>`
     : "";

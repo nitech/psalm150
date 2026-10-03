@@ -35,7 +35,8 @@ use crate::{
         ImportSongsResponse, LoginRequest, RemoteAction, RemoteCommand, RemoteCommandRequest,
         RemoteDesktop, RevisionSummary, Role, ServerInfo, SessionResponse, SetDetail, SetItem,
         SetItemInput, SetItemKind, SetSongRef, SetSummary, SetupRequest, SetupStatus, SongDetail,
-        SongQuery, SongSummary, UpdateChurchRequest, UpdateSetRequest, UpdateSongRequest,
+        SongQuery, SongSort, SongSummary, SortDirection, UpdateChurchRequest, UpdateSetRequest,
+        UpdateSongRequest,
     },
 };
 
@@ -110,6 +111,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         ImportSongInput,
         ImportSongsRequest,
         ImportSongsResponse,
+        SongSort,
+        SortDirection,
         ExportManifestEntry,
         SetItemKind,
         SetItemInput,
@@ -619,7 +622,9 @@ async fn revoke_device_token(
     params(
         ("q" = Option<String>, Query),
         ("limit" = Option<i64>, Query),
-        ("offset" = Option<i64>, Query)
+        ("offset" = Option<i64>, Query),
+        ("sort" = Option<SongSort>, Query),
+        ("direction" = Option<SortDirection>, Query)
     ),
     responses((status = 200, body = [SongSummary]), (status = 401, body = ErrorBody))
 )]
@@ -640,7 +645,9 @@ async fn list_songs(
     params(
         ("q" = Option<String>, Query),
         ("limit" = Option<i64>, Query),
-        ("offset" = Option<i64>, Query)
+        ("offset" = Option<i64>, Query),
+        ("sort" = Option<SongSort>, Query),
+        ("direction" = Option<SortDirection>, Query)
     ),
     responses((status = 200, body = [SongSummary]))
 )]
@@ -692,6 +699,27 @@ impl Library {
 const LIBRARY_FILTER: &str =
     "(s.church_id = $1 OR ($1::uuid IS NULL AND c.public_library)) AND s.deleted_at IS NULL";
 
+/// `ORDER BY` for a song list. Built only from the two enums, never from
+/// request text. Ties fall back to the title (always A to Z), then the newest
+/// revision, then the id, so pages never overlap.
+fn song_order(sort: SongSort, direction: SortDirection) -> String {
+    let dir = match direction {
+        SortDirection::Asc => "ASC",
+        SortDirection::Desc => "DESC",
+    };
+    match sort {
+        SongSort::Title => format!("lower(r.title) {dir}, r.created_at DESC, s.id"),
+        // Like the desktop: songs without a number last in both directions;
+        // numbers compared numerically ("9" before "10"), then as text ("12a").
+        SongSort::Number => format!(
+            "(r.song_number IS NULL) ASC,
+             substring(r.song_number FROM '^\\d{{1,18}}')::bigint {dir} NULLS LAST,
+             lower(r.song_number) {dir},
+             lower(r.title) ASC, r.created_at DESC, s.id"
+        ),
+    }
+}
+
 async fn search_songs(
     pool: &PgPool,
     library: Library,
@@ -701,6 +729,10 @@ async fn search_songs(
     let pattern = format!("%{search}%");
     let limit = query.limit.unwrap_or(100).clamp(1, 200);
     let offset = query.offset.unwrap_or(0).max(0);
+    let order = song_order(
+        query.sort.unwrap_or_default(),
+        query.direction.unwrap_or_default(),
+    );
 
     Ok(sqlx::query_as::<_, SongSummary>(&format!(
         "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors,
@@ -711,7 +743,7 @@ async fn search_songs(
          WHERE {LIBRARY_FILTER}
            AND ($2 = '' OR r.title ILIKE $3 OR r.authors ILIKE $3
                 OR coalesce(r.song_number, '') ILIKE $3 OR r.chordpro ILIKE $3)
-         ORDER BY lower(r.title), r.created_at DESC, s.id
+         ORDER BY {order}
          LIMIT $4 OFFSET $5"
     ))
     .bind(library.church_id())

@@ -13,8 +13,8 @@ import {
   songText,
   stepTranspose,
 } from "../song-render.ts";
-import type { SongSummary } from "../types.ts";
-import { copyText, errorMessage, escapeHtml, serviceDate, setFormBusy, showToast, today } from "../ui.ts";
+import type { SongSort, SongSummary, SortDirection } from "../types.ts";
+import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
 let lastSearch = "";
@@ -34,19 +34,37 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   ctx.main.innerHTML = `${pageHead({
     title: "Songs",
     subtitle: ctx.libraryName,
-    actions: ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song">${icon("plus")}</a>` : "",
+    // The search field sticks under the bar, so the bar must be there.
+    bar: true,
+    actions: ctx.canEdit ?`<a class="icon-button accent" href="#/songs/new" aria-label="New song">${icon("plus")}</a>` : "",
   })}
   <div class="search-field sticky">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number, author or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>
+  <div class="list-sort" id="song-sort" role="group" aria-label="Sort songs" hidden></div>
   <div class="list" id="song-results"><p class="muted pad">Loading…</p></div>
   <div class="load-more" id="load-more" hidden><button class="button secondary" id="more-songs">Show more songs</button></div>`;
 
   const input = ctx.main.querySelector<HTMLInputElement>("#song-search")!;
   const results = ctx.main.querySelector<HTMLElement>("#song-results")!;
   const more = ctx.main.querySelector<HTMLElement>("#load-more")!;
+  const sortBar = ctx.main.querySelector<HTMLElement>("#song-sort")!;
   let timer = 0;
   let request = 0;
   let loaded = 0;
   let loading = false;
+  let sort = readSongSort();
+  /** Some song in the list has a number, so the number column is shown. */
+  let numbered = false;
+
+  const renderSort = () => {
+    const button = (column: SongSort, label: string) => {
+      const on = sort.column === column;
+      const arrow = on ? `<span aria-hidden="true">${sort.direction === "asc" ? "↑" : "↓"}</span>` : "";
+      const state = on ? `, ${sort.direction === "asc" ? "ascending" : "descending"}` : "";
+      return `<button type="button" class="sort-${column}${on ? " on" : ""}" data-sort="${column}" aria-pressed="${on}" aria-label="Sort by ${column === "number" ? "number" : "title"}${state}">${label}${arrow}</button>`;
+    };
+    sortBar.classList.toggle("has-numbers", numbered);
+    sortBar.innerHTML = `${numbered ? button("number", "No") : ""}${button("title", "Song")}`;
+  };
 
   const row = (song: SongSummary) => {
     const main = `<span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
@@ -63,8 +81,13 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     const offset = append ? loaded : 0;
     loading = true;
     try {
-      const songs = await ctx.api.listSongs(lastSearch, { limit: PAGE_SIZE, offset });
+      const songs = await ctx.api.listSongs(lastSearch, { limit: PAGE_SIZE, offset, sort: sort.column, direction: sort.direction });
       if (mine !== request) return;
+      // Sorted by number, numbered songs come first: the first page tells.
+      numbered = (append && numbered) || songs.some((song) => song.song_number) || sort.column === "number";
+      results.classList.toggle("has-numbers", numbered);
+      sortBar.hidden = !append && !songs.length;
+      renderSort();
       const html = songs.map(row).join("");
       if (append) results.insertAdjacentHTML("beforeend", html);
       else {
@@ -99,6 +122,18 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     if (button) toggleInCurrentSet(ctx, { id: button.dataset.add!, title: button.dataset.title! });
   });
   ctx.main.querySelector("#more-songs")?.addEventListener("click", () => void load(true));
+  // Like the desktop: the sorted column again flips the direction; another
+  // column starts ascending.
+  sortBar.addEventListener("click", (event) => {
+    const column = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-sort]")?.dataset.sort as SongSort | undefined;
+    if (!column) return;
+    sort = column === sort.column
+      ? { column, direction: sort.direction === "asc" ? "desc" : "asc" }
+      : { column, direction: "asc" };
+    writePreference("song-sort", JSON.stringify(sort));
+    renderSort();
+    void load(false);
+  });
 
   // Load the next page before the reader reaches the end of the list.
   const observer = new IntersectionObserver((entries) => {
@@ -113,6 +148,24 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     observer.disconnect();
     unsubscribe();
   };
+}
+
+interface SongListSort {
+  column: SongSort;
+  direction: SortDirection;
+}
+
+/** The list's sort, remembered on this device; by title A to Z when unset. */
+function readSongSort(): SongListSort {
+  try {
+    const stored = JSON.parse(readPreference("song-sort") ?? "null") as Partial<SongListSort> | null;
+    if ((stored?.column === "title" || stored?.column === "number") && (stored.direction === "asc" || stored.direction === "desc")) {
+      return { column: stored.column, direction: stored.direction };
+    }
+  } catch {
+    // A damaged preference falls back to the default.
+  }
+  return { column: "title", direction: "asc" };
 }
 
 /** The ＋ / ✓ button that puts a song in the current set or takes it out. */

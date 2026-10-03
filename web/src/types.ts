@@ -24,6 +24,10 @@ export interface SongSummary {
   updated_at: string;
 }
 
+/** `GET /songs?sort=`: by title (default) or by number, songs without one last. */
+export type SongSort = "title" | "number";
+export type SortDirection = "asc" | "desc";
+
 export interface SongDetail extends SongSummary {
   parent_revision_id: string | null;
   chordpro: string;

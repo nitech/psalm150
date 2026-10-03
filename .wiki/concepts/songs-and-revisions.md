@@ -17,7 +17,7 @@ sources:
   - id: arch
     resource: /docs/architecture.md
     title: Revision history vs provenance (design)
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-03T10:00:00Z }
 ---
 
 # Songs and revisions
@@ -36,7 +36,7 @@ case-insensitive.
 | Field | Directives | Rule |
 | --- | --- | --- |
 | `title` | `title`, `t` | The first one wins. Blank or missing becomes `Untitled song` |
-| `song_number` | `number`, `song_number` | The first one wins |
+| `song_number` | `number`, `song_number`, then the desktop's `{meta: song_num=N}` | The first `number`/`song_number` wins; `song_num` (key matched ignoring case) only when neither is present. Migration `0006_desktop_song_numbers.sql` filled it in for revisions stored before `song_num` was read |
 | `language` | `language`, `lang` | The first one wins |
 | `authors` | `artist`, `composer`, `lyricist`, `author` | All distinct values, joined with `", "` |
 
@@ -85,8 +85,13 @@ conflict store does not exist yet. Today's 409 is the groundwork for it
 current revision's `title`, `authors`, `song_number` and the **full ChordPro
 source**. So a lyric line matches, but so does a chord name or a directive.
 `%` and `_` in the query are not escaped and act as wildcards. Results are
-unranked and sorted by `lower(title)`, then newest, then song id, so the order
-is stable. `limit` defaults to 100 and is clamped to 1–200; `offset` (default 0,
+unranked. `sort=title` (default) orders by `lower(title)`; `sort=number` by
+the number's leading digits as an integer ("9" before "10", "12a" with 12),
+then the number as text, with songs without a number last in both
+directions. `direction=asc|desc` (default `asc`) flips the chosen column only;
+ties go by title A to Z, then newest, then song id, so the order is stable.
+An unknown `sort` or `direction` is a 400. `/public/songs` takes the same
+parameters. `limit` defaults to 100 and is clamped to 1–200; `offset` (default 0,
 negative counts as 0) skips that many rows, so a client pages with
 `limit`/`offset`. The web client loads 100 at a time as you scroll
 ([web client](web-client.md)).

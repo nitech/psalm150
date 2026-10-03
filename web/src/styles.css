@@ -224,8 +224,21 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 .load-more[hidden] { display: none; }
 .list-row.added .icon { color: var(--psa-accent-text); }
 .row-lead { min-width: 28px; color: var(--psa-text-tertiary); font-variant-numeric: tabular-nums; font-size: 14px; text-align: right; }
-/* Songs without a number use the full width. */
+/* Songs without a number use the full width, unless the list shows numbers. */
 .row-lead:empty { display: none; }
+.has-numbers .row-lead { display: block; min-width: var(--num-w); }
+
+/* Column sort above the song list, as on the desktop: No and Song. */
+.list-sort { --num-w: 36px; display: flex; align-items: center; gap: var(--psa-space-3); padding: 0 var(--psa-space-4) var(--psa-space-2); }
+.list-sort[hidden] { display: none; }
+.list-sort button {
+  display: inline-flex; align-items: center; justify-content: flex-start; gap: 4px; min-height: 32px; padding: 0;
+  border: 0; background: none; color: var(--psa-text-tertiary); font: inherit; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+}
+.list-sort button.on { color: var(--psa-accent-text); }
+.list-sort .sort-number { min-width: var(--num-w); justify-content: flex-end; }
+#song-results { --num-w: 36px; }
 .row-main { display: grid; flex: 1; min-width: 0; }
 .row-main strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-main strong.missing { color: var(--psa-danger); font-style: italic; }

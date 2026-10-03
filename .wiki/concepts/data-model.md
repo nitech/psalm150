@@ -1,7 +1,7 @@
 ---
 type: Contract
 title: Data model
-description: The PostgreSQL schema from migrations 0001–0005 — tables (including song_sets and song_set_items, and churches.public_library), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
+description: The PostgreSQL schema from migrations 0001–0006 — tables (including song_sets and song_set_items, and churches.public_library), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
 tags: [postgres, schema, migrations, sqlx]
 status: stable
 sources:
@@ -20,7 +20,7 @@ sources:
   - id: main
     resource: /api/src/main.rs
     title: sqlx::migrate! at startup, pool size
-generated: { by: agent, at: 2026-10-02T12:00:00Z }
+generated: { by: agent, at: 2026-10-03T10:00:00Z }
 ---
 
 # Data model
@@ -55,7 +55,10 @@ Migration `0003_desktop_auth_codes.sql` added `desktop_auth_codes`
 Migration `0004_song_sets.sql` added `song_sets` and `song_set_items`
 ([sets](sets.md)). Migration `0005_public_library.sql` added
 `churches.public_library` ([auth and roles](auth-and-roles.md#public-library)).
-Remote-control state is not stored in the database
+Migration `0006_desktop_song_numbers.sql` filled `song_revisions.song_number`
+from the desktop's `{meta: song_num=N}` where it was empty; it changes only
+the extracted column, never the ChordPro source
+([songs and revisions](songs-and-revisions.md)). Remote-control state is not stored in the database
 ([remote control](remote-control.md)).
 
 `songs.current_revision_id` and `song_revisions.song_id` point at each other.

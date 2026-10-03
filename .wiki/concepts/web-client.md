@@ -62,7 +62,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-03T08:45:00Z }
+generated: { by: agent, at: 2026-10-03T10:00:00Z }
 ---
 
 # Web client
@@ -165,9 +165,17 @@ other people's phones and the desktops are not affected.
 ## Songs
 
 - **List**: search as you type (250 ms pause) over title, number, author or a
-  line; the search field stays under the bar while scrolling. Songs come 100 at
-  a time (`GET /songs?limit=100&offset=…`); the next page loads as the end of
-  the list comes near, with a **Show more songs** button as a fallback.
+  line; the search field stays right under the bar while scrolling (the list
+  always has the bar, which shows "Songs" once scrolled). Songs come 100 at
+  a time (`GET /songs?limit=100&offset=…&sort=…&direction=…`); the next page
+  loads as the end of the list comes near, with a **Show more songs** button
+  as a fallback. The song number sits in a column left of the title. When any
+  listed song has a number, the column keeps its width for every row and a
+  **No** / **Song** header above the list sorts by number or title, like the
+  desktop's column headers: tapping the sorted column flips the direction (↑
+  or ↓), tapping the other starts ascending. Songs without a number come last.
+  The choice is kept in `localStorage["psa150-song-sort"]`
+  (`{column: "title"|"number", direction}`).
 - **Reader**: the song with section labels and chords above the lyrics,
   parsed in the browser by `chordpro.ts` with the desktop's stanza rules
   (a blank line starts a new verse; unlabelled verses are numbered). The

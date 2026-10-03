@@ -5,6 +5,8 @@
 * **Copying lyrics**: a **Copy the words** button on the song reader, and lyrics-only Ctrl+C (`installLyricsCopy`): no section labels, chords or comments. New `copy` icon in `shared/icons.ts`. Vitest `song-text.test.ts`.
 * **Web client**: the song-number column is hidden for songs without a number.
 * Pages touched: web-client, deployment, index.
+* **Song numbers**: metadata extraction now reads the desktop's `{meta: song_num=N}` (after `{number}`/`{song_number}`), and migration `0006_desktop_song_numbers.sql` fills `song_number` for revisions stored before. `GET /songs` and `/public/songs` take `sort=title|number` and `direction=asc|desc` (number: numeric, songs without one last in both directions; 400 for other values). The web list shows the number column left of the title and a **No** / **Song** sort header like the desktop's, remembered in `localStorage`. The song list always has its sticky bar, so songs no longer show between it and the sticky search field.
+* Pages touched: songs-and-revisions, api-contract, data-model, web-client, index. `/docs/api.md` updated.
 
 ## 2026-10-02
 * **Public library**: An owner can make the church's whole library readable without signing in. Migration `0005_public_library.sql` adds `churches.public_library`. New `GET /church` (any token), `PUT /church` (person owner only, `require_owner`), and token-free `GET /public/songs` and `GET /public/songs/{id}`. `GET /info` gains `public_library` and `public_library_name`. Sets, revisions, export and writes stay behind a token.
