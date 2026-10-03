@@ -107,9 +107,11 @@ same `nav#sections` is a drawer that slides in from the left when you tap ☰
 and More; screens with Back have no ☰). A dimmed shade covers the page. The
 drawer closes when you pick a section (including the current one), tap the
 shade, press Escape, or swipe it left: it follows the finger, and closes past
-35 % of its width or on a quick flick, otherwise it springs back. Opening by
-swiping from the screen edge is left out, since iOS Safari uses that gesture
-for Back. At the bottom sits the **dock**: the offline notice and the
+35 % of its width or on a quick flick, otherwise it springs back. In the
+installed app (`display-mode: standalone` or `navigator.standalone`) a swipe
+in from the left 24 px pulls the drawer out under the finger, with the same
+thresholds, on screens that show ☰ and when no sheet is open. In the browser
+that edge is Safari's Back, so the edge swipe is off there. At the bottom sits the **dock**: the offline notice and the
 [current set](#current-set) bar. The service view hides the dock; the song and
 set editors hide it too.
 Routes live in the URL hash, so the server's static file serving (which has no

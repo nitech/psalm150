@@ -360,8 +360,9 @@ function menuIsOpen(): boolean {
   return document.body.classList.contains("menu-open");
 }
 
-function openMenu(opener: HTMLElement): void {
-  menuOpener = opener;
+/** `opener`: the ☰ tapped; null when a swipe opened it, so focus returns to the screen's ☰. */
+function openMenu(opener: HTMLElement | null): void {
+  menuOpener = opener ?? Array.from(document.querySelectorAll<HTMLElement>("[data-menu]")).find((button) => button.offsetParent) ?? null;
   document.body.classList.add("menu-open");
   document.querySelectorAll("[data-menu]").forEach((button) => button.setAttribute("aria-expanded", "true"));
   const nav = document.querySelector<HTMLElement>("#sections");
@@ -440,6 +441,83 @@ function bindMenuSwipe(nav: HTMLElement, scrim: HTMLElement): void {
   nav.addEventListener("click", (event) => {
     if ((event.target as HTMLElement).closest("a.tab")) closeMenu(false);
   });
+}
+
+/** The app was opened from the Home Screen, so Safari's own edge swipe (Back) is not in play. */
+function installedApp(): boolean {
+  return matchMedia("(display-mode: standalone)").matches
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+/**
+ * In the installed app on a phone, a swipe in from the left edge pulls the
+ * drawer out under the finger; past a third of its width, or on a quick flick,
+ * it stays open. In the browser that edge is Safari's Back, so it is left alone.
+ */
+function bindEdgeSwipe(): void {
+  const EDGE = 24;
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let pulled = 0;
+  let width = 1;
+  let mode: "off" | "undecided" | "drag" = "off";
+
+  document.addEventListener("touchstart", (event) => {
+    mode = "off";
+    if (event.touches.length !== 1 || event.touches[0].clientX > EDGE) return;
+    if (!installedApp() || menuIsOpen() || matchMedia("(min-width: 900px)").matches) return;
+    // Only where ☰ shows, so the swipe does what the button does: not on
+    // screens with Back (songs, sets, the service view and its own swipes),
+    // and not while a sheet is open.
+    const nav = document.querySelector<HTMLElement>("#sections");
+    const menuShown = Array.from(document.querySelectorAll<HTMLElement>("#page [data-menu]")).some((button) => button.offsetParent);
+    if (!nav || !menuShown || document.querySelector("dialog[open]")) return;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    startTime = event.timeStamp;
+    width = nav.offsetWidth || 300;
+    pulled = 0;
+    mode = "undecided";
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (event) => {
+    if (mode === "off") return;
+    const dx = event.touches[0].clientX - startX;
+    const dy = event.touches[0].clientY - startY;
+    if (mode === "undecided") {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) {
+        mode = "off";
+        return;
+      }
+      mode = "drag";
+      document.body.classList.add("menu-open", "menu-dragging");
+    }
+    event.preventDefault();
+    pulled = Math.max(0, Math.min(width, dx));
+    document.body.style.setProperty("--menu-drag", `${pulled - width}px`);
+    document.body.style.setProperty("--menu-shade", String(pulled / width));
+  }, { passive: false });
+
+  const end = (event: TouchEvent) => {
+    if (mode !== "drag") {
+      mode = "off";
+      return;
+    }
+    mode = "off";
+    document.body.classList.remove("menu-dragging");
+    const speed = pulled / Math.max(1, event.timeStamp - startTime);
+    if (pulled > width * 0.35 || (pulled > 24 && speed > 0.5)) {
+      document.body.style.removeProperty("--menu-drag");
+      document.body.style.removeProperty("--menu-shade");
+      openMenu(null);
+    } else {
+      closeMenu(false);
+    }
+  };
+  document.addEventListener("touchend", end);
+  document.addEventListener("touchcancel", end);
 }
 
 async function route(): Promise<void> {
@@ -632,6 +710,7 @@ function startShellListeners(): void {
   });
   // Turning a tablet to landscape shows the rail; the drawer state must not linger.
   matchMedia("(min-width: 900px)").addEventListener("change", () => closeMenu(false));
+  bindEdgeSwipe();
   window.addEventListener("scroll", () => {
     if (!scrollFrame) {
       scrollFrame = requestAnimationFrame(() => {

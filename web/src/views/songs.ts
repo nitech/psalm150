@@ -35,7 +35,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   ctx.main.innerHTML = `${pageHead({ title: "Songs", church: ctx.libraryName, wideOnly: true })}
   <div class="search-bar">
     ${menuButton()}
-    <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number, author or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>
+    <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>
     ${ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song" title="New song">${icon("plus")}</a>` : ""}
   </div>
   <div class="list-sort" id="song-sort" role="group" aria-label="Sort songs" hidden></div>
