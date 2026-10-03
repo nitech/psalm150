@@ -224,6 +224,8 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 .load-more[hidden] { display: none; }
 .list-row.added .icon { color: var(--psa-accent-text); }
 .row-lead { min-width: 28px; color: var(--psa-text-tertiary); font-variant-numeric: tabular-nums; font-size: 14px; text-align: right; }
+/* Songs without a number use the full width. */
+.row-lead:empty { display: none; }
 .row-main { display: grid; flex: 1; min-width: 0; }
 .row-main strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-main strong.missing { color: var(--psa-danger); font-style: italic; }
