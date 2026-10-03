@@ -134,9 +134,10 @@ scroll. On the song reader and the service view it slides away while reading
 down and comes back on any scroll up. Screens with no Back and no actions
 (Remote, More) have only the large title. The church's name over the tab
 screens (Songs, Sets, Remote, More) shows only at 900 px and wider. On phones
-the Songs and Sets lists are `compact`: the title sits in the bar, next to
-the New button, with no large title, so the search field comes right under
-it.
+the Sets list is `compact` (the title sits in the bar beside New, with no
+large title), and the Songs list has no header at all (`wideOnly`): it starts
+with the search field and New beside it, stuck to the top while the list
+scrolls.
 
 **Scroll position**: Back and Forward return to where you were (the position
 is saved in the history entry once scrolling settles); any other navigation

@@ -107,13 +107,19 @@ input:focus, textarea:focus { outline: none; border-color: var(--psa-accent); bo
 .search-field { position: relative; margin-bottom: var(--psa-space-4); }
 .search-field .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--psa-text-tertiary); pointer-events: none; }
 .search-field input { padding-left: 44px; border-radius: var(--psa-radius-full); }
-/* Stays under the sticky bar while the list scrolls. */
-.search-field.sticky {
-  position: sticky; top: calc(var(--bar-h) + env(safe-area-inset-top)); z-index: 15;
-  margin: 0 calc(-1 * var(--page-pad)) var(--psa-space-4); padding: var(--psa-space-2) var(--page-pad);
-  background: var(--psa-bg-canvas);
+/* The song list's top: search (and New), stuck to the top while the list scrolls. */
+.search-bar {
+  position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: var(--psa-space-2);
+  margin: 0 calc(-1 * var(--page-pad)) var(--psa-space-2);
+  padding: calc(var(--psa-space-3) + env(safe-area-inset-top)) var(--page-pad) var(--psa-space-2);
+  background: var(--psa-bg-canvas); border-bottom: 1px solid transparent;
+  transition: border-color var(--psa-dur-fast), background var(--psa-dur-fast);
 }
-.search-field.sticky .icon { left: calc(var(--page-pad) + 14px); }
+body.scrolled .search-bar {
+  border-bottom-color: var(--psa-border);
+  background: var(--psa-bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.search-bar .search-field { flex: 1; margin: 0; }
 
 .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); border: 1px solid var(--psa-border); }
 .segmented button { min-height: 38px; border: 0; border-radius: var(--psa-radius-full); background: none; font-weight: 600; font-size: 14px; color: var(--psa-text-secondary); }

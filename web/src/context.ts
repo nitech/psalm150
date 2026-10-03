@@ -61,13 +61,15 @@ export function pageHead(options: {
   autohide?: boolean;
   /** The church's name above the title; left out on phones, where room is short. */
   church?: string;
-  /** On phones the title sits in the bar and the large title is left out. Implies `bar`. */
+  /** On phones the title sits in the bar and the large title is left out. */
   compact?: boolean;
+  /** No header at all on phones, for screens whose own content starts the page. */
+  wideOnly?: boolean;
 }): string {
   const eyebrow = options.subtitle
     ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>`
     : options.church ? `<p class="eyebrow wide-only">${escapeHtml(options.church)}</p>` : "";
-  const titles = `<div class="page-titles${options.compact ? " compact" : ""}">
+  const titles = `<div class="page-titles${options.compact ? " compact" : ""}${options.wideOnly ? " wide-only" : ""}">
       ${eyebrow}
       <h1>${escapeHtml(options.title)}</h1>
     </div>`;
