@@ -7,7 +7,9 @@
   /* Layout measures shared by the sticky and fixed parts of the shell. */
   --page-pad: var(--psa-space-4);
   --bar-h: 56px;
-  --tabbar-h: calc(66px + env(safe-area-inset-bottom));
+  /* No tab bar on phones (the sections are in the ☰ drawer); only the home
+     indicator's area is kept clear at the bottom. */
+  --tabbar-h: env(safe-area-inset-bottom);
   --dock-h: 0px; /* set from the dock's real height by main.ts */
 }
 
@@ -141,34 +143,51 @@ body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
 .page:focus { outline: none; }
 .page.loading { opacity: 0.6; transition: opacity var(--psa-dur-base) 150ms; }
 
-/* Bottom tab bar on phones. */
+/* Phones: the sections live in a drawer that slides in from the left (☰),
+   and slides back with a swipe (main.ts), so the screen is all content. */
 .tabbar {
-  position: fixed; inset: auto 0 0 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr); align-items: center;
-  height: var(--tabbar-h); padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-  background: var(--psa-bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--psa-border);
+  position: fixed; inset: 0 auto 0 0; z-index: 50; width: min(82vw, 300px);
+  display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overscroll-behavior: contain;
+  padding: calc(var(--psa-space-5) + env(safe-area-inset-top)) var(--psa-space-3) calc(var(--psa-space-5) + env(safe-area-inset-bottom));
+  background: var(--psa-bg-surface); border-right: 1px solid var(--psa-border); box-shadow: var(--psa-shadow-md);
+  transform: translateX(-100%); visibility: hidden; touch-action: pan-y;
+  transition: transform var(--psa-dur-base) var(--psa-ease-standard), visibility 0s linear var(--psa-dur-base);
 }
-.tabbar .brand { display: none; }
-.tab { display: grid; justify-items: center; gap: 2px; padding: 6px 0; border-radius: var(--psa-radius-sm); color: var(--psa-text-secondary); text-decoration: none; font-size: 11px; font-weight: 600; }
-.tab .icon { width: 24px; height: 24px; }
-.tab.on { color: var(--psa-accent-text); }
-.tab.on .icon { filter: drop-shadow(0 0 8px var(--psa-accent-glow)); }
-button.tab { border: 0; background: none; font-family: inherit; cursor: pointer; }
-/* Visitors to a public library: Songs and Sign in. */
-.visitor .tabbar { grid-template-columns: repeat(2, 1fr); }
+body.menu-open .tabbar {
+  transform: translateX(var(--menu-drag, 0px)); visibility: visible;
+  transition: transform var(--psa-dur-base) var(--psa-ease-standard);
+}
+.nav-scrim {
+  position: fixed; inset: 0; z-index: 45; background: rgb(0 0 0 / 0.5); opacity: 0; pointer-events: none;
+  transition: opacity var(--psa-dur-base) var(--psa-ease-standard); touch-action: pan-y;
+}
+body.menu-open .nav-scrim { opacity: var(--menu-shade, 1); pointer-events: auto; }
+/* While a finger drags the drawer, it follows the finger exactly. */
+body.menu-dragging .tabbar, body.menu-dragging .nav-scrim { transition: none; }
+.tabbar .brand { display: flex; margin: 0 var(--psa-space-2) var(--psa-space-6); }
+.tab {
+  display: grid; grid-auto-flow: column; justify-content: start; align-items: center; gap: var(--psa-space-3);
+  padding: 12px var(--psa-space-3); border-radius: var(--psa-radius-sm);
+  color: var(--psa-text-secondary); text-decoration: none; font-size: 16px; font-weight: 600;
+}
+.tab .icon { width: 22px; height: 22px; }
+.tab.on { background: var(--psa-accent-soft); color: var(--psa-accent-text); }
+button.tab { width: 100%; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
+button.tab:not(.on) { background: none; }
 
 /* Side rail on wide screens. */
 @media (min-width: 900px) {
   :root { --page-pad: var(--psa-space-6); --tabbar-h: 0px; }
   .shell { display: grid; grid-template-columns: 220px 1fr; }
-  .tabbar {
-    position: sticky; top: 0; inset: auto; height: 100dvh; align-items: stretch;
-    display: flex; flex-direction: column; gap: 4px; padding: var(--psa-space-5) var(--psa-space-3);
-    border-top: 0; border-right: 1px solid var(--psa-border);
+  .tabbar, body.menu-open .tabbar {
+    position: sticky; top: 0; inset: auto; z-index: auto; width: auto; height: 100dvh;
+    padding: var(--psa-space-5) var(--psa-space-3); overflow: visible;
+    background: var(--psa-bg-glass); box-shadow: none; transform: none; visibility: visible; transition: none;
   }
-  .tabbar .brand { display: flex; margin: 0 var(--psa-space-2) var(--psa-space-6); }
-  .tab { grid-auto-flow: column; justify-content: start; gap: var(--psa-space-3); padding: 10px var(--psa-space-3); font-size: 15px; }
+  .nav-scrim, .menu-button, .app-bar.menu-only { display: none; }
+  /* With its phone-only bar hidden, the title starts the page. */
+  .page > .app-bar.menu-only:first-child + .page-titles { margin-top: var(--psa-space-8); }
+  .tab { padding: 10px var(--psa-space-3); font-size: 15px; }
   .tab .icon { width: 20px; height: 20px; }
   .tab:hover { background: var(--psa-bg-surface); color: var(--psa-text); }
   .tab.on { background: var(--psa-accent-soft); }
@@ -312,7 +331,7 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 }
 @media (min-width: 900px) { .form-actions.sticky { bottom: 0; } }
 
-/* ── Dock: offline notice and the current set, above the tab bar ─────────── */
+/* ── Dock: offline notice and the current set, at the bottom ────────────── */
 
 .dock {
   position: fixed; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 25;

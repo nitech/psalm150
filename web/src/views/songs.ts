@@ -1,5 +1,5 @@
 import { ApiError } from "../api.ts";
-import { emptyState, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
+import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets, itemInputs } from "../current-set.ts";
 import { icon } from "../icons.ts";
 import {
@@ -31,9 +31,10 @@ interface SongRef {
 }
 
 export async function songList(ctx: LibraryContext): Promise<Cleanup> {
-  // On phones the search field is the top of the screen, with New beside it.
+  // On phones the search field is the top of the screen, between ☰ and New.
   ctx.main.innerHTML = `${pageHead({ title: "Songs", church: ctx.libraryName, wideOnly: true })}
   <div class="search-bar">
+    ${menuButton()}
     <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number, author or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>
     ${ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song" title="New song">${icon("plus")}</a>` : ""}
   </div>

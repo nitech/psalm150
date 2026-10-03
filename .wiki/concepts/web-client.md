@@ -99,11 +99,19 @@ subtitle is `public_library_name` from `/info`.
 
 ## Shell and routes
 
-Signed in, the app is a shell with four tabs: **Songs**, **Sets**, **Remote**
-and **More**. On narrow screens they are a bottom tab bar; at 900 px and wider
-they become a side rail with the brand. Above the tab bar sits the **dock**:
-the offline notice and the [current set](#current-set) bar. The service view
-hides the tab bar and the dock; the song and set editors hide the dock.
+Signed in, the app is a shell with four sections: **Songs**, **Sets**,
+**Remote** and **More** (visitors: **Songs** and **Sign in**). At 900 px and
+wider they are a side rail with the brand. On phones there is no tab bar: the
+same `nav#sections` is a drawer that slides in from the left when you tap ☰
+(`menuButton()`: beside the search field on Songs, in the bar on Sets, Remote
+and More; screens with Back have no ☰). A dimmed shade covers the page. The
+drawer closes when you pick a section (including the current one), tap the
+shade, press Escape, or swipe it left: it follows the finger, and closes past
+35 % of its width or on a quick flick, otherwise it springs back. Opening by
+swiping from the screen edge is left out, since iOS Safari uses that gesture
+for Back. At the bottom sits the **dock**: the offline notice and the
+[current set](#current-set) bar. The service view hides the dock; the song and
+set editors hide it too.
 Routes live in the URL hash, so the server's static file serving (which has no
 SPA fallback) is enough, and links can be shared or bookmarked. The one real
 path is the song permalink `/songs/{id}`

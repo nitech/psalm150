@@ -45,6 +45,7 @@ export async function setList(ctx: AppContext): Promise<void> {
     title: "Sets",
     church: ctx.session.church_name,
     compact: true,
+    menu: true,
     actions: ctx.canEdit ? `<a class="icon-button accent" href="#/sets/new" aria-label="New set">${icon("plus")}</a>` : "",
   })}
   ${sets.length ? "" : emptyState("No sets yet", ctx.canEdit ? "Make a set for the next service; the desktop picks it up at its next synchronization." : "Leaders make sets for each service. They will appear here.")}

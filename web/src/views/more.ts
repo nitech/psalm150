@@ -12,7 +12,7 @@ export async function moreView(ctx: AppContext): Promise<void> {
   const church = session.role === "owner" ? await ctx.api.getChurch() : null;
   const install = installOption();
 
-  ctx.main.innerHTML = `${pageHead({ title: "More", church: session.church_name })}
+  ctx.main.innerHTML = `${pageHead({ title: "More", church: session.church_name, compact: true, menu: true })}
   <section class="card account-card">
     <span class="avatar">${escapeHtml(initials(session.display_name))}</span>
     <div><strong>${escapeHtml(session.display_name)}</strong><small>${roleName(session.role)} · ${escapeHtml(session.church_name)}</small></div>

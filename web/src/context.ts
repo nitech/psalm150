@@ -65,6 +65,8 @@ export function pageHead(options: {
   compact?: boolean;
   /** No header at all on phones, for screens whose own content starts the page. */
   wideOnly?: boolean;
+  /** A section's top screen: ☰ opens the sections drawer on phones (in place of Back). */
+  menu?: boolean;
 }): string {
   const eyebrow = options.subtitle
     ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>`
@@ -73,11 +75,13 @@ export function pageHead(options: {
       ${eyebrow}
       <h1>${escapeHtml(options.title)}</h1>
     </div>`;
-  if (!options.back && !options.actions && !options.panel && !options.compact) return titles;
+  if (!options.back && !options.actions && !options.panel && !options.compact && !options.menu) return titles;
   const back = options.back
     ? `<a class="icon-button ghost" href="${options.back}" aria-label="Back">${icon("back")}</a>`
-    : "";
-  return `<header class="app-bar${options.autohide ? " autohide" : ""}${options.compact ? " compact" : ""}">
+    : options.menu ? menuButton() : "";
+  // On wide screens the rail replaces ☰, so a bar with nothing else goes.
+  const menuOnly = options.menu && !options.back && !options.actions && !options.panel;
+  return `<header class="app-bar${options.autohide ? " autohide" : ""}${options.compact ? " compact" : ""}${menuOnly ? " menu-only" : ""}">
       <div class="app-bar-row">
         ${back}
         <p class="bar-title" aria-hidden="true">${escapeHtml(options.title)}</p>
@@ -86,6 +90,11 @@ export function pageHead(options: {
       ${options.panel ?? ""}
     </header>
     ${titles}`;
+}
+
+/** ☰: opens the sections drawer on phones (main.ts); hidden on wide screens. */
+export function menuButton(): string {
+  return `<button type="button" class="icon-button ghost menu-button" data-menu aria-label="Menu" aria-controls="sections" aria-expanded="false">${icon("menu")}</button>`;
 }
 
 export function emptyState(title: string, copy: string): string {

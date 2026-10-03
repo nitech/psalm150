@@ -302,10 +302,11 @@ function renderShell(): void {
     : `<a class="tab" href="#/songs" data-tab="songs">${icon("songs")}<span>Songs</span></a>
       <button type="button" class="tab" id="sign-in">${icon("login")}<span>Sign in</span></button>`;
   app.innerHTML = `<div class="shell${session ? "" : " visitor"}">
-    <nav class="tabbar" aria-label="Sections">
+    <nav class="tabbar" id="sections" aria-label="Sections">
       <div class="brand" aria-hidden="true"><span class="brand-mark">150</span><span>PSA150</span></div>
       ${tabs}
     </nav>
+    <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
     <main class="page" id="page" tabindex="-1"></main>
   </div>
   <div class="dock" id="dock">
@@ -319,7 +320,11 @@ function renderShell(): void {
     window.addEventListener("hashchange", hashListener);
     startShellListeners();
   }
-  document.querySelector("#sign-in")?.addEventListener("click", () => leaveShell(renderLogin));
+  document.querySelector("#sign-in")?.addEventListener("click", () => {
+    closeMenu(false);
+    leaveShell(renderLogin);
+  });
+  bindMenuSwipe(document.querySelector<HTMLElement>("#sections")!, document.querySelector<HTMLElement>("#nav-scrim")!);
   currentSet.subscribe(renderCurrentBar);
   renderCurrentBar(currentSet.value);
   showOffline();
@@ -346,7 +351,100 @@ function leaveShell(render: () => void): void {
   render();
 }
 
+/* ── Sections drawer (phones) ────────────────────────────────────────────── */
+
+/** The ☰ that opened the drawer, to return focus to when it closes. */
+let menuOpener: HTMLElement | null = null;
+
+function menuIsOpen(): boolean {
+  return document.body.classList.contains("menu-open");
+}
+
+function openMenu(opener: HTMLElement): void {
+  menuOpener = opener;
+  document.body.classList.add("menu-open");
+  document.querySelectorAll("[data-menu]").forEach((button) => button.setAttribute("aria-expanded", "true"));
+  const nav = document.querySelector<HTMLElement>("#sections");
+  // After the slide starts, so the browser does not scroll to it.
+  requestAnimationFrame(() => nav?.querySelector<HTMLElement>(".tab.on, .tab")?.focus({ preventScroll: true }));
+}
+
+/** `restoreFocus`: back to ☰, unless the drawer closes because you went somewhere. */
+function closeMenu(restoreFocus = true): void {
+  if (!menuIsOpen()) return;
+  document.body.classList.remove("menu-open", "menu-dragging");
+  document.body.style.removeProperty("--menu-drag");
+  document.body.style.removeProperty("--menu-shade");
+  document.querySelectorAll("[data-menu]").forEach((button) => button.setAttribute("aria-expanded", "false"));
+  if (restoreFocus && menuOpener?.isConnected) menuOpener.focus({ preventScroll: true });
+  menuOpener = null;
+}
+
+/**
+ * Swiping left on the open drawer (or the shade beside it) slides it shut,
+ * following the finger; a short or slow swipe springs back open.
+ */
+function bindMenuSwipe(nav: HTMLElement, scrim: HTMLElement): void {
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let offset = 0;
+  let mode: "undecided" | "drag" | "scroll" = "undecided";
+
+  const start = (event: TouchEvent) => {
+    if (!menuIsOpen() || event.touches.length !== 1) return;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    startTime = event.timeStamp;
+    offset = 0;
+    mode = "undecided";
+  };
+  const move = (event: TouchEvent) => {
+    if (!menuIsOpen() || mode === "scroll") return;
+    const dx = event.touches[0].clientX - startX;
+    const dy = event.touches[0].clientY - startY;
+    if (mode === "undecided") {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      // Mostly vertical: let the drawer's list scroll.
+      mode = Math.abs(dx) > Math.abs(dy) ? "drag" : "scroll";
+      if (mode === "scroll") return;
+      document.body.classList.add("menu-dragging");
+    }
+    event.preventDefault();
+    offset = Math.min(0, dx);
+    const width = nav.offsetWidth || 1;
+    document.body.style.setProperty("--menu-drag", `${offset}px`);
+    document.body.style.setProperty("--menu-shade", String(Math.max(0, 1 + offset / width)));
+  };
+  const end = (event: TouchEvent) => {
+    if (mode !== "drag") return;
+    mode = "undecided";
+    document.body.classList.remove("menu-dragging");
+    const width = nav.offsetWidth || 1;
+    const speed = -offset / Math.max(1, event.timeStamp - startTime); // px per ms, leftwards
+    if (offset < -width * 0.35 || (offset < -24 && speed > 0.5)) {
+      closeMenu();
+    } else {
+      document.body.style.removeProperty("--menu-drag");
+      document.body.style.removeProperty("--menu-shade");
+    }
+  };
+  for (const element of [nav, scrim]) {
+    element.addEventListener("touchstart", start, { passive: true });
+    element.addEventListener("touchmove", move, { passive: false });
+    element.addEventListener("touchend", end);
+    element.addEventListener("touchcancel", end);
+  }
+  scrim.addEventListener("click", () => closeMenu());
+  // The section you are already in does not change the route; close anyway.
+  nav.addEventListener("click", (event) => {
+    if ((event.target as HTMLElement).closest("a.tab")) closeMenu(false);
+  });
+}
+
 async function route(): Promise<void> {
+  // Going somewhere from the drawer closes it.
+  closeMenu(false);
   if (!session && !publicLibrary) return;
   const main = document.querySelector<HTMLElement>("#page");
   if (!main) return;
@@ -524,6 +622,16 @@ function updateScrollState(): void {
 
 function startShellListeners(): void {
   history.scrollRestoration = "manual";
+  // ☰ buttons are re-rendered with each screen, so listen once for all of them.
+  document.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement).closest<HTMLElement>("[data-menu]");
+    if (opener) openMenu(opener);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && menuIsOpen()) closeMenu();
+  });
+  // Turning a tablet to landscape shows the rail; the drawer state must not linger.
+  matchMedia("(min-width: 900px)").addEventListener("change", () => closeMenu(false));
   window.addEventListener("scroll", () => {
     if (!scrollFrame) {
       scrollFrame = requestAnimationFrame(() => {
