@@ -68,7 +68,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
 
   const row = (song: SongSummary) => {
     const main = `<span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
-      <span class="row-main"><strong>${escapeHtml(song.title)}</strong><small>${escapeHtml(song.authors || "Author not recorded")}</small></span>`;
+      <span class="row-main"><strong>${escapeHtml(song.title)}</strong></span>`;
     if (!ctx.canEdit) return `<a class="list-row" href="#/songs/${song.id}">${main}${icon("next")}</a>`;
     return `<div class="list-row song-row">
       <a class="row-link" href="#/songs/${song.id}">${main}</a>
