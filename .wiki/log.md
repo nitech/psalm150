@@ -1,5 +1,11 @@
 # Directory Update Log
 
+## 2026-10-03
+* **Song permalinks**: `GET /songs/{id}` (outside `/api`, only with a web build) serves the app's `index.html`. For a song in a public library it also carries the song's title and Open Graph tags for link previews; private songs get the plain page. The web client's **Share** copies this permalink and turns it into `#/songs/{id}` on load. The song reader sets the tab title. `sw.js` no longer saves permalink pages over the cached `/`.
+* **Copying lyrics**: a **Copy the words** button on the song reader, and lyrics-only Ctrl+C (`installLyricsCopy`): no section labels, chords or comments. New `copy` icon in `shared/icons.ts`. Vitest `song-text.test.ts`.
+* **Web client**: the song-number column is hidden for songs without a number.
+* Pages touched: web-client, deployment, index.
+
 ## 2026-10-02
 * **Public library**: An owner can make the church's whole library readable without signing in. Migration `0005_public_library.sql` adds `churches.public_library`. New `GET /church` (any token), `PUT /church` (person owner only, `require_owner`), and token-free `GET /public/songs` and `GET /public/songs/{id}`. `GET /info` gains `public_library` and `public_library_name`. Sets, revisions, export and writes stay behind a token.
 * **Web client**: Boot reads `/info`. With a public library, signed-out visitors get **Songs** and **Sign in** tabs, and members' routes open sign-in. The song reader has **Share**, which copies the song's address. Owners switch **Who can read the songs** under More. `sw.js` caches `/info` and the public song reads. New `login` and `share` icons in `shared/icons.ts`. **Show more songs** stays hidden once the list is complete.

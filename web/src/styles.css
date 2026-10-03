@@ -242,6 +242,8 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 /* ── Song reader ────────────────────────────────────────────────────────── */
 
 .reader-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-4); margin-bottom: var(--psa-space-5); }
+/* Selecting a song selects only the words (see installLyricsCopy). */
+.song-section > h3, .song-body .ch, .song-comment { -webkit-user-select: none; user-select: none; }
 .song-body { --reader-scale: 1; font-family: var(--psa-font-lyrics); font-size: calc(18px * var(--reader-scale)); line-height: 1.5; }
 .song-section { margin-bottom: 1.2em; }
 .song-section h3 { margin: 0 0 0.3em; color: var(--psa-accent-text); font-size: 0.7em; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }

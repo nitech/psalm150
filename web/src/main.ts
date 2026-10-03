@@ -4,6 +4,7 @@ import { ApiError, SongServerApi } from "./api.ts";
 import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { icon, type IconName } from "./icons.ts";
+import { installLyricsCopy } from "./song-render.ts";
 import "./install.ts";
 import type { SetDetail, Session } from "./types.ts";
 import { dateBadge, errorMessage, escapeHtml, readPreference, setFormBusy, showToast } from "./ui.ts";
@@ -27,6 +28,18 @@ let currentReady: Promise<unknown> = Promise.resolve();
 
 applyTheme();
 registerServiceWorker();
+installLyricsCopy();
+openPermalink();
+
+/**
+ * Permalinks are real paths (`/songs/{id}`, which the server answers with
+ * this app) so the server sees which song a link is for. Routing happens in
+ * the hash, so move there.
+ */
+function openPermalink(): void {
+  const song = /^\/songs\/([0-9a-f-]{36})\/?$/i.exec(location.pathname);
+  if (song) history.replaceState(null, "", `/#/songs/${song[1].toLowerCase()}`);
+}
 
 /**
  * A desktop asking to be connected through the browser. The desktop opens
@@ -360,6 +373,7 @@ async function route(): Promise<void> {
   });
   document.body.dataset.route = path.split("/").slice(0, 4).join("/").replace(/[0-9a-f-]{36}/g, "id").replace(/\/\d+$/, "");
   document.body.classList.remove("bar-away", "title-away", "scrolled");
+  document.title = "PSA150";
   main.classList.add("loading");
 
   try {

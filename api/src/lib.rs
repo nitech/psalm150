@@ -4,12 +4,17 @@ pub mod chordpro;
 pub mod config;
 pub mod error;
 pub mod models;
+pub mod pages;
 pub mod remote;
 pub mod sets;
 
 use std::{path::PathBuf, sync::Arc};
 
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    extract::{Path, State},
+    routing::get,
+};
 use sqlx::PgPool;
 use tower_http::{compression::CompressionLayer, services::ServeDir, trace::TraceLayer};
 
@@ -32,9 +37,21 @@ impl AppState {
 }
 
 pub fn app(state: AppState, web_dist: PathBuf) -> Router {
-    let router = Router::new()
+    let mut router = Router::new()
         .nest("/api/v1", api::router())
-        .route("/api/openapi.json", get(api::openapi))
+        .route("/api/openapi.json", get(api::openapi));
+    if web_dist.is_dir() {
+        let index = web_dist.join("index.html");
+        router = router.route(
+            "/songs/{song_id}",
+            get(
+                move |State(state): State<AppState>, Path(song_id): Path<String>| {
+                    pages::song_page(state, song_id, index.clone())
+                },
+            ),
+        );
+    }
+    let router = router
         .with_state(state)
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());

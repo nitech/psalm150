@@ -10,6 +10,7 @@ import {
   readerPanel,
   readerToggle,
   renderSongBody,
+  songText,
   stepTranspose,
 } from "../song-render.ts";
 import type { SongSummary } from "../types.ts";
@@ -190,7 +191,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       title: song.title,
       back: "#/songs",
       autohide: true,
-      actions: `<button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
+      actions: `<button type="button" class="icon-button ghost" id="copy-lyrics" aria-label="Copy the words" title="Copy the words">${icon("copy")}</button><button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
       panel: readerPanel(display, options, transpose),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
@@ -209,6 +210,10 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       void shareSong(ctx, song);
       return;
     }
+    if ((event.target as HTMLElement).closest("#copy-lyrics")) {
+      void copyLyrics(song.title, songText(prepareSong(song.chordpro, 0)));
+      return;
+    }
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-set-act]");
     if (!button) return;
     if (button.dataset.setAct === "toggle") toggleInCurrentSet(ctx, song, transpose);
@@ -220,6 +225,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     const actions = ctx.main.querySelector("#set-actions");
     if (actions) actions.innerHTML = setActions();
   });
+  document.title = `${song.title} · PSA150`;
   render();
   return () => {
     ctx.main.removeEventListener("click", onSetAction);
@@ -227,9 +233,22 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   };
 }
 
-/** Copies the song's own address, which opens it straight in the reader. */
+async function copyLyrics(title: string, text: string): Promise<void> {
+  if (!text) {
+    showToast("This song has no words to copy.");
+    return;
+  }
+  if (await copyText(text)) showToast("Words copied.");
+  else window.prompt(`Copy the words of ${title}:`, text);
+}
+
+/**
+ * Copies the song's permalink, `/songs/{id}`. The server serves the app
+ * there (with the title for link previews when the library is public), and
+ * the app moves on to `#/songs/{id}`.
+ */
 async function shareSong(ctx: LibraryContext, song: SongRef): Promise<void> {
-  const url = `${location.origin}${location.pathname}#/songs/${song.id}`;
+  const url = `${location.origin}/songs/${song.id}`;
   if (!(await copyText(url))) {
     window.prompt(`Copy this link to ${song.title}:`, url);
     return;

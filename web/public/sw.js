@@ -56,7 +56,9 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(event, SHELL, "/"));
+    // Every page is the app. Only `/` is saved: a permalink page carries
+    // its song's title, so it falls back to `/` but never replaces it.
+    event.respondWith(networkFirst(event, SHELL, "/", url.pathname === "/"));
   } else if (url.pathname.startsWith("/assets/")) {
     event.respondWith(cacheFirst(event));
   } else if (CACHED_API.some((pattern) => pattern.test(url.pathname))) {
@@ -64,10 +66,10 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-async function networkFirst(event, cacheName, key) {
+async function networkFirst(event, cacheName, key, store = true) {
   const cache = await caches.open(cacheName);
   const network = fetch(event.request).then((response) => {
-    if (response.ok) event.waitUntil(cache.put(key, response.clone()));
+    if (store && response.ok) event.waitUntil(cache.put(key, response.clone()));
     return response;
   });
   event.waitUntil(network.catch(() => undefined));

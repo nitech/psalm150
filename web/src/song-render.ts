@@ -47,6 +47,54 @@ export function renderSongBody(song: DisplaySong, options: ReaderOptions): strin
   </div>`;
 }
 
+/**
+ * The words alone, for copying: no section labels, chords or comments, and a
+ * blank line between sections.
+ */
+export function songText(song: DisplaySong): string {
+  return song.sections
+    .map((section) => section.lines
+      .filter((line) => line.kind === "lyrics")
+      .map((line) => line.segments.map((segment) => segment.text).join("").trimEnd())
+      .filter((line) => line.trim())
+      .join("\n"))
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * Copying a selection inside a song copies only the words, the same way as
+ * `songText`. Labels and chords are also unselectable in the CSS, but not
+ * every browser leaves unselectable text out of the clipboard.
+ */
+export function installLyricsCopy(): void {
+  document.addEventListener("copy", (event) => {
+    const selection = document.getSelection();
+    if (!selection || selection.isCollapsed || !event.clipboardData) return;
+    const range = selection.getRangeAt(0);
+    const start = range.commonAncestorContainer;
+    const element = start instanceof Element ? start : start.parentElement;
+    if (!element?.closest(".song-body")) return;
+    const text = lyricsIn(range.cloneContents());
+    if (!text) return;
+    event.clipboardData.setData("text/plain", text);
+    event.preventDefault();
+  });
+}
+
+/** Lyrics in a copied piece of `renderSongBody` output, which may be partial. */
+export function lyricsIn(fragment: DocumentFragment): string {
+  fragment.querySelectorAll(".song-section > h3, .ch, .song-comment").forEach((node) => node.remove());
+  const lineText = (node: Node) => (node.textContent ?? "").replace(/ /g, " ").trimEnd();
+  if (!fragment.querySelector(".song-line")) return lineText(fragment).trim();
+  const sections = fragment.querySelectorAll(".song-section");
+  const groups: ParentNode[] = sections.length ? Array.from(sections) : [fragment];
+  return groups
+    .map((group) => Array.from(group.querySelectorAll(".song-line")).map(lineText).filter((line) => line.trim()).join("\n"))
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 /** Chord, transpose and text size controls. `transpose` is null to hide it. */
 export function readerControls(song: DisplaySong, options: ReaderOptions, transpose: number | null): string {
   const chordToggle = hasChords(song)

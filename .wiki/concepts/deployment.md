@@ -13,7 +13,10 @@ sources:
     title: Startup, tracing, graceful shutdown
   - id: lib
     resource: /api/src/lib.rs
-    title: Static web fallback / headless warning
+    title: Static web fallback / headless warning, permalink route
+  - id: pages
+    resource: /api/src/pages.rs
+    title: Song permalink page with link-preview tags
   - id: compose
     resource: /compose.yaml
     title: Compose deployment
@@ -26,7 +29,7 @@ sources:
   - id: readme
     resource: /README.md
     title: Run instructions
-generated: { by: agent, at: 2026-09-23T00:00:00Z }
+generated: { by: agent, at: 2026-10-03T08:45:00Z }
 ---
 
 # Deployment and config
@@ -55,6 +58,17 @@ routing are left to a reverse proxy, which is not documented yet
 gracefully, with SIGTERM on Unix only. Requests outside `/api` fall through to
 `ServeDir` over the web build (`index.html` for directories), so deep links
 into the single-page app do not get a history-mode fallback.
+
+## Song permalinks
+
+With a web build present, `GET /songs/{id}` (outside `/api`, `pages.rs`)
+serves the web client's `index.html`, read from disk on each request, with
+`Cache-Control: no-cache`. When the song is live and in a public library, the
+page's `<title>` becomes "<song> · <church>" and it gains `og:type`,
+`og:title`, `og:description` (authors and church) and `og:site_name`, so chat
+apps can show a preview. For a private, deleted, unknown or malformed id the
+page is served unchanged (200): a private song's title is never sent without
+a sign-in. Headless servers have no such route.
 
 ## Docker Compose
 

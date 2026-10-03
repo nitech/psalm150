@@ -522,6 +522,63 @@ async fn public_library_flow(pool: PgPool) {
     assert_eq!(info.1["public_library"], false);
 }
 
+#[sqlx::test(migrations = "./migrations")]
+async fn song_permalink_page(pool: PgPool) {
+    let web = std::env::temp_dir().join(format!("psa150-web-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&web).expect("web dir");
+    std::fs::write(
+        web.join("index.html"),
+        "<html><head><title>PSA150</title></head><body><div id=\"app\"></div></body></html>",
+    )
+    .expect("index");
+    let app = app(AppState::new(pool, 1), web.clone());
+    let (owner, _) = owner_and_desktop(&app).await;
+    let (song_id, _) = create_song(&app, &owner, "Amazing Grace").await;
+    let page = |path: String| {
+        let app = app.clone();
+        async move {
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .uri(path)
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            let status = response.status();
+            let body = to_bytes(response.into_body(), 1024 * 1024)
+                .await
+                .expect("body");
+            (status, String::from_utf8(body.to_vec()).expect("utf-8"))
+        }
+    };
+
+    // Private: the app loads, but the song's title stays on the server.
+    let (status, html) = page(format!("/songs/{song_id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains("<div id=\"app\">"));
+    assert!(!html.contains("Amazing Grace"));
+
+    send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&owner),
+        Some(json!({ "public_library": true })),
+    )
+    .await;
+    let (_, html) = page(format!("/songs/{song_id}")).await;
+    assert!(html.contains("<title>Amazing Grace · Test Church</title>"));
+    assert!(html.contains("<meta property=\"og:title\" content=\"Amazing Grace\" />"));
+
+    // Unknown or malformed ids still load the app, which says "Not found".
+    let (status, html) = page("/songs/not-a-song".into()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains("<title>PSA150</title>"));
+    std::fs::remove_dir_all(web).ok();
+}
+
 /// Sets up the server and returns (owner session, desktop token).
 async fn owner_and_desktop(app: &Router) -> (String, String) {
     let setup = send(

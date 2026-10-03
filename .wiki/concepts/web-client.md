@@ -62,7 +62,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-02T12:00:00Z }
+generated: { by: agent, at: 2026-10-03T08:45:00Z }
 ---
 
 # Web client
@@ -105,7 +105,11 @@ they become a side rail with the brand. Above the tab bar sits the **dock**:
 the offline notice and the [current set](#current-set) bar. The service view
 hides the tab bar and the dock; the song and set editors hide the dock.
 Routes live in the URL hash, so the server's static file serving (which has no
-SPA fallback) is enough, and links can be shared or bookmarked.
+SPA fallback) is enough, and links can be shared or bookmarked. The one real
+path is the song permalink `/songs/{id}`
+([deployment](deployment.md#song-permalinks)), which the app turns into
+`#/songs/{id}` with `history.replaceState`. The service worker answers any
+navigation offline with the saved `/`, but saves only `/` itself.
 
 | Route | Screen |
 | --- | --- |
@@ -171,11 +175,17 @@ other people's phones and the desktops are not affected.
   off, transpose (only when the song has chords; view only, never saved), and
   text size (−2 to +4). Chords and text size are remembered. The key (with
   any transpose) shows under the title. Shows the first 8 characters of the
-  revision id. **Share** in the bar copies the song's address
-  (`<origin>/#/songs/{id}`). It uses the Clipboard API, then falls back to
-  `execCommand("copy")` (plain-HTTP LAN addresses have no Clipboard API), then
-  to a prompt. When the library is private, the toast says only people who
-  can sign in can open the link.
+  revision id, and sets the tab title to the song's. **Share** in the bar
+  copies the song's permalink, `<origin>/songs/{id}` (a real path, so the
+  server can add link-preview tags; on load the app replaces it with
+  `#/songs/{id}`). **Copy the words** copies the lyrics alone: no section
+  labels, chords or comments, a blank line between sections (`songText`).
+  Selecting part of a song and copying (Ctrl+C) gives the same lyrics-only
+  text: labels, chords and comments are unselectable, and a `copy` handler
+  (`installLyricsCopy`) strips them from the selection. Both copy buttons use
+  the Clipboard API, then `execCommand("copy")` (plain-HTTP LAN addresses have
+  no Clipboard API), then a prompt. When the library is private, the share
+  toast says only people who can sign in can open the link.
 - **Editor**: a raw ChordPro textarea. New songs start from a
   title/author/key/verse template. Saving an existing song sends its
   `revision_id` as the base; a 409 keeps the text and links to the latest
