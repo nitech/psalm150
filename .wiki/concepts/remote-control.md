@@ -1,8 +1,8 @@
 ---
 type: Concept
 title: Remote control
-description: Two ways to steer the PC from a phone — a PIN-guarded LAN HTTP server with a phone page for next/prev/blank, and an opt-in relay through the connected song server that also projects songs and set items.
-tags: [remote, http, lan, tailscale, phone, server, long-poll]
+description: Two ways to steer the PC from a phone — a PIN-guarded LAN HTTP server with a phone page for next/prev/blank, and a relay through the connected song server (on by default) that also projects songs and set items — plus the PC's room on the song server, where anyone may follow the projected words on their phone.
+tags: [remote, http, lan, tailscale, phone, server, long-poll, rooms]
 status: stable
 sources:
   - id: remote
@@ -22,11 +22,14 @@ sources:
     title: Integration test (page, PIN, 404, port release)
   - id: server-remote
     resource: /src-tauri/src/commands/server_remote.rs
-    title: Song server remote (state reports, command long poll, set_server_remote_enabled)
+    title: Song server remote and room (state reports with slide words, command long poll, room fetch and rename, set_server_remote_enabled, set_server_room_sharing)
+  - id: config
+    resource: /src-tauri/src/config.rs
+    title: server_remote (server_remote_enabled) and server_room_sharing, both default on
   - id: app
     resource: /src/components/app.ts
-    title: Settings "Phone remote" section, Church server checkbox, remote-project handler
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+    title: Settings "Phone remote" section, Church server checkboxes and room settings, room chip, remote-project handler
+generated: { by: agent, at: 2026-10-05T21:30:00Z }
 ---
 
 # Remote control
@@ -38,6 +41,10 @@ There are two independent remotes:
 - the **song server remote** ([below](#through-the-song-server)): leaders
   signed in to the connected song server steer the PC from the server's web
   client, from anywhere, without opening a port on the PC.
+
+Through the same connection the PC also has a [room](#room) on the song
+server: anyone who types its name at `<server>/join` can follow the projected
+words on their own phone.
 
 ## LAN remote
 
@@ -81,7 +88,10 @@ Plain HTML embedded with `include_str!` (rebuild to change it). Dark, large
 buttons, safe-area padding, `apple-mobile-web-app-capable` so it can be added
 to the iOS Home Screen. The PIN field is remembered in the phone's
 `localStorage` (`psa150-remote-pin`); each tap reports "Sent next", "Wrong
-PIN" or "Psalm150 is not reachable".
+PIN. Type the PIN shown in Psalm150 under Settings, Phone remote." (and marks
+the PIN field invalid) or "Psalm150 is not reachable" in a `role="status"`
+line. The page aims at WCAG 2.2 AA ([accessibility](accessibility.md#lan-remote-page)):
+labelled PIN field with a 3:1 edge, focus ring, `main` landmark.
 
 ### Caveats
 
@@ -94,32 +104,45 @@ PIN" or "Psalm150 is not reachable".
 
 ## Through the song server
 
-Opt-in and only in a [server library](server-library.md): Settings, Church
-server, **Allow remote control through the song server**
-(`set_server_remote_enabled`, saved as `config.server_remote_enabled`,
-default off). The hint says leaders signed in to the song server can change
-slides, blank the screen and project songs from their phones, and that
-everything also works without the server. The desktop only makes outgoing
-requests with its device token; the phone side lives in the server repo.
+Only in a [server library](server-library.md), and **on by default**:
+Settings, Church server, **Allow remote control through the song server**
+(`set_server_remote_enabled`, saved under the config key `server_remote`;
+the Rust field is still `server_remote_enabled`). The old key
+`server_remote_enabled` was off by default and is now ignored, so existing
+installs have remote control on until the operator turns it off. The hint
+says leaders signed in to the song server can change slides, blank the screen
+and project songs from their phones, and that everything also works without
+the server. The desktop only makes outgoing requests with its device token;
+the phone side lives in the server repo.
 
-Two background tasks are spawned in `setup()` and idle while the setting is
-off, no server library is connected, or no token is stored:
+Two background tasks are spawned in `setup()`:
 
-- **State report.** About every 0.7 s the desktop builds its state:
-  `projecting` (audience or stage window visible and slides loaded),
-  `blanked`, `song_id` (the projected file's server id from the manifest),
-  `song_title`, `slide_index`, `slide_labels` (section labels), and
-  `set_id` / `set_item_index` for the console's active setlist
-  (`set_active_setlist`) when that setlist has been uploaded to the server
-  and contains the projected file. It sends `PUT /api/v1/remote/desktop` when
-  the state changed, and at least every 15 s as a heartbeat (`HEARTBEAT`).
-  When the setting is turned off or the server library disconnected it sends
-  `DELETE /api/v1/remote/desktop` once. A failed report is retried after 5 s.
-- **Commands.** `GET /api/v1/remote/desktop/commands?wait=25`
-  (`LONG_POLL_SECONDS`) is held open by the server and returns a list of
-  commands. A 404 (server without remote control) waits 5 minutes before
-  asking again; other errors retry after 5 s. Commands that arrive after the
-  setting was turned off are ignored.
+- **State report.** Runs while a server library is connected, a token is
+  stored, and remote control **or** [room sharing](#room) is on. About every
+  0.7 s the desktop builds its state: `accepts_commands` (the remote control
+  setting), `shares_room` (the room sharing setting), `projecting` (audience
+  or stage window visible and slides loaded), `blanked`, `song_id` (the
+  projected file's server id from the manifest), `song_title`,
+  `slide_index`, `slide_labels` (section labels), `slides` (every slide's
+  label and lines, words only, no chords), and `set_id` / `set_item_index`
+  for the console's active setlist (`set_active_setlist`) when that setlist
+  has been uploaded to the server and contains the projected file. It sends
+  `PUT /api/v1/remote/desktop` when the state changed, and at least every
+  15 s as a heartbeat (`HEARTBEAT`). When both settings are turned off it
+  sends `DELETE /api/v1/remote/desktop` once. Disconnecting the server
+  library deletes the token before that goodbye could go out; the token is
+  revoked on the server instead
+  ([server library](server-library.md#disconnecting)), which takes the
+  desktop off the phones' list and out of its room. A failed report is
+  retried after 5 s. The same loop reads the [room](#room).
+- **Commands.** Only while remote control is on.
+  `GET /api/v1/remote/desktop/commands?wait=25` (`LONG_POLL_SECONDS`) is held
+  open by the server and returns a list of commands. A 404 (server without
+  remote control) waits 5 minutes before asking again; other errors retry
+  after 5 s. Commands that arrive after the setting was turned off are
+  ignored. With remote control off but room sharing on, the PC still reports
+  (with `accepts_commands: false`), so leaders see what it shows but cannot
+  steer it.
 
 | Action | Runs | Effect |
 | --- | --- | --- |
@@ -136,10 +159,43 @@ projection windows are only shown, never built from the command) and applies
 `transpose` with `set_transpose`, then toasts "Projected from <issued_by>'s
 phone". Errors are toasted.
 
+### Room
+
+The song server gives every connected PC a room name, a flower such as
+"Lily" unless someone renamed it, unique on that server. Leaders pick the PC
+by it in the server's remote, and anyone may type it at `<server>/join` to
+follow the words this PC projects on their own phone, in large text. The rules
+on the server side (who may rename, the church owner's switch, what a room
+shows) are in the server repo's wiki, page "Rooms".
+
+- **Reading it.** The report loop asks `GET /api/v1/remote/desktop` on
+  connecting and then every 60 s (`ROOM_REFRESH`), so a name a leader changed
+  on the web shows here within a minute. `get_server_room` asks on demand
+  (the console calls it at startup and when Settings opens) and falls back to
+  the last known room when the server cannot be reached. The room is cached
+  and every change is emitted as `server-room` with
+  `ServerRoom { room_name, public_rooms, join_url }`, or null when the server
+  library is disconnected. `public_rooms` is the church owner's setting;
+  `join_url` is `<server>/join/<room>`.
+- **Renaming.** `rename_server_room(room_name)` sends
+  `PUT /api/v1/remote/desktop/room`; null picks another random flower. The
+  server refuses a name another desktop has (409) or one outside 2–30
+  letters, digits, spaces, hyphens and apostrophes (400), and its message is
+  shown. A server too old to have rooms answers 404, shown as "this song
+  server does not have rooms yet; update it".
+- **Sharing.** Settings, Church server, **Let people follow the projected
+  words in this room** (`set_server_room_sharing`, `config.server_room_sharing`,
+  **on by default**) sets `shares_room` in the report. Off, the room stays
+  (leaders still pick the PC by it) but shows no words. The words are only
+  shown in the room while something is projected, and never the chords.
+
+The console shows the room as a chip in its header and under Settings, Church
+server ([operator console](operator-console.md#room)).
+
 ## Related
 
 - [Config](config.md): `remote_enabled`, `remote_port`, `remote_pin`,
-  `server_remote_enabled`
+  `server_remote` (`server_remote_enabled`), `server_room_sharing`
 - [Server library](server-library.md): the connection and sets it relies on
 - [Projection windows](projection-windows.md): the navigation it triggers
 - [Operator console](operator-console.md): the Settings toggles

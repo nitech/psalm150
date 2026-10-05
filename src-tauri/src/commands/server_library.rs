@@ -103,12 +103,16 @@ pub async fn sync_server_library(
 
 #[tauri::command]
 pub fn disconnect_server_library(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    let local_folder = with_state(&state, |runtime| {
-        Ok(runtime.config.last_local_songs_folder.clone())
+    let (local_folder, server_url) = with_state(&state, |runtime| {
+        Ok((
+            runtime.config.last_local_songs_folder.clone(),
+            connected_server_url(runtime),
+        ))
     })?;
     if let Some(local_folder) = local_folder {
         let local_folder = PathBuf::from(local_folder);
         if local_folder.is_dir() {
+            // Choosing the folder forgets (and revokes) the token as well.
             library::activate_songs_folder(&app, &state, local_folder, true)?;
             return Ok(());
         }
@@ -132,9 +136,17 @@ pub fn disconnect_server_library(app: AppHandle, state: State<'_, AppState>) -> 
         runtime.projection_revision += 1;
         Ok(())
     })?;
-    delete_token(&app)?;
+    forget_token(&app, server_url)?;
     emit_library_changed(&app);
     Ok(())
+}
+
+pub(crate) fn connected_server_url(runtime: &crate::state::RuntimeState) -> Option<String> {
+    runtime
+        .config
+        .server_library
+        .as_ref()
+        .map(|server| server.url.clone())
 }
 
 pub(crate) async fn synchronize(
@@ -232,6 +244,13 @@ pub(crate) async fn synchronize(
         }
     }
 
+    // A new sign-in or pasted token replaces the old one, which is revoked.
+    let previous_url = with_state(state, |runtime| Ok(connected_server_url(runtime)))?;
+    if let (Some(previous_url), Ok(previous)) = (previous_url, read_token(app)) {
+        if previous != token {
+            revoke_token_in_background(previous_url, previous);
+        }
+    }
     write_token(app, token)?;
     with_state(state, |runtime| {
         if let Some(local_folder) = &local_merge_folder {
@@ -770,6 +789,52 @@ fn delete_token(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Forgets the stored desktop token, revoking it on `server_url` first, so
+/// the server stops listing this desktop among the church's desktops.
+pub(crate) fn forget_token(app: &AppHandle, server_url: Option<String>) -> Result<(), String> {
+    if let (Some(server_url), Ok(token)) = (server_url, read_token(app)) {
+        revoke_token_in_background(server_url, token);
+    }
+    delete_token(app)
+}
+
+/// Best effort and in the background: the desktop lets go of the token
+/// whether or not the server answers.
+fn revoke_token_in_background(server_url: String, token: String) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = revoke_token(&server_url, &token).await {
+            eprintln!("[server] could not revoke the desktop token: {error}");
+        }
+    });
+}
+
+/// `DELETE /api/v1/session` revokes the token that sends it. A token that is
+/// already revoked (401), or a server that predates sign-out (405), is fine.
+async fn revoke_token(server_url: &str, token: &str) -> Result<(), String> {
+    let endpoint = url::Url::parse(server_url)
+        .and_then(|base| base.join("api/v1/session"))
+        .map_err(|error| error.to_string())?;
+    let response = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|error| error.to_string())?
+        .delete(endpoint)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    let status = response.status();
+    if status.is_success()
+        || status == reqwest::StatusCode::UNAUTHORIZED
+        || status == reqwest::StatusCode::METHOD_NOT_ALLOWED
+    {
+        Ok(())
+    } else {
+        Err(format!("the song server answered {status}"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::{Cursor, Write};
@@ -826,5 +891,46 @@ mod tests {
         assert_eq!(count, 1);
         assert_eq!(manifest.as_deref(), Some(&b"[]"[..]));
         assert!(!destination.path().join("psa150-manifest.json").exists());
+    }
+
+    #[test]
+    fn revokes_the_token_and_tolerates_older_servers() {
+        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let port = server.server_addr().to_ip().unwrap().port();
+        let answers = std::thread::spawn(move || {
+            let mut seen = Vec::new();
+            for status in [204, 401, 405, 500] {
+                let request = server.recv().unwrap();
+                let bearer = request
+                    .headers()
+                    .iter()
+                    .find(|header| header.field.equiv("Authorization"))
+                    .map(|header| header.value.to_string());
+                seen.push((
+                    request.method().to_string(),
+                    request.url().to_string(),
+                    bearer,
+                ));
+                request.respond(tiny_http::Response::empty(status)).unwrap();
+            }
+            seen
+        });
+        let base = format!("http://127.0.0.1:{port}/church/");
+        let revoke = || tauri::async_runtime::block_on(super::revoke_token(&base, "psa_d_secret"));
+
+        // Revoked; already revoked; a server without sign-out; a failure.
+        assert!(revoke().is_ok());
+        assert!(revoke().is_ok());
+        assert!(revoke().is_ok());
+        assert!(revoke().is_err());
+        let seen = answers.join().unwrap();
+        assert_eq!(
+            seen[0],
+            (
+                "DELETE".to_string(),
+                "/church/api/v1/session".to_string(),
+                Some("Bearer psa_d_secret".to_string())
+            )
+        );
     }
 }

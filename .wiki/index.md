@@ -15,24 +15,25 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 * [Songs folder and app data](concepts/songs-folder.md) - The synced folder contract, per-library app data, watcher and dirty flag, startup staging
 * [Library index](concepts/library-index.md) - SQLite schema, word search with spelling tolerance and match ranks, history, favourites
 * [MDB import](concepts/mdb-import.md) - Visual Song Book `.mdb` to ChordPro, theme from PageSetup, progress and cancel
-* [Server library](concepts/server-library.md) - Song server as the library: address check, browser sign-in over a loopback redirect (PKCE), offline copy and manifest, saving edits to the server, sets sync with conflict copies and fetching missing songs
+* [Server library](concepts/server-library.md) - Song server as the library: address check, browser sign-in over a loopback redirect (PKCE), offline copy and manifest, saving edits to the server, sets sync with conflict copies and fetching missing songs, remote and room on by default once connected, revoking the token on disconnect
 * [VSB sync](concepts/vsb-sync.md) - Two-way sync with a linked VSB database: hashes and links, Psalm150-wins conflicts, Access ODBC writer, backups, write-back to a song server
 * [Web search](concepts/web-search.md) - DuckDuckGo discovery, site scrapers, chord-chart conversion, preview vs save
 * [Duplicate review](concepts/duplicate-review.md) - Exact candidate grouping, side-by-side human review, pair decisions, recoverable delete and restore
 
 # Operator console
 
-* [Operator console](concepts/operator-console.md) - Main window state, toolbar groups, #key search, History/Favourites/Setlist views, setlist heart, song list columns and sorting, number-key stanza shortcuts, projecting mode, settings
+* [Operator console](concepts/operator-console.md) - Main window state, toolbar groups, the room chip, #key search, History/Favourites/Setlist views, setlist heart, song list columns and sorting, number-key stanza shortcuts, projecting mode, settings (including the room name and sharing)
 * [Performance sections](concepts/performance-sections.md) - Console-side mirror of chorus2 expansion; stanza markers that tie the song view to slides
 * [Ad hoc editing](concepts/adhoc-editing.md) - Fix a lyric while projecting; patch raw ChordPro without touching chords
 * [Setlists](concepts/setlists.md) - JSON setlists per library (local, or mirrors of the server's sets), the add-to-setlist menu, the Setlist view and Next song with the item's transpose
+* [Accessibility](concepts/accessibility.md) - WCAG 2.2 AA for the console and the LAN remote page: names and landmarks, dialogs and keyboard model, focus ring, contrast and state cues, live-region toasts, reduced motion, zoom and reflow, how to test, exceptions (projection windows, song language, ad hoc editing)
 
 # Platform
 
-* [Config and theme](concepts/config.md) - `config.json` fields with consumers, per-library `SlideTheme`, stored-but-unused settings
+* [Config and theme](concepts/config.md) - `config.json` fields with consumers (including `server_remote` and `server_room_sharing`, both on by default), per-library `SlideTheme`, stored-but-unused settings
 * [Design tokens](concepts/design-tokens.md) - Shared `psa150-tokens.css` and icons mirrored from the song server in `src/shared/`, dark/light themes, console aliases, `designsystem.json` as reference
 * [IPC contract](concepts/ipc-contract.md) - Every Tauri command and event, grouped, with whether the UI calls it
-* [Remote control](concepts/remote-control.md) - PIN-guarded LAN remote for next/prev/blank, and the opt-in song server remote that also projects songs and set items
+* [Remote control](concepts/remote-control.md) - PIN-guarded LAN remote for next/prev/blank; the song server remote (on by default) that also projects songs and set items; the PC's room on the song server (flower name, rename, sharing the projected words, `server-room`)
 * [Reports](concepts/reports.md) - CCLI usage log and CSV export, printable songbook HTML
 * [Build and release](concepts/build-and-release.md) - Bun + Vite multi-entry, the Tauri CLI shim, test suites, GitHub release and updater
 * [Gaps and backlog](concepts/gaps.md) - Known limitations, the Todo list with status, unwired commands

@@ -14,7 +14,7 @@ sources:
   - id: client
     resource: /src/projection-client.ts
     title: Wrappers used by the audience page
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-05T18:00:00Z }
 ---
 
 # IPC contract
@@ -71,7 +71,10 @@ commands are real and tested but reachable only over IPC.
 | `connect_server_library` | `url, token` → `LibraryStatus` (pasted `psa_d_` token) | yes (token fallback) |
 | `sync_server_library`, `disconnect_server_library` | → `LibraryStatus` / `()`; a full sync ends with a sets sync | yes |
 | `sync_server_sets` | async → `SetSyncReport`; uploads dirty setlists and mirrors the server's sets ([sets](server-library.md#sets)); errors when no server library is connected | no (wrapper `syncServerSets` only; runs every 60 s and after edits anyway) |
-| `set_server_remote_enabled` | `enabled` → `()`; saves `server_remote_enabled` ([song server remote](remote-control.md#through-the-song-server)) | yes (Settings, Church server) |
+| `set_server_remote_enabled` | `enabled` → `()`; saves `server_remote_enabled` (config key `server_remote`, default on) ([song server remote](remote-control.md#through-the-song-server)) | yes (Settings, Church server) |
+| `set_server_room_sharing` | `enabled` → `()`; saves `server_room_sharing` (default on): whether the PC's [room](remote-control.md#room) shows the projected words | yes (Settings, Church server) |
+| `get_server_room` | async → `Option<ServerRoom { room_name, public_rooms, join_url }>`; asks the song server (`GET /api/v1/remote/desktop`), else the last known room; None without a server library; errors when the server cannot be reached and no room is known yet | yes (startup, opening Settings) |
+| `rename_server_room` | async; `roomName: Option<String>` → `ServerRoom`; null picks another random flower; the server's refusal (name taken, invalid) is the error | yes (Settings, Church server) |
 
 Event `server-sync-progress` `{ phase, label, current, total, unit }` reports
 upload, download and activation; the console adds its own `signing in` phase
@@ -130,6 +133,7 @@ while the browser is open.
 | `vsb-sync-finished` | `{ report: VsbSyncReport?, error? }` | console refreshes config, toasts changes or errors |
 | `setlists-changed` | `SetSyncReport { uploaded, downloaded, conflicts[], skipped_items, fetched_songs, unsupported }`; background runs emit it only when something changed | console reloads setlists (and the Setlist view), toasts conflicts and skipped items |
 | `remote-project` | `RemoteProject { filename, transpose, set_id?, item_index?, issued_by }` from the [song server remote](remote-control.md#through-the-song-server) | console selects the setlist and song, projects, applies the transpose |
+| `server-room` | `ServerRoom { room_name, public_rooms, join_url }` or null; emitted only when the PC's [room](remote-control.md#room) as known changes (checked on connecting, every 60 s while reporting, by `get_server_room` and on rename) and null when the server library is disconnected | console room chip and Settings, Church server ([operator console](operator-console.md#room)) |
 
 Each page subscribes before fetching `get_projection_snapshot`, closing the
 startup race without targeted events or `window.eval` delivery.

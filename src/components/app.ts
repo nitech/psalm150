@@ -19,6 +19,7 @@ import {
   type RemoteProject,
   type RemoteStatus,
   type ServerLibraryConfig,
+  type ServerRoom,
   type SetSyncReport,
   type ServerSyncProgress,
   type Setlist,
@@ -110,7 +111,7 @@ const SETTINGS_SECTIONS: ReadonlyArray<{
   keywords: string;
 }> = [
   { id: "library", label: "Library", icon: "♫", keywords: "songs folder chordpro import mdb rescan duplicates numbers" },
-  { id: "server", label: "Church server", icon: "↗", keywords: "server url token sync download offline cache church" },
+  { id: "server", label: "Church server", icon: "↗", keywords: "server url token sync download offline cache church room name flower join share remote control phone" },
   { id: "vsb", label: "Visual Song Book", icon: "⇄", keywords: "vsb visual song book mdb access database sync synchronize two-way backup" },
   { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display chords read only editing" },
   { id: "search", label: "Search", icon: "⌕", keywords: "web internet local songs match" },
@@ -134,6 +135,11 @@ const SERVER_PROBE_DELAY_MS = 450;
 const WEB_SEARCH_DEBOUNCE_MS = 650;
 const SONG_SORT_KEY = "psa150-song-sort";
 const CURRENT_SETLIST_KEY = "psa150-current-setlist";
+/** "off" turns the 1–9 stanza keys off (WCAG 2.1.4: single-key shortcuts can be turned off). */
+const STANZA_NUMBER_KEYS_KEY = "psa150-stanza-number-keys";
+/** Arrow-key step for the song list splitter (Shift: larger). */
+const BROWSE_PANE_STEP = 16;
+const BROWSE_PANE_STEP_LARGE = 64;
 
 /**
  * Root component for the main window. Owns all application state and IPC
@@ -176,6 +182,10 @@ export class Psa150App extends Psa150Element {
     newSetlistName: { state: true },
     vsbSync: { state: true },
     serverRemoteEnabled: { state: true },
+    serverRoomSharing: { state: true },
+    serverRoom: { state: true },
+    roomNameDraft: { state: true },
+    roomRenaming: { state: true },
     vsbProgress: { state: true },
     vsbSyncing: { state: true },
     editorValue: { state: true },
@@ -192,6 +202,9 @@ export class Psa150App extends Psa150Element {
     toastMsg: { state: true },
     toastTone: { state: true },
     toastVisible: { state: true },
+    liveStatus: { state: true },
+    liveAlert: { state: true },
+    stanzaNumberKeys: { state: true },
     windowMaximized: { state: true },
     projecting: { state: true },
     browsePaneWidth: { state: true },
@@ -250,6 +263,11 @@ export class Psa150App extends Psa150Element {
   declare newSetlistName: string;
   declare vsbSync: VsbSyncConfig | null;
   declare serverRemoteEnabled: boolean;
+  declare serverRoomSharing: boolean;
+  /** This PC's room on the song server, when connected to one. */
+  declare serverRoom: ServerRoom | null;
+  declare roomNameDraft: string;
+  declare roomRenaming: boolean;
   declare vsbProgress: VsbSyncProgress | null;
   declare vsbSyncing: boolean;
   declare editorValue: string;
@@ -266,6 +284,11 @@ export class Psa150App extends Psa150Element {
   declare toastMsg: string;
   declare toastTone: ToastTone;
   declare toastVisible: boolean;
+  /** Screen-reader copies of toasts (polite / assertive live regions). */
+  declare liveStatus: string;
+  declare liveAlert: string;
+  /** Number keys 1–9 jump to a stanza while projecting. */
+  declare stanzaNumberKeys: boolean;
   declare windowMaximized: boolean;
   declare projecting: boolean;
   declare browsePaneWidth: number;
@@ -287,6 +310,8 @@ export class Psa150App extends Psa150Element {
   declare duplicatesStale: boolean;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The pointer or focus is on the toast: keep it up. */
+  private toastHeld = false;
   private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
   private webSearchGeneration = 0;
   private unlistenImport: UnlistenFn | null = null;
@@ -303,6 +328,7 @@ export class Psa150App extends Psa150Element {
   private unlistenVsbFinished: UnlistenFn | null = null;
   private unlistenSetlistsChanged: UnlistenFn | null = null;
   private unlistenRemoteProject: UnlistenFn | null = null;
+  private unlistenServerRoom: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
   private songsRefreshGeneration = 0;
@@ -352,7 +378,11 @@ export class Psa150App extends Psa150Element {
     this.setlistMenuOpen = false;
     this.newSetlistName = "";
     this.vsbSync = null;
-    this.serverRemoteEnabled = false;
+    this.serverRemoteEnabled = true;
+    this.serverRoomSharing = true;
+    this.serverRoom = null;
+    this.roomNameDraft = "";
+    this.roomRenaming = false;
     this.vsbProgress = null;
     this.vsbSyncing = false;
     this.editorValue = "";
@@ -369,6 +399,9 @@ export class Psa150App extends Psa150Element {
     this.toastMsg = "";
     this.toastTone = "info";
     this.toastVisible = false;
+    this.liveStatus = "";
+    this.liveAlert = "";
+    this.stanzaNumberKeys = readLocal(STANZA_NUMBER_KEYS_KEY) !== "off";
     this.windowMaximized = false;
     this.projecting = false;
     const savedWidth = localStorage.getItem(BROWSE_PANE_WIDTH_KEY);
@@ -474,6 +507,10 @@ export class Psa150App extends Psa150Element {
       this.unlistenRemoteProject = await listen<RemoteProject>("remote-project", (event) => {
         void this.onRemoteProject(event.payload);
       });
+      this.unlistenServerRoom = await listen<ServerRoom | null>("server-room", (event) => {
+        this.setServerRoom(event.payload);
+      });
+      void this.refreshServerRoom();
       this.applyProjectionSnapshot(await api.getProjectionSnapshot());
       this.shortcuts = resolveShortcuts(await api.getShortcuts().catch(() => null));
     } catch (err) {
@@ -500,6 +537,7 @@ export class Psa150App extends Psa150Element {
     this.unlistenVsbFinished?.();
     this.unlistenSetlistsChanged?.();
     this.unlistenRemoteProject?.();
+    this.unlistenServerRoom?.();
     document.removeEventListener("pointerdown", this.onDocumentPointerDown);
     void this.unlistenImport?.();
     void this.unlistenServerSync?.();
@@ -531,7 +569,8 @@ export class Psa150App extends Psa150Element {
   private scrollActiveStanzaIntoView(behavior: ScrollBehavior = "smooth") {
     const active = this.querySelector<HTMLElement>(".song-stanza.active");
     if (!active) return;
-    active.scrollIntoView({ block: "nearest", behavior });
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    active.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : behavior });
   }
 
   // ── Derived helpers ────────────────────────────────────────────────────
@@ -578,6 +617,39 @@ export class Psa150App extends Psa150Element {
       splitter.releasePointerCapture(event.pointerId);
     }
     localStorage.setItem(BROWSE_PANE_WIDTH_KEY, String(this.browsePaneWidth));
+  };
+
+  private setBrowsePaneWidth(width: number) {
+    this.browsePaneWidth = Math.round(Math.min(BROWSE_PANE_MAX, Math.max(BROWSE_PANE_MIN, width)));
+    localStorage.setItem(BROWSE_PANE_WIDTH_KEY, String(this.browsePaneWidth));
+  }
+
+  /** Keyboard alternative to dragging the splitter (WCAG 2.1.1). */
+  private onSplitterKeydown = (event: KeyboardEvent) => {
+    const step = event.shiftKey ? BROWSE_PANE_STEP_LARGE : BROWSE_PANE_STEP;
+    const width =
+      event.key === "ArrowLeft"
+        ? this.browsePaneWidth - step
+        : event.key === "ArrowRight"
+          ? this.browsePaneWidth + step
+          : event.key === "Home"
+            ? BROWSE_PANE_MIN
+            : event.key === "End"
+              ? BROWSE_PANE_MAX
+              : null;
+    if (width === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.setBrowsePaneWidth(width);
+  };
+
+  /** Pointer alternative to dragging (WCAG 2.5.7): double-click toggles default and widest. */
+  private onSplitterDblClick = () => {
+    this.setBrowsePaneWidth(
+      this.browsePaneWidth < (BROWSE_PANE_DEFAULT + BROWSE_PANE_MAX) / 2
+        ? BROWSE_PANE_MAX
+        : BROWSE_PANE_DEFAULT,
+    );
   };
 
   private focusSearchField(selectAll = false) {
@@ -1175,10 +1247,11 @@ export class Psa150App extends Psa150Element {
 
   // ── Settings persistence ───────────────────────────────────────────────
 
-  private async openSettings() {
+  private async openSettings(section: SettingsSectionId = "library") {
     this.settingsQuery = "";
-    this.activeSettingsSection = "library";
+    this.activeSettingsSection = section;
     this.settingsOpen = true;
+    void this.refreshServerRoom();
     try {
       const [config, displays, remote] = await Promise.all([
         api.getConfig(),
@@ -1204,7 +1277,8 @@ export class Psa150App extends Psa150Element {
     this.stageMonitor = config.stage_monitor ?? "";
     this.showSongNumbers = config.show_song_numbers !== false;
     this.vsbSync = config.vsb_sync ?? null;
-    this.serverRemoteEnabled = Boolean(config.server_remote_enabled);
+    this.serverRemoteEnabled = config.server_remote !== false;
+    this.serverRoomSharing = config.server_room_sharing !== false;
     if (!this.webSearchEnabled) {
       this.cancelWebSearch();
     }
@@ -1379,8 +1453,8 @@ export class Psa150App extends Psa150Element {
     const returnsToLocal = Boolean(this.lastLocalSongsFolder);
     const accepted = await confirm(
       returnsToLocal
-        ? "Return to your previous local ChordPro library? The server cache will remain on this computer."
-        : "Disconnect this server library? Its cached song files will remain on this computer, but the library will close.",
+        ? "Return to your previous local ChordPro library? The server cache will remain on this computer, and the song server will stop listing this computer."
+        : "Disconnect this server library? Its cached song files will remain on this computer, but the library will close and the song server will stop listing this computer.",
       { title: returnsToLocal ? "Return to local library" : "Disconnect song server", kind: "warning" },
     );
     if (!accepted) return;
@@ -1407,14 +1481,20 @@ export class Psa150App extends Psa150Element {
     const needsToken = probe.status === "ok" && !probe.desktopSignIn;
     let status: TemplateResult | typeof nothing = nothing;
     if (probe.status === "checking") {
-      status = html`<p class="server-probe" role="status">Checking the address…</p>`;
+      status = html`Checking the address…`;
     } else if (probe.status === "error") {
-      status = html`<p class="server-probe error" role="status">${probe.message}</p>`;
+      status = html`${probe.message}`;
     } else if (probe.status === "ok" && !probe.initialized) {
-      status = html`<p class="server-probe error" role="status">This song server has not been set up yet. Open it in a browser to create the church first.</p>`;
+      status = html`This song server has not been set up yet. Open it in a browser to create the church first.`;
     } else if (probe.status === "ok") {
-      status = html`<p class="server-probe ok" role="status">Psalm150 song server found${needsToken ? " · this server needs a desktop token" : ""}</p>`;
+      status = html`Psalm150 song server found${needsToken ? " · this server needs a desktop token" : ""}`;
     }
+    const probeClass =
+      probe.status === "error" || (probe.status === "ok" && !probe.initialized)
+        ? "error"
+        : probe.status === "ok"
+          ? "ok"
+          : "";
     return html`
       <p class="settings-hint">Connect to your church's Psalm150 song server. You sign in with your server username and password in the browser. Local-only songs are then added to the server and the merged library is downloaded for offline use; exact content matches are not duplicated.</p>
       <label class="settings-field server-url-field">
@@ -1422,13 +1502,16 @@ export class Psa150App extends Psa150Element {
         <input
           type="url"
           inputmode="url"
+          autocomplete="url"
           placeholder="https://songs.example.org"
+          aria-describedby="server-probe"
+          aria-invalid=${probe.status === "error" ? "true" : "false"}
           .value=${this.serverUrl}
           ?disabled=${this.serverSyncing}
           @input=${(event: Event) => this.onServerUrlInput((event.target as HTMLInputElement).value)}
         />
       </label>
-      ${status}
+      <p class="server-probe ${probeClass}" id="server-probe" role="status">${status}</p>
       <div class="settings-actions">
         ${this.serverSignInWaiting
           ? html`<button class="ghost" @click=${() => api.cancelServerSignIn()}>Cancel sign-in</button>`
@@ -1444,6 +1527,13 @@ export class Psa150App extends Psa150Element {
   }
 
   private renderServerSyncProgress() {
+    const live = html`<p class="visually-hidden" role="status">${this.serverSyncing
+      ? `${this.serverSyncProgress?.label ?? "Preparing the connection"}`
+      : ""}</p>`;
+    return html`${live}${this.renderServerSyncCard()}`;
+  }
+
+  private renderServerSyncCard() {
     if (!this.serverSyncing) return nothing;
     const progress = this.serverSyncProgress;
     const total = progress?.total ?? 0;
@@ -1460,7 +1550,7 @@ export class Psa150App extends Psa150Element {
           : `${percentage}%`;
 
     return html`
-      <div class="server-sync-status" role="status" aria-live="polite">
+      <div class="server-sync-status">
         <div class="server-sync-heading">
           <span class="server-sync-kicker">${progress?.phase ?? "preparing"}</span>
           <strong>${progress?.label ?? "Preparing the connection"}</strong>
@@ -1587,6 +1677,11 @@ export class Psa150App extends Psa150Element {
     }
   }
 
+  private onStanzaNumberKeysChange(checked: boolean) {
+    this.stanzaNumberKeys = checked;
+    writeLocal(STANZA_NUMBER_KEYS_KEY, checked ? null : "off");
+  }
+
   private async onShowSongNumbersChange(checked: boolean) {
     this.showSongNumbers = checked;
     await api.setShowSongNumbers(checked);
@@ -1705,6 +1800,111 @@ export class Psa150App extends Psa150Element {
     }
   }
 
+  private setServerRoom(room: ServerRoom | null) {
+    // Keep what the operator is typing; follow a rename made elsewhere.
+    if (!this.serverRoom || this.roomNameDraft === this.serverRoom.room_name || !room) {
+      this.roomNameDraft = room?.room_name ?? "";
+    }
+    this.serverRoom = room;
+  }
+
+  /** Asks the song server for this PC's room; quiet when it cannot be reached. */
+  private async refreshServerRoom() {
+    try {
+      this.setServerRoom(await api.getServerRoom());
+    } catch {
+      // Offline or an older server: the last known room stays.
+    }
+  }
+
+  private async renameServerRoom(name: string | null) {
+    if (name !== null && (!name.trim() || name.trim() === this.serverRoom?.room_name)) return;
+    this.roomRenaming = true;
+    try {
+      const room = await api.renameServerRoom(name === null ? null : name.trim());
+      this.roomNameDraft = room.room_name;
+      this.serverRoom = room;
+      this.showToast(`This PC's room is now called ${room.room_name}`, "success");
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      this.roomRenaming = false;
+    }
+  }
+
+  private async onServerRoomSharingChange(enabled: boolean) {
+    try {
+      await api.setServerRoomSharing(enabled);
+      this.serverRoomSharing = enabled;
+      this.showToast(enabled ? "People can follow the words in this PC's room" : "The words are no longer shared in this PC's room", enabled ? "success" : "info");
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  private async copyRoomLink() {
+    if (!this.serverRoom?.join_url) return;
+    try {
+      await navigator.clipboard.writeText(this.serverRoom.join_url);
+      this.showToast("Room link copied", "success");
+    } catch {
+      this.showToast(this.serverRoom.join_url, "info");
+    }
+  }
+
+  private renderRoomChip() {
+    const room = this.serverRoom;
+    if (!room || !this.serverLibrary) return nothing;
+    const shared = room.public_rooms && this.serverRoomSharing;
+    const title = shared
+      ? `Room name. Leaders pick this PC by it, and anyone can follow the words at ${room.join_url}. Click to change.`
+      : `Room name. Leaders pick this PC by it. The words are not shared in the room. Click to change.`;
+    return html`<button
+      class="room-chip ${shared ? "" : "muted"}"
+      type="button"
+      title=${title}
+      @click=${() => this.openSettings("server")}
+    ><span class="room-chip-label">Room</span> <span class="room-chip-name">${room.room_name}</span
+      >${shared ? nothing : html`<span class="visually-hidden">, words not shared</span>`}</button>`;
+  }
+
+  private renderRoomSettings() {
+    const room = this.serverRoom;
+    if (!room) {
+      return html`<p class="settings-hint">This PC's room name shows here once the song server answers.</p>`;
+    }
+    const busy = this.roomRenaming;
+    return html`
+      <h4 class="settings-subheading">Room</h4>
+      <div class="settings-row room-rename">
+        <label class="settings-row-label" for="room-name-input">Room name</label>
+        <input
+          id="room-name-input"
+          type="text"
+          maxlength="30"
+          autocomplete="off"
+          spellcheck="false"
+          .value=${this.roomNameDraft}
+          ?disabled=${busy}
+          @input=${(event: Event) => (this.roomNameDraft = (event.target as HTMLInputElement).value)}
+          @keydown=${(event: KeyboardEvent) => {
+            event.stopPropagation();
+            if (event.key === "Enter") void this.renameServerRoom(this.roomNameDraft);
+          }}
+        />
+      </div>
+      <div class="settings-actions">
+        <button class="secondary" ?disabled=${busy || !this.roomNameDraft.trim() || this.roomNameDraft.trim() === room.room_name} @click=${() => this.renameServerRoom(this.roomNameDraft)}>Rename</button>
+        <button class="ghost" ?disabled=${busy} @click=${() => this.renameServerRoom(null)}>Pick another flower</button>
+      </div>
+      <p class="settings-hint settings-note">Leaders pick this PC by its room name in the remote on their phones. It keeps the name until someone changes it, here or on the song server.</p>
+      <label class="settings-check"><input type="checkbox" .checked=${this.serverRoomSharing} @change=${(e: Event) => this.onServerRoomSharingChange((e.target as HTMLInputElement).checked)} /><span>Let people follow the projected words in this room</span></label>
+      ${room.public_rooms
+        ? html`<p class="settings-hint">Anyone who opens <strong>${room.join_url.replace(/\/join\/[^/]*$/, "/join")}</strong> and types <strong>${room.room_name}</strong> sees the words on this screen on their own phone, as large as they need. Useful for people who cannot read the screen. Only the words are shared, while something is projected.</p>
+            <div class="settings-actions"><button class="ghost" @click=${() => this.copyRoomLink()}>Copy the room link</button></div>`
+        : html`<p class="settings-hint">The church's owner has turned rooms off on the song server, so no one can follow the words.</p>`}`;
+  }
+
   private async chooseSetlist(setlist: Setlist | null) {
     this.currentSetlist = setlist;
     writeLocal(CURRENT_SETLIST_KEY, setlist?.id ?? null);
@@ -1723,9 +1923,29 @@ export class Psa150App extends Psa150Element {
     return this.currentFilename;
   }
 
+  /** Close the add-to-setlist popup; `refocus` returns focus to its button. */
+  private closeSetlistMenu(refocus: boolean) {
+    if (!this.setlistMenuOpen) return;
+    const hadFocus = this.querySelector(".setlist-menu")?.contains(document.activeElement) ?? false;
+    this.setlistMenuOpen = false;
+    if (refocus || hadFocus) {
+      void this.updateComplete.then(() =>
+        this.querySelector<HTMLElement>(".setlist-btn")?.focus({ preventScroll: true }),
+      );
+    }
+  }
+
+  /** Tabbing out of the popup closes it. */
+  private onSetlistMenuFocusOut = (event: FocusEvent) => {
+    const next = event.relatedTarget as Node | null;
+    if (!next) return;
+    if (this.querySelector(".setlist-anchor")?.contains(next)) return;
+    this.setlistMenuOpen = false;
+  };
+
   private async toggleSetlistMenu() {
     if (this.setlistMenuOpen) {
-      this.setlistMenuOpen = false;
+      this.closeSetlistMenu(true);
       return;
     }
     this.newSetlistName = await defaultSetlistName();
@@ -1751,7 +1971,7 @@ export class Psa150App extends Psa150Element {
         const updated = await api.addToSetlist(setlist.id, filename);
         this.replaceSetlist(updated);
         if (!this.currentSetlist) await this.chooseSetlist(updated);
-        this.setlistMenuOpen = false;
+        this.closeSetlistMenu(false);
         this.showToast(`Added to ${setlist.name}`, "success");
       }
       if (this.browseMode === "setlist") await this.refreshSongs();
@@ -1769,7 +1989,7 @@ export class Psa150App extends Psa150Element {
       const updated = await api.addToSetlist(created.id, filename);
       this.setlists = [updated, ...this.setlists];
       if (!this.currentSetlist) await this.chooseSetlist(updated);
-      this.setlistMenuOpen = false;
+      this.closeSetlistMenu(false);
       this.showToast(`Added to ${name}`, "success");
     } catch (err) {
       this.showToast(err instanceof Error ? err.message : String(err), "error");
@@ -1920,12 +2140,48 @@ export class Psa150App extends Psa150Element {
       this.importReportOpen || this.duplicatesOpen;
   }
 
+  /**
+   * Show a message in the title bar and announce it to screen readers through
+   * the live regions (WCAG 4.1.3). Errors stay until dismissed or replaced;
+   * other messages stay long enough to read (longer for long text) and never
+   * vanish while the pointer or focus is on them (WCAG 2.2.1).
+   */
   private showToast(msg: string, tone: ToastTone = "info") {
     this.toastMsg = msg;
     this.toastTone = tone;
     this.toastVisible = true;
+    this.announce(msg, tone === "error");
+    this.scheduleToastHide();
+  }
+
+  private scheduleToastHide() {
     if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => (this.toastVisible = false), 4000);
+    this.toastTimer = null;
+    if (this.toastHeld || this.toastTone === "error") return;
+    const duration = Math.max(5000, 2000 + this.toastMsg.length * 60);
+    this.toastTimer = setTimeout(() => (this.toastVisible = false), duration);
+  }
+
+  private holdToast(held: boolean) {
+    this.toastHeld = held;
+    this.scheduleToastHide();
+  }
+
+  private dismissToast() {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = null;
+    this.toastHeld = false;
+    this.toastVisible = false;
+  }
+
+  /** Clear first, so the same message twice is announced twice. */
+  private announce(msg: string, assertive: boolean) {
+    if (assertive) this.liveAlert = "";
+    else this.liveStatus = "";
+    void this.updateComplete.then(() => {
+      if (assertive) this.liveAlert = msg;
+      else this.liveStatus = msg;
+    });
   }
 
   // ── Bootstrap ──────────────────────────────────────────────────────────
@@ -2049,7 +2305,8 @@ export class Psa150App extends Psa150Element {
   private onGlobalKeydown = async (event: KeyboardEvent) => {
     const target = event.target;
     const digit = /^[0-9]$/.test(event.key);
-    const numberShortcut = digit && !event.ctrlKey && !event.metaKey && !event.altKey &&
+    const numberShortcut = digit && this.stanzaNumberKeys &&
+      !event.ctrlKey && !event.metaKey && !event.altKey &&
       !event.shiftKey && !event.isComposing && !event.defaultPrevented &&
       !isTextEntryTarget(target) && !isContentEditableTarget(target) &&
       !this.editOpen && !this.settingsOpen && !this.importOpen &&
@@ -2068,7 +2325,7 @@ export class Psa150App extends Psa150Element {
 
     if (event.key === "Escape") {
       if (this.setlistMenuOpen) {
-        this.setlistMenuOpen = false;
+        this.closeSetlistMenu(true);
         return;
       }
       if (this.adhocEditingBlockKey) {
@@ -2091,6 +2348,8 @@ export class Psa150App extends Psa150Element {
         this.importReportOpen = false;
         return;
       }
+      // The import dialog closes through its Cancel button only.
+      if (this.importOpen) return;
       await this.stopProjection();
       return;
     }
@@ -2115,10 +2374,15 @@ export class Psa150App extends Psa150Element {
       }
     }
 
+    // Enter projects, except on a control that Enter activates itself (a
+    // button, a checkbox, a link) and inside dialogs and the setlist popup.
+    if (modalOpen || this.setlistMenuOpen) return;
+
     if (event.key === "Enter" && this.currentSong) {
       if (isTextEntryTarget(target) && !(target as HTMLElement).matches("#search-input")) {
         return;
       }
+      if (isActivatableTarget(target)) return;
       event.preventDefault();
       await this.projectLoadedSong();
       return;
@@ -2181,6 +2445,12 @@ export class Psa150App extends Psa150Element {
   private onRecordShortcutKeydown = (event: KeyboardEvent) => {
     const action = this.recordingShortcut;
     if (!action) return;
+    // Tab still moves focus (no keyboard trap) and ends recording.
+    if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      this.recordingShortcut = null;
+      this.shortcutError = null;
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
     if (event.key === "Escape") {
@@ -2281,23 +2551,33 @@ export class Psa150App extends Psa150Element {
   // ── Render ─────────────────────────────────────────────────────────────
 
   render() {
+    // While a dialog is open everything behind it is inert (no focus, no clicks).
+    const modalOpen = this.anyModalOpen();
     return html`
       ${this.renderHeader()}
-      <div class="app-body">
+      <div class="app-body" ?inert=${modalOpen}>
       ${this.renderActivityBar()}
       <main class="workspace" style="--browse-pane-width: ${this.browsePaneWidth}px">
         ${this.renderBrowsePane()}
-        ${this.renderSongPane()}
         <div
           class="workspace-splitter"
           role="separator"
+          tabindex="0"
           aria-orientation="vertical"
           aria-label="Resize song list"
+          aria-controls="browse-pane"
+          aria-valuemin=${BROWSE_PANE_MIN}
+          aria-valuemax=${BROWSE_PANE_MAX}
+          aria-valuenow=${this.browsePaneWidth}
+          title="Drag, double-click, or use the arrow keys to resize the song list"
           @pointerdown=${this.onSplitterPointerDown}
           @pointermove=${this.onSplitterPointerMove}
           @pointerup=${this.onSplitterPointerUp}
           @pointercancel=${this.onSplitterPointerUp}
+          @dblclick=${this.onSplitterDblClick}
+          @keydown=${this.onSplitterKeydown}
         ></div>
+        ${this.renderSongPane()}
       </main>
       </div>
       <psa150-modal
@@ -2328,6 +2608,7 @@ export class Psa150App extends Psa150Element {
       ></psa150-modal>
       <psa150-modal
         heading="Importing songbook"
+        .dismissible=${false}
         ?open=${this.importOpen}
         .content=${this.renderImportContent()}
       ></psa150-modal>
@@ -2338,7 +2619,9 @@ export class Psa150App extends Psa150Element {
         .content=${this.renderImportReportContent()}
         @psa150-close=${() => (this.importReportOpen = false)}
       ></psa150-modal>
-      ${this.anyModalOpen() ? this.renderToast() : nothing}
+      ${modalOpen ? this.renderToast() : nothing}
+      <div class="visually-hidden" role="status">${this.liveStatus}</div>
+      <div class="visually-hidden" role="alert">${this.liveAlert}</div>
     `;
   }
 
@@ -2348,16 +2631,27 @@ export class Psa150App extends Psa150Element {
    * it under the dialog backdrop.
    */
   private renderToast() {
-    return html`<span
+    // Screen readers get the message from the live regions in render().
+    return html`<div
       class="toast ${this.toastTone} ${this.toastVisible ? "" : "hidden"} ${this.anyModalOpen() ? "over-modal" : ""}"
-      role="status"
-    >${this.toastMsg}</span>`;
+      @mouseenter=${() => this.holdToast(true)}
+      @mouseleave=${() => this.holdToast(false)}
+      @focusin=${() => this.holdToast(true)}
+      @focusout=${() => this.holdToast(false)}
+    ><span>${this.toastMsg}</span>${this.toastTone === "error"
+      ? html`<button class="toast-dismiss" type="button" aria-label="Dismiss message" @click=${() => this.dismissToast()}>×</button>`
+      : nothing}</div>`;
   }
 
   private renderHeader() {
     const song = this.currentSong;
     return html`
-      <header class="app-header" data-tauri-drag-region @dblclick=${this.onTitlebarDblClick}>
+      <header
+        class="app-header"
+        data-tauri-drag-region
+        ?inert=${this.anyModalOpen()}
+        @dblclick=${this.onTitlebarDblClick}
+      >
         ${this.renderVsbProgress()}
         <div class="brand">
           <div class="brand-mark">
@@ -2375,11 +2669,16 @@ export class Psa150App extends Psa150Element {
         </div>
         <div class="header-end app-no-drag">
           ${this.anyModalOpen() ? nothing : this.renderToast()}
-          <span class="badge ${this.libraryStatus?.library_dirty ? "" : "hidden"}">Changed</span>
-          <div class="toolbar-group projection-toolbar" role="toolbar" aria-label="Projection and settings">
+          ${this.renderRoomChip()}
+          <span
+            class="badge ${this.libraryStatus?.library_dirty ? "" : "hidden"}"
+            title="The songs folder has changed since it was last read"
+          >Changed</span>
+          <div class="toolbar-group projection-toolbar" role="group" aria-label="Projection and settings">
             <button
               class="ghost compact toolbar-btn ${this.projecting ? "pressed" : ""}"
               title="Project the selected song (Enter)"
+              aria-keyshortcuts="Enter"
               ?disabled=${!song}
               @click=${() => this.projectLoadedSong()}
             >${icon("project", 16)}<span>Project</span></button>
@@ -2399,7 +2698,7 @@ export class Psa150App extends Psa150Element {
                   >${icon("next", 16)}</button>
                   <button
                     class="ghost compact toolbar-btn ${this.projection?.blank ? "pressed" : ""}"
-                    title="Blank the screen (B)"
+                    title="Blank the screen (${formatCombo(this.shortcuts.blank)})"
                     aria-pressed=${this.projection?.blank ? "true" : "false"}
                     @click=${async () => this.applyProjectionSnapshot(await api.blankScreen())}
                   >${icon("blank", 16)}<span>Blank</span></button>
@@ -2491,31 +2790,35 @@ export class Psa150App extends Psa150Element {
     const mode = (
       name: BrowseMode,
       label: string,
+      keys: string,
       iconName: "search" | "setlist" | "history" | "favorites",
       onClick: () => unknown,
     ) => html`
       <button
         class="activity-btn ${this.browseMode === name ? "active" : ""}"
         type="button"
-        title=${label}
+        title="${label} (${keys.replace(/Control/g, "Ctrl").split(" ").join(" or ")})"
         aria-label=${label}
+        aria-keyshortcuts=${keys}
         aria-pressed=${this.browseMode === name ? "true" : "false"}
         @click=${onClick}
       >${icon(iconName, 22)}</button>
     `;
     return html`
       <nav class="activity-bar" aria-label="Song list views">
-        ${mode("search", "Search (Ctrl+E or Ctrl+1)", "search", () => this.showSearch())}
-        ${mode("setlist", "Setlist (Ctrl+2)", "setlist", () => this.setBrowseMode("setlist"))}
-        ${mode("history", "History (Ctrl+3)", "history", () => this.setBrowseMode("history"))}
-        ${mode("favorites", "Favourites (Ctrl+4)", "favorites", () => this.setBrowseMode("favorites"))}
+        ${mode("search", "Search", "Control+E Control+1", "search", () => this.showSearch())}
+        ${mode("setlist", "Setlist", "Control+2", "setlist", () => this.setBrowseMode("setlist"))}
+        ${mode("history", "History", "Control+3", "history", () => this.setBrowseMode("history"))}
+        ${mode("favorites", "Favourites", "Control+4", "favorites", () => this.setBrowseMode("favorites"))}
         <span class="activity-spacer"></span>
         ${this.vsbSync
           ? html`<button
               class="activity-btn ${this.vsbSyncing ? "spinning" : ""} ${this.vsbSync.last_error ? "attention" : ""}"
               type="button"
               title=${this.vsbStatusTitle()}
-              aria-label="Synchronize with Visual Song Book"
+              aria-label=${this.vsbSync.last_error
+                ? "Synchronize with Visual Song Book (the last synchronization failed)"
+                : "Synchronize with Visual Song Book"}
               ?disabled=${this.vsbSyncing}
               @click=${() => this.syncVsbNow()}
             >${icon("sync", 20)}</button>`
@@ -2526,10 +2829,15 @@ export class Psa150App extends Psa150Element {
 
   private renderBrowsePane() {
     return html`
-      <aside class="browse-pane" style="width: ${this.browsePaneWidth}px">
+      <aside class="browse-pane" id="browse-pane" aria-label="Song list" style="width: ${this.browsePaneWidth}px">
         ${this.browseMode === "search" ? this.renderSearchToolbar() : this.renderViewToolbar()}
         <psa150-song-list
           class="song-list-host"
+          label=${this.browseMode === "search"
+            ? "Songs"
+            : this.browseMode === "setlist"
+              ? `Setlist${this.currentSetlist ? ` ${this.currentSetlist.name}` : ""}`
+              : BROWSE_TITLES[this.browseMode]}
           .songs=${this.visibleSongs}
           .showNumbers=${this.showSongNumbers}
           .sort=${this.isSortableView() ? this.songSort : null}
@@ -2560,6 +2868,7 @@ export class Psa150App extends Psa150Element {
             id="search-input"
             type="text"
             name="psa150-library-query"
+            aria-label="Search songs"
             placeholder="Search songs, numbers, or # for key…"
             autocomplete="off"
             autocorrect="off"
@@ -2569,6 +2878,7 @@ export class Psa150App extends Psa150Element {
             aria-expanded=${keyOptions.length > 0 ? "true" : "false"}
             aria-controls="key-menu"
             aria-autocomplete="list"
+            aria-activedescendant=${keyOptions.length > 0 ? `key-option-${this.keyMenuIndex}` : nothing}
             .value=${this.query}
             @focus=${(e: FocusEvent) => this.onSearchFocus(e)}
             @mousedown=${(e: MouseEvent) => this.onSearchMouseDown(e)}
@@ -2577,22 +2887,21 @@ export class Psa150App extends Psa150Element {
             @click=${(e: Event) => this.updateKeyToken(e.target as HTMLInputElement)}
             @keydown=${(e: KeyboardEvent) => this.onSearchKeydown(e)}
           />
-          ${key ? html`<span class="search-key-chip" title="Showing songs in ${key}">${icon("key", 13)}${key}</span>` : nothing}
+          ${key ? html`<span class="search-key-chip" title="Showing songs in ${key}"><span class="visually-hidden">Key filter:</span>${icon("key", 13)}${key}</span>` : nothing}
           ${keyOptions.length > 0
             ? html`
                 <div class="combobox-list key-menu">
-                  <div class="key-menu-heading">Songs in key</div>
-                  <ul id="key-menu" class="dropdown-scroll" role="listbox" aria-label="Keys">
+                  <div class="key-menu-heading" id="key-menu-heading">Songs in key</div>
+                  <ul id="key-menu" class="dropdown-scroll" role="listbox" aria-labelledby="key-menu-heading">
                     ${keyOptions.map(
                       (option, index) => html`
                         <li
+                          id="key-option-${index}"
                           role="option"
                           aria-selected=${index === this.keyMenuIndex ? "true" : "false"}
                           class=${index === this.keyMenuIndex ? "highlighted" : ""}
-                          @mousedown=${(event: MouseEvent) => {
-                            event.preventDefault();
-                            this.chooseKey(option);
-                          }}
+                          @mousedown=${(event: MouseEvent) => event.preventDefault()}
+                          @click=${() => this.chooseKey(option)}
                         >${option}</li>
                       `,
                     )}
@@ -2615,8 +2924,8 @@ export class Psa150App extends Psa150Element {
     const iconName = mode === "favorites" ? "favorites" : mode;
     return html`
       <div class="browse-toolbar view-toolbar">
-        <span class="view-title-icon" title=${BROWSE_TITLES[mode]}>${icon(iconName, 16)}</span>
-        ${mode === "setlist" ? this.renderSetlistPicker() : html`<strong class="view-title">${BROWSE_TITLES[mode]}</strong>`}
+        <span class="view-title-icon" aria-hidden="true">${icon(iconName, 16)}</span>
+        ${mode === "setlist" ? this.renderSetlistPicker() : html`<h2 class="view-title">${BROWSE_TITLES[mode]}</h2>`}
         <button
           class="icon-btn view-close"
           type="button"
@@ -2635,6 +2944,7 @@ export class Psa150App extends Psa150Element {
     return html`
       <psa150-select
         class="setlist-picker"
+        label="Setlist"
         .options=${[
           ...(this.currentSetlist ? [] : [{ value: "", label: "Choose a setlist…" }]),
           ...this.setlists.map((setlist) => ({
@@ -2659,10 +2969,10 @@ export class Psa150App extends Psa150Element {
 
   private renderSongPane() {
     return html`
-      <section class="song-pane ${this.projecting ? "projecting" : ""}">
+      <section class="song-pane ${this.projecting ? "projecting" : ""}" aria-labelledby="song-title">
         <header class="song-pane-header">
           <div class="song-pane-header-row">
-            <h1 class="song-title">
+            <h1 class="song-title" id="song-title">
               ${this.currentSong
                 ? (this.currentSong.parsed.meta.title as string) || "Untitled"
                 : "Select a song"}
@@ -2824,11 +3134,11 @@ export class Psa150App extends Psa150Element {
         <span>Key ${candidate.key ?? "—"}</span>
         <span>${candidate.modifiedAt ? new Date(candidate.modifiedAt).toLocaleString() : "Unknown date"}</span>
       </div>
-      <h4>Lyrics</h4>
+      <h3>Lyrics</h3>
       <pre class="duplicate-text">${lyrics}</pre>
-      <h4>Chords</h4>
+      <h3>Chords</h3>
       <pre class="duplicate-chords">${chords}</pre>
-      <h4>Raw ChordPro</h4>
+      <h3>Raw ChordPro</h3>
       <pre class="duplicate-raw">${candidate.raw}</pre>
       <button
         class="secondary compact"
@@ -2856,18 +3166,19 @@ export class Psa150App extends Psa150Element {
           <span>Show reviewed matches</span>
         </label>
         <div class="duplicate-refresh">
-          ${this.duplicatesStale ? html`<span class="badge">Files changed — refresh needed</span>` : nothing}
+          <span role="status">${this.duplicatesStale ? html`<span class="badge">Files changed — refresh needed</span>` : nothing}</span>
           <button class="ghost compact" @click=${() => this.refreshDuplicates()}>Refresh</button>
         </div>
       </div>
       <div class="duplicate-layout">
-        <aside class="duplicate-groups">
+        <aside class="duplicate-groups" aria-label="Groups of possible duplicates">
           ${this.duplicateGroups.length === 0
             ? html`<p class="empty-copy">No possible duplicates found.</p>`
             : this.duplicateGroups.map(
                 (candidate) => html`
                   <button
                     class=${candidate.id === this.duplicateGroupId ? "active" : ""}
+                    aria-pressed=${candidate.id === this.duplicateGroupId ? "true" : "false"}
                     @click=${() => this.selectDuplicateGroup(candidate.id)}
                   >
                     <strong>${candidate.candidates.map((item) => item.title || item.filename).join(" / ")}</strong>
@@ -2883,11 +3194,13 @@ export class Psa150App extends Psa150Element {
                 <div class="duplicate-reasons">Why flagged: ${group.reasons.join(" · ")}</div>
                 <div class="duplicate-selectors">
                   <select
+                    aria-label="First file to compare"
                     .value=${this.duplicateLeft ?? ""}
                     @change=${(event: Event) =>
                       (this.duplicateLeft = (event.target as HTMLSelectElement).value)}
                   >${this.duplicateCandidateOptions(group)}</select>
                   <select
+                    aria-label="Second file to compare"
                     .value=${this.duplicateRight ?? ""}
                     @change=${(event: Event) =>
                       (this.duplicateRight = (event.target as HTMLSelectElement).value)}
@@ -2944,7 +3257,7 @@ export class Psa150App extends Psa150Element {
     const filename = this.setlistCandidate();
     const favorite = Boolean(filename && this.favoriteFiles.has(filename));
     return html`
-      <div class="toolbar-group song-actions" role="toolbar" aria-label="Song">
+      <div class="toolbar-group song-actions" role="group" aria-label="Song">
         <button
           type="button"
           class="song-action-btn"
@@ -2984,9 +3297,9 @@ export class Psa150App extends Psa150Element {
           class="song-action-btn setlist-btn ${inSetlist ? "active" : ""}"
           title=${label}
           aria-label=${label}
-          aria-pressed=${inSetlist ? "true" : "false"}
-          aria-haspopup=${inSetlist ? nothing : "menu"}
+          aria-haspopup=${inSetlist ? nothing : "dialog"}
           aria-expanded=${inSetlist ? nothing : this.setlistMenuOpen ? "true" : "false"}
+          aria-controls=${inSetlist ? nothing : "setlist-menu"}
           @click=${() => {
             if (inSetlist && current) {
               this.setlistMenuOpen = false;
@@ -3003,23 +3316,32 @@ export class Psa150App extends Psa150Element {
 
   private renderSetlistMenu(filename: string) {
     return html`
-      <div class="setlist-menu" role="menu" aria-label="Add to setlist">
+      <div
+        class="setlist-menu"
+        id="setlist-menu"
+        role="dialog"
+        aria-labelledby=${this.setlists.length ? "setlist-menu-heading" : "new-setlist-label"}
+        @focusout=${this.onSetlistMenuFocusOut}
+      >
         ${this.setlists.length
-          ? html`<div class="setlist-menu-heading">Add to setlist</div>
-            <div class="setlist-menu-list">
+          ? html`<div class="setlist-menu-heading" id="setlist-menu-heading">Add to setlist</div>
+            <div class="setlist-menu-list" role="group" aria-labelledby="setlist-menu-heading">
               ${this.setlists.map((setlist) => {
                 const has = this.setlistHasSong(setlist, filename);
                 return html`
                   <button
                     type="button"
-                    role="menuitemcheckbox"
-                    aria-checked=${has ? "true" : "false"}
+                    aria-pressed=${has ? "true" : "false"}
                     class="setlist-menu-item ${has ? "checked" : ""} ${this.currentSetlist?.id === setlist.id ? "current" : ""}"
                     @click=${() => this.toggleSongInSetlist(setlist)}
                   >
                     <span class="setlist-menu-check">${has ? icon("check", 14) : nothing}</span>
                     <span class="setlist-menu-name">${setlist.name}</span>
-                    <span class="setlist-menu-count">${setlist.items.length}</span>
+                    <span class="setlist-menu-count"
+                      >${setlist.items.length}<span class="visually-hidden">
+                        ${setlist.items.length === 1 ? "song" : "songs"}</span
+                      ></span
+                    >
                   </button>
                 `;
               })}
@@ -3032,7 +3354,7 @@ export class Psa150App extends Psa150Element {
             void this.createSetlistWithSong();
           }}
         >
-          <label class="setlist-menu-label" for="new-setlist-name">New setlist</label>
+          <label class="setlist-menu-label" id="new-setlist-label" for="new-setlist-name">New setlist</label>
           <div class="setlist-menu-new-row">
             <input
               id="new-setlist-name"
@@ -3044,7 +3366,7 @@ export class Psa150App extends Psa150Element {
               @keydown=${(e: KeyboardEvent) => {
                 if (e.key === "Escape") {
                   e.stopPropagation();
-                  this.setlistMenuOpen = false;
+                  this.closeSetlistMenu(true);
                 }
               }}
             />
@@ -3162,7 +3484,7 @@ export class Psa150App extends Psa150Element {
 
       return html`
         <section class="song-section ${section.kind}">
-          <h3 class="song-section-label">${section.label}</h3>
+          <h2 class="song-section-label">${section.label}</h2>
           ${section.lines.map((line, lineIndex) => {
             const provenance = section.lineProvenance[lineIndex];
             if (!provenance || lineIsBlank(line)) {
@@ -3205,7 +3527,7 @@ export class Psa150App extends Psa150Element {
 
       return html`
         <section class="song-section ${section.kind}">
-          <h3 class="song-section-label">${section.label}</h3>
+          <h2 class="song-section-label">${section.label}</h2>
           ${sectionBlocks.map(({ block, index }) => {
             const blockKey = stanzaBlockKey(sectionIndex, block.stanzaIndexInSection);
             const isActive = index === activeBlock;
@@ -3216,7 +3538,7 @@ export class Psa150App extends Psa150Element {
             return html`
               <div
                 class="song-stanza ${isActive ? "active" : ""} ${isEditing ? "editing" : ""} ${canEdit ? "editable" : ""}"
-                aria-current=${isActive ? "true" : "false"}
+                aria-current=${isActive ? "true" : nothing}
                 @click=${(event: Event) => {
                   if (slideIndex == null || isEditing) return;
                   if (!this.canAdhocEdit() || !isActive) {
@@ -3391,7 +3713,8 @@ export class Psa150App extends Psa150Element {
               <p class="settings-hint settings-note">Synchronization adds exact local-only songs from the remembered local folder, then downloads the complete server library. Projection and browsing continue from the cache when the server is offline.</p>
               <p class="settings-hint settings-note">Setlists are the church's shared sets: changes here are sent to the server, and sets made on a phone arrive within a minute. If a set was changed elsewhere at the same time, your version is kept as a copy.</p>
               <label class="settings-check"><input type="checkbox" .checked=${this.serverRemoteEnabled} @change=${(e: Event) => this.onServerRemoteChange((e.target as HTMLInputElement).checked)} /><span>Allow remote control through the song server</span></label>
-              <p class="settings-hint">Leaders signed in to the song server can change slides, blank the screen and project songs from their phones, from anywhere. This PC stays in charge: everything also works without the server.</p>`
+              <p class="settings-hint">Leaders signed in to the song server can change slides, blank the screen and project songs from their phones, from anywhere. This PC stays in charge: everything also works without the server.</p>
+              ${this.renderRoomSettings()}`
           : this.renderServerConnect();
         break;
       case "vsb":
@@ -3415,8 +3738,8 @@ export class Psa150App extends Psa150Element {
         break;
       case "projection":
         content = html`
-          <div class="settings-row"><span class="settings-row-label">Congregation</span><psa150-select .options=${this.audienceDisplayOptions()} .value=${this.audienceMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}></psa150-select></div>
-          <div class="settings-row"><span class="settings-row-label">Stage</span><psa150-select .options=${this.stageDisplayOptions()} .value=${this.stageMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}></psa150-select></div>
+          <div class="settings-row"><span class="settings-row-label" id="audience-display-label">Congregation</span><psa150-select labelledby="audience-display-label" .options=${this.audienceDisplayOptions()} .value=${this.audienceMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}></psa150-select></div>
+          <div class="settings-row"><span class="settings-row-label" id="stage-display-label">Stage</span><psa150-select labelledby="stage-display-label" .options=${this.stageDisplayOptions()} .value=${this.stageMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}></psa150-select></div>
           <label class="settings-check"><input type="checkbox" .checked=${this.projectToStage} @change=${(e: Event) => this.onProjectToStageChange((e.target as HTMLInputElement).checked)} /><span>Also show stage window when projecting (musician chords)</span></label>
           <label class="settings-check"><input type="checkbox" .checked=${this.readOnly} ?disabled=${Boolean(this.serverLibrary)} @change=${(e: Event) => this.onReadOnlyChange((e.target as HTMLInputElement).checked)} /><span>Read-only library (prevent edits and deletes)</span></label>`;
         break;
@@ -3433,17 +3756,20 @@ export class Psa150App extends Psa150Element {
         break;
       case "shortcuts":
         content = html`
-          <p class="settings-hint">Click a shortcut, then press the new keys. Esc cancels, Backspace removes it.</p>
+          <p class="settings-hint" id="shortcut-hint">Click a shortcut, then press the new keys. Esc cancels, Backspace removes it, Tab leaves it as it was.</p>
           <div class="shortcut-list">
             ${SHORTCUT_ACTIONS.map(({ id, label }) => {
               const recording = this.recordingShortcut === id;
               return html`
                 <div class="shortcut-row ${recording ? "recording" : ""}">
-                  <span class="shortcut-label">${label}</span>
+                  <span class="shortcut-label" id="shortcut-label-${id}">${label}</span>
                   <button
                     type="button"
                     class="shortcut-key"
-                    aria-label="Change the shortcut for ${label}"
+                    id="shortcut-key-${id}"
+                    aria-labelledby="shortcut-label-${id} shortcut-key-${id}"
+                    aria-describedby="shortcut-hint"
+                    aria-pressed=${recording ? "true" : "false"}
                     @click=${() => {
                       this.shortcutError = null;
                       this.recordingShortcut = recording ? null : id;
@@ -3453,14 +3779,18 @@ export class Psa150App extends Psa150Element {
               `;
             })}
           </div>
-          ${this.shortcutError ? html`<p class="settings-hint settings-error">${this.shortcutError}</p>` : nothing}
+          <div role="alert">${this.shortcutError ? html`<p class="settings-hint settings-error">${this.shortcutError}</p>` : nothing}</div>
           <div class="settings-actions">
             <button class="ghost" @click=${() => this.resetShortcuts()}>Reset to defaults</button>
           </div>
+          <label class="settings-check">
+            <input type="checkbox" .checked=${this.stanzaNumberKeys} @change=${(e: Event) => this.onStanzaNumberKeysChange((e.target as HTMLInputElement).checked)} />
+            <span>Number keys <kbd>1</kbd>–<kbd>9</kbd> jump to a stanza while projecting</span>
+          </label>
           <h4 class="shortcut-fixed-heading">Fixed keys</h4>
           <div class="shortcuts">
             <span><kbd>Enter</kbd> project</span><span><kbd>↑</kbd> <kbd>↓</kbd> songs, or stanzas while projecting</span>
-            <span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>
+            ${this.stanzaNumberKeys ? html`<span><kbd>1</kbd>–<kbd>9</kbd> jump to stanza; type <kbd>10</kbd>, <kbd>11</kbd>… quickly</span>` : nothing}
             <span><kbd>#</kbd> in search: pick a key</span><span><kbd>Esc</kbd> close projection</span>
             <span><kbd>Ctrl</kbd> + <kbd>E</kbd> search</span>
             <span><kbd>Ctrl</kbd> + <kbd>1</kbd>–<kbd>4</kbd> Search, Setlist, History, Favourites</span>
@@ -3483,19 +3813,22 @@ export class Psa150App extends Psa150Element {
         <aside class="settings-nav" aria-label="Settings categories">
           <label class="settings-search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
-            <input type="search" placeholder="Find a setting" .value=${this.settingsQuery} @input=${(event: Event) => (this.settingsQuery = (event.target as HTMLInputElement).value)} />
+            <input type="search" aria-label="Find a setting" placeholder="Find a setting" .value=${this.settingsQuery} @input=${(event: Event) => (this.settingsQuery = (event.target as HTMLInputElement).value)} />
             ${query ? html`<button type="button" aria-label="Clear settings search" @click=${() => (this.settingsQuery = "")}>×</button>` : nothing}
           </label>
           <span class="settings-nav-label">Settings</span>
           <nav>
             ${SETTINGS_SECTIONS.map((section) => html`
-              <button class="${!query && this.activeSettingsSection === section.id ? "active" : ""}" type="button" @click=${() => this.selectSettingsSection(section.id)}>
+              <button class="${!query && this.activeSettingsSection === section.id ? "active" : ""}" type="button" aria-current=${!query && this.activeSettingsSection === section.id ? "true" : nothing} @click=${() => this.selectSettingsSection(section.id)}>
                 <span class="settings-nav-icon" aria-hidden="true">${section.icon}</span>${section.label}
-                ${query && this.settingMatches(section, query) ? html`<span class="settings-match" aria-label="Matches search">•</span>` : nothing}
+                ${query && this.settingMatches(section, query) ? html`<span class="settings-match" aria-hidden="true">•</span><span class="visually-hidden">(matches)</span>` : nothing}
               </button>`)}
           </nav>
         </aside>
-        <div class="settings-panel" aria-live="polite">
+        <p class="visually-hidden" role="status">${query
+          ? `${matchingSections.length} ${matchingSections.length === 1 ? "section matches" : "sections match"}`
+          : ""}</p>
+        <div class="settings-panel">
           ${query ? html`<div class="settings-results-heading"><span>Search results</span><strong>${matchingSections.length} ${matchingSections.length === 1 ? "section" : "sections"} match “${query}”</strong></div>` : nothing}
           ${sectionsToRender.length ? sectionsToRender.map((id) => this.renderSettingsSection(id)) : html`<div class="settings-empty"><strong>No matching settings</strong><span>Try terms like “display”, “songs”, “remote”, or “import”.</span></div>`}
         </div>
@@ -3507,6 +3840,8 @@ export class Psa150App extends Psa150Element {
       <textarea
         id="editor"
         class="editor"
+        aria-label="ChordPro source"
+        spellcheck="false"
         placeholder="ChordPro content…"
         .value=${this.editorValue}
         @input=${(e: Event) => (this.editorValue = (e.target as HTMLTextAreaElement).value)}
@@ -3526,7 +3861,14 @@ export class Psa150App extends Psa150Element {
     const pct = this.importTotal > 0 ? Math.round((this.importCurrent / total) * 100) : 0;
     return html`
       <p>Converting songs from the MDB file into ChordPro files.</p>
-      <div class="progress-track" aria-hidden="true">
+      <div
+        class="progress-track"
+        role="progressbar"
+        aria-label="Import progress"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow=${this.importTotal > 0 ? pct : nothing}
+      >
         <div class="progress-fill" style="width: ${pct}%"></div>
       </div>
       <div class="progress-meta">
@@ -3571,6 +3913,16 @@ export class Psa150App extends Psa150Element {
 
 function isContentEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && target.isContentEditable;
+}
+
+/** A control that Enter activates by itself, so Enter must not also project. */
+function isActivatableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    target.closest(
+      'button, a[href], summary, [role="button"], [role="combobox"], [role="option"], [role="menuitem"], [role="separator"]',
+    ) !== null
+  );
 }
 
 function isTextEntryTarget(

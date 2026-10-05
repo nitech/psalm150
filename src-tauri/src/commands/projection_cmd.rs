@@ -84,7 +84,7 @@ fn sync_projection_windows(app: &AppHandle, state: &AppState) {
 
 fn build_audience_window(app: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
     WebviewWindowBuilder::new(app, "audience", WebviewUrl::App("audience.html".into()))
-        .title("Audience")
+        .title("Psalm150 audience display")
         .decorations(false)
         .always_on_top(true)
         .visible(false)
@@ -93,7 +93,7 @@ fn build_audience_window(app: &AppHandle) -> Result<WebviewWindow, tauri::Error>
 
 fn build_stage_window(app: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
     WebviewWindowBuilder::new(app, "stage", WebviewUrl::App("stage.html".into()))
-        .title("Stage")
+        .title("Psalm150 stage display")
         .inner_size(900.0, 640.0)
         .visible(false)
         .build()

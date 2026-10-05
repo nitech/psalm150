@@ -18,7 +18,8 @@
         "height": 900,
         "resizable": true,
         "decorations": false,
-        "shadow": true
+        "shadow": true,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {

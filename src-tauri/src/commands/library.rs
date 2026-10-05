@@ -75,7 +75,8 @@ pub fn activate_songs_folder(
     let watcher = LibraryWatcher::new(&path).ok();
 
     let _ = crate::commands::projection_cmd::close_projection_windows(app.clone());
-    let snapshot = with_state(state, |runtime| {
+    let (snapshot, server_url) = with_state(state, |runtime| {
+        let server_url = crate::commands::server_library::connected_server_url(runtime);
         runtime.songs_folder = Some(path.clone());
         runtime.folder_hash = Some(folder_hash);
         runtime.db = Some(db);
@@ -95,16 +96,14 @@ pub fn activate_songs_folder(
             runtime.config.first_run_complete = true;
             runtime.config.save(app)?;
         }
-        Ok(build_snapshot(runtime))
+        Ok((build_snapshot(runtime), server_url))
     })?;
 
     emit_snapshot(app, &snapshot);
     emit_library_changed(app);
     if persist {
-        let token_path = config::server_token_path(app)?;
-        if token_path.exists() {
-            let _ = std::fs::remove_file(token_path);
-        }
+        // A local folder replaces the server library: let go of its token.
+        let _ = crate::commands::server_library::forget_token(app, server_url);
     }
     build_status(&path, false, count, true)
 }

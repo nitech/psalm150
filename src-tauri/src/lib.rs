@@ -293,6 +293,9 @@ pub fn run() {
             commands::setlist_cmd::set_active_setlist,
             commands::server_sets::sync_server_sets,
             commands::server_remote::set_server_remote_enabled,
+            commands::server_remote::set_server_room_sharing,
+            commands::server_remote::get_server_room,
+            commands::server_remote::rename_server_room,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

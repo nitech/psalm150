@@ -180,10 +180,13 @@ export class Psa150Audience extends Psa150Element {
     const hasPrev = active > 0;
     const hasNext = active < markers.length - 1;
     return html`
-      <div class="audience-stanza-counter" aria-label="Stanza ${active + 1} of ${markers.length}">
-        <span class="audience-stanza-arrow ${hasPrev ? "" : "dim"}">↑</span>
-        <span class="audience-stanza-count">${active + 1} / ${markers.length}</span>
-        <span class="audience-stanza-arrow ${hasNext ? "" : "dim"}">↓</span>
+      <div class="audience-stanza-counter">
+        <span class="audience-stanza-arrow ${hasPrev ? "" : "dim"}" aria-hidden="true">↑</span>
+        <span class="audience-stanza-count"
+          ><span class="visually-hidden">Stanza </span>${active + 1}<span aria-hidden="true"> / </span
+          ><span class="visually-hidden"> of </span>${markers.length}</span
+        >
+        <span class="audience-stanza-arrow ${hasNext ? "" : "dim"}" aria-hidden="true">↓</span>
       </div>
     `;
   }

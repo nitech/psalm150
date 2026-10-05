@@ -35,9 +35,15 @@ pub struct AppConfig {
     pub stage_monitor: Option<String>,
     pub remote_enabled: bool,
     /// Let leaders steer this desktop from their phones through the
-    /// connected song server (opt-in, server library only).
-    #[serde(default)]
+    /// connected song server (server library only). On unless the operator
+    /// turns it off; stored under a new key because the old
+    /// `server_remote_enabled` was off by default.
+    #[serde(rename = "server_remote", default = "default_true")]
     pub server_remote_enabled: bool,
+    /// Let anyone who knows this desktop's room name follow the words it
+    /// projects, through the connected song server. On unless turned off.
+    #[serde(default = "default_true")]
+    pub server_room_sharing: bool,
     pub remote_pin: Option<String>,
     pub remote_port: u16,
     pub key_format_compressed: bool,
@@ -48,6 +54,10 @@ pub struct AppConfig {
 }
 
 fn default_web_search_enabled() -> bool {
+    true
+}
+
+fn default_true() -> bool {
     true
 }
 
@@ -69,7 +79,8 @@ impl Default for AppConfig {
             audience_monitor: None,
             stage_monitor: None,
             remote_enabled: false,
-            server_remote_enabled: false,
+            server_remote_enabled: true,
+            server_room_sharing: true,
             remote_pin: None,
             remote_port: 8757,
             key_format_compressed: false,
@@ -266,5 +277,26 @@ mod tests {
         )
         .unwrap();
         assert_eq!(config.shortcuts.toggle_favorite, "Alt+F");
+    }
+
+    #[test]
+    fn remote_control_and_rooms_are_on_unless_turned_off() {
+        // Saved before they were on by default: the old key was always false.
+        let mut saved = serde_json::to_value(AppConfig::default()).unwrap();
+        let fields = saved.as_object_mut().unwrap();
+        fields.remove("server_remote");
+        fields.remove("server_room_sharing");
+        fields.insert("server_remote_enabled".into(), false.into());
+        let config: AppConfig = serde_json::from_value(saved).unwrap();
+        assert!(config.server_remote_enabled);
+        assert!(config.server_room_sharing);
+
+        let mut off = AppConfig::default();
+        off.server_remote_enabled = false;
+        off.server_room_sharing = false;
+        let config: AppConfig =
+            serde_json::from_str(&serde_json::to_string(&off).unwrap()).unwrap();
+        assert!(!config.server_remote_enabled);
+        assert!(!config.server_room_sharing);
     }
 }

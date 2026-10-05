@@ -1,16 +1,24 @@
-//! Remote control through the song server (opt-in).
+//! Remote control and rooms through the song server.
 //!
-//! While "Allow remote control through the song server" is on and a server
-//! library is connected, this PC tells the server what it projects (song,
-//! slide labels, blank, active set) and waits for commands from leaders'
-//! phones with a long poll. Next, previous, blank and show-slide run here;
-//! "project a song" and "project a set item" go to the console
-//! (`remote-project`), which projects through its normal path so the windows
-//! open safely and the console shows what is on screen.
+//! With a server library connected, this PC tells the server what it
+//! projects (song, slides and their words, blank, active set) while remote
+//! control or room sharing is on; both are on unless the operator turns
+//! them off.
+//!
+//! - Remote control: it waits for commands from leaders' phones with a long
+//!   poll. Next, previous, blank and show-slide run here; "project a song"
+//!   and "project a set item" go to the console (`remote-project`), which
+//!   projects through its normal path so the windows open safely and the
+//!   console shows what is on screen.
+//! - Rooms: the server gives this PC a room name (a flower) that leaders pick
+//!   it by and that anyone may type at `<server>/join` to follow the words on
+//!   their phone. The words (no chords) are only shown to them while sharing
+//!   is on. The console shows the name (`server-room` event) and may rename it.
 //!
 //! Everything keeps working without the server: this is only another way to
 //! press the same buttons.
 
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
@@ -27,6 +35,8 @@ use crate::{with_state, AppState};
 
 /// Resend the state at least this often so the server keeps us online.
 const HEARTBEAT: Duration = Duration::from_secs(15);
+/// Look up the room name this often, in case a leader renamed it.
+const ROOM_REFRESH: Duration = Duration::from_secs(60);
 /// Seconds the server may hold a command poll open.
 const LONG_POLL_SECONDS: u64 = 25;
 const RETRY: Duration = Duration::from_secs(5);
@@ -43,6 +53,166 @@ pub fn set_server_remote_enabled(
     })
 }
 
+#[tauri::command]
+pub fn set_server_room_sharing(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    with_state(&state, |runtime| {
+        runtime.config.server_room_sharing = enabled;
+        runtime.config.save(&app)
+    })
+}
+
+/// This PC's room, as the server last told it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesktopRoom {
+    pub room_name: String,
+    /// The church shares its projections in rooms (an owner's setting).
+    pub public_rooms: bool,
+    /// Where people follow it: `<server>/join/<room>`.
+    #[serde(default)]
+    pub join_url: String,
+}
+
+static ROOM: Mutex<Option<DesktopRoom>> = Mutex::new(None);
+
+fn remember_room(app: &AppHandle, url: &str, mut room: DesktopRoom) -> DesktopRoom {
+    room.join_url = join_url(url, &room.room_name);
+    let mut current = ROOM.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if current.as_ref() != Some(&room) {
+        *current = Some(room.clone());
+        let _ = app.emit("server-room", Some(room.clone()));
+    }
+    room
+}
+
+fn forget_room(app: &AppHandle) {
+    let mut current = ROOM.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if current.take().is_some() {
+        let _ = app.emit("server-room", None::<DesktopRoom>);
+    }
+}
+
+fn join_url(server_url: &str, room_name: &str) -> String {
+    let mut url = match url::Url::parse(server_url) {
+        Ok(url) => url,
+        Err(_) => return String::new(),
+    };
+    match url.path_segments_mut() {
+        Ok(mut segments) => {
+            segments.pop_if_empty().push("join").push(room_name);
+        }
+        Err(()) => return String::new(),
+    }
+    url.to_string()
+}
+
+/// The server library's URL, whatever the remote settings say.
+fn server_url(state: &AppState) -> Option<String> {
+    with_state(state, |runtime| {
+        Ok(runtime
+            .config
+            .server_library
+            .as_ref()
+            .filter(|_| runtime.songs_folder.is_some())
+            .map(|server| server.url.clone()))
+    })
+    .ok()
+    .flatten()
+}
+
+/// This PC's room: asked from the server, or as last known when it cannot be
+/// reached. None without a server library.
+#[tauri::command]
+pub async fn get_server_room(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<DesktopRoom>, String> {
+    let Some(url) = server_url(&state) else {
+        forget_room(&app);
+        return Ok(None);
+    };
+    let token = read_token(&app)?;
+    let client = client(Duration::from_secs(10))?;
+    match fetch_room(&client, &url, &token).await {
+        Ok(room) => Ok(Some(remember_room(&app, &url, room))),
+        Err(error) => {
+            let known = ROOM
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .clone();
+            known.map(Some).ok_or(error)
+        }
+    }
+}
+
+/// Renames this PC's room; None picks a new random flower. Another desktop
+/// with the same name is refused by the server.
+#[tauri::command]
+pub async fn rename_server_room(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    room_name: Option<String>,
+) -> Result<DesktopRoom, String> {
+    let url = server_url(&state).ok_or("connect a song server first")?;
+    let token = read_token(&app)?;
+    let client = client(Duration::from_secs(10))?;
+    let response = client
+        .put(endpoint(&url, "api/v1/remote/desktop/room")?)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .header(CONTENT_TYPE, "application/json")
+        .body(serde_json::json!({ "room_name": room_name }).to_string())
+        .send()
+        .await
+        .map_err(|error| format!("could not reach the song server: {error}"))?;
+    if !response.status().is_success() {
+        return Err(server_error(response).await);
+    }
+    let room = response
+        .json::<DesktopRoom>()
+        .await
+        .map_err(|error| format!("invalid answer from the song server: {error}"))?;
+    Ok(remember_room(&app, &url, room))
+}
+
+async fn fetch_room(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+) -> Result<DesktopRoom, String> {
+    let response = client
+        .get(endpoint(url, "api/v1/remote/desktop")?)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(|error| format!("could not reach the song server: {error}"))?;
+    if !response.status().is_success() {
+        return Err(server_error(response).await);
+    }
+    response
+        .json::<DesktopRoom>()
+        .await
+        .map_err(|error| format!("invalid answer from the song server: {error}"))
+}
+
+/// The server's own message (`{"error": "..."}`) when it gave one.
+async fn server_error(response: reqwest::Response) -> String {
+    let status = response.status();
+    #[derive(Deserialize)]
+    struct ErrorBody {
+        error: String,
+    }
+    match response.json::<ErrorBody>().await {
+        Ok(body) => body.error,
+        Err(_) if status == reqwest::StatusCode::NOT_FOUND => {
+            "this song server does not have rooms yet; update it".into()
+        }
+        Err(_) => format!("the song server answered {status}"),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 struct DesktopState {
     accepts_commands: bool,
@@ -54,6 +224,15 @@ struct DesktopState {
     slide_labels: Vec<String>,
     set_id: Option<String>,
     set_item_index: Option<usize>,
+    shares_room: bool,
+    /// The words of every slide (no chords), for the room and the remote.
+    slides: Vec<RoomSlide>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+struct RoomSlide {
+    label: String,
+    lines: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -77,18 +256,37 @@ pub struct RemoteProject {
     pub issued_by: String,
 }
 
-/// The server URL when remote control is on and a server library is open.
-fn connection(state: &AppState) -> Option<String> {
+/// What this PC does through the server now.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Sharing {
+    commands: bool,
+    room: bool,
+}
+
+/// The server URL and what to share, while a server library is open and
+/// remote control or room sharing is on.
+fn connection(state: &AppState) -> Option<(String, Sharing)> {
     with_state(state, |runtime| {
+        let sharing = Sharing {
+            commands: runtime.config.server_remote_enabled,
+            room: runtime.config.server_room_sharing,
+        };
         Ok(runtime
             .config
             .server_library
             .as_ref()
-            .filter(|_| runtime.config.server_remote_enabled && runtime.songs_folder.is_some())
-            .map(|server| server.url.clone()))
+            .filter(|_| (sharing.commands || sharing.room) && runtime.songs_folder.is_some())
+            .map(|server| (server.url.clone(), sharing)))
     })
     .ok()
     .flatten()
+}
+
+/// The server URL while remote control is on.
+fn command_connection(state: &AppState) -> Option<String> {
+    connection(state)
+        .filter(|(_, sharing)| sharing.commands)
+        .map(|(url, _)| url)
 }
 
 pub fn spawn_background(app: &AppHandle) {
@@ -105,23 +303,42 @@ async fn report_loop(app: AppHandle) {
     };
     let mut last: Option<(String, DesktopState)> = None;
     let mut last_sent = Instant::now();
+    let mut room_checked: Option<(String, Instant)> = None;
     let mut song_ids = SongIdCache::default();
     loop {
         tokio::time::sleep(Duration::from_millis(700)).await;
         let state = app.state::<AppState>();
-        let Some(url) = connection(&state) else {
+        let Some((url, sharing)) = connection(&state) else {
             // Turned off or disconnected: say goodbye once.
             if let Some((url, _)) = last.take() {
                 if let Ok(token) = read_token(&app) {
                     let _ = send(&client, reqwest::Method::DELETE, &url, &token, None).await;
                 }
             }
+            if server_url(&state).is_none() {
+                room_checked = None;
+                forget_room(&app);
+            }
             continue;
         };
         let Ok(token) = read_token(&app) else {
             continue;
         };
-        let current = desktop_state(&app, &state, &url, &mut song_ids);
+        // Learn the room name on connecting, and now and then after, so a
+        // name a leader changed on the web shows here.
+        let check_room = room_checked
+            .as_ref()
+            .is_none_or(|(checked_url, at)| checked_url != &url || at.elapsed() >= ROOM_REFRESH);
+        if check_room {
+            room_checked = Some((url.clone(), Instant::now()));
+            match fetch_room(&client, &url, &token).await {
+                Ok(room) => {
+                    remember_room(&app, &url, room);
+                }
+                Err(error) => eprintln!("[server remote] could not read the room: {error}"),
+            }
+        }
+        let current = desktop_state(&app, &state, &url, sharing, &mut song_ids);
         let changed = last
             .as_ref()
             .is_none_or(|(sent_url, sent)| sent_url != &url || sent != &current);
@@ -169,6 +386,7 @@ fn desktop_state(
     app: &AppHandle,
     state: &AppState,
     url: &str,
+    sharing: Sharing,
     song_ids: &mut SongIdCache,
 ) -> DesktopState {
     let projecting = ["audience", "stage"].iter().any(|label| {
@@ -206,7 +424,7 @@ fn desktop_state(
     });
     let has_slides = !projection.slides.is_empty();
     DesktopState {
-        accepts_commands: true,
+        accepts_commands: sharing.commands,
         projecting: projecting && has_slides,
         blanked: projection.blank,
         song_id,
@@ -219,6 +437,19 @@ fn desktop_state(
             .collect(),
         set_id: setlist.as_ref().and(setlist_id),
         set_item_index,
+        shares_room: sharing.room,
+        slides: projection
+            .slides
+            .iter()
+            .map(|slide| RoomSlide {
+                label: slide.section_label.clone(),
+                lines: slide
+                    .lines
+                    .iter()
+                    .map(|line| line.text.trim_end().to_string())
+                    .collect(),
+            })
+            .collect(),
     }
 }
 
@@ -229,7 +460,7 @@ async fn command_loop(app: AppHandle) {
     };
     loop {
         let state = app.state::<AppState>();
-        let Some(url) = connection(&state) else {
+        let Some(url) = command_connection(&state) else {
             tokio::time::sleep(Duration::from_secs(2)).await;
             continue;
         };
@@ -246,7 +477,7 @@ async fn command_loop(app: AppHandle) {
             }
         };
         // Turned off while the poll was open: ignore what arrived.
-        if connection(&state).is_none() {
+        if command_connection(&state).is_none() {
             continue;
         }
         for command in commands {
@@ -411,5 +642,22 @@ async fn send(
         Ok(())
     } else {
         Err(format!("the song server answered {}", response.status()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::join_url;
+
+    #[test]
+    fn join_urls_follow_the_server_address() {
+        assert_eq!(
+            join_url("https://songs.example.org", "Lily"),
+            "https://songs.example.org/join/Lily"
+        );
+        assert_eq!(
+            join_url("https://example.org/psalm150/", "Main Hall"),
+            "https://example.org/psalm150/join/Main%20Hall"
+        );
     }
 }

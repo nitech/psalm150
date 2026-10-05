@@ -9,11 +9,13 @@
   <style>
     :root { color-scheme: dark; }
     body {
-      margin: 0; min-height: 100vh; box-sizing: border-box;
+      margin: 0; background: #060606; color: #f4f4f4; font-family: system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    main {
+      min-height: 100vh; box-sizing: border-box;
       display: flex; flex-direction: column; gap: 14px;
       padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
-      background: #060606; color: #f4f4f4; font-family: system-ui, -apple-system, sans-serif;
-      -webkit-tap-highlight-color: transparent;
     }
     h1 { margin: 0 0 6px; font-size: .8rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #9a9a9a; }
     button {
@@ -23,24 +25,32 @@
     button.primary { background: #c6d88c; color: #1a1a1a; font-weight: 600; }
     button:active { transform: translateY(1px); background: #242424; }
     button.primary:active { background: #b3c977; }
+    /* Keyboard focus (WCAG 2.4.7): lime ring with a dark gap, 3:1 or more. */
+    :focus-visible { outline: 3px solid #c6d88c; outline-offset: 3px; }
+    input:focus-visible { outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
     #status { min-height: 1.4em; color: #9a9a9a; font-size: .9rem; }
     #pin-row { margin-top: auto; display: flex; align-items: center; gap: 10px; color: #9a9a9a; font-size: .9rem; }
+    /* The field's edge reaches 3:1 against the page (WCAG 1.4.11). */
     input {
       font: inherit; width: 7em; padding: 10px 12px; border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, .14); background: #141414; color: #f4f4f4;
+      border: 1px solid #737373; background: #141414; color: #f4f4f4;
     }
+    input[aria-invalid="true"] { border-color: #f0646a; }
   </style>
 </head>
 <body>
+<main>
   <h1>Psalm150 remote</h1>
-  <button class="primary" onclick="send('/next')">Next</button>
-  <button onclick="send('/prev')">Previous</button>
-  <button onclick="send('/blank')">Blank</button>
+  <button type="button" class="primary" onclick="send('/next')">Next</button>
+  <button type="button" onclick="send('/prev')">Previous</button>
+  <button type="button" onclick="send('/blank')">Blank</button>
   <div id="status" role="status"></div>
   <div id="pin-row">
     <label for="pin">PIN</label>
-    <input id="pin" inputmode="numeric" autocomplete="off" />
+    <input id="pin" inputmode="numeric" autocomplete="off" aria-describedby="status" />
   </div>
+</main>
   <script>
     const pinInput = document.getElementById('pin');
     const status = document.getElementById('status');
@@ -51,7 +61,10 @@
       status.textContent = '';
       try {
         const res = await fetch(path, { method: 'POST', headers: { 'X-PSA150-PIN': pinInput.value } });
-        status.textContent = res.status === 401 ? 'Wrong PIN' : res.ok ? 'Sent ' + path.slice(1) : 'Error ' + res.status;
+        status.textContent = res.status === 401
+          ? 'Wrong PIN. Type the PIN shown in Psalm150 under Settings, Phone remote.'
+          : res.ok ? 'Sent ' + path.slice(1) : 'Error ' + res.status;
+        pinInput.setAttribute('aria-invalid', res.status === 401 ? 'true' : 'false');
       } catch (err) {
         status.textContent = 'Psalm150 is not reachable';
       }

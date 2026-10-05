@@ -15,7 +15,7 @@ sources:
   - id: lib
     resource: /src-tauri/src/lib.rs
     title: Registered commands
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-05T18:00:00Z }
 ---
 
 # Gaps and backlog
@@ -42,7 +42,7 @@ generated: { by: agent, at: 2026-09-27T12:00:00Z }
   - Hold items are uploaded as `blank` and come back as blank items; `arrangement` is not synced; item transposes are clamped to −11…11.
   - A 5xx or other unexpected answer for one set stops the run before the remaining sets and the download.
   - `sync_server_sets` has no button; the 60 s timer and edits are the only triggers besides a full Synchronize.
-- **Remote control**: the LAN page can only step slides and blank, and its PIN travels in clear over HTTP. The song server remote can project songs and set items but is opt-in (off by default) and only works in a server library ([remote control](remote-control.md)).
+- **Remote control**: the LAN page can only step slides and blank, and its PIN travels in clear over HTTP. The song server remote can project songs and set items and is on by default, but only works in a server library. Room sharing is also on by default, so a newly connected PC shows its words to anyone who knows its (guessable, flower) room name until the operator or the church's owner turns it off ([remote control](remote-control.md#room)).
 - **Web search**: the title is the first scraped line, often a lyric ([web search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
 - **Stanza view** highlight is off by one for songs with `Intro`/`Interlude` sections ([performance sections](performance-sections.md)).

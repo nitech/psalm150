@@ -211,6 +211,17 @@ export interface SetSyncReport {
   unsupported: boolean;
 }
 
+/**
+ * This PC's room on the song server: leaders pick it by this name, and anyone
+ * may type it at `join_url` to follow the words on their phone.
+ */
+export interface ServerRoom {
+  room_name: string;
+  /** The church's owner allows rooms. */
+  public_rooms: boolean;
+  join_url: string;
+}
+
 /** A leader's phone asked (through the song server) to project a song. */
 export interface RemoteProject {
   filename: string;
@@ -281,8 +292,10 @@ export interface AppConfig {
   audience_monitor?: string | null;
   stage_monitor?: string | null;
   remote_enabled: boolean;
-  /** Leaders may steer this PC through the connected song server. */
-  server_remote_enabled?: boolean;
+  /** Leaders may steer this PC through the connected song server (default on). */
+  server_remote?: boolean;
+  /** Anyone may follow the projected words in this PC's room (default on). */
+  server_room_sharing?: boolean;
   remote_pin?: string | null;
   remote_port: number;
   key_format_compressed: boolean;
@@ -441,6 +454,10 @@ export const api = {
   syncServerLibrary: () => invoke<LibraryStatus>("sync_server_library"),
   syncServerSets: () => invoke<SetSyncReport>("sync_server_sets"),
   setServerRemoteEnabled: (enabled: boolean) => invoke<void>("set_server_remote_enabled", { enabled }),
+  setServerRoomSharing: (enabled: boolean) => invoke<void>("set_server_room_sharing", { enabled }),
+  getServerRoom: () => invoke<ServerRoom | null>("get_server_room"),
+  /** `null` picks a new random flower. */
+  renameServerRoom: (roomName: string | null) => invoke<ServerRoom>("rename_server_room", { roomName }),
   setActiveSetlist: (id: string | null) => invoke<void>("set_active_setlist", { id }),
   disconnectServerLibrary: () => invoke<void>("disconnect_server_library"),
   setWebSearchEnabled: (enabled: boolean) =>

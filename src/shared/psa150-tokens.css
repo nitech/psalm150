@@ -11,6 +11,11 @@
    - light (default for the web client in daylight)
    A page selects a theme with <html data-theme="dark|light">. Without the
    attribute it follows the system setting.
+
+   Accessibility (WCAG 2.2 AA): every text colour has at least 4.5:1 against
+   the backgrounds it is used on, accent tints (--psa-accent-soft) included;
+   --psa-border-control and the focus ring at least 3:1. Text on
+   --psa-danger uses --psa-on-danger. Check a new or changed colour before using it for text.
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
@@ -71,12 +76,14 @@
   --psa-border-subtle: rgba(255, 255, 255, 0.06);
   --psa-border: rgba(255, 255, 255, 0.08);
   --psa-border-strong: rgba(255, 255, 255, 0.14);
+  /* Edges that show where a control is (fields, checkboxes): 3:1 or more. */
+  --psa-border-control: #737373;
 
   --psa-text: #ffffff;
   --psa-text-strong: #f4f4f4;
-  --psa-text-secondary: #9a9a9a;
-  --psa-text-tertiary: #6a6a6a;
-  --psa-text-placeholder: #555555;
+  --psa-text-secondary: #aaaaaa;
+  --psa-text-tertiary: #a3a3a3;
+  --psa-text-placeholder: #8c8c8c;
 
   --psa-accent: var(--psa-lime-400);
   --psa-accent-hover: var(--psa-lime-300);
@@ -92,13 +99,14 @@
   --psa-positive: #46c081;
   --psa-positive-soft: rgba(70, 192, 129, 0.12);
   --psa-warning: #d0c24c;
-  --psa-danger: #e0454c;
+  --psa-danger: #f0646a;
   --psa-danger-soft: rgba(224, 69, 76, 0.12);
+  --psa-on-danger: #060606;
 
   --psa-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
   --psa-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
   --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
-  --psa-focus-ring: 0 0 0 3px rgba(198, 216, 140, 0.35);
+  --psa-focus-color: var(--psa-lime-400);
 }
 
 /* Light theme. */
@@ -116,12 +124,13 @@
   --psa-border-subtle: rgba(0, 0, 0, 0.06);
   --psa-border: rgba(0, 0, 0, 0.1);
   --psa-border-strong: rgba(0, 0, 0, 0.18);
+  --psa-border-control: #7a7a7a;
 
   --psa-text: #141414;
   --psa-text-strong: #0c0c0c;
   --psa-text-secondary: #5c5c5c;
-  --psa-text-tertiary: #7d7d7d;
-  --psa-text-placeholder: #9a9a9a;
+  --psa-text-tertiary: #686868;
+  --psa-text-placeholder: #6a6a6a;
 
   --psa-accent: var(--psa-lime-400);
   --psa-accent-hover: var(--psa-lime-300);
@@ -129,21 +138,22 @@
   --psa-accent-soft: rgba(95, 111, 42, 0.1);
   --psa-accent-medium: rgba(95, 111, 42, 0.18);
   --psa-accent-glow: rgba(95, 111, 42, 0.2);
-  --psa-accent-text: var(--psa-lime-700);
+  --psa-accent-text: var(--psa-lime-800);
   --psa-on-accent: #1a1a1a;
 
   --psa-chord: var(--psa-lime-800);
 
-  --psa-positive: #1f8a55;
+  --psa-positive: #17724a;
   --psa-positive-soft: rgba(31, 138, 85, 0.1);
-  --psa-warning: #8a7a12;
+  --psa-warning: #6b5f0e;
   --psa-danger: #c0343b;
   --psa-danger-soft: rgba(192, 52, 59, 0.1);
+  --psa-on-danger: #ffffff;
 
   --psa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --psa-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.1);
   --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
-  --psa-focus-ring: 0 0 0 3px rgba(95, 111, 42, 0.3);
+  --psa-focus-color: var(--psa-lime-700);
 }
 
 /* No explicit theme: follow the system. */
@@ -162,29 +172,40 @@
     --psa-border-subtle: rgba(0, 0, 0, 0.06);
     --psa-border: rgba(0, 0, 0, 0.1);
     --psa-border-strong: rgba(0, 0, 0, 0.18);
+    --psa-border-control: #7a7a7a;
 
     --psa-text: #141414;
     --psa-text-strong: #0c0c0c;
     --psa-text-secondary: #5c5c5c;
-    --psa-text-tertiary: #7d7d7d;
-    --psa-text-placeholder: #9a9a9a;
+    --psa-text-tertiary: #686868;
+    --psa-text-placeholder: #6a6a6a;
 
     --psa-accent-soft: rgba(95, 111, 42, 0.1);
     --psa-accent-medium: rgba(95, 111, 42, 0.18);
     --psa-accent-glow: rgba(95, 111, 42, 0.2);
-    --psa-accent-text: var(--psa-lime-700);
+    --psa-accent-text: var(--psa-lime-800);
 
     --psa-chord: var(--psa-lime-800);
 
-    --psa-positive: #1f8a55;
+    --psa-positive: #17724a;
     --psa-positive-soft: rgba(31, 138, 85, 0.1);
-    --psa-warning: #8a7a12;
+    --psa-warning: #6b5f0e;
     --psa-danger: #c0343b;
     --psa-danger-soft: rgba(192, 52, 59, 0.1);
+    --psa-on-danger: #ffffff;
 
     --psa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
     --psa-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.1);
     --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
-    --psa-focus-ring: 0 0 0 3px rgba(95, 111, 42, 0.3);
+    --psa-focus-color: var(--psa-lime-700);
   }
+}
+
+/* The focus ring is worked out on each element, so a part of a page that
+   sets its own --psa-focus-color or --psa-bg-canvas (a high-contrast mode,
+   say) gets a ring in its own colours. */
+*,
+::before,
+::after {
+  --psa-focus-ring: 0 0 0 2px var(--psa-bg-canvas), 0 0 0 4px var(--psa-focus-color);
 }

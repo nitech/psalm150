@@ -17,7 +17,7 @@ sources:
   - id: reference
     resource: /designsystem.json
     title: PSA150 Design System reference (not loaded by the app)
-generated: { by: agent, at: 2026-09-28T09:15:00Z }
+generated: { by: agent, at: 2026-10-05T21:30:00Z }
 ---
 
 # Design tokens
@@ -56,7 +56,7 @@ A page picks a theme with `<html data-theme="dark|light">`. Dark is the
 default (`:root`, `:root[data-theme="dark"]`); `data-theme="light"` selects
 the light theme; a page without the attribute follows
 `prefers-color-scheme`. The light theme keeps the accent hue but uses deeper
-lime for accent text and chords (`--psa-lime-700` / `-800`) for contrast.
+lime (`--psa-lime-800`) for accent text and chords, for contrast.
 
 `index.html`, `audience.html` and `stage.html` all set `data-theme="dark"`,
 so the console and both projection windows are always dark whatever the
@@ -69,7 +69,10 @@ variable names (`--bg-surface`, `--text-secondary`, `--accent-lime`,
 `--radius-md`, `--font-ui`, …) as aliases of the `--psa-*` tokens, so
 component CSS did not change. A few values are still local to `styles.css`
 (`--shadow-xl`, `--glow-danger`, `--radius-2xl`, `--blur-glass`,
-`--pane-head-height`). The audience slide colours and font come from the
+`--pane-head-height`). For [accessibility](accessibility.md) it adds
+`--border-control`, `--focus-color` and `--focus-ring` (aliases of
+`--psa-border-control`, `--psa-focus-color`, `--psa-focus-ring`) for field
+edges and the keyboard focus indicator,. The audience slide colours and font come from the
 library's `SlideTheme`, not from these tokens
 ([audience display](audience-display.md)).
 

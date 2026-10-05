@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Operator console
-description: The main window — state ownership, the two toolbar groups, search with #key, History/Favourites/Setlist views, the add-to-setlist button, the song list with sortable Song/No/Key columns, keyboard model, projecting mode, settings, edit and import modals.
+description: The main window — state ownership, the two toolbar groups, the song server room chip, search with #key, History/Favourites/Setlist views, the add-to-setlist button, the song list with sortable Song/No/Key columns, keyboard model, projecting mode, settings (including the room), edit and import modals.
 tags: [console, ui, lit, keyboard, settings]
 status: stable
 sources:
@@ -41,7 +41,7 @@ sources:
   - id: icons
     resource: /src/icons.ts
     title: Toolbar icon set (Lucide geometry)
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-05T21:30:00Z }
 ---
 
 # Operator console
@@ -61,11 +61,15 @@ close buttons) with the brand on the left and two toolbar groups on the
 right, then a **browse pane** (search
 field or view title, song list) and the **song pane**, separated by a drag
 splitter (280–720 px, default 340, stored in
-`localStorage["psa150-browse-pane-width"]`).
+`localStorage["psa150-browse-pane-width"]`). The splitter also takes focus:
+←/→ resize by 16 px (Shift: 64), Home/End jump to the limits, and a
+double-click toggles the default and the widest width.
 
 - **App bar** (slim): the brand (centred over the activity bar), then on the
   right one group: Project in the quiet ghost style (highlighted while
   projecting), Prev, Next and Blank **only while projecting**, and Settings.
+  Left of the group, in a [server library](server-library.md), sits the
+  **room chip** ("Room · Lily", [below](#room)).
 - **Activity bar** (as in VS Code, left of the song list): Search, Setlist,
   History and Favourites choose what the song list shows; the active one has
   a lime edge. The VSB sync icon sits at the bottom when a database is linked
@@ -113,8 +117,9 @@ loaded with `list_favorites` on start-up and library changes.
 Library songs (not web previews) show an **add to setlist** button: the
 plain + (grey) when the song is not in the **active setlist**, a ✓ (lime)
 when it is. Clicking the check removes the song from the active setlist at once.
-Clicking the plus opens a menu listing every setlist
-(tick = contains the song; click to add or remove) and a **New setlist**
+Clicking the plus opens a popup listing every setlist
+(tick = contains the song; click to add or remove; Esc closes it and returns
+focus to the button, tabbing out closes it) and a **New setlist**
 field prefilled with today in the PC's short date format (`format_short_date`,
 Windows `GetDateFormatEx(DATE_SHORTDATE)`; for example 23.09.26 with
 Norwegian settings), falling back to the browser locale.
@@ -170,12 +175,12 @@ flex row (title + source) spanning all columns and do not widen them.
 
 | Key | Context | Effect |
 | --- | --- | --- |
-| Enter | search field, a song row, or anywhere with a song selected | Project (`projectLoadedSong`) |
+| Enter | search field, a song row, or anywhere with a song selected, except on a button or other control Enter activates, in a dialog or in the setlist popup | Project (`projectLoadedSong`) |
 | Down / Up | search field | jump to first / last row |
 | Down / Up | rows, not projecting | move selection (Up from the first row returns to the search field) |
 | Down / Up | projecting | next / previous **stanza** |
 | → / ← (configurable) | projecting, not typing | next / previous **slide** |
-| 1–9, then multi-digit numbers such as 10, 11, 12 | projecting, outside text fields and modals | jump to the numbered **stanza** (first slide) and unblank |
+| 1–9, then multi-digit numbers such as 10, 11, 12 | projecting, outside text fields and modals, unless turned off | jump to the numbered **stanza** (first slide) and unblank |
 | B (configurable) | projecting, not typing | blank screen |
 | Alt+S (configurable) | a library song selected, also while typing | add it to the active setlist; with none active, open the add-to-setlist menu |
 | Alt+F (configurable) | a library song selected, also while typing | toggle favourite |
@@ -183,9 +188,14 @@ flex row (title + source) spanning all columns and do not widen them.
 | Ctrl+E, Ctrl+1 (fixed) | anywhere outside dialogs | Search view, focus the field and select its text |
 | Ctrl+2 / Ctrl+3 / Ctrl+4 (fixed) | anywhere outside dialogs | Setlist / History / Favourites view |
 | Down / Up, Enter / Tab, Esc | key list open in the search field | move, choose the key, close the list |
-| Esc | in order | close the setlist menu, leave ad hoc edit, close Edit, close Settings, stop projection (then clear and focus the search field) |
+| ←/→, Home/End | splitter focused | resize the song list |
+| Esc | in order | close an open select or the key list (they handle it), close the setlist popup, leave ad hoc edit, close Edit, close Settings, close duplicates, close the import report; the import dialog ignores it; otherwise stop projection (then clear and focus the search field) |
 
-Text inputs and contenteditable lines swallow the navigation keys.
+Text inputs and contenteditable lines swallow the navigation keys. The
+number keys can be turned off in Settings, Keyboard shortcuts ("Number keys
+1–9 jump to a stanza while projecting", stored per PC as
+`localStorage["psa150-stanza-number-keys"] = "off"`); ↑/↓ still step
+stanzas. See [accessibility](accessibility.md#keyboard-211-212-214-243-257).
 
 Starting a projection moves focus out of the search field (Enter there
 projects), so digits, arrows and B work immediately; Ctrl+F returns to
@@ -202,7 +212,8 @@ different song do not. These shortcuts belong to the operator console.
 
 **Configurable shortcuts** (`src/shortcuts.ts`, tested): Settings, Keyboard
 shortcuts lists each action with its combo; click it, press new keys (Esc
-cancels, Backspace clears), or Reset to defaults. Saved as
+cancels, Backspace clears, Tab leaves it unchanged and moves on), or Reset
+to defaults. Saved as
 `config.shortcuts`. Enter, Esc, ↑/↓, Tab, the digits, Ctrl+E and Ctrl+1–4
 (`VIEW_SHORTCUTS`) are fixed and cannot be assigned; a bare Shift+letter is refused, and so is a combo another action
 uses. Combos with Ctrl, Alt or Meta fire inside text fields too; plain keys
@@ -257,7 +268,9 @@ Church server: see [server library](server-library.md) (address check,
 Sign in with browser, token fallback, Synchronize, Disconnect). While
 connected it also shows a note that setlists are the church's shared sets
 and the checkbox **Allow remote control through the song server**
-(`server_remote_enabled`; [remote control](remote-control.md#through-the-song-server)). Library: folder path, Choose Songs Folder, Import MDB, Rescan, manual
+(on by default; config key `server_remote`;
+[remote control](remote-control.md#through-the-song-server)), then the
+[room](#room) settings. Library: folder path, Choose Songs Folder, Import MDB, Rescan, manual
 [duplicate review](duplicate-review.md), song numbers toggle. Projection:
 Congregation display (Primary / Simulated / monitors), Stage display, "Also
 show stage window", "Read-only library". Visual Song Book: link or unlink a
@@ -265,7 +278,36 @@ database, Synchronize now, last result ([VSB sync](vsb-sync.md)). Search: web
 search toggle. Phone
 remote: on/off toggle that shows the port and PIN while running ([remote
 control](remote-control.md)). Reports: Print songbook HTML, Export CCLI CSV.
-Shortcut legend.
+Shortcut legend. "Find a setting" also finds the Church server section by
+room, flower, join, share, phone and remote control.
+
+## Room
+
+In a server library the console shows this PC's
+[room](remote-control.md#room) on the song server, as the server last told it
+(`get_server_room` at startup and whenever Settings opens, then the
+`server-room` event).
+
+- **Room chip** in the app bar: "Room" and the name, such as "Lily". It is
+  muted when the words are not shared (sharing off here, or the church's owner
+  turned rooms off). Its tooltip says leaders pick this PC by the name and,
+  when shared, where anyone can follow the words. A click opens Settings,
+  Church server. Without a server library, or before the server first
+  answers, there is no chip.
+- **Settings, Church server, Room**: a **Room name** field with **Rename**
+  (also on Enter; disabled while the name is unchanged) and **Pick another
+  flower** (`rename_server_room`; a toast names the new room, the server's
+  refusal is toasted); a note that leaders pick this PC by its room name and
+  that it keeps the name until someone changes it, here or on the song
+  server; the checkbox **Let people follow the projected words in this
+  room** (`set_server_room_sharing`, on by default). While the church shares
+  rooms, a hint says anyone who opens `<server>/join` and types the name sees
+  the words on their own phone, with **Copy the room link** (the
+  `join_url`, or a toast with it when the clipboard is blocked). When the
+  owner has turned rooms off, a note says so instead. Before the server
+  answers, "This PC's room name shows here once the song server answers."
+- A name being typed is kept when a new `server-room` event arrives, unless
+  it still matched the old name.
 
 ## Edit modal
 
@@ -278,10 +320,14 @@ keeps the draft. Web results open here too, but there is no real file to edit.
 
 ## Toasts and bootstrap
 
-4 s toasts (info / success / error). They sit in the app bar; while a dialog
-is open the toast is drawn after the dialogs, centred at the top
+Toasts (info / success / error) sit in the app bar; while a dialog is open
+the toast is drawn after the dialogs, centred at the top
 (`.toast.over-modal`), because the app bar's stacking context would keep it
-under the dialog backdrop. On start: `get_config` then
+under the dialog backdrop. Errors stay until dismissed with their × or
+replaced; other toasts stay at least 5 s (2 s plus 60 ms per character) and
+not while the pointer or focus is on them. Long messages wrap. Every toast is
+also written to a hidden live region (`role="status"`, errors
+`role="alert"`) so screen readers announce it. On start: `get_config` then
 `applyConfig`, then the folder/status polling described in
 [songs folder](songs-folder.md). The main window takes focus on connect and
 again after opening projection, unless the audience is the simulated window.
@@ -289,3 +335,4 @@ again after opening projection, unless the audience is the simulated window.
 ## Related
 
 - [IPC contract](ipc-contract.md), [Config](config.md), [Web search](web-search.md)
+- [Accessibility](accessibility.md): dialogs, select, focus, contrast, live regions

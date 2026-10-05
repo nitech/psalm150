@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Server library
-description: Using a Psalm150 song server as the library — the address check, browser sign-in over a loopback redirect (or a pasted token), the offline copy and manifest, saving edits back to the server, and setlists shared as the server's sets.
+description: Using a Psalm150 song server as the library — the address check, browser sign-in over a loopback redirect (or a pasted token), the offline copy and manifest, saving edits back to the server, setlists shared as the server's sets, and revoking the desktop's token when it lets go of it.
 tags: [server, sync, sign-in, pkce, offline, library, sets]
 status: stable
 sources:
@@ -10,7 +10,7 @@ sources:
     title: probe_song_server, sign_in_server_library, cancel_server_sign_in (loopback listener tested)
   - id: server-library
     resource: /src-tauri/src/commands/server_library.rs
-    title: connect/sync/disconnect, offline cache swap, manifest, save_song, update_song, delete_song
+    title: connect/sync/disconnect, offline cache swap, manifest, save_song, update_song, delete_song, forget_token and revoke_token (tested)
   - id: song-v2
     resource: /src-tauri/src/commands/song_v2.rs
     title: save_content routes saves to the folder or the song server
@@ -20,7 +20,7 @@ sources:
   - id: app
     resource: /src/components/app.ts
     title: Settings, Church server (renderServerConnect, signInServerLibrary, shared-sets note)
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-05T18:00:00Z }
 ---
 
 # Server library
@@ -56,6 +56,12 @@ Settings, Church server (while not connected):
 3. The token is stored in `server-device-token` and the library is
    synchronised as below.
 
+Once connected, the PC also starts reporting what it projects to the server,
+because the [song server remote](remote-control.md#through-the-song-server)
+and room sharing are both on by default, and learns its
+[room](remote-control.md#room) name (a flower), which the console shows in its
+header. Both can be turned off under Settings, Church server.
+
 While it waits, the button becomes **Cancel sign-in**
 (`cancel_server_sign_in`). Cancel in the browser (`error=access_denied`),
 Cancel in the app, and a 5-minute timeout all end the wait; the first two
@@ -66,6 +72,30 @@ date" page and the wait continues. The page address is logged
 **Use a desktop token instead** (a collapsed section, opened automatically for
 servers without browser sign-in) keeps the old way: paste a `psa_d_` token
 created under Connect desktop on the server (`connect_server_library`).
+
+## Disconnecting
+
+Whenever the desktop lets go of its token it revokes it on the server first,
+so the church's desktop list (and the phones' remote list) stops showing this
+computer, its room closes and its room name is freed (the console drops the
+room chip, `server-room` null):
+
+- **Disconnect** or **Return to local library** (`disconnect_server_library`);
+- choosing a local songs folder while the server library is open
+  (`activate_songs_folder` with `persist`);
+- a new sign-in or pasted token replacing the stored one (`synchronize`,
+  only when the token differs; the old one is revoked on the server it came
+  from).
+
+`forget_token` reads `server-device-token`, starts `revoke_token` in the
+background and deletes the file. `revoke_token` sends
+`DELETE <server>/api/v1/session` with the token (5 s to connect, 10 s in all);
+2xx, 401 (already revoked) and 405 (a server without sign-out) all count as
+done, and a failure is only logged (`[server] could not revoke the desktop
+token: …`). The desktop never waits for it, so disconnecting works offline;
+an unreachable server keeps the token listed until a leader revokes it. A
+token pasted into several computers stops working on all of them when one of
+them disconnects.
 
 ## Synchronising
 

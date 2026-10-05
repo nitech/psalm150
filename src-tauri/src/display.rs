@@ -170,10 +170,14 @@ fn restore_projection_window_chrome(
         "audience" => {
             window.set_decorations(false).map_err(|e| e.to_string())?;
             window.set_always_on_top(true).map_err(|e| e.to_string())?;
-            window.set_title("Audience").map_err(|e| e.to_string())?;
+            window
+                .set_title("Psalm150 audience display")
+                .map_err(|e| e.to_string())?;
         }
         "stage" => {
-            window.set_title("Stage").map_err(|e| e.to_string())?;
+            window
+                .set_title("Psalm150 stage display")
+                .map_err(|e| e.to_string())?;
         }
         _ => {}
     }

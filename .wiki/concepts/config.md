@@ -17,7 +17,7 @@ sources:
   - id: api
     resource: /src/api.ts
     title: AppConfig TypeScript shape
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-05T18:00:00Z }
 ---
 
 # Config and theme
@@ -38,7 +38,8 @@ fields marked `#[serde(default)]` may be absent in old files.
 | `audience_monitor` | none (= primary) | Settings (Congregation) | `open_audience_window`; `"__simulated__"` = window |
 | `stage_monitor` | none | Settings (Stage) | `open_stage_window` (only when set) |
 | `remote_enabled`, `remote_port` (8757), `remote_pin` | off | Settings (Phone remote) via `start_remote` / `stop_remote` | auto-started in `setup()` when enabled; see [remote control](remote-control.md) |
-| `server_remote_enabled` | false | Settings (Church server) via `set_server_remote_enabled` | the song server remote loops, only while a server library is connected ([remote control](remote-control.md#through-the-song-server)) |
+| `server_remote` (Rust field `server_remote_enabled`) | **true** | Settings (Church server) via `set_server_remote_enabled` | `accepts_commands` in the state report and the command long poll, only while a server library is connected ([remote control](remote-control.md#through-the-song-server)). The old key `server_remote_enabled`, which was false by default, is ignored, so existing installs start with it on |
+| `server_room_sharing` | **true** | Settings (Church server) via `set_server_room_sharing` | `shares_room` in the state report: whether anyone may follow the projected words in this PC's [room](remote-control.md#room). The state report runs while this or `server_remote` is on |
 | `key_format_compressed` | false | nothing | nothing |
 | `history_days` | 30 | nothing | nothing (history is never pruned) |
 | `shortcuts` | `next_slide` ArrowRight, `previous_slide` ArrowLeft, `blank` B, `add_to_setlist` Alt+S, `toggle_favorite` Alt+F, `focus_search` Ctrl+F | Settings (Keyboard shortcuts) via `save_shortcuts` | console key handling (`src/shortcuts.ts`); missing fields take defaults, the old `KeyB` spelling is accepted |
