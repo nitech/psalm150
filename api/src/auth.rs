@@ -11,16 +11,21 @@ use uuid::Uuid;
 use crate::{
     AppState,
     error::AppError,
-    models::{Role, SessionResponse},
+    models::{Role, SessionResponse, TokenKind},
 };
 
 #[derive(Debug)]
 pub struct AuthContext {
+    pub kind: TokenKind,
     pub user_id: Option<Uuid>,
     pub church_id: Uuid,
+    /// For a person, what this token may do now: their role, or less for an
+    /// API token made with a lower one. Desktops are `Viewer` here and get
+    /// their access from `require_song_editor` and the relay's own check.
     pub role: Role,
-    pub is_device: bool,
     pub device_id: Option<Uuid>,
+    /// SHA-256 of the bearer token, so the request can revoke it.
+    pub token_hash: String,
 }
 
 /// Who wrote a song change: a person or a desktop device token.
@@ -31,11 +36,15 @@ pub struct Actor {
 }
 
 impl AuthContext {
+    pub fn is_device(&self) -> bool {
+        self.kind == TokenKind::Desktop
+    }
+
     /// Church content (songs and sets) create, edit and delete: leaders and
     /// owners, and desktop tokens, which keep a church's desktops, their sets
     /// and their Visual Song Book in sync.
     pub fn require_song_editor(&self) -> Result<Actor, AppError> {
-        if self.is_device {
+        if self.is_device() {
             return Ok(self.actor());
         }
         Ok(Actor {
@@ -51,20 +60,27 @@ impl AuthContext {
         }
     }
 
-    /// Church settings, such as opening the library to the public: owners only.
+    /// Running the church: its settings, its members and everyone's API
+    /// tokens. Owners only.
     pub fn require_owner(&self) -> Result<Uuid, AppError> {
-        if self.is_device || self.role != Role::Owner {
+        if self.is_device() || self.role != Role::Owner {
             return Err(AppError::Forbidden("owner access is required".into()));
         }
-        self.user_id
-            .ok_or_else(|| AppError::Forbidden("a person account is required".into()))
+        self.require_person()
     }
 
     pub fn require_editor(&self) -> Result<Uuid, AppError> {
-        if self.is_device || !self.role.can_edit() {
+        if self.is_device() || !self.role.can_edit() {
             return Err(AppError::Forbidden("leader access is required".into()));
         }
+        self.require_person()
+    }
+
+    /// What people do for themselves (their password, their API tokens):
+    /// any person's session or API token, never a desktop.
+    pub fn require_person(&self) -> Result<Uuid, AppError> {
         self.user_id
+            .filter(|_| !self.is_device())
             .ok_or_else(|| AppError::Forbidden("a person account is required".into()))
     }
 }
@@ -74,6 +90,14 @@ struct SessionRow {
     user_id: Uuid,
     church_id: Uuid,
     role: String,
+}
+
+#[derive(FromRow)]
+struct ApiTokenRow {
+    user_id: Uuid,
+    church_id: Uuid,
+    role: String,
+    cap: String,
 }
 
 #[derive(FromRow)]
@@ -115,12 +139,41 @@ pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<AuthC
             .await;
 
         return Ok(AuthContext {
+            kind: TokenKind::Session,
             user_id: Some(session.user_id),
             church_id: session.church_id,
-            role: Role::from_db(&session.role)
-                .ok_or_else(|| AppError::Internal("unknown role in database".into()))?,
-            is_device: false,
+            role: role_from_db(&session.role)?,
             device_id: None,
+            token_hash,
+        });
+    }
+
+    if token.starts_with("psa_a_") {
+        let api_token = sqlx::query_as::<_, ApiTokenRow>(
+            "SELECT t.user_id, t.church_id, m.role, t.role AS cap
+             FROM api_tokens t
+             JOIN users u ON u.id = t.user_id AND u.disabled_at IS NULL
+             JOIN memberships m ON m.user_id = t.user_id AND m.church_id = t.church_id
+             WHERE t.token_hash = $1 AND t.revoked_at IS NULL
+               AND (t.expires_at IS NULL OR t.expires_at > now())",
+        )
+        .bind(&token_hash)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::Unauthorized("invalid, expired or revoked API token".into()))?;
+
+        let _ = sqlx::query("UPDATE api_tokens SET last_used_at = now() WHERE token_hash = $1")
+            .bind(&token_hash)
+            .execute(&state.pool)
+            .await;
+
+        return Ok(AuthContext {
+            kind: TokenKind::Api,
+            user_id: Some(api_token.user_id),
+            church_id: api_token.church_id,
+            role: role_from_db(&api_token.role)?.at_most(role_from_db(&api_token.cap)?),
+            device_id: None,
+            token_hash,
         });
     }
 
@@ -140,15 +193,30 @@ pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<AuthC
             .await;
 
         return Ok(AuthContext {
+            kind: TokenKind::Desktop,
             user_id: None,
             church_id: device.church_id,
             role: Role::Viewer,
-            is_device: true,
             device_id: Some(device.id),
+            token_hash,
         });
     }
 
     Err(AppError::Unauthorized("unknown token type".into()))
+}
+
+pub fn role_from_db(value: &str) -> Result<Role, AppError> {
+    Role::from_db(value).ok_or_else(|| AppError::Internal("unknown role in database".into()))
+}
+
+/// The rule for every password a person chooses.
+pub fn validate_password(password: &str) -> Result<(), AppError> {
+    if password.chars().count() < 10 {
+        return Err(AppError::BadRequest(
+            "password must contain at least 10 characters".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub async fn hash_password(password: String) -> Result<String, AppError> {
@@ -203,8 +271,7 @@ pub async fn issue_session(
         church_id: user.church_id,
         church_name: user.church_name.clone(),
         display_name: user.display_name.clone(),
-        role: Role::from_db(&user.role)
-            .ok_or_else(|| AppError::Internal("unknown role in database".into()))?,
+        role: role_from_db(&user.role)?,
     })
 }
 

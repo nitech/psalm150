@@ -31,15 +31,37 @@ cd web && bun run test                                     # vitest
 ## Rules that are easy to break
 
 - Every church-owned query filters on the caller's `church_id`.
+- Everything the server does is reachable through `/api/v1` with a token; no
+  operation is web-only or database-only. Authenticated operations carry
+  `security(("bearer" = []))`, and `openapi_describes_every_operation` lists
+  the public ones and checks that every documented operation is routed.
+- API (`psa_a_`) tokens act as their person in one church. `authenticate`
+  gives them the lower of the token's `role` and the person's current
+  membership role, so `require_editor` and `require_owner` treat them like
+  sessions. A token is never made with more than its maker's effective role.
 - Desktop (`psa_d_`) tokens may read, import, create, edit and delete songs
   and sets (`require_song_editor`); `require_editor` must keep rejecting them
   for token management, desktop approval, sending remote commands and anything
-  else that is not church content. Device writes record the device
+  else that is not church content, and `require_person` for passwords and API
+  tokens. Device writes record the device
   (`created_by_device`, `updated_by_device`, `deleted_by_device`).
+- Only owners manage people (`/members`). Changes to a church's people run
+  under its row lock and keep at least one owner who is not disabled
+  (`ensure_another_owner`). Account fields (name, username, password,
+  disabled) change only for a person in no other church; their role here
+  always can.
 - Remote steering (`POST /remote/desktops/{id}/commands`) is `require_editor`:
   person owners and leaders only. The `/remote/desktop*` routes accept only
   desktop tokens. The relay is in memory; do not assume it survives a restart.
+- Rooms (`rooms.rs`) are public: `/public/rooms/{room_name}` and its events
+  show words only while the desktop projects with `shares_room` and its
+  church has `public_rooms`; a church with rooms closed answers 404 like an
+  unknown name. Room names are unique across the server (not per church),
+  matched by `room_key`, and freed when the desktop is revoked.
 - Store tokens only as SHA-256 hashes; never log a raw token.
+- Wrong passwords are counted in memory (`throttle.rs`). Check the limit
+  before any Argon2 work, and count unknown usernames like wrong passwords,
+  so neither a 429 nor the timing tells which usernames exist.
 - Revisions are immutable. Song updates go through the `base_revision_id`
   check under the `FOR UPDATE` lock; a stale base is `409`, never last-write-wins.
   Set updates and deletes do the same with `base_version`.

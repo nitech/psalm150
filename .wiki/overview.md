@@ -1,7 +1,7 @@
 ---
 type: Overview
 title: Psalm150 Song Server
-description: The way into the Song Server wiki — what the server is for, how its two halves fit, the data flow from desktop folder to PostgreSQL and back, sets and the remote relay, and the rules that keep it safe.
+description: The way into the Song Server wiki — what the server is for, how its two halves fit, the data flow from desktop folder to PostgreSQL and back, sets, the remote relay and rooms, API tokens and members, and the rules that keep it safe.
 tags: [overview, architecture]
 status: stable
 sources:
@@ -20,7 +20,7 @@ sources:
   - id: api
     resource: /api/src/api.rs
     title: Every handler and the OpenAPI document
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-05T18:00:00Z }
 ---
 
 # Psalm150 Song Server
@@ -40,7 +40,7 @@ token prefixes). The client was renamed to Psalm150 and this repo was not
 | Half | Where | Role |
 | --- | --- | --- |
 | API (`api/`) | Rust, Axum 0.8, sqlx on PostgreSQL. Binary `psa150-server` | Owns all state; serves `/api/v1/*`, `/api/openapi.json`, and the built web client as a static fallback |
-| Web client (`web/`) | Vite + plain TypeScript, no framework, mobile-first | First-run setup, sign-in, song reader and editor, sets and the service view, remote control, import/export, desktop tokens. Uses only the public API |
+| Web client (`web/`) | Vite + plain TypeScript, no framework, mobile-first | First-run setup, sign-in, song reader and editor, sets and the service view, remote control, the token-free `/join` room reader, import/export, desktop and API tokens. Uses only the public API |
 
 `AppState` holds the `PgPool`, `session_hours` and the in-memory remote-control
 relay (`remote`, [remote control](concepts/remote-control.md)). There is no
@@ -67,15 +67,34 @@ directory, the server runs without the web client and logs a warning
    for a service. Desktops keep every set offline through `GET /sets/snapshot`.
 7. A leader's phone can steer a projection desktop through the server's
    [remote control](concepts/remote-control.md) relay, if the desktop allows
-   it.
+   it (it does unless its operator turns it off). Each desktop has a
+   [room](concepts/rooms.md), a flower name by default: leaders pick the
+   desktop by it, and anyone may type it at `/join` to follow the projected
+   words live on their own phone, without an account.
+8. Owners add people and set their roles under More → People (`/members`).
+   Anyone signed in can make an API token (`psa_a_`) that acts as them, so scripts and
+   integrations can do through the API whatever that person can
+   ([auth and roles](concepts/auth-and-roles.md#api-tokens)).
 
 ## Standing rules
 
 - Every church-owned query filters on the caller's `church_id`. Having several
   churches on one server must not weaken that isolation.
+- Everything the server does is in the versioned API; nothing is web-only
+  or database-only. Operations that need a token say so in the OpenAPI
+  document (`bearer`), and a test keeps that honest.
+- An API token acts as its person with the lower of its own role and the
+  person's current role, and is never made with more than its maker has.
 - A desktop token can read, import, create, edit and delete songs and sets
-  (`require_song_editor`). It can never manage tokens, approve desktops or
-  send remote commands: `require_editor` rejects it.
+  (`require_song_editor`). It can never manage tokens, people or the church,
+  approve desktops or send remote commands: `require_editor`,
+  `require_owner` and `require_person` reject it.
+- Owners alone manage people. The church always keeps an owner who is not
+  disabled, and a person who also belongs to another church keeps their
+  account details to themselves.
+- Wrong passwords are limited before any password is checked, and unknown
+  usernames count and take as long as wrong passwords, so neither the answer
+  nor its timing tells which usernames exist.
 - Tokens are stored only as SHA-256 hashes. The raw token is returned once.
 - Revisions are immutable. A song changes only by adding a revision, and only
   after the base-revision check under a `FOR UPDATE` row lock.
@@ -94,7 +113,7 @@ directory, the server runs without the web client and logs a warning
 - Songs: [songs and revisions](concepts/songs-and-revisions.md),
   [import and export](concepts/import-export.md),
   [sets](concepts/sets.md), [desktop sync](concepts/desktop-sync.md),
-  [remote control](concepts/remote-control.md).
+  [remote control](concepts/remote-control.md), [rooms](concepts/rooms.md).
 - Operating it: [web client](concepts/web-client.md),
   [deployment and config](concepts/deployment.md),
   [build and CI](concepts/build-and-ci.md).

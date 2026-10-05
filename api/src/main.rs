@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use psa150_server::{AppState, app, config::Config};
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
@@ -22,9 +24,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(address = %config.bind, "PSA150 Song Server listening");
 
+    let state =
+        AppState::new(pool, config.session_hours).with_client_ip_header(config.client_ip_header);
+    // The peer address limits failed sign-ins per client.
     axum::serve(
         listener,
-        app(AppState::new(pool, config.session_hours), config.web_dist),
+        app(state, config.web_dist).into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;

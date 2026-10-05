@@ -1,3 +1,4 @@
+import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, pageHead, routeQuery, type AppContext, type Cleanup } from "../context.ts";
 import { groupSets } from "../current-set.ts";
@@ -29,18 +30,18 @@ import {
 import { closeSheet, openSheet } from "./songs.ts";
 
 function setRow(set: SetSummary, currentId?: string): string {
-  return `<a class="list-row" href="#/sets/${set.id}">
+  return `<li><a class="list-row" href="#/sets/${set.id}">
     ${dateBadge(set.service_date)}
     <span class="row-main"><strong>${escapeHtml(set.name)}${set.id === currentId ? ` <span class="badge">Current</span>` : ""}</strong><small>${serviceDate(set.service_date)} · ${set.item_count} ${set.item_count === 1 ? "item" : "items"}</small></span>
     ${icon("next")}
-  </a>`;
+  </a></li>`;
 }
 
 export async function setList(ctx: AppContext): Promise<void> {
   const sets = await ctx.api.listSets();
   const { upcoming, undated, past } = groupSets(sets, today());
   const currentId = ctx.currentSet.value?.id;
-  const rows = (group: SetSummary[]) => `<div class="list">${group.map((set) => setRow(set, currentId)).join("")}</div>`;
+  const rows = (group: SetSummary[], label: string) => `<ul class="list" aria-labelledby="${label}">${group.map((set) => setRow(set, currentId)).join("")}</ul>`;
   ctx.main.innerHTML = `${pageHead({
     title: "Sets",
     church: ctx.session.church_name,
@@ -49,9 +50,9 @@ export async function setList(ctx: AppContext): Promise<void> {
     actions: ctx.canEdit ? `<a class="icon-button accent" href="#/sets/new" aria-label="New set">${icon("plus")}</a>` : "",
   })}
   ${sets.length ? "" : emptyState("No sets yet", ctx.canEdit ? "Make a set for the next service; the desktop picks it up at its next synchronization." : "Leaders make sets for each service. They will appear here.")}
-  ${upcoming.length ? `<h2 class="list-heading">Upcoming</h2>${rows(upcoming)}` : ""}
-  ${undated.length ? `<h2 class="list-heading">No date</h2>${rows(undated)}` : ""}
-  ${past.length ? `<h2 class="list-heading">Earlier</h2>${rows(past)}` : ""}`;
+  ${upcoming.length ? `<h2 class="list-heading" id="sets-upcoming">Upcoming</h2>${rows(upcoming, "sets-upcoming")}` : ""}
+  ${undated.length ? `<h2 class="list-heading" id="sets-undated">No date</h2>${rows(undated, "sets-undated")}` : ""}
+  ${past.length ? `<h2 class="list-heading" id="sets-past">Earlier</h2>${rows(past, "sets-past")}` : ""}`;
 }
 
 function itemTitle(item: SetItem): string {
@@ -61,6 +62,7 @@ function itemTitle(item: SetItem): string {
 
 export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cleanup> {
   const set = await ctx.api.getSet(setId);
+  setTitle(set.name, "Sets");
   const over = Boolean(set.service_date && set.service_date < today());
   const currentStatus = () => {
     if (ctx.currentSet.value?.id === set.id) {
@@ -100,7 +102,7 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     });
   });
   return ctx.currentSet.subscribe(() => {
-    status.innerHTML = currentStatus();
+    keepFocus(status, () => { status.innerHTML = currentStatus(); }, () => status.querySelector<HTMLElement>("button"));
   });
 }
 
@@ -149,17 +151,18 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   }
 
   const back = existing ? `#/sets/${existing.id}` : "#/sets";
+  setTitle(existing ? `Edit ${existing.name}` : "New set", "Sets");
   ctx.main.innerHTML = `${pageHead({ title: existing ? "Edit set" : "New set", back })}
   <form class="set-form" id="set-form">
     <label>Name<input name="name" required maxlength="200" value="${escapeHtml(draft.name)}" placeholder="Sunday morning" /></label>
     <label>Service date<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
-    <div class="list-heading-row"><h2 class="list-heading">Items</h2>
+    <div class="list-heading-row"><h2 class="list-heading" id="items-heading">Items</h2>
       <div class="inline-actions">
-        <button type="button" class="button secondary small" id="add-blank">${icon("blank")}Blank</button>
-        <button type="button" class="button secondary small" id="add-songs">${icon("plus")}Songs</button>
+        <button type="button" class="button secondary small" id="add-blank" aria-label="Add a blank screen">${icon("blank")}Blank</button>
+        <button type="button" class="button secondary small" id="add-songs" aria-label="Add songs">${icon("plus")}Songs</button>
       </div>
     </div>
-    <ol class="list editable" id="draft-items"></ol>
+    <ol class="list editable" id="draft-items" aria-labelledby="items-heading"></ol>
     <p class="form-message" role="status"></p>
     <div class="form-actions sticky">
       ${existing ? `<button type="button" class="icon-button danger" id="delete-set" aria-label="Delete set">${icon("trash")}</button>` : ""}
@@ -172,30 +175,45 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   const list = form.querySelector<HTMLOListElement>("#draft-items")!;
   const message = form.querySelector<HTMLElement>(".form-message")!;
 
-  const renderItems = () => {
+  // Rows carry their item's id (`data-key`), so the button pressed keeps
+  // focus when a move or removal redraws the list.
+  const renderItems = () => keepFocus(list, () => {
     list.innerHTML = draft.items.length
-      ? draft.items.map((item, index) => `<li class="edit-row" data-index="${index}">
+      ? draft.items.map((item, index) => {
+        const name = escapeHtml(`${index + 1}, ${item.title}`);
+        return `<li class="edit-row" data-index="${index}" data-key="${item.id}">
         <div class="edit-row-main">
           <span class="grip" data-grip aria-hidden="true" title="Drag to reorder">${icon("grip")}</span>
           <span class="row-lead">${index + 1}</span>
           <span class="row-main"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.subtitle) || "&nbsp;"}</small></span>
           <div class="row-tools">
-            <button type="button" class="icon-button small" data-act="up" aria-label="Move up" ${index === 0 ? "disabled" : ""}>${icon("up")}</button>
-            <button type="button" class="icon-button small" data-act="down" aria-label="Move down" ${index === draft.items.length - 1 ? "disabled" : ""}>${icon("down")}</button>
-            <button type="button" class="icon-button small danger" data-act="remove" aria-label="Remove">${icon("close")}</button>
+            <button type="button" class="icon-button small" data-act="up" aria-label="Move up: ${name}" ${index === 0 ? "disabled" : ""}>${icon("up")}</button>
+            <button type="button" class="icon-button small" data-act="down" aria-label="Move down: ${name}" ${index === draft.items.length - 1 ? "disabled" : ""}>${icon("down")}</button>
+            <button type="button" class="icon-button small danger" data-act="remove" aria-label="Remove: ${name}">${icon("close")}</button>
           </div>
         </div>
         <div class="edit-row-extra">
-          ${item.kind === "song" ? `<div class="stepper" role="group" aria-label="Transpose">
+          ${item.kind === "song" ? `<div class="stepper" role="group" aria-label="Transpose ${escapeHtml(item.title)}">
             <button type="button" class="icon-button small" data-act="tdown" aria-label="Transpose down">${icon("minus")}</button>
-            <span>Transpose ${transposeLabel(item.transpose ?? 0)}</span>
+            <span data-transpose aria-live="polite">Transpose ${transposeLabel(item.transpose ?? 0)}</span>
             <button type="button" class="icon-button small" data-act="tup" aria-label="Transpose up">${icon("plus")}</button>
           </div>` : ""}
-          <input class="note-input" data-act="note" maxlength="500" placeholder="Note for the team" value="${escapeHtml(item.note ?? "")}" aria-label="Note" />
+          <label class="note-field"><span>Note</span><input class="note-input" data-act="note" maxlength="500" placeholder="For the team" value="${escapeHtml(item.note ?? "")}" /></label>
         </div>
-      </li>`).join("")
+      </li>`;
+      }).join("")
       : `<li class="muted pad">No items yet. Add songs, or a blank screen for prayer or a reading.</li>`;
-  };
+  }, () => {
+    // The button is now disabled (the row reached an end): another of the
+    // row's buttons. The row went: the next row's, else Add songs.
+    const same = Array.from(list.querySelectorAll<HTMLElement>("[data-key]")).find((row) => row.dataset.key === focusKey);
+    const rows = list.querySelectorAll<HTMLElement>("[data-index]");
+    const near = same ?? rows[Math.min(focusIndex, rows.length - 1)];
+    return near?.querySelector<HTMLElement>("button[data-act]:not(:disabled)") ?? form.querySelector<HTMLElement>("#add-songs");
+  });
+  /** The row of the last button pressed, for `renderItems`' fallback. */
+  let focusIndex = 0;
+  let focusKey = "";
   renderItems();
 
   list.addEventListener("click", (event) => {
@@ -204,22 +222,29 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     if (!button || !row) return;
     const index = Number(row.dataset.index);
     const item = draft.items[index];
+    focusIndex = index;
+    focusKey = item.id;
     switch (button.dataset.act) {
       case "up":
         draft.items.splice(index - 1, 0, ...draft.items.splice(index, 1));
+        announce(`${item.title} moved to ${index} of ${draft.items.length}.`);
         break;
       case "down":
         draft.items.splice(index + 1, 0, ...draft.items.splice(index, 1));
+        announce(`${item.title} moved to ${index + 2} of ${draft.items.length}.`);
         break;
       case "remove":
         draft.items.splice(index, 1);
+        announce(`${item.title} removed.`);
         break;
       case "tup":
-        item.transpose = stepTranspose(item.transpose ?? 0, 1);
-        break;
-      case "tdown":
-        item.transpose = stepTranspose(item.transpose ?? 0, -1);
-        break;
+      case "tdown": {
+        // In place, so the live value beside the buttons is read out.
+        item.transpose = stepTranspose(item.transpose ?? 0, button.dataset.act === "tup" ? 1 : -1);
+        const value = row.querySelector("[data-transpose]");
+        if (value) value.textContent = `Transpose ${transposeLabel(item.transpose)}`;
+        return;
+      }
     }
     renderItems();
   });
@@ -269,6 +294,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   form.querySelector("#add-blank")?.addEventListener("click", () => {
     draft.items.push({ id: crypto.randomUUID(), kind: "blank", note: "", transpose: 0, title: "Blank screen", subtitle: "" });
     renderItems();
+    announce(`Blank screen added as item ${draft.items.length}.`);
   });
   const inDraft = (songId: string) => draft.items.filter((item) => item.song_id === songId).length;
   form.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker(ctx, inDraft, (song) => {
@@ -407,6 +433,9 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   }
 
   const song = item.kind === "song" && item.song_id ? await loadSong(ctx, songCache, item.song_id) : null;
+  setTitle(`${itemTitle(item)} (${index + 1} of ${set.items.length})`, set.name, "Sets");
+  // Next and Previous keep focus on themselves; say where they went.
+  announce(`${itemTitle(item)}, ${index + 1} of ${set.items.length}`);
   let desktops: RemoteDesktop[] = [];
   let renderedTarget = "";
 
@@ -416,8 +445,9 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     const transpose = stepTranspose(item.transpose, extraTranspose);
     const display = song ? prepareSong(song.chordpro, transpose) : null;
     const target = pickDesktop(desktops);
-    renderedTarget = target && ctx.canEdit ? `${target.device_id}:${target.name}` : "";
+    renderedTarget = target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "";
     const key = display ? keyLabel(display, transpose) : "";
+    const active = document.activeElement;
     ctx.main.innerHTML = `<div class="play">
       ${pageHead({
         title: itemTitle(item),
@@ -429,7 +459,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
       })}
       ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
       ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
-      ${target && ctx.canEdit ? `<button class="button secondary wide" id="project-here">${icon("remote")}Project this on ${escapeHtml(target.name)}</button>` : ""}
+      ${target && ctx.canEdit ? `<button class="button secondary wide" id="project-here">${icon("remote")}Project this on ${escapeHtml(target.room_name)}</button>` : ""}
       ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : emptyState("This song was deleted", "It is no longer in the library.")}
       <nav class="play-nav" aria-label="Set navigation">
         <button class="play-step" id="play-prev" ${prev ? "" : "disabled"}>${icon("back")}<span><small>Previous</small>${prev ? escapeHtml(itemTitle(prev)) : ""}</span></button>
@@ -443,6 +473,8 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
         render();
       });
     }
+    // A redraw (Follow pressed, a desktop appearing) keeps focus where it was.
+    if (active instanceof HTMLElement && active.id && !active.isConnected) ctx.main.querySelector<HTMLElement>(`#${active.id}`)?.focus({ preventScroll: true });
     ctx.main.querySelector("#play-prev")?.addEventListener("click", () => prev && go(index - 1));
     ctx.main.querySelector("#play-next")?.addEventListener("click", () => next && go(index + 1));
     ctx.main.querySelector("#follow")?.addEventListener("click", () => {
@@ -455,7 +487,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
       const desktop = pickDesktop(desktops);
       if (!desktop) throw new Error("No desktop accepts remote control right now.");
       await ctx.api.sendRemoteCommand(desktop.device_id, { action: "project_set_item", set_id: set.id, item_index: index });
-      showToast(`Sent to ${desktop.name}.`);
+      showToast(`Sent to ${desktop.room_name}.`);
     }));
   };
 
@@ -473,7 +505,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     // Re-render only when the "Project this" button changes, so a poll never
     // interrupts a tap or resets the page.
     const target = pickDesktop(desktops);
-    if ((target && ctx.canEdit ? `${target.device_id}:${target.name}` : "") !== renderedTarget) render();
+    if ((target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "") !== renderedTarget) render();
   };
 
   // Swipe left/right to move through the set.

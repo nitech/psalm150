@@ -67,7 +67,10 @@ already prepared service.
 General-purpose social networking, live projection, and automatic upstream
 updates to imported songs are not server responsibilities. The server may relay
 remote-control commands from a leader's phone to a desktop that allows it, but
-the desktop keeps control of the projection and works without the server.
+the desktop keeps control of the projection and works without the server. Each
+desktop also has a room, named after a flower: anyone who types its name at
+`/join` can follow the projected words on their own phone, as large as they
+need, without an account.
 
 AI-assisted audio and lyric processing is future scope, not part of the initial
 server release. The foundational song, planning, projection, and sharing
@@ -103,6 +106,18 @@ docker compose up --build
 
 Open `http://localhost:8080` for first-run setup. PostgreSQL is not exposed on a
 host port. API documentation is available at `/api/openapi.json`.
+
+Everything the server does is in that API. For scripts and integrations, make
+an API token under **More → API tokens** in the web interface (or with
+`POST /api/v1/api-tokens`) and send it as `Authorization: Bearer psa_a_…`. It
+acts as you, with your role or a lower one; see [API](docs/api.md). Owners
+manage people under **More → People**.
+
+Behind a reverse proxy, set `PSA150_CLIENT_IP_HEADER` (for example
+`X-Forwarded-For`) so that limits on failed sign-ins apply to each client
+rather than to everyone at once. The proxy must also pass server-sent events
+(`text/event-stream`, used by the remote and by rooms) through without
+buffering them and keep those connections open.
 
 ## Develop locally
 

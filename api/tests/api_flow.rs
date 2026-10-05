@@ -1104,6 +1104,1342 @@ async fn remote_control_flow(pool: PgPool) {
     assert_eq!(offline.0, StatusCode::NOT_FOUND);
 }
 
+#[sqlx::test(migrations = "./migrations")]
+async fn rooms_flow(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (session, desktop) = owner_and_desktop(&app).await;
+
+    // Every desktop has a room, a flower by default.
+    let room = send(&app, "GET", "/api/v1/remote/desktop", Some(&desktop), None).await;
+    assert_eq!(room.0, StatusCode::OK);
+    let flower = room.1["room_name"].as_str().expect("room name").to_string();
+    assert!(psa150_server::rooms::FLOWERS.contains(&flower.as_str()));
+    assert_eq!(room.1["public_rooms"], true);
+    let people_only = send(&app, "GET", "/api/v1/remote/desktop", Some(&session), None).await;
+    assert_eq!(people_only.0, StatusCode::FORBIDDEN);
+
+    // A second desktop never gets the same name.
+    let second = send(
+        &app,
+        "POST",
+        "/api/v1/device-tokens",
+        Some(&session),
+        Some(json!({ "name": "Youth room PC" })),
+    )
+    .await;
+    assert_eq!(second.0, StatusCode::CREATED);
+    let second_id = second.1["id"].as_str().expect("id").to_string();
+    let second_token = second.1["token"].as_str().expect("token").to_string();
+    assert_ne!(second.1["room_name"], flower.as_str());
+
+    // The operator renames the room; names are matched loosely and unique.
+    let renamed = send(
+        &app,
+        "PUT",
+        "/api/v1/remote/desktop/room",
+        Some(&desktop),
+        Some(json!({ "room_name": "  Main   Hall " })),
+    )
+    .await;
+    assert_eq!(renamed.0, StatusCode::OK);
+    assert_eq!(renamed.1["room_name"], "Main Hall");
+    let clash = send(
+        &app,
+        "PUT",
+        "/api/v1/remote/desktop/room",
+        Some(&second_token),
+        Some(json!({ "room_name": "main-hall" })),
+    )
+    .await;
+    assert_eq!(clash.0, StatusCode::CONFLICT);
+    let invalid = send(
+        &app,
+        "PUT",
+        "/api/v1/remote/desktop/room",
+        Some(&second_token),
+        Some(json!({ "room_name": "<b>" })),
+    )
+    .await;
+    assert_eq!(invalid.0, StatusCode::BAD_REQUEST);
+
+    // Leaders rename any of the church's desktops; viewers do not.
+    let leader_rename = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/device-tokens/{second_id}/room"),
+        Some(&session),
+        Some(json!({ "room_name": "Youth" })),
+    )
+    .await;
+    assert_eq!(leader_rename.0, StatusCode::OK);
+    assert_eq!(leader_rename.1["room_name"], "Youth");
+    let viewer = viewer_session(&app, &pool).await;
+    let viewer_rename = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/device-tokens/{second_id}/room"),
+        Some(&viewer),
+        Some(json!({ "room_name": null })),
+    )
+    .await;
+    assert_eq!(viewer_rename.0, StatusCode::FORBIDDEN);
+    let tokens = send(&app, "GET", "/api/v1/device-tokens", Some(&session), None).await;
+    let names = tokens.1.as_array().expect("tokens");
+    assert!(names.iter().any(|token| token["room_name"] == "Youth"));
+
+    // Anyone may look into a room. Before the desktop reports, it is offline.
+    let offline = send(&app, "GET", "/api/v1/public/rooms/main%20hall", None, None).await;
+    assert_eq!(offline.0, StatusCode::OK);
+    assert_eq!(offline.1["room_name"], "Main Hall");
+    assert_eq!(offline.1["status"], "offline");
+    let unknown = send(&app, "GET", "/api/v1/public/rooms/nowhere", None, None).await;
+    assert_eq!(unknown.0, StatusCode::NOT_FOUND);
+
+    let projecting = json!({
+        "accepts_commands": true,
+        "projecting": true,
+        "shares_room": true,
+        "song_title": "Amazing Grace",
+        "slide_index": 0,
+        "slide_labels": ["Verse 1", "Verse 2"],
+        "slides": [
+            { "label": "Verse 1", "lines": ["Amazing grace, how sweet the sound", "That saved a wretch like me"] },
+            { "label": "Verse 2", "lines": ["'Twas grace that taught my heart to fear"] }
+        ]
+    });
+    report(&app, &desktop, projecting.clone()).await;
+    let live = send(&app, "GET", "/api/v1/public/rooms/MAINHALL", None, None).await;
+    assert_eq!(live.1["status"], "live");
+    assert_eq!(live.1["song_title"], "Amazing Grace");
+    assert_eq!(live.1["slide_index"], 0);
+    assert_eq!(
+        live.1["slides"][1]["lines"][0],
+        "'Twas grace that taught my heart to fear"
+    );
+
+    // Leaders pick desktops by their room names.
+    let listed = send(&app, "GET", "/api/v1/remote/desktops", Some(&session), None).await;
+    assert_eq!(listed.1[0]["room_name"], "Main Hall");
+    assert_eq!(listed.1[0]["name"], "Sanctuary PC");
+
+    // The room follows the projection as it happens.
+    let (status, mut events) =
+        open_events(&app, "/api/v1/public/rooms/main-hall/events", None).await;
+    assert_eq!(status, StatusCode::OK);
+    let (name, first) = next_event(&mut events).await;
+    assert_eq!(name, "room");
+    assert_eq!(first["slide_index"], 0);
+    let mut next_slide = projecting.clone();
+    next_slide["slide_index"] = json!(1);
+    report(&app, &desktop, next_slide.clone()).await;
+    let (_, moved) = next_event(&mut events).await;
+    assert_eq!(moved["slide_index"], 1);
+    let mut blanked = next_slide.clone();
+    blanked["blanked"] = json!(true);
+    report(&app, &desktop, blanked).await;
+    let (_, blank) = next_event(&mut events).await;
+    assert_eq!(blank["status"], "blank");
+
+    // The operator can stop sharing: the room stays but shows no words.
+    let mut private = next_slide.clone();
+    private["shares_room"] = json!(false);
+    report(&app, &desktop, private).await;
+    let (_, idle) = next_event(&mut events).await;
+    assert_eq!(idle["status"], "idle");
+    assert_eq!(idle["slides"], json!([]));
+    assert_eq!(idle["song_title"], Value::Null);
+    report(&app, &desktop, next_slide).await;
+    let (_, back) = next_event(&mut events).await;
+    assert_eq!(back["status"], "live");
+
+    // Leaders' phones get the desktop list pushed too.
+    let (status, mut desktops) =
+        open_events(&app, "/api/v1/remote/desktops/events", Some(&session)).await;
+    assert_eq!(status, StatusCode::OK);
+    let (name, list) = next_event(&mut desktops).await;
+    assert_eq!(name, "desktops");
+    assert_eq!(list[0]["state"]["slide_index"], 1);
+    let (status, _) = open_events(&app, "/api/v1/remote/desktops/events", None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // An owner can close the church's rooms.
+    let closed = send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&session),
+        Some(json!({ "public_rooms": false })),
+    )
+    .await;
+    assert_eq!(closed.0, StatusCode::OK);
+    assert_eq!(closed.1["public_rooms"], false);
+    let (_, shut) = next_event(&mut events).await;
+    assert_eq!(shut["status"], "idle");
+    let gone = send(&app, "GET", "/api/v1/public/rooms/main%20hall", None, None).await;
+    assert_eq!(gone.0, StatusCode::NOT_FOUND);
+    let info = send(&app, "GET", "/api/v1/info", None, None).await;
+    assert_eq!(info.1["rooms"], false);
+    let not_owner = send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&viewer),
+        Some(json!({ "public_rooms": true })),
+    )
+    .await;
+    assert_eq!(not_owner.0, StatusCode::FORBIDDEN);
+    send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&session),
+        Some(json!({ "public_rooms": true })),
+    )
+    .await;
+
+    // Revoking a desktop frees its name.
+    let first_id = listed.1[0]["device_id"].as_str().expect("id").to_string();
+    let revoked = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/device-tokens/{first_id}"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(revoked.0, StatusCode::NO_CONTENT);
+    let freed = send(&app, "GET", "/api/v1/public/rooms/main%20hall", None, None).await;
+    assert_eq!(freed.0, StatusCode::NOT_FOUND);
+    let taken_over = send(
+        &app,
+        "PUT",
+        "/api/v1/remote/desktop/room",
+        Some(&second_token),
+        Some(json!({ "room_name": "Main Hall" })),
+    )
+    .await;
+    assert_eq!(taken_over.0, StatusCode::OK);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn desktops_made_before_rooms_get_one(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (_, desktop) = owner_and_desktop(&app).await;
+    sqlx::query("UPDATE device_tokens SET room_name = NULL, room_key = NULL")
+        .execute(&pool)
+        .await
+        .expect("forget room");
+    report(&app, &desktop, json!({ "accepts_commands": true })).await;
+    let room = sqlx::query_scalar::<_, Option<String>>("SELECT room_name FROM device_tokens")
+        .fetch_one(&pool)
+        .await
+        .expect("room");
+    assert!(room.is_some_and(|room| psa150_server::rooms::FLOWERS.contains(&room.as_str())));
+}
+
+async fn report(app: &Router, desktop: &str, state: Value) {
+    let reported = send(
+        app,
+        "PUT",
+        "/api/v1/remote/desktop",
+        Some(desktop),
+        Some(state),
+    )
+    .await;
+    assert_eq!(reported.0, StatusCode::NO_CONTENT);
+}
+
+type EventBody = axum::body::BodyDataStream;
+
+async fn open_events(app: &Router, uri: &str, token: Option<&str>) -> (StatusCode, EventBody) {
+    let mut builder = Request::builder().method("GET").uri(uri);
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::empty()).expect("request"))
+        .await
+        .expect("response");
+    (response.status(), response.into_body().into_data_stream())
+}
+
+/// The next server-sent event's name and JSON data, skipping keep-alives.
+async fn next_event(events: &mut EventBody) -> (String, Value) {
+    use futures_util::StreamExt;
+    let mut text = String::new();
+    loop {
+        if let Some(end) = text.find("\n\n") {
+            let block = text[..end].to_string();
+            text.drain(..end + 2);
+            let mut name = String::new();
+            let mut data = String::new();
+            for line in block.lines() {
+                if let Some(value) = line.strip_prefix("event:") {
+                    name = value.trim().to_string();
+                } else if let Some(value) = line.strip_prefix("data:") {
+                    data.push_str(value.trim_start());
+                }
+            }
+            if !data.is_empty() {
+                return (name, serde_json::from_str(&data).expect("event json"));
+            }
+            continue;
+        }
+        let chunk = tokio::time::timeout(std::time::Duration::from_secs(5), events.next())
+            .await
+            .expect("an event within five seconds")
+            .expect("stream open")
+            .expect("chunk");
+        text.push_str(std::str::from_utf8(&chunk).expect("utf-8"));
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn api_tokens_act_as_their_person(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+
+    // Any token says whose it is and what it may do.
+    let me = send(&app, "GET", "/api/v1/session", Some(&owner), None).await;
+    assert_eq!(me.0, StatusCode::OK);
+    assert_eq!(me.1["kind"], "session");
+    assert_eq!(me.1["role"], "owner");
+    assert_eq!(me.1["username"], "owner");
+    assert_eq!(me.1["display_name"], "Test Owner");
+    assert_eq!(me.1["church_name"], "Test Church");
+    assert!(me.1["expires_at"].is_string());
+    let desk = send(&app, "GET", "/api/v1/session", Some(&desktop), None).await;
+    assert_eq!(desk.1["kind"], "desktop");
+    assert_eq!(desk.1["role"], Value::Null);
+    assert_eq!(desk.1["device_name"], "Sanctuary PC");
+
+    // An API token takes its person's role unless made with less, and lasts
+    // until it is revoked.
+    let made = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&owner),
+        Some(json!({ "name": "  Automation " })),
+    )
+    .await;
+    assert_eq!(made.0, StatusCode::CREATED);
+    assert_eq!(made.1["name"], "Automation");
+    assert_eq!(made.1["role"], "owner");
+    assert_eq!(made.1["expires_at"], Value::Null);
+    let automation = made.1["token"].as_str().expect("token").to_string();
+    assert!(automation.starts_with("psa_a_"));
+    let me = send(&app, "GET", "/api/v1/session", Some(&automation), None).await;
+    assert_eq!(me.1["kind"], "api");
+    assert_eq!(me.1["role"], "owner");
+    assert_eq!(me.1["username"], "owner");
+    assert_eq!(me.1["expires_at"], Value::Null);
+
+    // It does whatever its person can, owner work included.
+    let renamed = send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&automation),
+        Some(json!({ "name": " Grace Chapel " })),
+    )
+    .await;
+    assert_eq!(renamed.0, StatusCode::OK);
+    assert_eq!(renamed.1["name"], "Grace Chapel");
+    assert_eq!(renamed.1["public_library"], false);
+    let blank = send(
+        &app,
+        "PUT",
+        "/api/v1/church",
+        Some(&automation),
+        Some(json!({ "name": "  " })),
+    )
+    .await;
+    assert_eq!(blank.0, StatusCode::BAD_REQUEST);
+    let device = send(
+        &app,
+        "POST",
+        "/api/v1/device-tokens",
+        Some(&automation),
+        Some(json!({ "name": "Lobby PC" })),
+    )
+    .await;
+    assert_eq!(device.0, StatusCode::CREATED);
+    add_member(&app, &automation, "lea", "Lea Leader", "leader").await;
+    let (song_id, _) = create_song(&app, &automation, "Amazing Grace").await;
+
+    // A read-only token reads, but cannot write or give itself more.
+    let website = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&owner),
+        Some(json!({ "name": "Church website", "role": "viewer" })),
+    )
+    .await;
+    assert_eq!(website.0, StatusCode::CREATED);
+    assert_eq!(website.1["role"], "viewer");
+    let website = website.1["token"].as_str().expect("token").to_string();
+    let read = send(
+        &app,
+        "GET",
+        &format!("/api/v1/songs/{song_id}"),
+        Some(&website),
+        None,
+    )
+    .await;
+    assert_eq!(read.0, StatusCode::OK);
+    for (method, uri, body) in [
+        (
+            "POST",
+            "/api/v1/songs",
+            json!({ "chordpro": "{title: Spam}" }),
+        ),
+        ("PUT", "/api/v1/church", json!({ "public_library": true })),
+        (
+            "POST",
+            "/api/v1/device-tokens",
+            json!({ "name": "Rogue PC" }),
+        ),
+        ("GET", "/api/v1/members", Value::Null),
+    ] {
+        let body = (!body.is_null()).then_some(body);
+        let denied = send(&app, method, uri, Some(&website), body).await;
+        assert_eq!(denied.0, StatusCode::FORBIDDEN, "{method} {uri}");
+    }
+    let more = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&website),
+        Some(json!({ "name": "Escalate", "role": "leader" })),
+    )
+    .await;
+    assert_eq!(more.0, StatusCode::BAD_REQUEST);
+    let copy = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&website),
+        Some(json!({ "name": "Copy" })),
+    )
+    .await;
+    assert_eq!(copy.0, StatusCode::CREATED);
+    assert_eq!(copy.1["role"], "viewer");
+
+    // Desktops are not people and make no API tokens.
+    let refused = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&desktop),
+        Some(json!({ "name": "Desk" })),
+    )
+    .await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    let refused = send(&app, "GET", "/api/v1/api-tokens", Some(&desktop), None).await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+
+    // People see their own tokens; owners see and revoke everyone's.
+    let lea = sign_in(&app, "lea", MEMBER_PASSWORD).await;
+    let lea_token = make_api_token(&app, &lea, "Lea's script").await;
+    let mine = send(&app, "GET", "/api/v1/api-tokens", Some(&lea), None).await;
+    assert_eq!(names(&mine.1), ["Lea's script"]);
+    let all = send(&app, "GET", "/api/v1/api-tokens", Some(&owner), None).await;
+    assert_eq!(
+        names(&all.1),
+        ["Automation", "Church website", "Copy", "Lea's script"]
+    );
+    assert_eq!(all.1[3]["user_display_name"], "Lea Leader");
+    let automation_id = all.1[0]["id"].as_str().expect("id").to_string();
+    let lea_token_id = all.1[3]["id"].as_str().expect("id").to_string();
+    let not_hers = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/api-tokens/{automation_id}"),
+        Some(&lea),
+        None,
+    )
+    .await;
+    assert_eq!(not_hers.0, StatusCode::NOT_FOUND);
+    let revoked = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/api-tokens/{lea_token_id}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(revoked.0, StatusCode::NO_CONTENT);
+    let after = send(&app, "GET", "/api/v1/songs", Some(&lea_token), None).await;
+    assert_eq!(after.0, StatusCode::UNAUTHORIZED);
+
+    // A token past its expiry stops working; an expiry in the past is refused.
+    let past = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&owner),
+        Some(json!({ "name": "Old", "expires_at": "2020-01-01T00:00:00Z" })),
+    )
+    .await;
+    assert_eq!(past.0, StatusCode::BAD_REQUEST);
+    let soon = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&owner),
+        Some(json!({ "name": "Soon", "expires_at": "2999-01-01T00:00:00Z" })),
+    )
+    .await;
+    assert_eq!(soon.0, StatusCode::CREATED);
+    assert!(soon.1["expires_at"].is_string());
+    let soon_token = soon.1["token"].as_str().expect("token").to_string();
+    assert_eq!(
+        send(&app, "GET", "/api/v1/songs", Some(&soon_token), None)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    sqlx::query(
+        "UPDATE api_tokens SET expires_at = now() - interval '1 minute' WHERE name = 'Soon'",
+    )
+    .execute(&pool)
+    .await
+    .expect("expire");
+    let expired = send(&app, "GET", "/api/v1/songs", Some(&soon_token), None).await;
+    assert_eq!(expired.0, StatusCode::UNAUTHORIZED);
+
+    // Signing out ends the token that signs out, whatever its kind, and
+    // nothing else.
+    for token in [&automation, &desktop, &owner] {
+        let out = send(&app, "DELETE", "/api/v1/session", Some(token), None).await;
+        assert_eq!(out.0, StatusCode::NO_CONTENT);
+        let after = send(&app, "GET", "/api/v1/songs", Some(token), None).await;
+        assert_eq!(after.0, StatusCode::UNAUTHORIZED);
+    }
+    let still = send(&app, "GET", "/api/v1/songs", Some(&website), None).await;
+    assert_eq!(still.0, StatusCode::OK);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn owners_manage_members(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let owner_id = send(&app, "GET", "/api/v1/session", Some(&owner), None)
+        .await
+        .1["user_id"]
+        .as_str()
+        .expect("owner id")
+        .to_string();
+
+    let lea_id = add_member(&app, &owner, "lea", "Lea Leader", "leader").await;
+    let vic_id = add_member(&app, &owner, " vic ", "Vic Viewer", "viewer").await;
+    for (body, status) in [
+        (
+            json!({ "username": "LEA", "display_name": "Another", "password": MEMBER_PASSWORD, "role": "viewer" }),
+            StatusCode::CONFLICT,
+        ),
+        (
+            json!({ "username": "sam", "display_name": "Sam", "password": "short", "role": "viewer" }),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            json!({ "username": "sam", "display_name": "  ", "password": MEMBER_PASSWORD, "role": "viewer" }),
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        let refused = send(&app, "POST", "/api/v1/members", Some(&owner), Some(body)).await;
+        assert_eq!(refused.0, status);
+    }
+    let members = send(&app, "GET", "/api/v1/members", Some(&owner), None).await;
+    assert_eq!(members.0, StatusCode::OK);
+    let usernames = members
+        .1
+        .as_array()
+        .expect("members")
+        .iter()
+        .map(|member| member["username"].as_str().expect("username"))
+        .collect::<Vec<_>>();
+    assert_eq!(usernames, ["lea", "owner", "vic"]);
+
+    // Only owners run the church.
+    let lea = sign_in(&app, "lea", MEMBER_PASSWORD).await;
+    let vic = sign_in(&app, "vic", MEMBER_PASSWORD).await;
+    for token in [&lea, &vic, &desktop] {
+        let denied = send(&app, "GET", "/api/v1/members", Some(token), None).await;
+        assert_eq!(denied.0, StatusCode::FORBIDDEN);
+    }
+    let denied = send(
+        &app,
+        "PATCH",
+        &format!("/api/v1/members/{vic_id}"),
+        Some(&lea),
+        Some(json!({ "role": "owner" })),
+    )
+    .await;
+    assert_eq!(denied.0, StatusCode::FORBIDDEN);
+
+    // A new role applies at once to the person's sessions and API tokens.
+    let lea_token = make_api_token(&app, &lea, "Lea's script").await;
+    let demoted = patch_member(&app, &owner, &lea_id, json!({ "role": "viewer" })).await;
+    assert_eq!(demoted.1["role"], "viewer");
+    let me = send(&app, "GET", "/api/v1/session", Some(&lea_token), None).await;
+    assert_eq!(me.1["role"], "viewer");
+    let write = send(
+        &app,
+        "POST",
+        "/api/v1/songs",
+        Some(&lea_token),
+        Some(json!({ "chordpro": "{title: Not now}" })),
+    )
+    .await;
+    assert_eq!(write.0, StatusCode::FORBIDDEN);
+    patch_member(&app, &owner, &lea_id, json!({ "role": "leader" })).await;
+    create_song(&app, &lea_token, "Be Thou My Vision").await;
+
+    // An owner's password reset signs the person out; API tokens stay.
+    let reset = patch_member(
+        &app,
+        &owner,
+        &lea_id,
+        json!({ "password": "a-brand-new-password" }),
+    )
+    .await;
+    assert_eq!(reset.0, StatusCode::OK);
+    let old = send(&app, "GET", "/api/v1/songs", Some(&lea), None).await;
+    assert_eq!(old.0, StatusCode::UNAUTHORIZED);
+    sign_in(&app, "lea", "a-brand-new-password").await;
+    let kept = send(&app, "GET", "/api/v1/songs", Some(&lea_token), None).await;
+    assert_eq!(kept.0, StatusCode::OK);
+
+    // Disabling locks the person out and revokes their API tokens for good.
+    let vic_token = make_api_token(&app, &vic, "Vic's reader").await;
+    let disabled = patch_member(&app, &owner, &vic_id, json!({ "disabled": true })).await;
+    assert_eq!(disabled.1["disabled"], true);
+    for token in [&vic, &vic_token] {
+        let locked = send(&app, "GET", "/api/v1/songs", Some(token), None).await;
+        assert_eq!(locked.0, StatusCode::UNAUTHORIZED);
+    }
+    assert_eq!(
+        try_sign_in(&app, "vic", MEMBER_PASSWORD).await,
+        StatusCode::UNAUTHORIZED
+    );
+    let enabled = patch_member(&app, &owner, &vic_id, json!({ "disabled": false })).await;
+    assert_eq!(enabled.1["disabled"], false);
+    sign_in(&app, "vic", MEMBER_PASSWORD).await;
+    let still_revoked = send(&app, "GET", "/api/v1/songs", Some(&vic_token), None).await;
+    assert_eq!(still_revoked.0, StatusCode::UNAUTHORIZED);
+
+    // Account details, with usernames unique regardless of case.
+    let renamed = patch_member(
+        &app,
+        &owner,
+        &vic_id,
+        json!({ "display_name": "Victoria", "username": "victoria" }),
+    )
+    .await;
+    assert_eq!(renamed.1["display_name"], "Victoria");
+    assert_eq!(renamed.1["username"], "victoria");
+    let taken = patch_member(&app, &owner, &vic_id, json!({ "username": "LEA" })).await;
+    assert_eq!(taken.0, StatusCode::CONFLICT);
+    let unknown = patch_member(
+        &app,
+        &owner,
+        &uuid::Uuid::new_v4().to_string(),
+        json!({ "role": "viewer" }),
+    )
+    .await;
+    assert_eq!(unknown.0, StatusCode::NOT_FOUND);
+
+    // The church always keeps an owner who is not disabled.
+    for body in [json!({ "role": "leader" }), json!({ "disabled": true })] {
+        let last = patch_member(&app, &owner, &owner_id, body).await;
+        assert_eq!(last.0, StatusCode::CONFLICT);
+    }
+    let last = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/members/{owner_id}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(last.0, StatusCode::CONFLICT);
+    patch_member(&app, &owner, &lea_id, json!({ "role": "owner" })).await;
+    let stepped_down = patch_member(&app, &owner, &owner_id, json!({ "role": "leader" })).await;
+    assert_eq!(stepped_down.1["role"], "leader");
+    let no_longer = send(&app, "GET", "/api/v1/members", Some(&owner), None).await;
+    assert_eq!(no_longer.0, StatusCode::FORBIDDEN);
+    let lea = sign_in(&app, "lea", "a-brand-new-password").await;
+
+    // Someone who also belongs to another church: only their role here
+    // changes, and removing them leaves their account to the other church.
+    let other_church = uuid::Uuid::new_v4();
+    sqlx::query("INSERT INTO churches (id, name, slug) VALUES ($1, 'Other Church', 'other')")
+        .bind(other_church)
+        .execute(&pool)
+        .await
+        .expect("church");
+    sqlx::query(
+        "INSERT INTO memberships (user_id, church_id, role)
+         SELECT id, $1, 'owner' FROM users WHERE username = 'owner'",
+    )
+    .bind(other_church)
+    .execute(&pool)
+    .await
+    .expect("membership");
+    let theirs = patch_member(&app, &lea, &owner_id, json!({ "display_name": "Renamed" })).await;
+    assert_eq!(theirs.0, StatusCode::FORBIDDEN);
+    let theirs = patch_member(
+        &app,
+        &lea,
+        &owner_id,
+        json!({ "password": "taken-over-pass" }),
+    )
+    .await;
+    assert_eq!(theirs.0, StatusCode::FORBIDDEN);
+    let role = patch_member(&app, &lea, &owner_id, json!({ "role": "viewer" })).await;
+    assert_eq!(role.1["role"], "viewer");
+    let removed = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/members/{owner_id}"),
+        Some(&lea),
+        None,
+    )
+    .await;
+    assert_eq!(removed.0, StatusCode::NO_CONTENT);
+    assert_eq!(
+        try_sign_in(&app, "owner", "long-test-password").await,
+        StatusCode::OK
+    );
+    let elsewhere = send(&app, "GET", "/api/v1/session", Some(&owner), None).await;
+    assert_eq!(elsewhere.0, StatusCode::UNAUTHORIZED);
+
+    // Removing someone in no other church keeps their account, disabled and
+    // without a username, so the name can be used again.
+    let removed = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/members/{vic_id}"),
+        Some(&lea),
+        None,
+    )
+    .await;
+    assert_eq!(removed.0, StatusCode::NO_CONTENT);
+    assert_eq!(
+        try_sign_in(&app, "victoria", MEMBER_PASSWORD).await,
+        StatusCode::UNAUTHORIZED
+    );
+    let members = send(&app, "GET", "/api/v1/members", Some(&lea), None).await;
+    assert_eq!(members.1.as_array().map(Vec::len), Some(1));
+    let again = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/members/{vic_id}"),
+        Some(&lea),
+        None,
+    )
+    .await;
+    assert_eq!(again.0, StatusCode::NOT_FOUND);
+    let (username, disabled, display_name) = sqlx::query_as::<_, (Option<String>, bool, String)>(
+        "SELECT username, disabled_at IS NOT NULL, display_name FROM users WHERE id = $1",
+    )
+    .bind(uuid::Uuid::parse_str(&vic_id).expect("id"))
+    .fetch_one(&pool)
+    .await
+    .expect("removed account");
+    assert_eq!(
+        (username, disabled, display_name.as_str()),
+        (None, true, "Victoria")
+    );
+    let reused = add_member(&app, &lea, "Victoria", "Another Victoria", "viewer").await;
+    assert_ne!(reused, vic_id);
+    sign_in(&app, "victoria", MEMBER_PASSWORD).await;
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn people_change_passwords_and_choose_a_church(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let elsewhere = sign_in(&app, "owner", "long-test-password").await;
+    let script = make_api_token(&app, &owner, "Script").await;
+    let change = |token: String, current: &'static str, new: &'static str| {
+        let app = app.clone();
+        async move {
+            send(
+                &app,
+                "PUT",
+                "/api/v1/account/password",
+                Some(&token),
+                Some(json!({ "current_password": current, "new_password": new })),
+            )
+            .await
+            .0
+        }
+    };
+
+    assert_eq!(
+        change(owner.clone(), "wrong-password", "another-long-password").await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        change(owner.clone(), "long-test-password", "short").await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        change(
+            desktop.clone(),
+            "long-test-password",
+            "another-long-password"
+        )
+        .await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        change(owner.clone(), "long-test-password", "another-long-password").await,
+        StatusCode::NO_CONTENT
+    );
+
+    // This session and API tokens go on; the person's other sessions end.
+    for (token, status) in [
+        (&owner, StatusCode::OK),
+        (&script, StatusCode::OK),
+        (&elsewhere, StatusCode::UNAUTHORIZED),
+    ] {
+        assert_eq!(
+            send(&app, "GET", "/api/v1/songs", Some(token), None)
+                .await
+                .0,
+            status
+        );
+    }
+    assert_eq!(
+        try_sign_in(&app, "owner", "long-test-password").await,
+        StatusCode::UNAUTHORIZED
+    );
+    sign_in(&app, "owner", "another-long-password").await;
+
+    // A person in several churches picks one; without a choice, the first.
+    let second = uuid::Uuid::new_v4();
+    sqlx::query("INSERT INTO churches (id, name, slug) VALUES ($1, 'Second Church', 'second')")
+        .bind(second)
+        .execute(&pool)
+        .await
+        .expect("church");
+    sqlx::query(
+        "INSERT INTO memberships (user_id, church_id, role)
+         SELECT id, $1, 'leader' FROM users WHERE username = 'owner'",
+    )
+    .bind(second)
+    .execute(&pool)
+    .await
+    .expect("membership");
+    let default = send(
+        &app,
+        "POST",
+        "/api/v1/session",
+        None,
+        Some(json!({ "username": "owner", "password": "another-long-password" })),
+    )
+    .await;
+    assert_eq!(default.1["church_name"], "Test Church");
+    let chosen = send(
+        &app,
+        "POST",
+        "/api/v1/session",
+        None,
+        Some(json!({ "username": "owner", "password": "another-long-password", "church_id": second })),
+    )
+    .await;
+    assert_eq!(chosen.0, StatusCode::OK);
+    assert_eq!(chosen.1["church_name"], "Second Church");
+    assert_eq!(chosen.1["role"], "leader");
+    let unknown = send(
+        &app,
+        "POST",
+        "/api/v1/session",
+        None,
+        Some(json!({ "username": "owner", "password": "another-long-password", "church_id": uuid::Uuid::new_v4() })),
+    )
+    .await;
+    assert_eq!(unknown.0, StatusCode::UNAUTHORIZED);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn deleted_songs_and_sets_come_back(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+    let (song, first) = create_song(&app, &owner, "Amazing Grace").await;
+    let (other, other_revision) = create_song(&app, &owner, "Be Thou My Vision").await;
+    let edited = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/songs/{song}"),
+        Some(&owner),
+        Some(json!({ "base_revision_id": first, "chordpro": "{title: Amazing Grace}\n\n[D]How sweet" })),
+    )
+    .await;
+    assert_eq!(edited.0, StatusCode::OK);
+    let second = edited.1["revision_id"]
+        .as_str()
+        .expect("revision")
+        .to_string();
+
+    // Any earlier revision can be read in full.
+    let old = send(
+        &app,
+        "GET",
+        &format!("/api/v1/songs/{song}/revisions/{first}"),
+        Some(&viewer),
+        None,
+    )
+    .await;
+    assert_eq!(old.0, StatusCode::OK);
+    assert_eq!(old.1["id"], first);
+    assert_eq!(old.1["song_id"], song);
+    assert_eq!(old.1["chordpro"], "{title: Amazing Grace}\n\n[G]Words");
+    assert_eq!(old.1["parent_revision_id"], Value::Null);
+    for uri in [
+        format!("/api/v1/songs/{song}/revisions/{}", uuid::Uuid::new_v4()),
+        format!("/api/v1/songs/{song}/revisions/{other_revision}"),
+        format!("/api/v1/songs/{other}/revisions/{first}"),
+    ] {
+        let missing = send(&app, "GET", &uri, Some(&viewer), None).await;
+        assert_eq!(missing.0, StatusCode::NOT_FOUND, "{uri}");
+    }
+
+    // A deleted song is listed until someone restores it, with its history.
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{song}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    let trash = send(&app, "GET", "/api/v1/songs/deleted", Some(&viewer), None).await;
+    assert_eq!(trash.0, StatusCode::OK);
+    assert_eq!(trash.1.as_array().map(Vec::len), Some(1));
+    assert_eq!(trash.1[0]["id"], song);
+    assert_eq!(trash.1[0]["revision_id"], second);
+    assert_eq!(trash.1[0]["title"], "Amazing Grace");
+    assert!(trash.1[0]["deleted_at"].is_string());
+    let restore_uri = format!("/api/v1/songs/{song}/restore");
+    let refused = send(&app, "POST", &restore_uri, Some(&viewer), None).await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    let restored = send(&app, "POST", &restore_uri, Some(&desktop), None).await;
+    assert_eq!(restored.0, StatusCode::OK);
+    assert_eq!(restored.1["revision_id"], second);
+    let again = send(&app, "POST", &restore_uri, Some(&owner), None).await;
+    assert_eq!(again.0, StatusCode::OK);
+    let history = send(
+        &app,
+        "GET",
+        &format!("/api/v1/songs/{song}/revisions"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(history.1.as_array().map(Vec::len), Some(2));
+    let trash = send(&app, "GET", "/api/v1/songs/deleted", Some(&owner), None).await;
+    assert_eq!(trash.1, json!([]));
+    let missing = send(
+        &app,
+        "POST",
+        &format!("/api/v1/songs/{}/restore", uuid::Uuid::new_v4()),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(missing.0, StatusCode::NOT_FOUND);
+
+    // Sets too, as a new version with their items.
+    let set = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&owner),
+        Some(json!({ "name": "Sunday", "items": [{ "kind": "song", "song_id": song }] })),
+    )
+    .await;
+    let set_id = set.1["id"].as_str().expect("set id").to_string();
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/sets/{set_id}?base_version=1"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    let trash = send(&app, "GET", "/api/v1/sets/deleted", Some(&viewer), None).await;
+    assert_eq!(trash.1[0]["id"], set_id);
+    assert_eq!(trash.1[0]["version"], 2);
+    assert_eq!(trash.1[0]["item_count"], 1);
+    let refused = send(
+        &app,
+        "POST",
+        &format!("/api/v1/sets/{set_id}/restore"),
+        Some(&viewer),
+        None,
+    )
+    .await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    let restored = send(
+        &app,
+        "POST",
+        &format!("/api/v1/sets/{set_id}/restore"),
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(restored.0, StatusCode::OK);
+    assert_eq!(restored.1["version"], 3);
+    assert_eq!(restored.1["items"][0]["song"]["title"], "Amazing Grace");
+    let trash = send(&app, "GET", "/api/v1/sets/deleted", Some(&owner), None).await;
+    assert_eq!(trash.1, json!([]));
+
+    // Sets page like songs.
+    for name in ["Evening", "Morning"] {
+        send(
+            &app,
+            "POST",
+            "/api/v1/sets",
+            Some(&owner),
+            Some(json!({ "name": name })),
+        )
+        .await;
+    }
+    let page = send(&app, "GET", "/api/v1/sets?limit=2", Some(&owner), None).await;
+    let rest = send(
+        &app,
+        "GET",
+        "/api/v1/sets?limit=2&offset=2",
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(page.1.as_array().map(Vec::len), Some(2));
+    assert_eq!(rest.1.as_array().map(Vec::len), Some(1));
+    assert!(!page.1.as_array().unwrap().contains(&rest.1[0]));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn wrong_passwords_are_limited(pool: PgPool) {
+    // The proxy names the client in X-Forwarded-For.
+    let app = app(
+        AppState::new(pool, 1)
+            .with_client_ip_header(Some(header::HeaderName::from_static("x-forwarded-for"))),
+        PathBuf::from("directory-that-does-not-exist"),
+    );
+    let (owner, _) = owner_and_desktop(&app).await;
+    add_member(&app, &owner, "lea", "Lea Leader", "leader").await;
+    let sign_in_from = |client: &'static str, username: &'static str, password: &'static str| {
+        let app = app.clone();
+        async move {
+            send_from(
+                &app,
+                client,
+                "POST",
+                "/api/v1/session",
+                None,
+                json!({ "username": username, "password": password }),
+            )
+            .await
+        }
+    };
+
+    // Setup, once done, is refused before any password is hashed.
+    let again = send(
+        &app,
+        "POST",
+        "/api/v1/setup",
+        None,
+        Some(json!({
+            "church_name": "Another",
+            "owner_name": "Someone",
+            "username": "someone",
+            "password": "long-test-password"
+        })),
+    )
+    .await;
+    assert_eq!(again.0, StatusCode::CONFLICT);
+
+    // Signing in clears the username's count of wrong passwords.
+    for _ in 0..4 {
+        let wrong = sign_in_from("198.51.100.1", "owner", "wrong-password").await;
+        assert_eq!(wrong.0, StatusCode::UNAUTHORIZED);
+    }
+    let right = sign_in_from("198.51.100.1", "owner", "long-test-password").await;
+    assert_eq!(right.0, StatusCode::OK);
+
+    // Five wrong passwords for one username, from anywhere, close it for a
+    // while, even to the right password; other people still sign in.
+    for client in [
+        "198.51.100.2",
+        "198.51.100.3",
+        "198.51.100.4",
+        "198.51.100.5",
+        "198.51.100.6",
+    ] {
+        let wrong = sign_in_from(client, "owner", "wrong-password").await;
+        assert_eq!(wrong.0, StatusCode::UNAUTHORIZED);
+    }
+    let (status, headers, body) = sign_in_from("198.51.100.7", "OWNER", "long-test-password").await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    let wait = headers[header::RETRY_AFTER]
+        .to_str()
+        .expect("Retry-After")
+        .parse::<u64>()
+        .expect("seconds");
+    assert!((1..=900).contains(&wait), "{wait}");
+    assert!(
+        body["error"]
+            .as_str()
+            .expect("error")
+            .starts_with("too many failed sign-ins; try again in"),
+        "{body}"
+    );
+    let other = sign_in_from("198.51.100.7", "lea", MEMBER_PASSWORD).await;
+    assert_eq!(other.0, StatusCode::OK);
+
+    // Thirty failures from one client, for any usernames (unknown ones
+    // too), make that client wait; other clients go on.
+    for number in 0..30 {
+        let unknown = send_from(
+            &app,
+            "203.0.113.50",
+            "POST",
+            "/api/v1/session",
+            None,
+            json!({ "username": format!("nobody-{number}"), "password": "wrong-password" }),
+        )
+        .await;
+        assert_eq!(unknown.0, StatusCode::UNAUTHORIZED);
+    }
+    let blocked = sign_in_from("203.0.113.50", "lea", MEMBER_PASSWORD).await;
+    assert_eq!(blocked.0, StatusCode::TOO_MANY_REQUESTS);
+    let elsewhere = sign_in_from("203.0.113.51", "lea", MEMBER_PASSWORD).await;
+    assert_eq!(elsewhere.0, StatusCode::OK);
+
+    // A stolen session cannot guess the current password either.
+    let lea = elsewhere.2["token"].as_str().expect("token").to_string();
+    for _ in 0..5 {
+        let wrong = send(
+            &app,
+            "PUT",
+            "/api/v1/account/password",
+            Some(&lea),
+            Some(json!({ "current_password": "wrong-password", "new_password": "a-new-long-password" })),
+        )
+        .await;
+        assert_eq!(wrong.0, StatusCode::FORBIDDEN);
+    }
+    let (status, headers, _) = send_from(
+        &app,
+        "203.0.113.51",
+        "PUT",
+        "/api/v1/account/password",
+        Some(&lea),
+        json!({ "current_password": MEMBER_PASSWORD, "new_password": "a-new-long-password" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert!(headers.contains_key(header::RETRY_AFTER));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn openapi_describes_every_operation(pool: PgPool) {
+    let app = test_app(pool);
+    let (status, doc) = send(&app, "GET", "/api/openapi.json", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        doc["components"]["securitySchemes"]["bearer"]["scheme"],
+        "bearer"
+    );
+
+    // Everything else needs a token, and says so.
+    let public = [
+        "GET /api/v1/health",
+        "GET /api/v1/info",
+        "GET /api/v1/setup",
+        "POST /api/v1/setup",
+        "POST /api/v1/session",
+        "GET /api/v1/public/songs",
+        "GET /api/v1/public/songs/{song_id}",
+        "GET /api/v1/public/rooms/{room_name}",
+        "GET /api/v1/public/rooms/{room_name}/events",
+        "POST /api/v1/desktop-auth/token",
+    ];
+    let mut operations = 0;
+    for (path, item) in doc["paths"].as_object().expect("paths") {
+        for (method, operation) in item.as_object().expect("path item") {
+            let method = method.to_uppercase();
+            if !["GET", "POST", "PUT", "PATCH", "DELETE"].contains(&method.as_str()) {
+                continue;
+            }
+            let name = format!("{method} {path}");
+            let secured = operation["security"]
+                .as_array()
+                .is_some_and(|list| list.iter().any(|item| item.get("bearer").is_some()));
+            assert_eq!(secured, !public.contains(&name.as_str()), "{name}");
+
+            // A documented operation is routed: the router's own 404 has no
+            // body, and a path it knows without the method is a 405.
+            let uri = path
+                .split('/')
+                .map(|part| {
+                    if part.starts_with('{') {
+                        "8f14e45f-ceea-467a-9f3c-6b1b8d0c7e01"
+                    } else {
+                        part
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("/");
+            let (status, body) = send(&app, &method, &uri, None, None).await;
+            assert_ne!(status, StatusCode::METHOD_NOT_ALLOWED, "{name}");
+            assert!(
+                !(status == StatusCode::NOT_FOUND && body.is_null()),
+                "{name} is documented but not routed"
+            );
+            operations += 1;
+        }
+    }
+    assert!(operations >= 48, "{operations} operations");
+}
+
+const MEMBER_PASSWORD: &str = "member-password-1";
+
+async fn add_member(
+    app: &Router,
+    owner: &str,
+    username: &str,
+    display_name: &str,
+    role: &str,
+) -> String {
+    let created = send(
+        app,
+        "POST",
+        "/api/v1/members",
+        Some(owner),
+        Some(json!({
+            "username": username,
+            "display_name": display_name,
+            "password": MEMBER_PASSWORD,
+            "role": role
+        })),
+    )
+    .await;
+    assert_eq!(created.0, StatusCode::CREATED);
+    assert_eq!(created.1["username"], username.trim());
+    assert_eq!(created.1["role"], role);
+    assert_eq!(created.1["disabled"], false);
+    created.1["user_id"].as_str().expect("user id").to_string()
+}
+
+async fn patch_member(
+    app: &Router,
+    owner: &str,
+    user_id: &str,
+    body: Value,
+) -> (StatusCode, Value) {
+    send(
+        app,
+        "PATCH",
+        &format!("/api/v1/members/{user_id}"),
+        Some(owner),
+        Some(body),
+    )
+    .await
+}
+
+async fn try_sign_in(app: &Router, username: &str, password: &str) -> StatusCode {
+    send(
+        app,
+        "POST",
+        "/api/v1/session",
+        None,
+        Some(json!({ "username": username, "password": password })),
+    )
+    .await
+    .0
+}
+
+async fn sign_in(app: &Router, username: &str, password: &str) -> String {
+    let login = send(
+        app,
+        "POST",
+        "/api/v1/session",
+        None,
+        Some(json!({ "username": username, "password": password })),
+    )
+    .await;
+    assert_eq!(login.0, StatusCode::OK, "{username} signs in");
+    login.1["token"].as_str().expect("session").to_string()
+}
+
+async fn make_api_token(app: &Router, token: &str, name: &str) -> String {
+    let made = send(
+        app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(token),
+        Some(json!({ "name": name })),
+    )
+    .await;
+    assert_eq!(made.0, StatusCode::CREATED);
+    made.1["token"].as_str().expect("API token").to_string()
+}
+
+fn names(list: &Value) -> Vec<String> {
+    list.as_array()
+        .expect("list")
+        .iter()
+        .map(|item| item["name"].as_str().expect("name").to_string())
+        .collect()
+}
+
+/// Like `send`, from a client the proxy names in `X-Forwarded-For`, with the
+/// response headers.
+async fn send_from(
+    app: &Router,
+    client: &str,
+    method: &str,
+    uri: &str,
+    token: Option<&str>,
+    body: Value,
+) -> (StatusCode, header::HeaderMap, Value) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("x-forwarded-for", format!("10.0.0.9, {client}"))
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::from(body.to_string())).expect("request"))
+        .await
+        .expect("response");
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = to_bytes(response.into_body(), 2 * 1024 * 1024)
+        .await
+        .expect("response body");
+    (
+        status,
+        headers,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
 async fn send_raw(app: &Router, uri: &str, token: &str) -> StatusCode {
     let request = Request::builder()
         .method("GET")

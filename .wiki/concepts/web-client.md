@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Web client
-description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and "Follow the desktop", remote screen, More screen, role handling, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
+description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and "Follow the desktop", remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
 tags: [web, ui, vite, typescript, mobile, pwa, offline]
 status: stable
 sources:
@@ -25,10 +25,16 @@ sources:
     title: Set list, detail, editor, service view
   - id: remote
     resource: /web/src/views/remote.ts
-    title: Remote list and desktop screen
+    title: Remote list and desktop screen, room rename and link
+  - id: room
+    resource: /web/src/views/room.ts
+    title: Join page and room reader (/join)
   - id: more
     resource: /web/src/views/more.ts
-    title: Account, app install, theme, import/export, desktops
+    title: Account and password, app install, theme, import/export, church, rooms, desktops, API tokens
+  - id: people
+    resource: /web/src/views/people.ts
+    title: People (owners)
   - id: chordpro
     resource: /web/src/chordpro.ts
     title: ChordPro parsing and transposition for display
@@ -40,7 +46,7 @@ sources:
     title: Toasts with Undo, visibility-aware polling, preferences
   - id: api
     resource: /web/src/api.ts
-    title: SongServerApi wrapper
+    title: SongServerApi wrapper, readEvents (server-sent events over fetch)
   - id: types
     resource: /web/src/types.ts
     title: Response types (mirrors models.rs by hand)
@@ -62,7 +68,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-03T10:00:00Z }
+generated: { by: agent, at: 2026-10-05T20:30:00Z }
 ---
 
 # Web client
@@ -77,14 +83,23 @@ hand**, so a change to the API schema needs a matching change there.
 ## Boot and sign-in
 
 Boot first checks the query string for a desktop sign-in request
-([below](#desktop-sign-in)). It then calls `GET /info`. If the server is not
+([below](#desktop-sign-in)). Then `/join` and `/join/{room}` open the
+[room reader](#following-a-room) whatever the session, without the shell and
+before anything else. Otherwise it calls `GET /info`. If the server is not
 initialised it shows **Set up your song server** (church, your name, username,
 password of at least 10 characters). When the stored session is missing or
 expired it shows the [visitor shell](#public-library-visitors) if
 `public_library` is true (and no desktop is asking to connect), else
 **Sign in**. With a valid session it shows the signed-in shell (or the desktop
-consent screen). If the server cannot be reached it shows "The song server is
-not reachable" with **Try again**.
+consent screen) and then reads the session again with `GET /session`: a new
+role, name or church is stored and the screen redrawn, and a token the server
+no longer accepts signs out. The same check runs when the app comes back into
+view or online, at most once a minute (`refreshSession`). If the server cannot
+be reached it shows "The song server is not reachable" with **Try again**. A
+sign-in refused for too many wrong passwords shows the server's message, such
+as "too many failed sign-ins; try again in 15 minutes". When `/info.rooms` is
+true, the sign-in page has **Follow the words in a room** and the visitor
+shell a **Join a room** tab, both opening `/join`.
 
 ## Public library visitors
 
@@ -115,10 +130,11 @@ that edge is Safari's Back, so the edge swipe is off there. At the bottom sits t
 [current set](#current-set) bar. The service view hides the dock; the song and
 set editors hide it too.
 Routes live in the URL hash, so the server's static file serving (which has no
-SPA fallback) is enough, and links can be shared or bookmarked. The one real
-path is the song permalink `/songs/{id}`
+SPA fallback) is enough, and links can be shared or bookmarked. The real
+paths are the song permalink `/songs/{id}`
 ([deployment](deployment.md#song-permalinks)), which the app turns into
-`#/songs/{id}` with `history.replaceState`. The service worker answers any
+`#/songs/{id}` with `history.replaceState`, and the room reader's `/join` and
+`/join/{room}`, which stay as they are. The service worker answers any
 navigation offline with the saved `/`, but saves only `/` itself.
 
 | Route | Screen |
@@ -132,7 +148,8 @@ navigation offline with the saved `/`, but saves only `/` itself.
 | `#/sets/{id}/play/{index}` | Service view |
 | `#/remote` | Desktops of the church |
 | `#/remote/{deviceId}` | One desktop's remote |
-| `#/more` | Account, app, appearance, library, desktops |
+| `#/more` | Account, app, appearance, library, church, desktops, API tokens |
+| `#/people` | People of the church (owners; others get "Only owners manage people") |
 
 An unknown route goes to `#/sets`. A 401 from any screen clears the session
 and shows sign-in. A 404 shows "Not found".
@@ -152,6 +169,12 @@ scrolls.
 **Scroll position**: Back and Forward return to where you were (the position
 is saved in the history entry once scrolling settles); any other navigation
 starts at the top.
+
+**Titles and focus**: each screen sets the tab title ("Amazing Grace · Songs
+· PSA150"). After navigating, focus moves to the screen's heading; a redraw
+of the same screen keeps focus on the control in use. A Skip to content
+link comes first. Keyboard, screen reader and contrast behaviour is on the
+[accessibility](accessibility.md) page.
 
 ## Current set
 
@@ -243,39 +266,93 @@ other people's phones and the desktops are not affected.
   **Project this on <desktop>** button (leaders, when a desktop accepts
   commands) changes ([remote control](remote-control.md)).
 
-All polling (service view and Remote) stops while the page is hidden, such as
-a locked phone or a background tab, and runs at once when it is shown again.
+The service view's polling stops while the page is hidden, such as a locked
+phone or a background tab, and runs at once when it is shown again.
 
 ## Remote
 
-- **List** (`#/remote`): the church's desktops with an online dot and what
-  each shows, refreshed every 4 s.
-- **Desktop** (`#/remote/{deviceId}`): refreshed every 2 s. It shows what is on
-  screen and the current slide label, a pad with Previous, Blank and Next,
-  the slide labels as buttons, and **Project** from a set item or a song
+Both Remote screens load `GET /remote/desktops` and then follow the server's
+push (`GET /remote/desktops/events`, read with `fetch` by `readEvents` and
+reconnected with a growing pause), so they change as soon as a desktop does,
+instead of polling. Leaving the screen closes the stream; a 401 signs out
+([remote control](remote-control.md#live-push)).
+
+- **List** (`#/remote`): the church's desktops by **room name**, with the
+  computer's name and what each shows underneath and an online dot. A line
+  says anyone can follow a desktop's words at `<host>/join`.
+- **Desktop** (`#/remote/{deviceId}`): the room name as the title and the
+  computer's name and online state under it. It shows what is on screen, the
+  current slide label and that slide's words, a pad with Previous, Blank and
+  Next, the slide labels as buttons, and **Project** from a set item or a song
   search. Opening a desktop remembers it as the one the service view steers.
   Notices explain when the desktop is offline or has remote control off.
+  Under **Room**: when the desktop shares its room, the join address with
+  **Copy the link** and **Share** (where the browser can share); otherwise a
+  note that its operator can turn sharing on in Psalm150's Settings. Leaders
+  get a rename button in the bar: a sheet with the room name and **Pick
+  another flower** (`PUT /device-tokens/{id}/room`; a taken name shows the
+  server's message) ([rooms](rooms.md)).
+
+## Following a room
+
+`/join` and `/join/{room}` (`views/room.ts`) are for anyone, signed in or not,
+and stand outside the shell: type the room name a desktop shows (the last one
+joined is filled in), then read the projected words live in large text. The
+whole song is shown with the current slide highlighted and followed; the bar
+has smaller and larger text, high contrast (yellow on black), **Follow the
+screen**, announcing each new slide to a screen reader, and **Leave**. The
+screen is kept awake while words show. It uses `GET /public/rooms/{room}` and
+an `EventSource` on its `/events`. The details are in [rooms](rooms.md).
 
 ## More
 
-Account (name, role, church) with sign-out; **App**: **Install PSA150** where
+Account (name, role, church) with **Change your password** (the lock:
+current and new password, through `PUT /account/password`; your other
+sessions end) and sign-out; **App**: **Install PSA150** where
 the browser offers installation, or how to add it to the Home Screen in
 Safari on iPhone and iPad, hidden once installed; **Appearance**: Automatic,
 Light or Dark; **Import ChordPro files** (`.pro`, `.cho`, `.chordpro`, leaders
 only) and **Export the library** (ZIP) ([import and export](import-export.md));
+**Church** (owners only): **People**, opening [People](#people);
 **Who can read the songs** (owners only): **Signed-in members** or
 **Everyone**, through `PUT /church`, with a confirmation before opening it;
-**Desktops** (leaders only): the active desktop tokens with last use and
-**Revoke**, and **Create a token by hand**, shown once with a copy button, for
-desktops that cannot open a browser ([auth and roles](auth-and-roles.md)).
+**Rooms** (owners only): **Shared** or **Off** (`public_rooms`), with a note
+on what a room is ([rooms](rooms.md));
+**Desktops** (leaders only): the active desktop tokens by room name, with the
+computer's name, last use and **Revoke**, and **Create a token by hand**, shown once with a copy button, for
+desktops that cannot open a browser ([auth and roles](auth-and-roles.md));
+**API tokens** (everyone signed in): your tokens, or the whole church's for an
+owner (with whose they are), each with its access and last use and
+**Revoke**, and **Create an API token**: a name and an access level from your
+own role down ("Everything, like an owner", "Songs, sets and desktops, like a
+leader", "Read only"), shown once with a copy button
+([auth and roles](auth-and-roles.md#api-tokens)). Offline, the section says the
+tokens show when you are online and the rest of the screen still works.
+
+## People
+
+`#/people` lists the church's people (`GET /members`) with initials, name,
+username, role and "cannot sign in" for disabled people, and **Add a person**
+(name, username, first password, role; viewer by default). Tapping a person
+opens a sheet: name, username and role with **Save** (only changed fields are
+sent); **Set the password** (they are signed out everywhere, API tokens keep
+working); **Disable sign-in** or **Let them sign in again**, with a
+confirmation; and **Remove from <church>**, with a confirmation. Your own sheet
+has no password or disable controls (use the lock under More) and says
+**Leave <church>**, which signs you out; changing your own role takes you back
+to More with the new role. The server's refusals, such as the last owner or a
+person who also belongs to another church, show in the sheet
+([auth and roles](auth-and-roles.md#members)).
 
 ## Roles in the UI
 
 `canEdit` is true for owner and leader sessions. Viewers see no new-song,
-edit, add-to-set (＋ or button), new-set, import, desktop-token, steering or
-project buttons; editor routes send them back to the read-only screen. They
+edit, add-to-set (＋ or button), new-set, import, desktop-token, steering,
+room-rename or project buttons; editor routes send them back to the read-only screen. They
 can read songs and sets, see the current set bar and choose the current set,
-use the service view, follow a desktop, watch the remote screen and export.
+use the service view, follow a desktop, watch the remote screen and export,
+and make read-only API tokens. Owners alone see **Church** (People, and
+**Who can read the songs**), **Rooms** and everyone's API tokens.
 
 ## Installable app and offline use
 
@@ -328,13 +405,20 @@ on that browser goes straight to the consent screen. The whole flow is in
   or you sign out. A session left in `sessionStorage` by an older version moves
   over on first read.
 - Per-device preferences are in `localStorage` under `psa150-*`: `theme`,
-  `chords`, `text-size`, `follow`, `desktop` and `current-set`. Blocked
-  storage is ignored.
+  `chords`, `text-size`, `follow`, `desktop` and `current-set`, and for the
+  room reader `room` (the last room), `room-size`, `room-contrast`,
+  `room-follow` and `room-announce`. Blocked storage is ignored.
 - One `busy` flag stops overlapping actions; adding and removing songs from
   the current set is exempt so quick taps all count. Feedback is a toast that
   lasts 3.2 s, or 6 s when it has **Undo**.
-- Sign-out clears the session and the cached songs and sets. The token stays
-  valid on the server until it expires.
+- Sign-out (and "Use another account" on the desktop consent screen) sends
+  `DELETE /session`, so the token stops working on the server, then clears
+  the session and the cached songs and sets. The request is best effort:
+  offline, the token stays valid until it expires.
+- The role shown and the buttons offered come from the stored session,
+  read again from `GET /session` at boot and when the app comes back into
+  view (at most once a minute), so a role an owner changed shows without
+  signing in again. The server enforces a new role at once.
 
 ## Design tokens and themes
 
@@ -348,9 +432,10 @@ removes the attribute. The `theme-color` meta follows the chosen theme.
 
 ## Not exposed
 
-Revision history (`/songs/{id}/revisions`), deleting songs, paging past the
-first 100 sets, the `from` filter on sets, member management, and anything
-admin-only.
+Revision history (`/songs/{id}/revisions` and single revisions), deleting
+and restoring songs, deleted and restored sets, paging past the first 100
+sets, the `from` filter on sets, renaming the church, and choosing a church at
+sign-in.
 
 ## Develop and test
 

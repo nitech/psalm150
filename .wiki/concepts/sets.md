@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Sets
-description: Church sets (ordered song lists for one service) — the endpoints, item rules and limits, the version check with 409, soft delete, deleted songs inside a set, and who may change them.
+description: Church sets (ordered song lists for one service) — the endpoints, item rules and limits, paging, the version check with 409, soft delete and restore, deleted songs inside a set, and who may change them.
 tags: [sets, services, conflicts, desktop]
 status: stable
 sources:
@@ -16,11 +16,11 @@ sources:
     title: song_sets, song_set_items
   - id: test
     resource: /api/tests/api_flow.rs
-    title: sets_flow
+    title: sets_flow, deleted_songs_and_sets_come_back
   - id: websets
     resource: /web/src/views/sets.ts
     title: Set list, editor and service view
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-05T10:00:00Z }
 ---
 
 # Sets
@@ -56,12 +56,14 @@ text.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `/sets?from=&limit=` | `SetSummary[]` (`item_count`, no items). `from` keeps sets on or after that day plus every set without a date. `limit` defaults to 100, clamped to 1–500. Sorted by `service_date` descending (no date last), then `updated_at` descending |
+| GET | `/sets?from=&limit=&offset=` | `SetSummary[]` (`item_count`, no items). `from` keeps sets on or after that day plus every set without a date. `limit` defaults to 100, clamped to 1–500; `offset` skips rows. Sorted by `service_date` descending (no date last), then `updated_at` descending, then id, so pages never overlap |
 | GET | `/sets/snapshot` | Every set of the church with its items (`SetDetail[]`), same order, no limit. What a desktop keeps offline |
 | POST | `/sets` | Body `{id?, name, service_date?, items?}`. 201 `SetDetail` at `version` 1. A client-chosen `id` lets a desktop create a set offline and upload it once; an id that already exists (in any church, deleted or not) is 409 `a set with this id already exists` |
 | GET | `/sets/{id}` | `SetDetail`. 404 when missing, deleted or in another church |
 | PUT | `/sets/{id}` | Body `{base_version, name, service_date, items}`. Replaces name, date and **all** items; `version` goes up by one |
-| DELETE | `/sets/{id}?base_version=` | Soft delete (`deleted_at`). `base_version` is optional; when given and stale, 409. 204 on success |
+| DELETE | `/sets/{id}?base_version=` | Soft delete (`deleted_at`, `version` + 1). `base_version` is optional; when given and stale, 409. 204 on success |
+| GET | `/sets/deleted?limit=&offset=` | `DeletedSet[]` (`{id, name, service_date, version, item_count, deleted_at}`), most recently deleted first; `limit` 1–200, default 100 |
+| POST | `/sets/{id}/restore` | Editor or desktop. Clears `deleted_at` and raises `version` by one (recorded as the restoring person or device); returns the `SetDetail` with its items. A live set is returned unchanged; unknown is 404. Desktops see it again at their next snapshot, like a set made on a phone |
 
 ## Conflicts
 
@@ -92,7 +94,7 @@ They are stored but not returned by any endpoint.
 
 ## Not built
 
-- No history or restore of earlier versions, and no undelete endpoint.
+- No history or restore of earlier versions; only a deleted set can come back.
 - No per-set sharing or visibility: every set is visible to the whole church.
-- No paging past `limit` in `GET /sets`; the web client never sends `from` or
-  `limit`, so it shows the newest 100.
+- The web client never sends `from`, `limit` or `offset`, so it shows the
+  newest 100, and it has no screen for deleted sets.

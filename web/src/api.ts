@@ -1,17 +1,24 @@
 import type {
+  ApiToken,
+  ApiTokenSummary,
   ChurchSettings,
   DesktopAuthCode,
+  DesktopRoom,
   DesktopTokenResponse,
   DeviceToken,
   DeviceTokenSummary,
+  Member,
   RemoteCommand,
   RemoteCommandRequest,
   RemoteDesktop,
+  Role,
+  RoomView,
   ServerInfo,
   SetDetail,
   SetItemInput,
   SetSummary,
   Session,
+  SessionInfo,
   SetupStatus,
   SongDetail,
   SongSort,
@@ -30,6 +37,57 @@ async function send(url: string, init: RequestInit): Promise<Response> {
       navigator.onLine ? "The song server did not answer. Try again." : "You are offline. Try again when you are connected.",
       0,
     );
+  }
+}
+
+/**
+ * Reads a server-sent event stream with `fetch` (which, unlike
+ * `EventSource`, can send the bearer token), reconnecting with a growing
+ * pause after a dropped connection until `signal` aborts. An error answer
+ * (401, 403) ends it through `onError`.
+ */
+async function readEvents(
+  url: string,
+  headers: () => Record<string, string>,
+  signal: AbortSignal,
+  onEvent: (event: string, data: string) => void,
+  onError: (error: ApiError) => void,
+): Promise<void> {
+  let pause = 1000;
+  while (!signal.aborted) {
+    try {
+      const response = await fetch(url, { headers: { Accept: "text/event-stream", ...headers() }, cache: "no-store", signal });
+      if (response.status >= 400 && response.status < 500) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        onError(new ApiError(body?.error ?? `Request failed (${response.status})`, response.status));
+        return;
+      }
+      if (!response.ok || !response.body) throw new Error(`Request failed (${response.status})`);
+      pause = 1000;
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value.replace(/\r\n?/g, "\n");
+        let end: number;
+        while ((end = buffer.indexOf("\n\n")) >= 0) {
+          const block = buffer.slice(0, end);
+          buffer = buffer.slice(end + 2);
+          let event = "message";
+          const data: string[] = [];
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event:")) event = line.slice(6).trim();
+            else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+          }
+          if (data.length) onEvent(event, data.join("\n"));
+        }
+      }
+    } catch {
+      if (signal.aborted) return;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, pause));
+    pause = Math.min(pause * 2, 15000);
   }
 }
 
@@ -69,13 +127,72 @@ export class SongServerApi {
     });
   }
 
+  /** Who the token belongs to and its role now, which an owner may have changed. */
+  currentSession(): Promise<SessionInfo> {
+    return this.request("/session");
+  }
+
+  /** Signs out on the server too: `token` stops working. */
+  async endSession(token: string): Promise<void> {
+    await this.requestEmpty("/session", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /** Your other sessions end; this one and your API tokens keep working. */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await this.requestEmpty("/account/password", {
+      method: "PUT",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+  }
+
+  /** Owners only, like the rest of `/members`. */
+  listMembers(): Promise<Member[]> {
+    return this.request("/members");
+  }
+
+  createMember(input: { username: string; display_name: string; password: string; role: Role }): Promise<Member> {
+    return this.request("/members", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  /** Fields left out stay as they are. */
+  updateMember(
+    userId: string,
+    input: { role?: Role; display_name?: string; username?: string; password?: string; disabled?: boolean },
+  ): Promise<Member> {
+    return this.request(`/members/${userId}`, { method: "PATCH", body: JSON.stringify(input) });
+  }
+
+  async removeMember(userId: string): Promise<void> {
+    await this.requestEmpty(`/members/${userId}`, { method: "DELETE" });
+  }
+
   getChurch(): Promise<ChurchSettings> {
     return this.request("/church");
   }
 
-  /** Owners only: open the library to anyone, read only, or close it again. */
-  updateChurch(input: { public_library: boolean }): Promise<ChurchSettings> {
+  /**
+   * Owners only: rename the church, open the library to anyone (read only)
+   * or close it, or open or close the desktops' rooms.
+   */
+  updateChurch(input: { name?: string; public_library?: boolean; public_rooms?: boolean }): Promise<ChurchSettings> {
     return this.request("/church", { method: "PUT", body: JSON.stringify(input) });
+  }
+
+  /** Your API tokens; an owner gets everyone's. */
+  listApiTokens(): Promise<ApiTokenSummary[]> {
+    return this.request("/api-tokens");
+  }
+
+  /** A token that acts as you, with at most `role`; shown once. */
+  createApiToken(input: { name: string; role?: Role; expires_at?: string }): Promise<ApiToken> {
+    return this.request("/api-tokens", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async revokeApiToken(id: string): Promise<void> {
+    await this.requestEmpty(`/api-tokens/${id}`, { method: "DELETE" });
   }
 
   /**
@@ -150,6 +267,34 @@ export class SongServerApi {
 
   listDesktops(): Promise<RemoteDesktop[]> {
     return this.request("/remote/desktops");
+  }
+
+  /**
+   * The desktop list as it changes, pushed by the server. Reconnects after
+   * a dropped connection; stops when `signal` aborts. A 401 is passed to
+   * `onError` and ends it.
+   */
+  watchDesktops(
+    onList: (desktops: RemoteDesktop[]) => void,
+    onError: (error: ApiError) => void,
+    signal: AbortSignal,
+  ): void {
+    void readEvents(`${API_ROOT}/remote/desktops/events`, () => this.headers(false), signal, (event, data) => {
+      if (event === "desktops") onList(JSON.parse(data) as RemoteDesktop[]);
+    }, onError);
+  }
+
+  /** A leader renames a desktop's room; `null` picks a new random flower. */
+  renameDesktopRoom(deviceId: string, roomName: string | null): Promise<DesktopRoom> {
+    return this.request(`/device-tokens/${deviceId}/room`, {
+      method: "PUT",
+      body: JSON.stringify({ room_name: roomName }),
+    });
+  }
+
+  /** Anyone: what a room shows now. 404 when there is no such room. */
+  getRoom(roomName: string): Promise<RoomView> {
+    return this.request(`/public/rooms/${encodeURIComponent(roomName)}`, { cache: "no-store" });
   }
 
   sendRemoteCommand(deviceId: string, command: RemoteCommandRequest): Promise<RemoteCommand> {

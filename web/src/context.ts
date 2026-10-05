@@ -31,6 +31,12 @@ export interface LibraryContext {
    */
   run(action: () => Promise<void>, options?: { exclusive?: boolean }): Promise<void>;
   signOut(): void;
+  /**
+   * Reads the role, name and church again from the server (at most once a
+   * minute unless `force`), so a role an owner changed applies without
+   * signing in again. The current screen is redrawn when something changed.
+   */
+  refreshSession(force?: boolean): Promise<void>;
   /** Re-reads the theme preference and applies it. */
   applyTheme(): void;
 }
@@ -71,9 +77,11 @@ export function pageHead(options: {
   const eyebrow = options.subtitle
     ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>`
     : options.church ? `<p class="eyebrow wide-only">${escapeHtml(options.church)}</p>` : "";
+  // The h1 takes focus after a route change (main.ts). On phones a compact
+  // or wide-only title is hidden visually but stays for screen readers.
   const titles = `<div class="page-titles${options.compact ? " compact" : ""}${options.wideOnly ? " wide-only" : ""}">
       ${eyebrow}
-      <h1>${escapeHtml(options.title)}</h1>
+      <h1 tabindex="-1">${escapeHtml(options.title)}</h1>
     </div>`;
   if (!options.back && !options.actions && !options.panel && !options.compact && !options.menu) return titles;
   const back = options.back

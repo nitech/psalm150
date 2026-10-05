@@ -29,6 +29,12 @@ not yet complete.
 
 - [x] Choose password authentication and initial-owner provisioning for people.
 - [x] Define revocable, scoped desktop credentials that read, import, edit and delete songs and sets.
+- [x] Let people make revocable API tokens that act as them, with their role or a lower one.
+- [x] Let owners add people, change roles, reset passwords, and disable or remove people through the API.
+- [x] Let people sign out and change their own password.
+- [x] Manage people from the web interface.
+- [x] Limit wrong passwords at sign-in and password change.
+- [ ] Keep sign-in limits across server restarts and several server instances.
 - [ ] Define private, unlisted, and public content visibility.
 - [ ] Define instance-level publication and contribution policies.
 - [ ] Define attribution, authorship, and licensing requirements.
@@ -47,11 +53,17 @@ not yet complete.
 
 - [x] Specify the Phase 1 versioned REST/JSON resources.
 - [x] Publish generated OpenAPI JSON.
+- [x] Make everything the server does available through the API to anyone with a suitable token,
+      with bearer authentication described in the OpenAPI document.
+- [x] Restore deleted songs and sets, and read any earlier song revision, through the API.
 - [ ] Define compatibility and deprecation rules for API versions.
 - [x] Build the initial web interface as an ordinary API consumer.
 - [x] Rebuild the web interface mobile-first for reading and leading from a phone.
 - [x] Relay remote control from leaders' phones to desktops that allow it.
+- [x] Push desktop changes to leaders' phones as they happen instead of polling.
+- [x] Give every desktop a room name and let anyone follow the projected words in large text on their own phone.
 - [ ] Keep remote control working across server restarts and several server instances.
+- [ ] Limit how often rooms are read and how many people may follow one at a time.
 - [x] Define and implement Phase 1 merge-then-pull PSA150-client synchronization.
 - [ ] Define additional integration guidance for external church websites.
 

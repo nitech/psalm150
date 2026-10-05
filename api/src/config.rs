@@ -1,11 +1,16 @@
 use std::{env, net::SocketAddr, path::PathBuf};
 
+use axum::http::HeaderName;
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub bind: SocketAddr,
     pub database_url: String,
     pub web_dist: PathBuf,
     pub session_hours: i64,
+    /// A header the reverse proxy sets to the client's address, such as
+    /// `X-Forwarded-For`, for limiting failed sign-ins per client.
+    pub client_ip_header: Option<HeaderName>,
 }
 
 impl Config {
@@ -27,12 +32,20 @@ impl Config {
         if session_hours < 1 {
             return Err("PSA150_SESSION_HOURS must be at least 1".to_string());
         }
+        let client_ip_header = match env::var("PSA150_CLIENT_IP_HEADER") {
+            Ok(name) if !name.trim().is_empty() => Some(
+                HeaderName::try_from(name.trim())
+                    .map_err(|error| format!("PSA150_CLIENT_IP_HEADER is invalid: {error}"))?,
+            ),
+            _ => None,
+        };
 
         Ok(Self {
             bind,
             database_url,
             web_dist,
             session_hours,
+            client_ip_header,
         })
     }
 }

@@ -60,6 +60,22 @@ pub async fn song_page(state: AppState, song_id: String, index: PathBuf) -> Resp
     response
 }
 
+/// A path the web client handles itself, such as `/join/{room_name}`.
+pub async fn app_page(index: PathBuf) -> Response {
+    let Ok(html) = tokio::fs::read_to_string(&index).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let mut response = html.into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    response
+}
+
 /// Replaces the page `<title>` with the song's, plus Open Graph tags.
 fn with_preview(html: &str, song: &PublicSongPreview) -> String {
     let title = escape(&song.title);

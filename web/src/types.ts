@@ -14,6 +14,37 @@ export interface Session {
   role: Role;
 }
 
+/** Which kind of bearer token a request carried. */
+export type TokenKind = "session" | "api" | "desktop";
+
+/** `GET /session`: who a token belongs to and what it may do now. */
+export interface SessionInfo {
+  kind: TokenKind;
+  church_id: string;
+  church_name: string;
+  /** Null for desktops. */
+  role: Role | null;
+  user_id: string | null;
+  username: string | null;
+  display_name: string | null;
+  device_id: string | null;
+  device_name: string | null;
+  /** Null when the token lasts until revoked. */
+  expires_at: string | null;
+}
+
+/** A person in the church (`/members`, owners only). */
+export interface Member {
+  user_id: string;
+  username: string;
+  display_name: string;
+  role: Role;
+  /** Cannot sign in; their sessions and API tokens do not work. */
+  disabled: boolean;
+  /** When they joined the church. */
+  created_at: string;
+}
+
 export interface SongSummary {
   id: string;
   revision_id: string;
@@ -39,12 +70,38 @@ export interface DeviceToken {
   name: string;
   token: string;
   created_at: string;
+  room_name: string;
 }
 
 export interface DeviceTokenSummary {
   id: string;
   name: string;
   created_at: string;
+  last_used_at: string | null;
+  /** Null for a desktop made before rooms that has not been heard from since. */
+  room_name: string | null;
+}
+
+/** A new API token (`psa_a_`): it acts as its person, and is shown once. */
+export interface ApiToken {
+  id: string;
+  name: string;
+  role: Role;
+  token: string;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface ApiTokenSummary {
+  id: string;
+  name: string;
+  /** The most the token may do; never more than its person may. */
+  role: Role;
+  /** The person the token acts as. */
+  user_id: string;
+  user_display_name: string;
+  created_at: string;
+  expires_at: string | null;
   last_used_at: string | null;
 }
 
@@ -66,6 +123,8 @@ export interface ServerInfo {
   public_library: boolean;
   /** The public library's church, when exactly one church's library is public. */
   public_library_name: string | null;
+  /** Anyone may follow a desktop's projection by its room name. */
+  rooms: boolean;
 }
 
 /** `GET /church`: the signed-in church and its settings. */
@@ -73,6 +132,8 @@ export interface ChurchSettings {
   id: string;
   name: string;
   public_library: boolean;
+  /** Anyone who knows a desktop's room name may follow the words it projects. */
+  public_rooms: boolean;
 }
 
 /** One-time desktop sign-in code, valid for five minutes. */
@@ -87,6 +148,7 @@ export interface DesktopTokenResponse {
   device_id: string;
   device_name: string;
   church_name: string;
+  room_name: string;
 }
 
 export type SetItemKind = "song" | "blank";
@@ -148,11 +210,23 @@ export interface DesktopState {
   slide_labels: string[];
   set_id: string | null;
   set_item_index: number | null;
+  /** The operator lets people follow the projection in the desktop's room. */
+  shares_room: boolean;
+  /** The projected song's words, slide by slide, without chords. */
+  slides: RoomSlide[];
+}
+
+export interface RoomSlide {
+  label: string;
+  lines: string[];
 }
 
 export interface RemoteDesktop {
   device_id: string;
+  /** The name it was connected with, such as "Psalm150 on SANCTUARY". */
   name: string;
+  /** What leaders pick it by and others join: a flower unless renamed. */
+  room_name: string;
   online: boolean;
   last_seen: string;
   state: DesktopState;
@@ -178,4 +252,22 @@ export interface RemoteCommand extends RemoteCommandRequest {
   id: string;
   issued_by: string;
   issued_at: string;
+}
+
+/** A desktop's room. */
+export interface DesktopRoom {
+  device_id: string;
+  room_name: string;
+  public_rooms: boolean;
+}
+
+export type RoomStatus = "live" | "blank" | "idle" | "offline";
+
+/** What someone following a room sees; words only while `live` or `blank`. */
+export interface RoomView {
+  room_name: string;
+  status: RoomStatus;
+  song_title: string | null;
+  slide_index: number | null;
+  slides: RoomSlide[];
 }

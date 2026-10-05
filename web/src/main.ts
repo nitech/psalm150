@@ -1,15 +1,18 @@
 import "../../shared/psa150-tokens.css";
 import "./styles.css";
+import { announce, refocus, selectorFor, setTitle } from "./a11y.ts";
 import { ApiError, SongServerApi } from "./api.ts";
 import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { icon, type IconName } from "./icons.ts";
 import { installLyricsCopy } from "./song-render.ts";
 import "./install.ts";
-import type { SetDetail, Session } from "./types.ts";
-import { dateBadge, errorMessage, escapeHtml, readPreference, setFormBusy, showToast } from "./ui.ts";
+import type { SessionInfo, SetDetail, Session } from "./types.ts";
+import { dateBadge, errorMessage, escapeHtml, hideToast, readPreference, setFormBusy, showToast } from "./ui.ts";
 import { moreView } from "./views/more.ts";
+import { peopleView } from "./views/people.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
+import { joinPath, renderJoin, renderRoomFromPath } from "./views/room.ts";
 import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
 import { songDetail, songEditor, songList } from "./views/songs.ts";
 
@@ -20,11 +23,23 @@ const SESSION_KEY = "psa150-server-session";
 let session = readSession();
 /** The church whose library anyone may read, from `/info`; null when private. */
 let publicLibrary: string | null = null;
+/** Anyone may follow a desktop's projection by its room name (`/join`). */
+let roomsOpen = false;
 let busy = false;
+/** When the session's role and names were last read from the server. */
+let lastSessionCheck = 0;
 const api = new SongServerApi(() => session?.token ?? null);
 const currentSet = new CurrentSet(api);
 /** The first load of the current set, so the first screen can show it. */
 let currentReady: Promise<unknown> = Promise.resolve();
+/**
+ * Someone has pressed a key or touched the page. Until then focus is left
+ * alone, so a screen reader starts reading the first page at its top.
+ */
+let userActed = false;
+for (const type of ["keydown", "pointerdown"]) {
+  document.addEventListener(type, () => { userActed = true; }, { capture: true, once: true });
+}
 
 applyTheme();
 registerServiceWorker();
@@ -64,8 +79,16 @@ async function boot(): Promise<void> {
       renderDesktopInvalid();
       return;
     }
+    // Following a room needs no account, signed in or not.
+    const room = joinPath();
+    if (room !== null) {
+      if (room) await renderRoomFromPath(app, api, room);
+      else renderJoin(app, api);
+      return;
+    }
     const info = await api.info();
     publicLibrary = info.public_library ? info.public_library_name ?? "Song library" : null;
+    roomsOpen = info.rooms;
     if (!info.initialized) {
       renderSetup();
     } else if (!session || new Date(session.expires_at) <= new Date()) {
@@ -76,6 +99,7 @@ async function boot(): Promise<void> {
       else renderLogin();
     } else {
       showSignedIn();
+      void refreshSession();
     }
   } catch (error) {
     renderFatal(error);
@@ -83,6 +107,7 @@ async function boot(): Promise<void> {
 }
 
 function renderSetup(): void {
+  setTitle("Set up");
   app.innerHTML = authFrame(
     "Set up your song server",
     "Create your church and the first owner account. The songs stay on this server, under your church's care.",
@@ -90,11 +115,13 @@ function renderSetup(): void {
       <label>Church name<input name="church" autocomplete="organization" required /></label>
       <label>Your name<input name="owner" autocomplete="name" required /></label>
       <label>Username<input name="username" autocomplete="username" autocapitalize="none" required /></label>
-      <label>Password<input name="password" type="password" minlength="10" autocomplete="new-password" required /></label>
+      <label>Password<input name="password" type="password" minlength="10" autocomplete="new-password" aria-describedby="setup-password-hint" required /></label>
+      <p class="hint field-hint" id="setup-password-hint">At least 10 characters.</p>
       <button class="button primary wide" type="submit">Create the library</button>
       <p class="form-message" role="status"></p>
     </form>`,
   );
+  focusAuth();
 
   document.querySelector<HTMLFormElement>("#setup-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -111,6 +138,7 @@ function renderSetup(): void {
 
 function renderLogin(): void {
   const desktop = pendingDesktop();
+  setTitle("Sign in");
   app.innerHTML = authFrame(
     "Sign in",
     desktop
@@ -122,8 +150,10 @@ function renderLogin(): void {
       <button class="button primary wide" type="submit">Sign in</button>
       <p class="form-message" role="status"></p>
       ${publicLibrary && !desktop ? `<button class="button secondary wide" type="button" id="back-to-songs">Back to the songs</button>` : ""}
+      ${roomsOpen && !desktop ? `<a class="button secondary wide" href="/join">Follow the words in a room</a>` : ""}
     </form>`,
   );
+  focusAuth();
 
   document.querySelector("#back-to-songs")?.addEventListener("click", () => {
     // The page behind the sign-in may be one only members can open.
@@ -144,6 +174,7 @@ async function submitAuth(form: HTMLFormElement, action: () => Promise<Session>)
   try {
     session = await action();
     storeSession(session);
+    lastSessionCheck = Date.now();
     showSignedIn();
   } catch (error) {
     if (message) message.textContent = errorMessage(error);
@@ -193,11 +224,13 @@ function returnToDesktop(desktop: DesktopRequest, result: Record<string, string>
 }
 
 function renderDesktopInvalid(): void {
+  setTitle("Desktop sign-in link not valid");
   app.innerHTML = authFrame(
     "This desktop sign-in link is not valid",
     "Start the connection again from the Psalm150 desktop app. Nothing has been shared.",
     `<a class="button secondary wide" href="/">Open the song library</a>`,
   );
+  focusAuth();
 }
 
 function renderDesktopConsent(): void {
@@ -205,6 +238,7 @@ function renderDesktopConsent(): void {
   if (!desktop || !session) return;
   const forbiddenMessage = "Only leaders can connect a desktop. Ask a leader to sign in.";
   const canConnect = session.role !== "viewer";
+  setTitle("Connect a desktop");
   app.innerHTML = authFrame(
     "Connect this desktop?",
     `<strong>${escapeHtml(desktop.deviceName)}</strong> will be connected to <strong>${escapeHtml(session.church_name)}</strong>'s song library. It can read the songs and sets and keep them in sync, including adding, editing and deleting songs and sets.`,
@@ -217,12 +251,13 @@ function renderDesktopConsent(): void {
       </div>
     </form>`,
   );
+  focusAuth();
 
   document.querySelector("#desktop-cancel")?.addEventListener("click", () => {
     returnToDesktop(desktop, { error: "access_denied" });
   });
   document.querySelector("#switch-account")?.addEventListener("click", () => {
-    clearSession();
+    endSession();
     renderLogin();
   });
   document.querySelector<HTMLFormElement>("#desktop-consent")?.addEventListener("submit", async (event) => {
@@ -273,6 +308,7 @@ const ROUTES: Route[] = [
   { pattern: /^\/remote$/, view: remoteList, tab: "remote" },
   { pattern: /^\/remote\/([0-9a-f-]{36})$/, view: remoteDesktop, tab: "remote" },
   { pattern: /^\/more$/, view: moreView, tab: "more" },
+  { pattern: /^\/people$/, view: peopleView, tab: "more" },
 ];
 
 const TABS: Array<{ tab: Tab; label: string; icon: IconName; href: string }> = [
@@ -284,6 +320,8 @@ const TABS: Array<{ tab: Tab; label: string; icon: IconName; href: string }> = [
 
 let cleanup: Cleanup | void;
 let routeToken = 0;
+/** The route on screen, so a redraw of the same screen keeps focus in place. */
+let shownRoute: Route | null = null;
 let hashListener: (() => void) | null = null;
 
 function currentPath(): string {
@@ -300,8 +338,10 @@ function renderShell(): void {
   const tabs = session
     ? TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}">${icon(tab.icon)}<span>${tab.label}</span></a>`).join("")
     : `<a class="tab" href="#/songs" data-tab="songs">${icon("songs")}<span>Songs</span></a>
+      ${roomsOpen ? `<a class="tab" href="/join">${icon("project")}<span>Join a room</span></a>` : ""}
       <button type="button" class="tab" id="sign-in">${icon("login")}<span>Sign in</span></button>`;
-  app.innerHTML = `<div class="shell${session ? "" : " visitor"}">
+  app.innerHTML = `<a class="skip-link" href="#page" id="skip-link">Skip to content</a>
+  <div class="shell${session ? "" : " visitor"}">
     <nav class="tabbar" id="sections" aria-label="Sections">
       <div class="brand" aria-hidden="true"><span class="brand-mark">150</span><span>PSA150</span></div>
       ${tabs}
@@ -309,17 +349,23 @@ function renderShell(): void {
     <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
     <main class="page" id="page" tabindex="-1"></main>
   </div>
-  <div class="dock" id="dock">
+  <aside class="dock" id="dock" aria-label="Current set">
     <p class="offline-bar" id="offline-bar" role="status" hidden>${icon("offline")}<span>Offline. Showing the songs and sets saved on this phone.</span></p>
     <a class="current-bar" id="current-bar" hidden></a>
-  </div>
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
+  </aside>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <p class="sr-only" id="announcer" role="status" aria-live="polite"></p>`;
 
   if (!hashListener) {
     hashListener = () => void route();
     window.addEventListener("hashchange", hashListener);
     startShellListeners();
   }
+  // The route lives in the hash, so the skip link moves focus itself.
+  document.querySelector("#skip-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    focusPageStart();
+  });
   document.querySelector("#sign-in")?.addEventListener("click", () => {
     closeMenu(false);
     leaveShell(renderLogin);
@@ -329,7 +375,7 @@ function renderShell(): void {
   renderCurrentBar(currentSet.value);
   showOffline();
   new ResizeObserver(([entry]) => {
-    document.body.style.setProperty("--dock-h", `${Math.round(entry.contentRect.height)}px`);
+    document.documentElement.style.setProperty("--dock-h", `${Math.round(entry.contentRect.height)}px`);
   }).observe(document.querySelector("#dock")!);
   currentReady = session ? currentSet.refresh().catch(() => undefined) : Promise.resolve();
   if (!location.hash || location.hash === "#" || location.hash === "#/") {
@@ -364,10 +410,23 @@ function menuIsOpen(): boolean {
 function openMenu(opener: HTMLElement | null): void {
   menuOpener = opener ?? Array.from(document.querySelectorAll<HTMLElement>("[data-menu]")).find((button) => button.offsetParent) ?? null;
   document.body.classList.add("menu-open");
+  setBackgroundInert(true);
   document.querySelectorAll("[data-menu]").forEach((button) => button.setAttribute("aria-expanded", "true"));
   const nav = document.querySelector<HTMLElement>("#sections");
   // After the slide starts, so the browser does not scroll to it.
-  requestAnimationFrame(() => nav?.querySelector<HTMLElement>(".tab.on, .tab")?.focus({ preventScroll: true }));
+  // The current section, else the first.
+  requestAnimationFrame(() => (nav?.querySelector<HTMLElement>(".tab.on") ?? nav?.querySelector<HTMLElement>(".tab"))?.focus({ preventScroll: true }));
+}
+
+/**
+ * While the drawer is open, the screen under its shade cannot be reached with
+ * Tab or a screen reader, as with a modal dialog.
+ */
+function setBackgroundInert(value: boolean): void {
+  for (const id of ["page", "dock", "skip-link"]) {
+    const element = document.getElementById(id);
+    if (element) element.inert = value;
+  }
 }
 
 /** `restoreFocus`: back to ☰, unless the drawer closes because you went somewhere. */
@@ -377,6 +436,7 @@ function closeMenu(restoreFocus = true): void {
   document.body.style.removeProperty("--menu-drag");
   document.body.style.removeProperty("--menu-shade");
   document.querySelectorAll("[data-menu]").forEach((button) => button.setAttribute("aria-expanded", "false"));
+  setBackgroundInert(false);
   if (restoreFocus && menuOpener?.isConnected) menuOpener.focus({ preventScroll: true });
   menuOpener = null;
 }
@@ -538,6 +598,12 @@ async function route(): Promise<void> {
     return;
   }
 
+  // The control in use, to focus again if this screen is only redrawn
+  // (a setting saved, the next item of a set).
+  const focused = main.contains(document.activeElement) ? selectorFor(document.activeElement) : null;
+  const sameScreen = shownRoute === match.entry;
+  // An error toast belongs to the screen it came from.
+  if (document.querySelector("#toast.error.visible")) hideToast();
   if (typeof cleanup === "function") cleanup();
   cleanup = undefined;
   const token = ++routeToken;
@@ -549,7 +615,8 @@ async function route(): Promise<void> {
   });
   document.body.dataset.route = path.split("/").slice(0, 4).join("/").replace(/[0-9a-f-]{36}/g, "id").replace(/\/\d+$/, "");
   document.body.classList.remove("bar-away", "title-away", "scrolled");
-  document.title = "PSA150";
+  // Views name their screen more exactly ("Amazing Grace · Songs · PSA150").
+  setTitle(TABS.find((tab) => tab.tab === match.entry.tab)?.label);
   main.classList.add("loading");
 
   try {
@@ -564,11 +631,15 @@ async function route(): Promise<void> {
       return;
     }
     cleanup = result;
+    shownRoute = match.entry;
     main.classList.remove("loading");
     // Back and Forward return to where you were; anything else starts at the top.
     const saved = (history.state as { scrollY?: number } | null)?.scrollY;
     window.scrollTo({ top: saved ?? 0 });
     updateScrollState();
+    // A new screen: focus its heading, so a screen reader says where you are
+    // and Tab starts from the top. The same screen redrawn: the same control.
+    if (userActed && !document.querySelector("dialog[open]") && !(sameScreen && refocus(main, focused))) focusPageStart();
   } catch (error) {
     if (token !== routeToken) return;
     main.classList.remove("loading");
@@ -576,9 +647,20 @@ async function route(): Promise<void> {
       signOut();
       return;
     }
+    shownRoute = null;
+    const notFound = error instanceof ApiError && error.status === 404;
+    setTitle(notFound ? "Not found" : "Could not load this page");
     const home = session ? `<a class="button secondary" href="#/sets">Go to sets</a>` : `<a class="button secondary" href="#/songs">Go to songs</a>`;
-    main.innerHTML = `<div class="empty-state"><h2>${error instanceof ApiError && error.status === 404 ? "Not found" : "Could not load this page"}</h2><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
+    main.innerHTML = `<div class="empty-state"><h1 tabindex="-1">${notFound ? "Not found" : "Could not load this page"}</h1><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
+    if (userActed) focusPageStart();
   }
+}
+
+/** The screen's heading, or the main area when it has none. */
+function focusPageStart(): void {
+  const main = document.querySelector<HTMLElement>("#page");
+  const heading = main?.querySelector<HTMLElement>("h1");
+  (heading ?? main)?.focus({ preventScroll: true });
 }
 
 function libraryContext(main: HTMLElement): LibraryContext {
@@ -605,8 +687,42 @@ function libraryContext(main: HTMLElement): LibraryContext {
     currentSet,
     run,
     signOut,
+    refreshSession,
     applyTheme,
   };
+}
+
+/**
+ * The role, name and church shown come from sign-in. Read them again when
+ * the app opens or comes back into view (at most once a minute), so a role
+ * an owner changed applies without signing in again. A token the server no
+ * longer accepts signs out; offline, nothing changes.
+ */
+async function refreshSession(force = false): Promise<void> {
+  if (!session || !navigator.onLine) return;
+  if (!force && Date.now() - lastSessionCheck < 60_000) return;
+  lastSessionCheck = Date.now();
+  const token = session.token;
+  let info: SessionInfo;
+  try {
+    info = await api.currentSession();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401 && session?.token === token) signOut();
+    return;
+  }
+  if (!session || session.token !== token || !info.role) return;
+  const changed = info.role !== session.role
+    || info.church_name !== session.church_name
+    || (info.display_name !== null && info.display_name !== session.display_name);
+  if (!changed) return;
+  session = {
+    ...session,
+    role: info.role,
+    church_name: info.church_name,
+    display_name: info.display_name ?? session.display_name,
+  };
+  storeSession(session);
+  if (document.querySelector("#page")) void route();
 }
 
 async function run(action: () => Promise<void>, options: { exclusive?: boolean } = {}): Promise<void> {
@@ -634,7 +750,7 @@ async function run(action: () => Promise<void>, options: { exclusive?: boolean }
 
 /** Back to the public songs when the library is open, else to sign-in. */
 function signOut(): void {
-  clearSession();
+  endSession();
   currentSet.clear();
   void clearCachedData();
   leaveShell(() => {
@@ -668,7 +784,13 @@ function renderCurrentBar(set: SetDetail | null): void {
 }
 
 function showOffline(): void {
-  document.querySelector<HTMLElement>("#offline-bar")?.toggleAttribute("hidden", navigator.onLine);
+  const bar = document.querySelector<HTMLElement>("#offline-bar");
+  if (!bar) return;
+  const was = bar.hidden;
+  bar.toggleAttribute("hidden", navigator.onLine);
+  // A status that appears is not always read out; say it.
+  if (was && !bar.hidden) announce(bar.textContent ?? "");
+  else if (!was && bar.hidden) announce("Back online.");
 }
 
 let lastScrollY = 0;
@@ -732,6 +854,7 @@ function startShellListeners(): void {
 
   const refresh = () => {
     if (session) void currentSet.refresh().catch(() => undefined);
+    void refreshSession();
   };
   window.addEventListener("online", () => {
     showOffline();
@@ -778,8 +901,8 @@ function applyTheme(): void {
 function authFrame(title: string, copy: string, form: string): string {
   return `<main class="auth">
     <div class="auth-card">
-      <div class="brand large"><span class="brand-mark">150</span><span>PSA150</span></div>
-      <h1>${escapeHtml(title)}</h1>
+      <div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div>
+      <h1 tabindex="-1">${escapeHtml(title)}</h1>
       <p class="lede">${copy}</p>
       ${form}
     </div>
@@ -787,8 +910,20 @@ function authFrame(title: string, copy: string, form: string): string {
   </main>`;
 }
 
+/**
+ * After a full-page screen replaces another (sign-in after signing out, say),
+ * focus goes to its first field, or its heading. Not on the first page load:
+ * a screen reader starts at the top by itself.
+ */
+function focusAuth(): void {
+  if (!userActed) return;
+  (app.querySelector<HTMLElement>("[autofocus]") ?? app.querySelector<HTMLElement>("h1"))?.focus();
+}
+
 function renderFatal(error: unknown): void {
-  app.innerHTML = `<main class="auth"><div class="auth-card"><div class="brand large"><span class="brand-mark">150</span><span>PSA150</span></div><h1>The song server is not reachable</h1><p class="lede">${escapeHtml(errorMessage(error))}</p><button class="button primary wide" id="retry">Try again</button></div></main>`;
+  setTitle("Not reachable");
+  app.innerHTML = `<main class="auth"><div class="auth-card"><div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div><h1 tabindex="-1">The song server is not reachable</h1><p class="lede">${escapeHtml(errorMessage(error))}</p><button class="button primary wide" id="retry">Try again</button></div></main>`;
+  focusAuth();
   document.querySelector("#retry")?.addEventListener("click", () => location.reload());
 }
 
@@ -815,6 +950,16 @@ function storeSession(value: Session): void {
   } catch {
     // Storage is blocked: the session lasts as long as this page.
   }
+}
+
+/**
+ * Signs out here and on the server, so the token stops working. Offline (or
+ * when the server already refused it) it simply runs out.
+ */
+function endSession(): void {
+  const token = session?.token;
+  clearSession();
+  if (token) void api.endSession(token).catch(() => undefined);
 }
 
 function clearSession(): void {

@@ -4,7 +4,7 @@ use sqlx::FromRow;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     Owner,
@@ -22,9 +22,50 @@ impl Role {
         }
     }
 
+    pub fn as_db(self) -> &'static str {
+        match self {
+            Self::Owner => "owner",
+            Self::Leader => "leader",
+            Self::Viewer => "viewer",
+        }
+    }
+
     pub fn can_edit(self) -> bool {
         matches!(self, Self::Owner | Self::Leader)
     }
+
+    /// Owners may do everything leaders may, and leaders everything viewers may.
+    pub fn includes(self, other: Role) -> bool {
+        self.rank() >= other.rank()
+    }
+
+    /// The lesser of the two: what a token capped at `cap` may do for a
+    /// person whose role is `self`.
+    pub fn at_most(self, cap: Role) -> Role {
+        if self.includes(cap) { cap } else { self }
+    }
+
+    fn rank(self) -> u8 {
+        match self {
+            Self::Viewer => 0,
+            Self::Leader => 1,
+            Self::Owner => 2,
+        }
+    }
+}
+
+/// Which kind of bearer token a request carried.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum TokenKind {
+    /// `psa_s_`: a person signed in with a password; expires.
+    Session,
+    /// `psa_a_`: a person's API token for scripts and integrations; lasts
+    /// until it is revoked or reaches its own expiry.
+    Api,
+    /// `psa_d_`: a desktop. It reads, imports and edits songs and sets and
+    /// uses the remote-control relay; it never acts as a person.
+    Desktop,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -51,6 +92,9 @@ pub struct SetupRequest {
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+    /// For a person in several churches: which one to sign in to. Without
+    /// it, the church they joined first.
+    pub church_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -64,6 +108,103 @@ pub struct SessionResponse {
     pub role: Role,
 }
 
+/// `GET /session`: who the bearer token belongs to and what it may do.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SessionInfo {
+    pub kind: TokenKind,
+    pub church_id: Uuid,
+    pub church_name: String,
+    /// What a person's token may do: their role, or less for an API token
+    /// made with a lower one. Absent for desktops, which have their own
+    /// fixed access.
+    pub role: Option<Role>,
+    pub user_id: Option<Uuid>,
+    pub username: Option<String>,
+    pub display_name: Option<String>,
+    pub device_id: Option<Uuid>,
+    pub device_name: Option<String>,
+    /// When the token stops working; absent when it lasts until revoked.
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    /// At least 10 characters.
+    pub new_password: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateApiTokenRequest {
+    /// What the token is for, such as "Church website".
+    pub name: String,
+    /// At most the creator's own role; defaults to it. `viewer` makes a
+    /// read-only token.
+    pub role: Option<Role>,
+    /// When the token stops working; it lasts until revoked when absent.
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ApiTokenResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub role: Role,
+    /// Shown once; only its hash is stored.
+    pub token: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ApiTokenSummary {
+    pub id: Uuid,
+    pub name: String,
+    /// The most the token may do; it never does more than its person may.
+    pub role: Role,
+    /// The person the token acts as.
+    pub user_id: Uuid,
+    pub user_display_name: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub last_used_at: Option<DateTime<Utc>>,
+}
+
+/// A person in the church.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct Member {
+    pub user_id: Uuid,
+    pub username: String,
+    pub display_name: String,
+    pub role: Role,
+    /// A disabled person cannot sign in, and their sessions and API tokens
+    /// do not work.
+    pub disabled: bool,
+    /// When they joined the church.
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateMemberRequest {
+    pub username: String,
+    pub display_name: String,
+    /// At least 10 characters.
+    pub password: String,
+    pub role: Role,
+}
+
+/// Fields left out stay as they are.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateMemberRequest {
+    pub role: Option<Role>,
+    pub display_name: Option<String>,
+    pub username: Option<String>,
+    /// Sets a new password and ends the person's sessions.
+    pub password: Option<String>,
+    /// Disabling ends the person's sessions and revokes their API tokens.
+    pub disabled: Option<bool>,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateDeviceTokenRequest {
     pub name: String,
@@ -75,6 +216,8 @@ pub struct DeviceTokenResponse {
     pub name: String,
     pub token: String,
     pub created_at: DateTime<Utc>,
+    /// The desktop's room (see `DesktopRoom`).
+    pub room_name: String,
 }
 
 #[derive(Debug, Serialize, FromRow, ToSchema)]
@@ -83,6 +226,8 @@ pub struct DeviceTokenSummary {
     pub name: String,
     pub created_at: DateTime<Utc>,
     pub last_used_at: Option<DateTime<Utc>>,
+    /// Absent for a desktop made before rooms that has not been heard from since.
+    pub room_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -175,6 +320,41 @@ pub struct RevisionSummary {
     pub created_at: DateTime<Utc>,
 }
 
+/// One revision of a song, current or earlier, with its full source.
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct RevisionDetail {
+    pub id: Uuid,
+    pub song_id: Uuid,
+    pub parent_revision_id: Option<Uuid>,
+    pub title: String,
+    pub song_number: Option<String>,
+    pub authors: String,
+    pub language: Option<String>,
+    pub chordpro: String,
+    pub content_hash: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct PageQuery {
+    /// Defaults to 100; 1 to 200.
+    pub limit: Option<i64>,
+    /// Rows to skip.
+    pub offset: Option<i64>,
+}
+
+/// A deleted song, as it was when it was deleted.
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct DeletedSong {
+    pub id: Uuid,
+    pub revision_id: Uuid,
+    pub title: String,
+    pub song_number: Option<String>,
+    pub authors: String,
+    pub language: Option<String>,
+    pub deleted_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ImportSongsRequest {
     pub songs: Vec<ImportSongInput>,
@@ -206,6 +386,9 @@ pub struct ServerInfo {
     pub public_library: bool,
     /// The public library's church name, when exactly one church's is public.
     pub public_library_name: Option<String>,
+    /// At least one church shares its projections in rooms that anyone may
+    /// join by name (`/public/rooms/{room_name}`).
+    pub rooms: bool,
 }
 
 /// `GET /church`: the signed-in church and its settings.
@@ -215,11 +398,18 @@ pub struct ChurchSettings {
     pub name: String,
     /// Anyone, signed in or not, may read the songs (never the sets).
     pub public_library: bool,
+    /// Anyone who knows a desktop's room name may follow the words it
+    /// projects. On by default; each desktop can also stop sharing.
+    pub public_rooms: bool,
 }
 
+/// Fields left out stay as they are.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateChurchRequest {
-    pub public_library: bool,
+    /// 1 to 200 characters.
+    pub name: Option<String>,
+    pub public_library: Option<bool>,
+    pub public_rooms: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -249,6 +439,8 @@ pub struct DesktopTokenResponse {
     pub device_id: Uuid,
     pub device_name: String,
     pub church_name: String,
+    /// The desktop's room (see `DesktopRoom`).
+    pub room_name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -325,6 +517,8 @@ pub struct SetQuery {
     /// Only sets on or after this day (sets without a date are always included).
     pub from: Option<NaiveDate>,
     pub limit: Option<i64>,
+    /// Rows to skip, for paging past `limit`.
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow, ToSchema)]
@@ -335,6 +529,17 @@ pub struct SetSummary {
     pub version: i32,
     pub item_count: i64,
     pub updated_at: DateTime<Utc>,
+}
+
+/// A deleted set, as it was when it was deleted.
+#[derive(Debug, Clone, Serialize, FromRow, ToSchema)]
+pub struct DeletedSet {
+    pub id: Uuid,
+    pub name: String,
+    pub service_date: Option<NaiveDate>,
+    pub version: i32,
+    pub item_count: i64,
+    pub deleted_at: DateTime<Utc>,
 }
 
 /// The song an item points at, at its current revision.
@@ -368,7 +573,7 @@ pub struct SetDetail {
 }
 
 /// What a desktop reports about its projection, so phones can show it.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct DesktopState {
     /// The operator allows remote control through this server.
     #[serde(default)]
@@ -385,12 +590,32 @@ pub struct DesktopState {
     pub slide_labels: Vec<String>,
     pub set_id: Option<Uuid>,
     pub set_item_index: Option<u32>,
+    /// The operator lets people follow this projection in the desktop's room.
+    #[serde(default)]
+    pub shares_room: bool,
+    /// The projected song's words, slide by slide in the order they are
+    /// shown, without chords: at most 200 slides of 40 lines.
+    #[serde(default)]
+    pub slides: Vec<RoomSlide>,
+}
+
+/// One slide's words.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct RoomSlide {
+    /// Such as "Verse 1" or "Chorus"; may be empty.
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub lines: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct RemoteDesktop {
     pub device_id: Uuid,
+    /// The name it was connected with, such as "Psalm150 on SANCTUARY".
     pub name: String,
+    /// The desktop's room, which leaders pick it by and others join.
+    pub room_name: String,
     /// Heard from within the last 45 seconds.
     pub online: bool,
     pub last_seen: DateTime<Utc>,
@@ -438,4 +663,47 @@ pub struct RemoteCommand {
 pub struct CommandsQuery {
     /// Seconds to wait for a command when none is queued, 0 to 30. Default 0.
     pub wait: Option<u64>,
+}
+
+/// A desktop's room: anyone who knows the name may follow the words the
+/// desktop projects, unless its church or its operator stopped sharing.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DesktopRoom {
+    pub device_id: Uuid,
+    /// A flower by default, unique on this server. Matched without regard to
+    /// case, accents, spaces or punctuation.
+    pub room_name: String,
+    /// The church shares its projections in rooms.
+    pub public_rooms: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RoomNameRequest {
+    /// 2 to 30 letters, digits, spaces, hyphens or apostrophes. Left out or
+    /// null: a new random flower.
+    pub room_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RoomStatus {
+    /// Words are on screen; `slide_index` is the one showing.
+    Live,
+    /// A song is projected but the screen is blank.
+    Blank,
+    /// The desktop is online but shows nothing it shares.
+    Idle,
+    /// Not heard from the desktop for a while.
+    Offline,
+}
+
+/// What someone following a room sees. Words are only included while the
+/// status is `live` or `blank`.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct RoomView {
+    pub room_name: String,
+    pub status: RoomStatus,
+    pub song_title: Option<String>,
+    pub slide_index: Option<u32>,
+    pub slides: Vec<RoomSlide>,
 }

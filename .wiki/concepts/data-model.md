@@ -1,7 +1,7 @@
 ---
 type: Contract
 title: Data model
-description: The PostgreSQL schema from migrations 0001–0006 — tables (including song_sets and song_set_items, and churches.public_library), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
+description: The PostgreSQL schema from migrations 0001–0009 — tables (including song_sets and song_set_items, churches.public_library and public_rooms, api_tokens, desktop room names), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
 tags: [postgres, schema, migrations, sqlx]
 status: stable
 sources:
@@ -17,10 +17,19 @@ sources:
   - id: mig5
     resource: /api/migrations/0005_public_library.sql
     title: Public library flag
+  - id: mig7
+    resource: /api/migrations/0007_api_tokens.sql
+    title: API tokens
+  - id: mig8
+    resource: /api/migrations/0008_reusable_usernames.sql
+    title: Usernames may be null
+  - id: mig9
+    resource: /api/migrations/0009_desktop_rooms.sql
+    title: Desktop room names, churches.public_rooms
   - id: main
     resource: /api/src/main.rs
     title: sqlx::migrate! at startup, pool size
-generated: { by: agent, at: 2026-10-03T10:00:00Z }
+generated: { by: agent, at: 2026-10-05T18:00:00Z }
 ---
 
 # Data model
@@ -37,11 +46,12 @@ exist yet ([gaps](gaps.md)).
 | Table | Key | Purpose |
 | --- | --- | --- |
 | `instance_settings` | `id SMALLINT = 1` | Singleton row. Its presence means setup is done |
-| `churches` | `id` | Name, unique `slug`, `public_library BOOLEAN` (default false; songs readable without a token) |
-| `users` | `id` | `display_name`, `username` (unique on `lower()`), Argon2 `password_hash`, `disabled_at` |
+| `churches` | `id` | Name, unique `slug`, `public_library BOOLEAN` (default false; songs readable without a token), `public_rooms BOOLEAN` (default true; anyone may follow the church's desktops' rooms) |
+| `users` | `id` | `display_name`, `username` (unique on `lower()`; null for an account removed from its last church), Argon2 `password_hash`, `disabled_at` |
 | `memberships` | `(user_id, church_id)` | `role` in `owner` / `leader` / `viewer` |
 | `sessions` | `token_hash CHAR(64)` | Person sessions: `church_id`, `expires_at`, `last_used_at` |
-| `device_tokens` | `id` | `church_id`, `name`, unique `token_hash`, `created_by`, `last_used_at`, `revoked_at` |
+| `device_tokens` | `id` | `church_id`, `name`, unique `token_hash`, `created_by`, `last_used_at`, `revoked_at`, `room_name` (the desktop's room, null until assigned) and `room_key` (the name folded for matching) |
+| `api_tokens` | `id` | A person's API tokens: `user_id`, `church_id`, `name`, `role` cap in `owner` / `leader` / `viewer`, unique `token_hash`, `created_at`, `expires_at` (null: until revoked), `last_used_at`, `revoked_at` |
 | `desktop_auth_codes` | `code_hash CHAR(64)` | One-time desktop sign-in codes: `church_id`, `user_id` (the approver), `device_name`, `code_challenge` (S256), `created_at`, `expires_at` (5 minutes), `used_at` |
 | `songs` | `id` | `church_id`, `current_revision_id`, `deleted_at`, `deleted_by`, `deleted_by_device` |
 | `song_revisions` | `id` | `song_id`, `parent_revision_id`, the extracted `title` / `song_number` / `authors` / `language`, the full `chordpro`, `content_hash CHAR(64)`, `created_by`, `created_by_device` |
@@ -58,8 +68,18 @@ Migration `0004_song_sets.sql` added `song_sets` and `song_set_items`
 Migration `0006_desktop_song_numbers.sql` filled `song_revisions.song_number`
 from the desktop's `{meta: song_num=N}` where it was empty; it changes only
 the extracted column, never the ChordPro source
-([songs and revisions](songs-and-revisions.md)). Remote-control state is not stored in the database
-([remote control](remote-control.md)).
+([songs and revisions](songs-and-revisions.md)). Migration `0007_api_tokens.sql`
+added `api_tokens` ([auth and roles](auth-and-roles.md#api-tokens)).
+Migration `0008_reusable_usernames.sql` lets `users.username` be null, so a
+person removed from their last church keeps their account (disabled) while
+their username is freed ([auth and roles](auth-and-roles.md#members)).
+Migration `0009_desktop_rooms.sql` added `device_tokens.room_name` and
+`room_key` and `churches.public_rooms`; desktops made before it get a room
+name the next time they talk to the server ([rooms](rooms.md)).
+Counts of wrong passwords are not stored in the database
+([auth and roles](auth-and-roles.md#limits-on-wrong-passwords)).
+Remote-control state, and so what a room shows, is not stored in the
+database ([remote control](remote-control.md)).
 
 `songs.current_revision_id` and `song_revisions.song_id` point at each other.
 The foreign key from songs to revisions is added after both tables exist, with
@@ -69,7 +89,8 @@ pointer is updated, all in one transaction.
 ## Church scoping
 
 Every church-owned row reaches `church_id` directly (`songs`, `song_sets`,
-`sessions`, `device_tokens`, `desktop_auth_codes`, `memberships`), through its
+`sessions`, `api_tokens`, `device_tokens`, `desktop_auth_codes`,
+`memberships`), through its
 song (`song_revisions`) or through its set (`song_set_items`).
 `song_set_items.song_id` references `songs(id)` without a church check in the
 schema; `sets.rs` checks that every song belongs to the caller's church before
@@ -80,20 +101,27 @@ tables can reference a church-scoped song.
 
 ## Cascades
 
-Deleting a church cascades to memberships, sessions, device tokens, desktop
-sign-in codes, songs and sets, from songs to revisions, and from sets to their
-items. Deleting a song row sets `song_set_items.song_id` to null (the item
-stays). Deleting a user cascades to memberships, sessions and desktop sign-in
-codes. It sets `song_revisions.created_by` and the `song_sets` audit columns
-to null, but it is **blocked** by `device_tokens.created_by`, which has no
-`ON DELETE` rule. Deleting a device token sets the `*_by_device` columns to
-null. `DELETE /songs/{id}` and `DELETE /sets/{id}` only set `deleted_at`; no
-endpoint removes rows. `PUT /sets/{id}` deletes and re-inserts that set's
-items.
+Deleting a church cascades to memberships, sessions, API tokens, device
+tokens, desktop sign-in codes, songs and sets, from songs to revisions, and
+from sets to their items. Deleting a song row sets `song_set_items.song_id` to
+null (the item stays). Deleting a user cascades to memberships, sessions, API
+tokens and desktop sign-in codes. It sets `song_revisions.created_by` and the
+`song_sets` audit columns to null, but it is **blocked** by
+`device_tokens.created_by`, which has no `ON DELETE` rule. No endpoint deletes
+a user: `DELETE /members/{id}` deletes the membership and disables an account
+left in no church. Deleting a device token sets the `*_by_device` columns to
+null. `DELETE /songs/{id}` and `DELETE /sets/{id}` only set `deleted_at`, and
+`POST …/restore` clears it again; no endpoint removes song or set rows.
+`PUT /sets/{id}` deletes and re-inserts that set's items.
 
 ## Indexes
 
 - `sessions_expiry_idx (expires_at)`, which nothing uses yet (no cleanup job).
+- `api_tokens_church_user_idx (church_id, user_id) WHERE revoked_at IS NULL`,
+  for the token list and for revoking a person's tokens.
+- `device_tokens_room_key_unique (room_key) WHERE revoked_at IS NULL`: a room
+  name is unique across the whole server, not per church, because a room is
+  joined without naming a church; revoking a desktop frees its name.
 - `desktop_auth_codes_expiry_idx (expires_at)`, likewise waiting for a cleanup
   job; used and expired codes stay in the table.
 - `songs_church_idx (church_id) WHERE deleted_at IS NULL`.
@@ -109,6 +137,4 @@ items.
 
 - The `song_sets` audit columns (`created_by`, `updated_by` and their device
   twins) are written but never returned.
-- `users.disabled_at` is honoured at sign-in and on every session check, but
-  nothing sets it.
 - `churches.slug` is written at setup and never read.

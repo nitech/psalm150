@@ -1,4 +1,5 @@
 import { hasChords, parseChordPro, transposeSong, type DisplaySong } from "./chordpro.ts";
+import { announce, refocus } from "./a11y.ts";
 import { icon } from "./icons.ts";
 import { escapeHtml, readPreference, transposeLabel, writePreference } from "./ui.ts";
 
@@ -34,7 +35,7 @@ export function renderSongBody(song: DisplaySong, options: ReaderOptions): strin
   const withChords = options.chords && hasChords(song);
   return `<div class="song-body${withChords ? " with-chords" : ""}" style="--reader-scale:${1 + options.size * 0.12}">
     ${song.sections.map((section) => `<section class="song-section">
-      <h3>${escapeHtml(section.label)}</h3>
+      <h2>${escapeHtml(section.label)}</h2>
       ${section.lines.map((line) => {
         if (line.kind === "comment") return `<p class="song-comment">${escapeHtml(line.segments[0]?.text ?? "")}</p>`;
         if (!withChords) {
@@ -84,7 +85,7 @@ export function installLyricsCopy(): void {
 
 /** Lyrics in a copied piece of `renderSongBody` output, which may be partial. */
 export function lyricsIn(fragment: DocumentFragment): string {
-  fragment.querySelectorAll(".song-section > h3, .ch, .song-comment").forEach((node) => node.remove());
+  fragment.querySelectorAll(".song-section > h2, .ch, .song-comment").forEach((node) => node.remove());
   const lineText = (node: Node) => (node.textContent ?? "").replace(/ /g, " ").trimEnd();
   if (!fragment.querySelector(".song-line")) return lineText(fragment).trim();
   const sections = fragment.querySelectorAll(".song-section");
@@ -102,7 +103,7 @@ export function readerControls(song: DisplaySong, options: ReaderOptions, transp
     : "";
   const transposer = transpose === null || !hasChords(song) ? "" : `<div class="stepper" role="group" aria-label="Transpose">
       <button class="icon-button small" data-reader="down" aria-label="Transpose down">${icon("minus")}</button>
-      <span>${song.key ? `Key ${escapeHtml(song.key)}` : "Key"}${transpose ? ` <small>${transposeLabel(transpose)}</small>` : ""}</span>
+      <span data-reader-key>${song.key ? `Key ${escapeHtml(song.key)}` : "Key"}${transpose ? ` <small>${transposeLabel(transpose)}</small>` : ""}</span>
       <button class="icon-button small" data-reader="up" aria-label="Transpose up">${icon("plus")}</button>
     </div>`;
   return `<div class="reader-controls">
@@ -134,6 +135,8 @@ export function keyLabel(song: DisplaySong, transpose: number): string {
 /**
  * Wires the controls rendered by `readerControls`. `onChange` re-renders;
  * transpose changes are reported as a step so the caller keeps its own value.
+ * The button pressed keeps focus through the re-render, and a screen reader
+ * hears the new key or text size.
  */
 export function bindReaderControls(
   root: HTMLElement,
@@ -142,7 +145,12 @@ export function bindReaderControls(
 ): void {
   root.querySelectorAll<HTMLButtonElement>("[data-reader]").forEach((button) => {
     button.addEventListener("click", () => {
-      switch (button.dataset.reader) {
+      const control = button.dataset.reader;
+      const after = (said: () => string) => {
+        if (!button.isConnected) refocus(root, `[data-reader="${control}"]`);
+        announce(said());
+      };
+      switch (control) {
         case "panel": {
           options.panelOpen = !options.panelOpen;
           root.querySelector("#reader-panel")?.toggleAttribute("hidden", !options.panelOpen);
@@ -160,14 +168,14 @@ export function bindReaderControls(
           options.size = Math.min(4, options.size + 1);
           break;
         case "up":
-          onChange(1);
-          return;
         case "down":
-          onChange(-1);
+          onChange(control === "up" ? 1 : -1);
+          after(() => root.querySelector("[data-reader-key]")?.textContent?.replace(/\s+/g, " ").trim() ?? "");
           return;
       }
       saveReaderOptions(options);
       onChange(0);
+      after(() => control === "chords" ? "" : `Text size ${Math.round((1 + options.size * 0.12) * 100)}%`);
     });
   });
 }

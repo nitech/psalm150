@@ -1,3 +1,4 @@
+import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets, itemInputs } from "../current-set.ts";
@@ -14,7 +15,7 @@ import {
   stepTranspose,
 } from "../song-render.ts";
 import type { SongSort, SongSummary, SortDirection } from "../types.ts";
-import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showToast, today, writePreference } from "../ui.ts";
+import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
 let lastSearch = "";
@@ -39,7 +40,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     ${ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song" title="New song">${icon("plus")}</a>` : ""}
   </div>
   <div class="list-sort" id="song-sort" role="group" aria-label="Sort songs" hidden></div>
-  <div class="list" id="song-results"><p class="muted pad">Loading…</p></div>
+  <ul class="list" id="song-results" aria-label="Songs"><li><p class="muted pad">Loading…</p></li></ul>
   <div class="load-more" id="load-more" hidden><button class="button secondary" id="more-songs">Show more songs</button></div>`;
 
   const input = ctx.main.querySelector<HTMLInputElement>("#song-search")!;
@@ -68,14 +69,15 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   const row = (song: SongSummary) => {
     const main = `<span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
       <span class="row-main"><strong>${escapeHtml(song.title)}</strong></span>`;
-    if (!ctx.canEdit) return `<a class="list-row" href="#/songs/${song.id}">${main}${icon("next")}</a>`;
-    return `<div class="list-row song-row">
+    if (!ctx.canEdit) return `<li><a class="list-row" href="#/songs/${song.id}">${main}${icon("next")}</a></li>`;
+    return `<li class="list-row song-row">
       <a class="row-link" href="#/songs/${song.id}">${main}</a>
       ${addToggle(ctx, { id: song.id, title: song.title })}
-    </div>`;
+    </li>`;
   };
 
-  const load = async (append: boolean) => {
+  /** `typed`: the search changed, so a screen reader hears how many songs it found. */
+  const load = async (append: boolean, typed = false) => {
     const mine = ++request;
     const offset = append ? loaded : 0;
     loading = true;
@@ -86,18 +88,23 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       numbered = (append && numbered) || songs.some((song) => song.song_number) || sort.column === "number";
       results.classList.toggle("has-numbers", numbered);
       sortBar.hidden = !append && !songs.length;
-      renderSort();
+      keepFocus(sortBar, renderSort);
       const html = songs.map(row).join("");
       if (append) results.insertAdjacentHTML("beforeend", html);
       else {
         results.innerHTML = songs.length
           ? html
-          : emptyState(
+          : `<li>${emptyState(
               lastSearch ? "No songs found" : "No songs yet",
               lastSearch
                 ? "Try another title or a line from the lyrics."
                 : ctx.canEdit ? "Import ChordPro files under More, or add a song." : "Songs will appear here once they are added.",
-            );
+            )}</li>`;
+      }
+      if (typed) {
+        announce(songs.length
+          ? `${songs.length}${songs.length === PAGE_SIZE ? " or more" : ""} ${songs.length === 1 ? "song" : "songs"}`
+          : "No songs found");
       }
       loaded = offset + songs.length;
       more.hidden = songs.length < PAGE_SIZE;
@@ -105,7 +112,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       if (mine !== request) return;
       if (error instanceof ApiError && error.status === 401) return ctx.signOut();
       if (append) showToast(errorMessage(error), true);
-      else results.innerHTML = `<p class="form-message pad">${escapeHtml(errorMessage(error))}</p>`;
+      else results.innerHTML = `<li><p class="form-message pad">${escapeHtml(errorMessage(error))}</p></li>`;
     } finally {
       if (mine === request) loading = false;
     }
@@ -114,7 +121,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   input.addEventListener("input", () => {
     lastSearch = input.value.trim();
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => void load(false), 250);
+    timer = window.setTimeout(() => void load(false, true), 250);
   });
   results.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-add]");
@@ -130,7 +137,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       ? { column, direction: sort.direction === "asc" ? "desc" : "asc" }
       : { column, direction: "asc" };
     writePreference("song-sort", JSON.stringify(sort));
-    renderSort();
+    keepFocus(sortBar, renderSort);
     void load(false);
   });
 
@@ -167,10 +174,13 @@ function readSongSort(): SongListSort {
   return { column: "title", direction: "asc" };
 }
 
-/** The ＋ / ✓ button that puts a song in the current set or takes it out. */
+/**
+ * The ＋ / ✓ button that puts a song in the current set or takes it out. Its
+ * label says which ("Remove … from …"), so it is not also a pressed toggle.
+ */
 function addToggle(ctx: LibraryContext, song: SongRef): string {
   const inSet = ctx.currentSet.count(song.id) > 0;
-  return `<button type="button" class="icon-button small add-toggle${inSet ? " on" : ""}" aria-pressed="${inSet}" data-add="${song.id}" data-title="${escapeHtml(song.title)}">${toggleInner(ctx, song)}</button>`;
+  return `<button type="button" class="icon-button small add-toggle${inSet ? " on" : ""}" data-add="${song.id}" data-title="${escapeHtml(song.title)}">${toggleInner(ctx, song)}</button>`;
 }
 
 function toggleInner(ctx: LibraryContext, song: SongRef): string {
@@ -187,7 +197,6 @@ function refreshToggles(ctx: LibraryContext, root: HTMLElement): void {
     const song = { id: button.dataset.add!, title: button.dataset.title! };
     const inSet = ctx.currentSet.count(song.id) > 0;
     button.classList.toggle("on", inSet);
-    button.setAttribute("aria-pressed", String(inSet));
     button.innerHTML = toggleInner(ctx, song);
   });
 }
@@ -229,7 +238,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     const set = ctx.currentSet.value;
     if (!set) return `<button type="button" class="button secondary" data-set-act="other">${icon("sets")}Add to a set</button>`;
     const inSet = ctx.currentSet.count(song.id) > 0;
-    return `<button type="button" class="button ${inSet ? "secondary in-set" : "primary"} grow" data-set-act="toggle" aria-pressed="${inSet}"
+    return `<button type="button" class="button ${inSet ? "secondary in-set" : "primary"} grow" data-set-act="toggle"
         aria-label="${escapeHtml(inSet ? `In ${set.name}. Tap to remove it.` : `Add to ${set.name}`)}">
         ${icon(inSet ? "check" : "plus")}<span class="ellipsis">${escapeHtml(inSet ? `In ${set.name}` : `Add to ${set.name}`)}</span></button>
       <button type="button" class="icon-button" data-set-act="other" aria-label="Add to another set" title="Add to another set">${icon("sets")}</button>`;
@@ -274,10 +283,10 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
 
   // Only the buttons change when the current set does, so the reader keeps its place.
   const unsubscribe = ctx.currentSet.subscribe(() => {
-    const actions = ctx.main.querySelector("#set-actions");
-    if (actions) actions.innerHTML = setActions();
+    const actions = ctx.main.querySelector<HTMLElement>("#set-actions");
+    if (actions) keepFocus(actions, () => { actions.innerHTML = setActions(); });
   });
-  document.title = `${song.title} · PSA150`;
+  setTitle(song.title, "Songs");
   render();
   return () => {
     ctx.main.removeEventListener("click", onSetAction);
@@ -356,11 +365,12 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<v
     return;
   }
   const back = song ? `#/songs/${song.id}` : "#/songs";
+  setTitle(song ? `Edit ${song.title}` : "New song", "Songs");
   ctx.main.innerHTML = `${pageHead({ title: song ? "Edit song" : "New song", subtitle: song?.title, back })}
   <form class="editor" id="editor-form">
     <label for="chordpro" class="sr-only">ChordPro source</label>
-    <textarea id="chordpro" name="chordpro" spellcheck="true" autocapitalize="sentences">${escapeHtml(song?.chordpro ?? NEW_SONG_TEMPLATE)}</textarea>
-    <p class="hint">ChordPro: put chords in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
+    <textarea id="chordpro" name="chordpro" spellcheck="true" autocapitalize="sentences" aria-describedby="chordpro-hint">${escapeHtml(song?.chordpro ?? NEW_SONG_TEMPLATE)}</textarea>
+    <p class="hint" id="chordpro-hint">ChordPro: put chords in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
     <p class="form-message" role="status"></p>
     <div class="form-actions sticky">
       <a class="button secondary" href="${back}">Cancel</a>
@@ -391,27 +401,52 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<v
         message.innerHTML = `Someone saved this song after you opened it. Your text is still here: copy what you need, then <a href="#/songs/${song?.id}">open the latest version</a> and edit again.`;
         return;
       }
-      message.textContent = errorMessage(error);
+      // The server's objection is to the text: tie it to the field.
+      showFormError(form, errorMessage(error), form.querySelector("textarea"));
     }
   });
 }
 
-/** A bottom sheet on phones, a centred dialog on wide screens. */
+let sheetCount = 0;
+
+/**
+ * A bottom sheet on phones, a centred dialog on wide screens: a modal
+ * `<dialog>` named by its first heading. Escape closes it, and focus goes
+ * back to the control that opened it (or the screen's heading, when a
+ * redraw replaced that control).
+ */
 export function openSheet(content: string): HTMLDialogElement {
+  const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+    ? document.activeElement
+    : null;
   const dialog = document.createElement("dialog");
   dialog.className = "sheet";
-  dialog.innerHTML = `<div class="sheet-body"><button class="icon-button sheet-close" aria-label="Close">${icon("close")}</button>${content}</div>`;
+  dialog.innerHTML = `<div class="sheet-body"><button type="button" class="icon-button sheet-close" aria-label="Close">${icon("close")}</button>${content}</div>`;
+  const heading = dialog.querySelector("h2");
+  if (heading) {
+    heading.id ||= `sheet-title-${++sheetCount}`;
+    dialog.setAttribute("aria-labelledby", heading.id);
+  }
   document.body.append(dialog);
   dialog.querySelector(".sheet-close")?.addEventListener("click", () => closeSheet(dialog));
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) closeSheet(dialog);
   });
-  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    // Wait for whatever the closing action redraws.
+    window.setTimeout(() => {
+      const focus = document.activeElement;
+      if (focus && focus !== document.body && focus.isConnected) return;
+      if (opener?.isConnected) opener.focus();
+      else (document.querySelector<HTMLElement>("#page h1") ?? document.querySelector<HTMLElement>("#page"))?.focus({ preventScroll: true });
+    }, 0);
+  });
   dialog.showModal();
   return dialog;
 }
 
 export function closeSheet(dialog: HTMLDialogElement): void {
   if (dialog.open) dialog.close();
-  dialog.remove();
+  else dialog.remove();
 }

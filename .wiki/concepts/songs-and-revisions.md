@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Songs and revisions
-description: Songs as raw ChordPro with immutable revisions, what metadata the server extracts, the exact-bytes content hash, optimistic conflict detection with 409, and how search matches.
+description: Songs as raw ChordPro with immutable revisions, what metadata the server extracts, the exact-bytes content hash, optimistic conflict detection with 409, reading any revision, deleting and restoring songs, and how search matches.
 tags: [songs, revisions, chordpro, conflicts, search]
 status: stable
 sources:
@@ -10,14 +10,14 @@ sources:
     title: metadata(), content_hash(), export_filename()
   - id: api
     resource: /api/src/api.rs
-    title: create_song, update_song, lock_song, insert_revision, list_songs
+    title: create_song, update_song, lock_song, insert_revision, list_songs, get_revision, list_deleted_songs, restore_song
   - id: test
     resource: /api/tests/api_flow.rs
-    title: private_library_flow (create, update, stale 409, search)
+    title: private_library_flow (create, update, stale 409, search), deleted_songs_and_sets_come_back
   - id: arch
     resource: /docs/architecture.md
     title: Revision history vs provenance (design)
-generated: { by: agent, at: 2026-10-03T10:00:00Z }
+generated: { by: agent, at: 2026-10-05T10:00:00Z }
 ---
 
 # Songs and revisions
@@ -68,11 +68,22 @@ byte-for-byte identical ([import and export](import-export.md)).
 - `DELETE /songs/{id}` (editor or desktop) locks the song the same way and,
   when `?base_revision_id=` is given and stale, answers 409. Otherwise it sets
   `deleted_at` and the deleting person or device. Deleted songs disappear from
-  lists, reads and the export.
+  lists, reads, revision reads and the export, but nothing is removed.
+- `GET /songs/deleted?limit=&offset=` (any token) lists deleted songs as they
+  were (`{id, revision_id, title, song_number, authors, language,
+  deleted_at}`), most recently deleted first. `POST /songs/{id}/restore`
+  (editor or desktop) clears `deleted_at`, `deleted_by` and
+  `deleted_by_device` and returns the `SongDetail`; the song comes back with
+  its whole history. Restoring a live song changes nothing and returns it; an
+  unknown id is 404. Restoring does not check for duplicates, so a restored
+  song can match the content of a live one.
 - The revision history is linear. `GET /songs/{id}/revisions` returns
   `{id, parent_revision_id, title, content_hash, created_at}` newest first,
-  without the source. There is no endpoint to fetch an old revision's
-  ChordPro.
+  without the source. `GET /songs/{id}/revisions/{revision_id}` returns one
+  revision in full (`RevisionDetail`: the extracted metadata, `chordpro`,
+  `content_hash`, `created_at`, `song_id`); 404 when it belongs to another
+  song. Going back to an old revision is an ordinary `PUT` of its source,
+  based on the current revision.
 
 The design in [/docs/architecture.md](../../docs/architecture.md) says a stale
 offline edit should **keep both versions** for review, not reject one. That
@@ -98,6 +109,7 @@ negative counts as 0) skips that many rows, so a client pages with
 
 ## Not built
 
-Undeleting songs, provenance links (translation, arrangement, fork…), alternate
-titles, language-aware search, and fetching or restoring a past revision. See
-[gaps](gaps.md) and `/TODO.md`.
+Provenance links (translation, arrangement, fork…), alternate titles,
+language-aware search, purging deleted songs, and a one-step revert to a past
+revision. Revisions do not say who saved them, though `created_by` and
+`created_by_device` are stored. See [gaps](gaps.md) and `/TODO.md`.

@@ -1,12 +1,13 @@
 use std::{
     collections::HashSet,
     io::{Cursor, Write},
+    net::SocketAddr,
 };
 
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     body::Body,
-    extract::{DefaultBodyLimit, Path, Query, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -15,7 +16,13 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
-use utoipa::{OpenApi, openapi::OpenApi as OpenApiDocument};
+use utoipa::{
+    Modify, OpenApi,
+    openapi::{
+        OpenApi as OpenApiDocument,
+        security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    },
+};
 use uuid::Uuid;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
@@ -23,21 +30,25 @@ use crate::{
     AppState,
     auth::{
         Actor, LoginRow, authenticate, hash_password, hash_token, issue_session, new_token,
-        verify_password,
+        validate_password, verify_password,
     },
     chordpro,
     error::{AppError, ErrorBody},
     models::{
-        ChurchSettings, CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest, CreateSetRequest,
-        CreateSongRequest, DeleteSongQuery, DesktopAuthCodeResponse, DesktopState,
-        DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse, DeviceTokenSummary,
-        ExportManifestEntry, HealthResponse, ImportSongInput, ImportSongsRequest,
-        ImportSongsResponse, LoginRequest, RemoteAction, RemoteCommand, RemoteCommandRequest,
-        RemoteDesktop, RevisionSummary, Role, ServerInfo, SessionResponse, SetDetail, SetItem,
-        SetItemInput, SetItemKind, SetSongRef, SetSummary, SetupRequest, SetupStatus, SongDetail,
-        SongQuery, SongSort, SongSummary, SortDirection, UpdateChurchRequest, UpdateSetRequest,
-        UpdateSongRequest,
+        ApiTokenResponse, ApiTokenSummary, ChangePasswordRequest, ChurchSettings,
+        CreateApiTokenRequest, CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest,
+        CreateMemberRequest, CreateSetRequest, CreateSongRequest, DeleteSongQuery, DeletedSet,
+        DeletedSong, DesktopAuthCodeResponse, DesktopRoom, DesktopState, DesktopTokenRequest,
+        DesktopTokenResponse, DeviceTokenResponse, DeviceTokenSummary, ExportManifestEntry,
+        HealthResponse, ImportSongInput, ImportSongsRequest, ImportSongsResponse, LoginRequest,
+        Member, PageQuery, RemoteAction, RemoteCommand, RemoteCommandRequest, RemoteDesktop,
+        RevisionDetail, RevisionSummary, Role, RoomNameRequest, RoomSlide, RoomStatus, RoomView,
+        ServerInfo, SessionInfo, SessionResponse, SetDetail, SetItem, SetItemInput, SetItemKind,
+        SetSongRef, SetSummary, SetupRequest, SetupStatus, SongDetail, SongQuery, SongSort,
+        SongSummary, SortDirection, TokenKind, UpdateChurchRequest, UpdateMemberRequest,
+        UpdateSetRequest, UpdateSongRequest,
     },
+    throttle,
 };
 
 /// Name of the JSON entry in the export ZIP that maps files to songs.
@@ -48,14 +59,29 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
     info(
         title = "PSA150 Song Server API",
         version = "0.1.0",
-        description = "Private-library Phase 1 API for PSA150"
+        description = "Everything the song server does, for any client. Operations marked with \
+            the `bearer` scheme need `Authorization: Bearer <token>`: a `psa_s_` session from \
+            `POST /api/v1/session`, a `psa_a_` API token from `POST /api/v1/api-tokens` (it acts \
+            as the person who made it, for scripts and integrations) or a `psa_d_` desktop token. \
+            Errors are JSON `{\"error\": \"...\"}`."
     ),
+    modifiers(&BearerAuth),
     paths(
         health,
         server_info,
         setup_status,
         setup,
         login,
+        crate::access::current_session,
+        crate::access::end_session,
+        crate::access::change_password,
+        crate::access::list_api_tokens,
+        crate::access::create_api_token,
+        crate::access::revoke_api_token,
+        crate::access::list_members,
+        crate::access::create_member,
+        crate::access::update_member,
+        crate::access::remove_member,
         get_church,
         update_church,
         list_device_tokens,
@@ -68,7 +94,10 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         get_song,
         update_song,
         delete_song,
+        list_deleted_songs,
+        restore_song,
         list_revisions,
+        get_revision,
         list_public_songs,
         get_public_song,
         import_songs,
@@ -79,11 +108,19 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::sets::get_set,
         crate::sets::update_set,
         crate::sets::delete_set,
+        crate::sets::list_deleted_sets,
+        crate::sets::restore_set,
         crate::remote::report_desktop_state,
         crate::remote::leave_remote,
         crate::remote::wait_for_commands,
         crate::remote::list_desktops,
-        crate::remote::send_command
+        crate::remote::desktop_events,
+        crate::remote::send_command,
+        crate::rooms::own_room,
+        crate::rooms::rename_own_room,
+        crate::rooms::rename_room,
+        crate::rooms::get_room,
+        crate::rooms::room_events
     ),
     components(schemas(
         ErrorBody,
@@ -93,7 +130,16 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         SetupRequest,
         LoginRequest,
         SessionResponse,
+        SessionInfo,
+        TokenKind,
         Role,
+        ChangePasswordRequest,
+        CreateApiTokenRequest,
+        ApiTokenResponse,
+        ApiTokenSummary,
+        Member,
+        CreateMemberRequest,
+        UpdateMemberRequest,
         ChurchSettings,
         UpdateChurchRequest,
         CreateDeviceTokenRequest,
@@ -107,7 +153,9 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         UpdateSongRequest,
         SongSummary,
         SongDetail,
+        DeletedSong,
         RevisionSummary,
+        RevisionDetail,
         ImportSongInput,
         ImportSongsRequest,
         ImportSongsResponse,
@@ -119,6 +167,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         CreateSetRequest,
         UpdateSetRequest,
         SetSummary,
+        DeletedSet,
         SetSongRef,
         SetItem,
         SetDetail,
@@ -126,11 +175,38 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         RemoteDesktop,
         RemoteAction,
         RemoteCommandRequest,
-        RemoteCommand
+        RemoteCommand,
+        RoomSlide,
+        DesktopRoom,
+        RoomNameRequest,
+        RoomStatus,
+        RoomView
     )),
     tags((name = "PSA150", description = "PSA150 Song Server"))
 )]
 struct ApiDoc;
+
+/// Declares the `bearer` scheme that authenticated operations refer to.
+struct BearerAuth;
+
+impl Modify for BearerAuth {
+    fn modify(&self, openapi: &mut OpenApiDocument) {
+        openapi
+            .components
+            .get_or_insert_with(Default::default)
+            .add_security_scheme(
+                "bearer",
+                SecurityScheme::Http(
+                    HttpBuilder::new()
+                        .scheme(HttpAuthScheme::Bearer)
+                        .description(Some(
+                            "A `psa_s_` session, a `psa_a_` API token or a `psa_d_` desktop token",
+                        ))
+                        .build(),
+                ),
+            );
+    }
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -155,15 +231,23 @@ pub fn router() -> Router<AppState> {
             post(import_songs).layer(DefaultBodyLimit::max(64 * 1024 * 1024)),
         )
         .route("/songs/export", get(export_songs))
+        .route("/songs/deleted", get(list_deleted_songs))
         .route(
             "/songs/{song_id}",
             get(get_song).put(update_song).delete(delete_song),
         )
+        .route("/songs/{song_id}/restore", post(restore_song))
         .route("/songs/{song_id}/revisions", get(list_revisions))
+        .route(
+            "/songs/{song_id}/revisions/{revision_id}",
+            get(get_revision),
+        )
         .route("/public/songs", get(list_public_songs))
         .route("/public/songs/{song_id}", get(get_public_song))
+        .merge(crate::access::router())
         .merge(crate::sets::router())
         .merge(crate::remote::router())
+        .merge(crate::rooms::router())
 }
 
 pub async fn openapi() -> Json<OpenApiDocument> {
@@ -189,6 +273,10 @@ async fn server_info(State(state): State<AppState>) -> Result<Json<ServerInfo>, 
     )
     .fetch_all(&state.pool)
     .await?;
+    let rooms =
+        sqlx::query_scalar::<_, bool>("SELECT EXISTS (SELECT 1 FROM churches WHERE public_rooms)")
+            .fetch_one(&state.pool)
+            .await?;
     Ok(Json(ServerInfo {
         service: "psalm150-song-server",
         version: env!("CARGO_PKG_VERSION"),
@@ -199,6 +287,7 @@ async fn server_info(State(state): State<AppState>) -> Result<Json<ServerInfo>, 
             [name] => Some(name.clone()),
             _ => None,
         },
+        rooms,
     }))
 }
 
@@ -231,6 +320,11 @@ async fn setup(
     Json(request): Json<SetupRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     validate_setup(&request)?;
+    // Refuse before hashing, so a set-up server spends no work on it; the
+    // check under the lock below settles a race.
+    if is_initialized(&state.pool).await? {
+        return Err(setup_complete());
+    }
     let password_hash = hash_password(request.password).await?;
     let church_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
@@ -245,9 +339,7 @@ async fn setup(
     .fetch_one(&mut *transaction)
     .await?;
     if initialized {
-        return Err(AppError::Conflict(
-            "server setup is already complete".into(),
-        ));
+        return Err(setup_complete());
     }
 
     sqlx::query("INSERT INTO instance_settings (id) VALUES (1)")
@@ -288,16 +380,53 @@ async fn setup(
     Ok((StatusCode::CREATED, Json(session)))
 }
 
+/// Signs in with a username and password. Failures are counted per username
+/// and per client address; past a limit the answer is 429 with
+/// `Retry-After`, before any password is checked (see `throttle`).
 #[utoipa::path(
     post,
     path = "/api/v1/session",
     request_body = LoginRequest,
-    responses((status = 200, body = SessionResponse), (status = 401, body = ErrorBody))
+    responses(
+        (status = 200, body = SessionResponse),
+        (status = 401, body = ErrorBody),
+        (status = 429, body = ErrorBody, headers(
+            ("Retry-After" = u64, description = "Seconds until the next try is allowed")
+        ))
+    )
 )]
 async fn login(
     State(state): State<AppState>,
+    headers: HeaderMap,
+    peer: Option<Extension<ConnectInfo<SocketAddr>>>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<SessionResponse>, AppError> {
+    let username = request.username.trim();
+    let account = format!("sign-in:account:{}", username.to_lowercase());
+    let client = format!(
+        "sign-in:client:{}",
+        throttle::client_address(
+            state.client_ip_header.as_ref(),
+            &headers,
+            peer.map(|Extension(ConnectInfo(address))| address),
+        )
+    );
+    for (key, limit) in [
+        (&client, throttle::SIGN_IN_PER_CLIENT),
+        (&account, throttle::SIGN_IN_PER_ACCOUNT),
+    ] {
+        state
+            .throttle
+            .check(key, limit)
+            .map_err(|seconds| AppError::TooManyRequests {
+                message: format!(
+                    "too many failed sign-ins; try again {}",
+                    throttle::wait_text(seconds)
+                ),
+                retry_after_seconds: seconds,
+            })?;
+    }
+
     let user = sqlx::query_as::<_, LoginRow>(
         "SELECT u.id AS user_id, u.display_name, u.password_hash,
                 c.id AS church_id, c.name AS church_name, m.role
@@ -305,26 +434,48 @@ async fn login(
          JOIN memberships m ON m.user_id = u.id
          JOIN churches c ON c.id = m.church_id
          WHERE lower(u.username) = lower($1) AND u.disabled_at IS NULL
+           AND ($2::uuid IS NULL OR c.id = $2)
          ORDER BY c.created_at
          LIMIT 1",
     )
-    .bind(request.username.trim())
+    .bind(username)
+    .bind(request.church_id)
     .fetch_optional(&state.pool)
-    .await?
-    .ok_or_else(invalid_login)?;
-
-    if !verify_password(request.password, user.password_hash.clone()).await? {
+    .await?;
+    // An unknown username takes as long to refuse as a wrong password, so
+    // the timing does not tell which usernames exist.
+    let verified = match &user {
+        Some(user) => verify_password(request.password, user.password_hash.clone()).await?,
+        None => {
+            verify_password(request.password, unknown_user_hash().await?).await?;
+            false
+        }
+    };
+    let Some(user) = user.filter(|_| verified) else {
+        state.throttle.fail(&client, throttle::SIGN_IN_PER_CLIENT);
+        state.throttle.fail(&account, throttle::SIGN_IN_PER_ACCOUNT);
         return Err(invalid_login());
-    }
+    };
+    state.throttle.clear(&account);
 
     Ok(Json(
         issue_session(&state.pool, state.session_hours, &user).await?,
     ))
 }
 
+/// A real Argon2 hash of a random password, made once, to check sign-ins
+/// for unknown usernames against.
+async fn unknown_user_hash() -> Result<String, AppError> {
+    static HASH: tokio::sync::OnceCell<String> = tokio::sync::OnceCell::const_new();
+    HASH.get_or_try_init(|| hash_password(Uuid::new_v4().to_string()))
+        .await
+        .cloned()
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/church",
+    security(("bearer" = [])),
     responses((status = 200, body = ChurchSettings), (status = 401, body = ErrorBody))
 )]
 async fn get_church(
@@ -334,7 +485,7 @@ async fn get_church(
     let auth = authenticate(&headers, &state).await?;
     Ok(Json(
         sqlx::query_as::<_, ChurchSettings>(
-            "SELECT id, name, public_library FROM churches WHERE id = $1",
+            "SELECT id, name, public_library, public_rooms FROM churches WHERE id = $1",
         )
         .bind(auth.church_id)
         .fetch_one(&state.pool)
@@ -342,12 +493,16 @@ async fn get_church(
     ))
 }
 
+/// Renames the church, opens its library to everyone (read only), or opens or
+/// closes its rooms. Fields left out stay as they are.
 #[utoipa::path(
     put,
     path = "/api/v1/church",
+    security(("bearer" = [])),
     request_body = UpdateChurchRequest,
     responses(
         (status = 200, body = ChurchSettings),
+        (status = 400, body = ErrorBody),
         (status = 401, body = ErrorBody),
         (status = 403, body = ErrorBody)
     )
@@ -359,21 +514,38 @@ async fn update_church(
 ) -> Result<Json<ChurchSettings>, AppError> {
     let auth = authenticate(&headers, &state).await?;
     auth.require_owner()?;
-    Ok(Json(
-        sqlx::query_as::<_, ChurchSettings>(
-            "UPDATE churches SET public_library = $1 WHERE id = $2
-             RETURNING id, name, public_library",
-        )
-        .bind(request.public_library)
-        .bind(auth.church_id)
-        .fetch_one(&state.pool)
-        .await?,
-    ))
+    let name = request.name.as_deref().map(str::trim);
+    if name.is_some_and(|name| name.is_empty() || name.chars().count() > 200) {
+        return Err(AppError::BadRequest(
+            "church name must contain 1 to 200 characters".into(),
+        ));
+    }
+    let settings = sqlx::query_as::<_, ChurchSettings>(
+        "UPDATE churches
+         SET name = coalesce($1, name),
+             public_library = coalesce($2, public_library),
+             public_rooms = coalesce($3, public_rooms)
+         WHERE id = $4
+         RETURNING id, name, public_library, public_rooms",
+    )
+    .bind(name)
+    .bind(request.public_library)
+    .bind(request.public_rooms)
+    .bind(auth.church_id)
+    .fetch_one(&state.pool)
+    .await?;
+    if request.public_rooms.is_some() {
+        state
+            .remote
+            .set_rooms_open(settings.id, settings.public_rooms);
+    }
+    Ok(Json(settings))
 }
 
 #[utoipa::path(
     post,
     path = "/api/v1/device-tokens",
+    security(("bearer" = [])),
     request_body = CreateDeviceTokenRequest,
     responses((status = 201, body = DeviceTokenResponse), (status = 401, body = ErrorBody))
 )]
@@ -423,11 +595,13 @@ async fn insert_device_token(
     .bind(created_at)
     .execute(&mut **transaction)
     .await?;
+    let room_name = crate::rooms::assign_room_name(transaction, id, None).await?;
     Ok(DeviceTokenResponse {
         id,
         name: name.to_string(),
         token,
         created_at,
+        room_name,
     })
 }
 
@@ -437,6 +611,7 @@ const DESKTOP_AUTH_CODE_MINUTES: i64 = 5;
 #[utoipa::path(
     post,
     path = "/api/v1/desktop-auth/codes",
+    security(("bearer" = [])),
     request_body = CreateDesktopAuthCodeRequest,
     responses(
         (status = 201, body = DesktopAuthCodeResponse),
@@ -553,6 +728,7 @@ async fn exchange_desktop_auth_code(
             device_id: device.id,
             device_name: device.name,
             church_name,
+            room_name: device.room_name,
         }),
     ))
 }
@@ -569,6 +745,7 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
 #[utoipa::path(
     get,
     path = "/api/v1/device-tokens",
+    security(("bearer" = [])),
     responses((status = 200, body = [DeviceTokenSummary]), (status = 401, body = ErrorBody))
 )]
 async fn list_device_tokens(
@@ -578,7 +755,7 @@ async fn list_device_tokens(
     let auth = authenticate(&headers, &state).await?;
     auth.require_editor()?;
     let devices = sqlx::query_as::<_, DeviceTokenSummary>(
-        "SELECT id, name, created_at, last_used_at
+        "SELECT id, name, created_at, last_used_at, room_name
          FROM device_tokens
          WHERE church_id = $1 AND revoked_at IS NULL
          ORDER BY lower(name), created_at",
@@ -592,6 +769,7 @@ async fn list_device_tokens(
 #[utoipa::path(
     delete,
     path = "/api/v1/device-tokens/{device_id}",
+    security(("bearer" = [])),
     params(("device_id" = Uuid, Path)),
     responses((status = 204), (status = 404, body = ErrorBody))
 )]
@@ -613,12 +791,15 @@ async fn revoke_device_token(
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("device was not found".into()));
     }
+    // Off the remote list and out of its room at once.
+    state.remote.forget(device_id);
     Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(
     get,
     path = "/api/v1/songs",
+    security(("bearer" = [])),
     params(
         ("q" = Option<String>, Query),
         ("limit" = Option<i64>, Query),
@@ -758,6 +939,7 @@ async fn search_songs(
 #[utoipa::path(
     post,
     path = "/api/v1/songs",
+    security(("bearer" = [])),
     request_body = CreateSongRequest,
     responses((status = 201, body = SongSummary), (status = 401, body = ErrorBody))
 )]
@@ -775,6 +957,7 @@ async fn create_song(
 #[utoipa::path(
     get,
     path = "/api/v1/songs/{song_id}",
+    security(("bearer" = [])),
     params(("song_id" = Uuid, Path)),
     responses((status = 200, body = SongDetail), (status = 404, body = ErrorBody))
 )]
@@ -793,6 +976,7 @@ async fn get_song(
 #[utoipa::path(
     put,
     path = "/api/v1/songs/{song_id}",
+    security(("bearer" = [])),
     params(("song_id" = Uuid, Path)),
     request_body = UpdateSongRequest,
     responses(
@@ -852,6 +1036,7 @@ async fn update_song(
 #[utoipa::path(
     delete,
     path = "/api/v1/songs/{song_id}",
+    security(("bearer" = [])),
     params(("song_id" = Uuid, Path), DeleteSongQuery),
     responses(
         (status = 204),
@@ -896,6 +1081,7 @@ async fn delete_song(
 #[utoipa::path(
     get,
     path = "/api/v1/songs/{song_id}/revisions",
+    security(("bearer" = [])),
     params(("song_id" = Uuid, Path)),
     responses((status = 200, body = [RevisionSummary]), (status = 404, body = ErrorBody))
 )]
@@ -928,9 +1114,112 @@ async fn list_revisions(
     Ok(Json(revisions))
 }
 
+/// One revision of a song with its full source: the current one or any
+/// earlier one.
+#[utoipa::path(
+    get,
+    path = "/api/v1/songs/{song_id}/revisions/{revision_id}",
+    security(("bearer" = [])),
+    params(("song_id" = Uuid, Path), ("revision_id" = Uuid, Path)),
+    responses(
+        (status = 200, body = RevisionDetail),
+        (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody)
+    )
+)]
+async fn get_revision(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((song_id, revision_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<RevisionDetail>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    sqlx::query_as::<_, RevisionDetail>(
+        "SELECT r.id, r.song_id, r.parent_revision_id, r.title, r.song_number, r.authors,
+                r.language, r.chordpro, r.content_hash, r.created_at
+         FROM song_revisions r
+         JOIN songs s ON s.id = r.song_id
+         WHERE r.id = $1 AND r.song_id = $2 AND s.church_id = $3 AND s.deleted_at IS NULL",
+    )
+    .bind(revision_id)
+    .bind(song_id)
+    .bind(auth.church_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .map(Json)
+    .ok_or_else(|| AppError::NotFound("revision was not found".into()))
+}
+
+/// Deleted songs, most recently deleted first, to find one to restore.
+#[utoipa::path(
+    get,
+    path = "/api/v1/songs/deleted",
+    security(("bearer" = [])),
+    params(PageQuery),
+    responses((status = 200, body = [DeletedSong]), (status = 401, body = ErrorBody))
+)]
+async fn list_deleted_songs(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<Vec<DeletedSong>>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    Ok(Json(
+        sqlx::query_as::<_, DeletedSong>(
+            "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors, r.language,
+                    s.deleted_at
+             FROM songs s
+             JOIN song_revisions r ON r.id = s.current_revision_id
+             WHERE s.church_id = $1 AND s.deleted_at IS NOT NULL
+             ORDER BY s.deleted_at DESC, s.id
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(auth.church_id)
+        .bind(query.limit.unwrap_or(100).clamp(1, 200))
+        .bind(query.offset.unwrap_or(0).max(0))
+        .fetch_all(&state.pool)
+        .await?,
+    ))
+}
+
+/// Brings a deleted song back with its history. A song that is not deleted
+/// is returned unchanged.
+#[utoipa::path(
+    post,
+    path = "/api/v1/songs/{song_id}/restore",
+    security(("bearer" = [])),
+    params(("song_id" = Uuid, Path)),
+    responses(
+        (status = 200, body = SongDetail),
+        (status = 401, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody)
+    )
+)]
+async fn restore_song(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(song_id): Path<Uuid>,
+) -> Result<Json<SongDetail>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    auth.require_song_editor()?;
+    sqlx::query(
+        "UPDATE songs SET deleted_at = NULL, deleted_by = NULL, deleted_by_device = NULL
+         WHERE id = $1 AND church_id = $2 AND deleted_at IS NOT NULL",
+    )
+    .bind(song_id)
+    .bind(auth.church_id)
+    .execute(&state.pool)
+    .await?;
+    fetch_song(&state.pool, Library::Church(auth.church_id), song_id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| AppError::NotFound("song was not found".into()))
+}
+
 #[utoipa::path(
     post,
     path = "/api/v1/songs/import",
+    security(("bearer" = [])),
     request_body = ImportSongsRequest,
     responses((status = 201, body = ImportSongsResponse), (status = 400, body = ErrorBody))
 )]
@@ -995,6 +1284,7 @@ async fn import_songs(
 #[utoipa::path(
     get,
     path = "/api/v1/songs/export",
+    security(("bearer" = [])),
     responses((status = 200, description = "ZIP archive containing ChordPro files"))
 )]
 async fn export_songs(
@@ -1203,12 +1493,7 @@ fn validate_setup(request: &SetupRequest) -> Result<(), AppError> {
             "church name, owner name, and username are required".into(),
         ));
     }
-    if request.password.chars().count() < 10 {
-        return Err(AppError::BadRequest(
-            "password must contain at least 10 characters".into(),
-        ));
-    }
-    Ok(())
+    validate_password(&request.password)
 }
 
 fn validate_chordpro(source: &str) -> Result<(), AppError> {
@@ -1247,4 +1532,8 @@ fn slugify(value: &str) -> String {
 
 fn invalid_login() -> AppError {
     AppError::Unauthorized("username or password is incorrect".into())
+}
+
+fn setup_complete() -> AppError {
+    AppError::Conflict("server setup is already complete".into())
 }

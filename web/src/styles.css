@@ -13,7 +13,15 @@
   --dock-h: 0px; /* set from the dock's real height by main.ts */
 }
 
-html { -webkit-text-size-adjust: 100%; }
+/* Focus and in-page jumps stop clear of the sticky bar at the top and the
+   dock (and toasts) at the bottom (WCAG 2.4.11). --dock-h is set on html. */
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(env(safe-area-inset-top) + var(--bar-h) + 16px);
+  scroll-padding-bottom: calc(var(--tabbar-h) + var(--dock-h) + 72px);
+}
+html:has(body[data-route$="/edit"]), html:has(body[data-route$="/new"]) { scroll-padding-bottom: 96px; }
+html:has(body[data-route^="/sets/id/play"]) { scroll-padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
 
 body {
   margin: 0;
@@ -32,6 +40,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.45; }
 :focus-visible { outline: none; box-shadow: var(--psa-focus-ring); border-radius: var(--psa-radius-xs); }
+/* Rows inside a clipped list draw the ring inside their edges. */
+.list-row:focus-visible, .row-link:focus-visible { box-shadow: inset 0 0 0 2px var(--psa-focus-color), inset 0 0 0 4px var(--psa-bg-canvas); border-radius: 0; }
+/* Headings take focus only to start reading there (route changes, skip link). */
+h1[tabindex="-1"]:focus { outline: none; box-shadow: none; }
+/* The skip link shows when it has focus. */
+.skip-link { position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 8px; z-index: 100; padding: 10px 16px; border-radius: var(--psa-radius-sm); background: var(--psa-bg-surface); color: var(--psa-text); font-weight: 700; text-decoration: none; box-shadow: var(--psa-focus-ring); transform: translateY(calc(-100% - 24px)); }
+.skip-link:focus { transform: none; }
 code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 
 .icon { width: 20px; height: 20px; flex: none; }
@@ -42,7 +57,11 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 .pad { padding: var(--psa-space-4); }
 .fine-print { margin: var(--psa-space-6) 0 var(--psa-space-4); color: var(--psa-text-tertiary); font-size: 12px; text-align: center; }
 .form-message { min-height: 1.2em; margin: 0; color: var(--psa-danger); font-size: 14px; }
-.form-message:empty { display: none; }
+/* Empty, the message takes no room but stays a live region, so an error
+   written into it later is read out. */
+.form-message:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* A hint under a field, such as a password's length. */
+.stack > label + .field-hint { margin-top: calc(6px - var(--psa-space-4)); }
 .hint { margin: 0; color: var(--psa-text-secondary); font-size: 13px; }
 .notice { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-radius: var(--psa-radius-sm); background: var(--psa-accent-soft); color: var(--psa-text); font-size: 14px; }
 .stack { display: grid; gap: var(--psa-space-4); }
@@ -71,7 +90,10 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 .button.small { min-height: 36px; padding: 0 var(--psa-space-3); font-size: 14px; }
 .button.wide { width: 100%; }
 .button.grow { flex: 1; min-width: 0; }
-.button.in-set { border-color: var(--psa-accent); color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+/* Accent text on an accent tint is a little darker (lighter in the dark
+   theme) than plain accent text, to keep 4.5:1. */
+.button.in-set { border-color: var(--psa-accent-text); color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.button.danger { color: var(--psa-danger); }
 .link-button { padding: 0; border: 0; background: none; color: var(--psa-accent-text); text-decoration: underline; }
 
 .icon-button {
@@ -84,15 +106,17 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 .icon-button.small { width: 36px; height: 36px; }
 .icon-button.small .icon { width: 18px; height: 18px; }
 .icon-button.accent { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
-.icon-button.on { background: var(--psa-accent-medium); border-color: var(--psa-accent); color: var(--psa-accent-text); }
+/* "On" shows as a tint and a border in accent text colour, which has 3:1
+   against the page (the tint alone does not). */
+.icon-button.on { background: var(--psa-accent-medium); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
 .icon-button.danger { color: var(--psa-danger); }
 .icon-button.ghost { border-color: transparent; background: transparent; }
 @media (hover: hover) { .icon-button.ghost:hover:not(:disabled) { background: var(--psa-bg-surface); } }
-.icon-button.ghost.on { background: var(--psa-accent-medium); color: var(--psa-accent-text); }
+.icon-button.ghost.on { background: var(--psa-accent-medium); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
 
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 var(--psa-space-3); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-full); background: var(--psa-bg-surface); font-size: 14px; font-weight: 600; }
 .chip .icon { width: 16px; height: 16px; }
-.chip.on { background: var(--psa-accent-soft); border-color: var(--psa-accent); color: var(--psa-accent-text); }
+.chip.on { background: var(--psa-accent-soft); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
 
 .stepper { display: inline-flex; align-items: center; gap: var(--psa-space-2); font-size: 14px; font-weight: 600; }
 .stepper small { color: var(--psa-accent-text); }
@@ -100,7 +124,7 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 label { display: grid; gap: 6px; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
 input, textarea, select {
   width: 100%; min-height: var(--psa-touch-target); padding: 10px 14px;
-  border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-sm);
+  border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-sm);
   background: var(--psa-bg-surface); color: var(--psa-text); font-size: 16px;
 }
 input::placeholder, textarea::placeholder { color: var(--psa-text-placeholder); }
@@ -122,9 +146,10 @@ input:focus, textarea:focus { outline: none; border-color: var(--psa-accent); bo
 body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
 .search-bar .search-field { flex: 1; margin: 0; }
 
-.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); border: 1px solid var(--psa-border); }
-.segmented button { min-height: 38px; border: 0; border-radius: var(--psa-radius-full); background: none; font-weight: 600; font-size: 14px; color: var(--psa-text-secondary); }
-.segmented button.on { background: var(--psa-bg-surface); color: var(--psa-text); box-shadow: var(--psa-shadow-sm); }
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); border: 1px solid var(--psa-border-control); }
+.segmented button { min-height: 38px; border: 1px solid transparent; border-radius: var(--psa-radius-full); background: none; font-weight: 600; font-size: 14px; color: var(--psa-text-secondary); }
+/* The chosen option has an edge with 3:1, not only a lighter fill. */
+.segmented button.on { background: var(--psa-bg-surface); border-color: var(--psa-border-control); color: var(--psa-text); box-shadow: var(--psa-shadow-sm); }
 
 /* ── Auth screens ───────────────────────────────────────────────────────── */
 
@@ -170,8 +195,11 @@ body.menu-dragging .tabbar, body.menu-dragging .nav-scrim { transition: none; }
   padding: 12px var(--psa-space-3); border-radius: var(--psa-radius-sm);
   color: var(--psa-text-secondary); text-decoration: none; font-size: 16px; font-weight: 600;
 }
+.tab { position: relative; }
 .tab .icon { width: 22px; height: 22px; }
 .tab.on { background: var(--psa-accent-soft); color: var(--psa-accent-text); }
+/* The current section has a bar at its edge, not only a tint. */
+.tab.on::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--psa-accent-text); }
 button.tab { width: 100%; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
 button.tab:not(.on) { background: none; }
 
@@ -217,6 +245,8 @@ body.scrolled .app-bar { border-bottom-color: var(--psa-border); }
 body.title-away .bar-title { opacity: 1; transform: none; }
 /* Reading screens: the bar slides away while reading down. */
 body.bar-away .app-bar.autohide { transform: translateY(-100%); }
+/* It comes back while a control in it has focus. */
+body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .page-titles { min-width: 0; margin: var(--psa-space-2) 0 var(--psa-space-4); }
 .page-titles h1 { margin: 0; font-family: var(--psa-font-display); font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .page-actions { display: flex; gap: var(--psa-space-1); margin-left: auto; }
@@ -224,7 +254,9 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
    list) keep their title in the bar instead of a large title. */
 @media (max-width: 899px) {
   .wide-only { display: none; }
-  .page-titles.compact { display: none; }
+  /* The bar (or the search) stands in for the large title; the heading
+     stays for screen readers. */
+  .page-titles.compact, .page-titles.wide-only { display: block; position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .app-bar.compact .bar-title { opacity: 1; transform: none; font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; }
 }
 .eyebrow { margin: 0 0 2px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
@@ -246,6 +278,7 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 .list-row:active, .row-link:active { background: var(--psa-bg-elevated); }
 .list-row > .icon:last-child { color: var(--psa-text-tertiary); }
 .list-row.added { background: var(--psa-accent-soft); }
+.list-row.added small, .list-row.added .row-lead { color: var(--psa-text-secondary); }
 .song-row { padding: 0 var(--psa-space-3) 0 0; }
 .row-link { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; min-height: 60px; padding: 10px 0 10px var(--psa-space-4); color: inherit; text-decoration: none; }
 .add-toggle.on, .add-toggle.on:hover:not(:disabled) { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
@@ -286,17 +319,17 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--psa-text-tertiary); flex: none; }
 .status-dot.online { background: var(--psa-positive); box-shadow: 0 0 0 4px var(--psa-positive-soft); }
 .empty-state { padding: var(--psa-space-8) var(--psa-space-4); text-align: center; }
-.empty-state h2 { margin: 0 0 var(--psa-space-2); font-size: 18px; }
+.empty-state :is(h1, h2) { margin: 0 0 var(--psa-space-2); font-size: 18px; }
 .empty-state p { margin: 0 auto var(--psa-space-4); max-width: 36ch; color: var(--psa-text-secondary); }
 
 /* ── Song reader ────────────────────────────────────────────────────────── */
 
 .reader-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-4); margin-bottom: var(--psa-space-5); }
 /* Selecting a song selects only the words (see installLyricsCopy). */
-.song-section > h3, .song-body .ch, .song-comment { -webkit-user-select: none; user-select: none; }
+.song-section > h2, .song-body .ch, .song-comment { -webkit-user-select: none; user-select: none; }
 .song-body { --reader-scale: 1; font-family: var(--psa-font-lyrics); font-size: calc(18px * var(--reader-scale)); line-height: 1.5; }
 .song-section { margin-bottom: 1.2em; }
-.song-section h3 { margin: 0 0 0.3em; color: var(--psa-accent-text); font-size: 0.7em; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.song-section h2 { margin: 0 0 0.3em; color: var(--psa-accent-text); font-size: 0.7em; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .song-line { margin: 0; overflow-wrap: anywhere; }
 .song-comment { margin: 0.2em 0; color: var(--psa-text-secondary); font-style: italic; font-size: 0.85em; }
 .with-chords .song-line { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0.15em; }
@@ -324,7 +357,8 @@ body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 .grip { display: grid; place-items: center; width: 28px; height: 44px; flex: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
 .edit-row.dragging { position: relative; z-index: 2; background: var(--psa-bg-elevated); box-shadow: var(--psa-shadow-md); }
 .edit-row.dragging .grip { cursor: grabbing; color: var(--psa-accent-text); }
-.note-input { flex: 1; min-width: 180px; min-height: 38px; padding: 6px 12px; font-size: 14px; }
+.note-field { display: flex; flex: 1; flex-direction: row; align-items: center; gap: var(--psa-space-2); min-width: min(100%, 180px); }
+.note-input { flex: 1; min-width: 0; min-height: 38px; padding: 6px 12px; font-size: 14px; }
 .form-actions.sticky {
   position: sticky; bottom: calc(var(--tabbar-h) + 10px); z-index: 5;
   padding: var(--psa-space-3) 0; background: linear-gradient(transparent, var(--psa-bg-canvas) 30%);
@@ -401,7 +435,7 @@ body[data-route^="/sets/id/play"] .page { padding-bottom: calc(110px + env(safe-
 .pad-button:active:not(:disabled) { transform: scale(0.98); }
 .slide-grid { display: flex; flex-wrap: wrap; gap: var(--psa-space-2); }
 .slide-chip { min-height: 40px; padding: 0 var(--psa-space-4); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-full); background: var(--psa-bg-surface); font-weight: 600; font-size: 14px; }
-.slide-chip.on { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
+.slide-chip.on { background: var(--psa-accent); border: 2px solid var(--psa-accent-text); color: var(--psa-on-accent); }
 
 /* ── More ───────────────────────────────────────────────────────────────── */
 
@@ -438,7 +472,9 @@ dialog.sheet::backdrop { background: var(--psa-bg-scrim); }
   transition: opacity var(--psa-dur-base), transform var(--psa-dur-base) var(--psa-ease-decelerate);
 }
 .toast.visible { opacity: 1; transform: translate(-50%, 0); }
-.toast.error { background: var(--psa-danger); color: #fff; }
+.toast.error { background: var(--psa-danger); color: var(--psa-on-danger); }
+.toast-close { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: var(--psa-radius-full); background: transparent; color: inherit; }
+.toast-close .icon { width: 18px; height: 18px; }
 .toast.has-action { pointer-events: auto; padding-right: 8px; }
 .toast-action { min-height: 32px; padding: 0 12px; border: 0; border-radius: var(--psa-radius-full); background: var(--psa-accent); color: var(--psa-on-accent); font-weight: 700; font-size: 14px; }
 body.is-busy { cursor: progress; }
@@ -449,3 +485,36 @@ body.is-busy { cursor: progress; }
 
 .play #project-here { margin-bottom: var(--psa-space-5); }
 body[data-route^="/sets/id/play"] .toast { bottom: calc(100px + env(safe-area-inset-bottom)); }
+
+/* ── Remote: the words on screen now ─────────────────────────────────────── */
+.live-words { margin-top: var(--psa-space-3); font-family: var(--psa-font-lyrics); font-size: 17px; line-height: 1.45; }
+.live-words p { margin: 0; overflow-wrap: anywhere; }
+.live-card .live-words p:last-child { margin: 0; color: var(--psa-text); }
+
+/* ── Rooms (/join): following a projection on your own phone ─────────────── */
+.room { --room-scale: 1.5; min-height: 100dvh; display: flex; flex-direction: column; background: var(--psa-bg-canvas); color: var(--psa-text); }
+.room-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-3); padding: calc(var(--psa-space-2) + env(safe-area-inset-top)) var(--page-pad) var(--psa-space-2); border-bottom: 1px solid var(--psa-border); background: var(--psa-bg-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.room-title { flex: 1 1 auto; min-width: 0; }
+.room-title h1 { margin: 0; font-family: var(--psa-font-display); font-size: 22px; line-height: 1.2; overflow-wrap: anywhere; }
+.room-status { padding: 4px 10px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.room[data-status="live"] .room-status { background: var(--psa-accent); color: var(--psa-on-accent); }
+.room-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.room-tools [aria-pressed="true"] { background: var(--psa-accent-soft); border: 2px solid var(--psa-accent-text); color: var(--psa-accent-text); }
+.room-tools [aria-disabled="true"] { cursor: not-allowed; opacity: 0.45; }
+.room-body { flex: 1; width: min(100%, 860px); margin: 0 auto; padding: var(--psa-space-5) var(--page-pad) 45vh; font-family: var(--psa-font-lyrics); font-size: calc(18px * var(--room-scale)); line-height: 1.45; }
+.room-song { margin: 0 0 var(--psa-space-4); font-family: var(--psa-font-display); font-size: 0.8em; line-height: 1.2; color: var(--psa-text-secondary); overflow-wrap: anywhere; }
+.room-slide { margin: 0 0 var(--psa-space-3); padding: var(--psa-space-3) var(--psa-space-4); border-left: 6px solid transparent; border-radius: var(--psa-radius-md); color: var(--psa-text-secondary); transition: background var(--psa-dur-base) var(--psa-ease-standard), color var(--psa-dur-base) var(--psa-ease-standard); }
+.room-slide.current { border-left-color: var(--psa-accent-text); background: var(--psa-accent-soft); color: var(--psa-text-strong, var(--psa-text)); }
+.room-slide.current .room-label { color: var(--psa-text-secondary); }
+.room[data-status="blank"] .room-slide.current { border-left-color: var(--psa-border-strong); background: var(--psa-bg-sunken); }
+.room-label { margin: 0 0 4px; font-family: var(--psa-font-ui); font-size: max(12px, 0.5em); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--psa-text-tertiary); }
+.room-line { margin: 0; overflow-wrap: anywhere; }
+.room-waiting { padding: var(--psa-space-8) 0; text-align: center; }
+.room-waiting h2 { margin: 0 0 var(--psa-space-2); font-size: 1em; line-height: 1.25; }
+.room-waiting p { margin: 0; font-size: max(16px, 0.65em); color: var(--psa-text-secondary); }
+/* High contrast: yellow on black for the current words, white for the rest. */
+.room.contrast { --psa-bg-canvas: #000; --psa-bg-glass: #000; --psa-bg-sunken: #222; --psa-bg-elevated: #222; --psa-bg-surface: #000; --psa-text: #fff; --psa-text-strong: #fff; --psa-text-secondary: #fff; --psa-text-tertiary: #ddd; --psa-border: #fff; --psa-border-strong: #fff; --psa-accent: #ffd400; --psa-on-accent: #000; --psa-accent-soft: #000; --psa-accent-medium: #ffd400; --psa-accent-text: #ffd400; --psa-focus-color: #ffd400; }
+.room.contrast .room-slide.current { color: #ffd400; border-left-width: 10px; }
+.room.contrast .icon-button { border-color: #fff; color: #fff; background: #000; }
+.room.contrast .room-tools [aria-pressed="true"] { background: #ffd400; border-color: #ffd400; color: #000; }
+@media (prefers-reduced-motion: reduce) { .room-slide { transition: none; } }

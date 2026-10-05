@@ -1,8 +1,10 @@
+import { bindRadioGroup } from "../a11y.ts";
+import { ApiError } from "../api.ts";
 import { pageHead, type AppContext } from "../context.ts";
 import { icon } from "../icons.ts";
 import { installOption, promptInstall } from "../install.ts";
-import type { DeviceToken } from "../types.ts";
-import { errorMessage, escapeHtml, readPreference, relativeDate, setFormBusy, showToast, writePreference } from "../ui.ts";
+import type { Role } from "../types.ts";
+import { errorMessage, escapeHtml, initials, readPreference, relativeDate, roleName, setFormBusy, showToast, writePreference } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
 
 export async function moreView(ctx: AppContext): Promise<void> {
@@ -10,12 +12,18 @@ export async function moreView(ctx: AppContext): Promise<void> {
   const devices = ctx.canEdit ? await ctx.api.listDeviceTokens() : [];
   const session = ctx.session;
   const church = session.role === "owner" ? await ctx.api.getChurch() : null;
+  // Offline, the rest of this screen still works.
+  const apiTokens = await ctx.api.listApiTokens().catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 401) throw error;
+    return null;
+  });
   const install = installOption();
 
   ctx.main.innerHTML = `${pageHead({ title: "More", church: session.church_name, compact: true, menu: true })}
   <section class="card account-card">
-    <span class="avatar">${escapeHtml(initials(session.display_name))}</span>
+    <span class="avatar" aria-hidden="true">${escapeHtml(initials(session.display_name))}</span>
     <div><strong>${escapeHtml(session.display_name)}</strong><small>${roleName(session.role)} · ${escapeHtml(session.church_name)}</small></div>
+    <button class="icon-button" id="change-password" aria-label="Change your password" title="Change your password">${icon("lock")}</button>
     <button class="icon-button" id="sign-out" aria-label="Sign out" title="Sign out">${icon("logout")}</button>
   </section>
 
@@ -38,20 +46,44 @@ export async function moreView(ctx: AppContext): Promise<void> {
   </div>
   <input id="file-import" type="file" accept=".pro,.cho,.chordpro,text/plain" multiple hidden />
 
-  ${church ? `<h2 class="list-heading">Who can read the songs</h2>
+  ${church ? `<h2 class="list-heading">Church</h2>
+  <div class="list">
+    <a class="list-row" href="#/people">${icon("people")}<span class="row-main"><strong>People</strong><small>Add people and choose what they can do</small></span>${icon("next")}</a>
+  </div>
+
+  <h2 class="list-heading">Who can read the songs</h2>
   <div class="segmented" role="radiogroup" aria-label="Who can read the songs">
     ${[false, true].map((open) => `<button role="radio" aria-checked="${church.public_library === open}" class="${church.public_library === open ? "on" : ""}" data-public="${open}">${open ? "Everyone" : "Signed-in members"}</button>`).join("")}
   </div>
-  <p class="muted">With <strong>Everyone</strong>, anyone who opens this server can search and read every song without signing in. Sets, editing and desktops still need a sign-in.</p>` : ""}
+  <p class="muted">With <strong>Everyone</strong>, anyone who opens this server can search and read every song without signing in. Sets, editing and desktops still need a sign-in.</p>
+
+  <h2 class="list-heading">Rooms</h2>
+  <div class="segmented" role="radiogroup" aria-label="Rooms">
+    ${[true, false].map((open) => `<button role="radio" aria-checked="${church.public_rooms === open}" class="${church.public_rooms === open ? "on" : ""}" data-rooms="${open}">${open ? "Shared" : "Off"}</button>`).join("")}
+  </div>
+  <p class="muted">Each desktop has a room, named after a flower unless you rename it. While it projects, anyone who types the room name at <strong>${escapeHtml(location.host)}/join</strong> can read the words on their own phone, as large as they need. A desktop's operator can also stop sharing it.</p>` : ""}
 
   ${ctx.canEdit ? `<h2 class="list-heading">Desktops</h2>
   <p class="muted">Projection computers connect with <strong>Sign in with browser</strong> in Psalm150's Settings, under Church server. They keep an offline copy of the songs and sets, and can save song and set changes back.</p>
   <div class="list" id="device-list">
-    ${devices.map((device) => `<div class="list-row static">${icon("remote")}<span class="row-main"><strong>${escapeHtml(device.name)}</strong><small>${device.last_used_at ? `Last used ${relativeDate(device.last_used_at).toLowerCase()}` : "Not used yet"}</small></span>
-      <button class="button secondary small revoke" data-device="${device.id}" data-name="${escapeHtml(device.name)}">Revoke</button></div>`).join("") || `<p class="muted pad">No desktops connected.</p>`}
+    ${devices.map((device) => `<div class="list-row static">${icon("remote")}<span class="row-main"><strong>${escapeHtml(device.room_name ?? device.name)}</strong><small>${device.room_name ? `${escapeHtml(device.name)} · ` : ""}${device.last_used_at ? `last used ${relativeDate(device.last_used_at).toLowerCase()}` : "not used yet"}</small></span>
+      <button class="button secondary small revoke" data-device="${device.id}" data-name="${escapeHtml(device.name)}" aria-label="Revoke ${escapeHtml(device.room_name ?? device.name)}">Revoke</button></div>`).join("") || `<p class="muted pad">No desktops connected.</p>`}
     <button class="list-row" id="new-token">${icon("link")}<span class="row-main"><strong>Create a token by hand</strong><small>For desktops that cannot open a browser</small></span></button>
   </div>` : ""}
+
+  <h2 class="list-heading">API tokens</h2>
+  <p class="muted">For scripts and other programs that use this server's API. A token can do what you can, or less if you choose, until it is revoked.</p>
+  <div class="list" id="api-token-list">
+    ${apiTokens === null
+      ? `<p class="muted pad">Your API tokens show when you are online.</p>`
+      : `${apiTokens.map((token) => `<div class="list-row static">${icon("link")}<span class="row-main"><strong>${escapeHtml(token.name)}</strong><small>${token.user_id === session.user_id ? "" : `${escapeHtml(token.user_display_name)} · `}${accessName(token.role)} · ${token.last_used_at ? `last used ${relativeDate(token.last_used_at).toLowerCase()}` : "not used yet"}</small></span>
+      <button class="button secondary small revoke-api-token" data-token="${token.id}" data-name="${escapeHtml(token.name)}" aria-label="Revoke ${escapeHtml(token.name)}">Revoke</button></div>`).join("") || `<p class="muted pad">No API tokens.</p>`}
+    <button class="list-row" id="new-api-token">${icon("plus")}<span class="row-main"><strong>Create an API token</strong><small>For a script or another program</small></span></button>`}
+  </div>
   <p class="fine-print">PSA150 Song Server · ${ctx.isPublic ? "songs open to everyone, sets private to your church" : "private to your church"}</p>`;
+
+  // Arrow keys move between the options of each choice (ARIA radio group).
+  ctx.main.querySelectorAll<HTMLElement>('[role="radiogroup"]').forEach(bindRadioGroup);
 
   ctx.main.querySelectorAll<HTMLButtonElement>("[data-public]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -67,7 +99,20 @@ export async function moreView(ctx: AppContext): Promise<void> {
     });
   });
 
+  ctx.main.querySelectorAll<HTMLButtonElement>("[data-rooms]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const open = button.dataset.rooms === "true";
+      if (open === church?.public_rooms) return;
+      void ctx.run(async () => {
+        const updated = await ctx.api.updateChurch({ public_rooms: open });
+        showToast(updated.public_rooms ? "Desktops share their words in their rooms." : "Rooms are off.");
+        ctx.navigate("#/more", true);
+      });
+    });
+  });
+
   ctx.main.querySelector("#sign-out")?.addEventListener("click", () => ctx.signOut());
+  ctx.main.querySelector("#change-password")?.addEventListener("click", () => openPasswordSheet(ctx));
   ctx.main.querySelector("#install")?.addEventListener("click", () => void ctx.run(async () => {
     if (await promptInstall()) showToast("PSA150 is installed.");
     ctx.navigate("#/more", true);
@@ -118,13 +163,102 @@ export async function moreView(ctx: AppContext): Promise<void> {
       if (!confirm(`Revoke access for ${button.dataset.name}? It will stop synchronizing.`)) return;
       void ctx.run(async () => {
         await ctx.api.revokeDeviceToken(String(button.dataset.device));
-        button.closest(".list-row")?.remove();
+        removeRow(button);
         showToast("Desktop access revoked.");
       });
     });
   });
 
   ctx.main.querySelector("#new-token")?.addEventListener("click", () => openTokenSheet(ctx));
+
+  ctx.main.querySelectorAll<HTMLButtonElement>(".revoke-api-token").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!confirm(`Revoke the API token “${button.dataset.name}”? Programs using it stop working.`)) return;
+      void ctx.run(async () => {
+        await ctx.api.revokeApiToken(String(button.dataset.token));
+        removeRow(button);
+        showToast("API token revoked.");
+      });
+    });
+  });
+  ctx.main.querySelector("#new-api-token")?.addEventListener("click", () => openApiTokenSheet(ctx));
+}
+
+/** Removes a revoked row; focus moves on to the next row's button. */
+function removeRow(button: HTMLElement): void {
+  const row = button.closest(".list-row");
+  const next = row?.nextElementSibling;
+  const target = next instanceof HTMLButtonElement ? next : next?.querySelector<HTMLElement>("button");
+  row?.remove();
+  target?.focus();
+}
+
+function openPasswordSheet(ctx: AppContext): void {
+  const sheet = openSheet(`<h2>Change your password</h2>
+    <p class="muted">You stay signed in here; your other sessions end. Your API tokens keep working.</p>
+    <form id="password-form" class="stack">
+      <label>Current password<input name="current" type="password" required autocomplete="current-password" /></label>
+      <label>New password<input name="new" type="password" required minlength="10" autocomplete="new-password" aria-describedby="new-password-hint" /></label>
+      <p class="hint field-hint" id="new-password-hint">At least 10 characters.</p>
+      <p class="form-message" role="status"></p>
+      <button class="button primary wide" type="submit">Change password</button>
+    </form>`);
+  const form = sheet.querySelector<HTMLFormElement>("#password-form")!;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    setFormBusy(form, true);
+    try {
+      await ctx.api.changePassword(String(data.get("current")), String(data.get("new")));
+      closeSheet(sheet);
+      showToast("Your password is changed.");
+    } catch (error) {
+      setFormBusy(form, false);
+      form.querySelector<HTMLElement>(".form-message")!.textContent = errorMessage(error);
+    }
+  });
+}
+
+/** Most access first; a person may give a token their own role or less. */
+const ROLES: Role[] = ["owner", "leader", "viewer"];
+
+function openApiTokenSheet(ctx: AppContext): void {
+  const roles = ROLES.slice(ROLES.indexOf(ctx.session.role));
+  const sheet = openSheet(`<h2>Create an API token</h2>
+    <p class="muted">Anyone who has the token can use this server as you, with the access you choose. It is shown once.</p>
+    <form id="api-token-form" class="stack">
+      <label>Name<input name="name" placeholder="Church website" required maxlength="120" /></label>
+      <label>Access<select name="role">${roles.map((role) => `<option value="${role}">${accessChoice(role)}</option>`).join("")}</select></label>
+      <p class="form-message" role="status"></p>
+      <button class="button primary wide" type="submit">Create token</button>
+    </form>`);
+  const form = sheet.querySelector<HTMLFormElement>("#api-token-form")!;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    // Read the form first: disabled fields are left out of FormData.
+    const data = new FormData(form);
+    setFormBusy(form, true);
+    try {
+      const token = await ctx.api.createApiToken({ name: String(data.get("name")), role: String(data.get("role")) as Role });
+      showToken(sheet, token);
+    } catch (error) {
+      setFormBusy(form, false);
+      form.querySelector<HTMLElement>(".form-message")!.textContent = errorMessage(error);
+    }
+  });
+  sheet.addEventListener("close", () => void ctx.navigate("#/more", true));
+}
+
+function accessName(role: Role): string {
+  return role === "owner" ? "Owner access" : role === "leader" ? "Leader access" : "Read only";
+}
+
+function accessChoice(role: Role): string {
+  return role === "owner"
+    ? "Everything, like an owner"
+    : role === "leader"
+      ? "Songs, sets and desktops, like a leader"
+      : "Read only";
 }
 
 function openTokenSheet(ctx: AppContext): void {
@@ -138,9 +272,10 @@ function openTokenSheet(ctx: AppContext): void {
   const form = sheet.querySelector<HTMLFormElement>("#token-form")!;
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const name = String(new FormData(form).get("name"));
     setFormBusy(form, true);
     try {
-      const token = await ctx.api.createDeviceToken(String(new FormData(form).get("name")));
+      const token = await ctx.api.createDeviceToken(name);
       showToken(sheet, token);
     } catch (error) {
       setFormBusy(form, false);
@@ -150,9 +285,10 @@ function openTokenSheet(ctx: AppContext): void {
   sheet.addEventListener("close", () => void ctx.navigate("#/more", true));
 }
 
-function showToken(sheet: HTMLDialogElement, device: DeviceToken): void {
+function showToken(sheet: HTMLDialogElement, device: { name: string; token: string }): void {
   const body = sheet.querySelector<HTMLElement>(".sheet-body")!;
-  body.innerHTML = `<h2>Token for ${escapeHtml(device.name)}</h2>
+  // The new heading still names the sheet, and focus goes to Copy.
+  body.innerHTML = `<h2 id="${sheet.getAttribute("aria-labelledby") ?? ""}">Token for ${escapeHtml(device.name)}</h2>
     <p class="muted">Copy it now. The server will not show it again.</p>
     <code class="token">${escapeHtml(device.token)}</code>
     <button class="button primary wide" id="copy-token">Copy token</button>
@@ -162,12 +298,5 @@ function showToken(sheet: HTMLDialogElement, device: DeviceToken): void {
     showToast("Token copied.");
   });
   body.querySelector("#token-done")?.addEventListener("click", () => closeSheet(sheet));
-}
-
-function initials(name: string): string {
-  return name.split(/\s+/).map((part) => part[0] ?? "").join("").slice(0, 2).toUpperCase();
-}
-
-function roleName(role: string): string {
-  return role === "owner" ? "Owner" : role === "leader" ? "Leader" : "Viewer";
+  body.querySelector<HTMLElement>("#copy-token")?.focus();
 }

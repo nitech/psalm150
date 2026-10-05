@@ -12,7 +12,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{FromRow, PgPool, Postgres, Transaction};
@@ -23,8 +23,8 @@ use crate::{
     auth::{Actor, authenticate},
     error::{AppError, ErrorBody},
     models::{
-        CreateSetRequest, DeleteSetQuery, SetDetail, SetItem, SetItemInput, SetItemKind, SetQuery,
-        SetSongRef, SetSummary, UpdateSetRequest,
+        CreateSetRequest, DeleteSetQuery, DeletedSet, PageQuery, SetDetail, SetItem, SetItemInput,
+        SetItemKind, SetQuery, SetSongRef, SetSummary, UpdateSetRequest,
     },
 };
 
@@ -35,15 +35,18 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sets", get(list_sets).post(create_set))
         .route("/sets/snapshot", get(sets_snapshot))
+        .route("/sets/deleted", get(list_deleted_sets))
         .route(
             "/sets/{set_id}",
             get(get_set).put(update_set).delete(delete_set),
         )
+        .route("/sets/{set_id}/restore", post(restore_set))
 }
 
 #[utoipa::path(
     get,
     path = "/api/v1/sets",
+    security(("bearer" = [])),
     params(SetQuery),
     responses((status = 200, body = [SetSummary]), (status = 401, body = ErrorBody))
 )]
@@ -60,21 +63,92 @@ pub async fn list_sets(
          FROM song_sets s
          WHERE s.church_id = $1 AND s.deleted_at IS NULL
            AND ($2::date IS NULL OR s.service_date IS NULL OR s.service_date >= $2)
-         ORDER BY s.service_date DESC NULLS LAST, s.updated_at DESC
-         LIMIT $3",
+         ORDER BY s.service_date DESC NULLS LAST, s.updated_at DESC, s.id
+         LIMIT $3 OFFSET $4",
     )
     .bind(auth.church_id)
     .bind(query.from)
     .bind(limit)
+    .bind(query.offset.unwrap_or(0).max(0))
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(sets))
+}
+
+/// Deleted sets, most recently deleted first, to find one to restore.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sets/deleted",
+    security(("bearer" = [])),
+    params(PageQuery),
+    responses((status = 200, body = [DeletedSet]), (status = 401, body = ErrorBody))
+)]
+pub async fn list_deleted_sets(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<Vec<DeletedSet>>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    let sets = sqlx::query_as::<_, DeletedSet>(
+        "SELECT s.id, s.name, s.service_date, s.version, s.deleted_at,
+                (SELECT count(*) FROM song_set_items i WHERE i.set_id = s.id) AS item_count
+         FROM song_sets s
+         WHERE s.church_id = $1 AND s.deleted_at IS NOT NULL
+         ORDER BY s.deleted_at DESC, s.id
+         LIMIT $2 OFFSET $3",
+    )
+    .bind(auth.church_id)
+    .bind(query.limit.unwrap_or(100).clamp(1, 200))
+    .bind(query.offset.unwrap_or(0).max(0))
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(sets))
+}
+
+/// Brings a deleted set back with its items, as a new version. A set that
+/// is not deleted is returned unchanged.
+#[utoipa::path(
+    post,
+    path = "/api/v1/sets/{set_id}/restore",
+    security(("bearer" = [])),
+    params(("set_id" = Uuid, Path)),
+    responses(
+        (status = 200, body = SetDetail),
+        (status = 401, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody)
+    )
+)]
+pub async fn restore_set(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(set_id): Path<Uuid>,
+) -> Result<Json<SetDetail>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    let actor = auth.require_song_editor()?;
+    sqlx::query(
+        "UPDATE song_sets
+         SET deleted_at = NULL, updated_at = now(), version = version + 1,
+             updated_by = $3, updated_by_device = $4
+         WHERE id = $1 AND church_id = $2 AND deleted_at IS NOT NULL",
+    )
+    .bind(set_id)
+    .bind(auth.church_id)
+    .bind(actor.user_id)
+    .bind(actor.device_id)
+    .execute(&state.pool)
+    .await?;
+    fetch_set(&state.pool, auth.church_id, set_id)
+        .await?
+        .map(Json)
+        .ok_or_else(set_not_found)
 }
 
 /// Every set of the church with its items: what a desktop keeps offline.
 #[utoipa::path(
     get,
     path = "/api/v1/sets/snapshot",
+    security(("bearer" = [])),
     responses((status = 200, body = [SetDetail]), (status = 401, body = ErrorBody))
 )]
 pub async fn sets_snapshot(
@@ -106,6 +180,7 @@ pub async fn sets_snapshot(
 #[utoipa::path(
     post,
     path = "/api/v1/sets",
+    security(("bearer" = [])),
     request_body = CreateSetRequest,
     responses(
         (status = 201, body = SetDetail),
@@ -158,6 +233,7 @@ pub async fn create_set(
 #[utoipa::path(
     get,
     path = "/api/v1/sets/{set_id}",
+    security(("bearer" = [])),
     params(("set_id" = Uuid, Path)),
     responses((status = 200, body = SetDetail), (status = 404, body = ErrorBody))
 )]
@@ -176,6 +252,7 @@ pub async fn get_set(
 #[utoipa::path(
     put,
     path = "/api/v1/sets/{set_id}",
+    security(("bearer" = [])),
     params(("set_id" = Uuid, Path)),
     request_body = UpdateSetRequest,
     responses(
@@ -218,6 +295,7 @@ pub async fn update_set(
 #[utoipa::path(
     delete,
     path = "/api/v1/sets/{set_id}",
+    security(("bearer" = [])),
     params(("set_id" = Uuid, Path), DeleteSetQuery),
     responses(
         (status = 204),

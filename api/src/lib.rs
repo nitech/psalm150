@@ -1,3 +1,4 @@
+pub mod access;
 pub mod api;
 pub mod auth;
 pub mod chordpro;
@@ -6,13 +7,16 @@ pub mod error;
 pub mod models;
 pub mod pages;
 pub mod remote;
+pub mod rooms;
 pub mod sets;
+pub mod throttle;
 
 use std::{path::PathBuf, sync::Arc};
 
 use axum::{
     Router,
     extract::{Path, State},
+    http::HeaderName,
     routing::get,
 };
 use sqlx::PgPool;
@@ -24,6 +28,11 @@ pub struct AppState {
     pub session_hours: i64,
     /// In-memory relay for remote control through the server.
     pub remote: Arc<remote::RemoteHub>,
+    /// In-memory counts of wrong passwords.
+    pub throttle: Arc<throttle::Throttle>,
+    /// Where the reverse proxy puts the client's address
+    /// (`PSA150_CLIENT_IP_HEADER`); without it, the connection's peer.
+    pub client_ip_header: Option<HeaderName>,
 }
 
 impl AppState {
@@ -32,7 +41,14 @@ impl AppState {
             pool,
             session_hours,
             remote: Arc::default(),
+            throttle: Arc::default(),
+            client_ip_header: None,
         }
+    }
+
+    pub fn with_client_ip_header(mut self, header: Option<HeaderName>) -> Self {
+        self.client_ip_header = header;
+        self
     }
 }
 
@@ -42,6 +58,11 @@ pub fn app(state: AppState, web_dist: PathBuf) -> Router {
         .route("/api/openapi.json", get(api::openapi));
     if web_dist.is_dir() {
         let index = web_dist.join("index.html");
+        // Following a room: `/join` asks for its name, `/join/{name}` opens it.
+        for path in ["/join", "/join/{room_name}"] {
+            let index = index.clone();
+            router = router.route(path, get(move || pages::app_page(index.clone())));
+        }
         router = router.route(
             "/songs/{song_id}",
             get(
