@@ -63,6 +63,7 @@
         const res = await fetch(path, { method: 'POST', headers: { 'X-PSA150-PIN': pinInput.value } });
         status.textContent = res.status === 401
           ? 'Wrong PIN. Type the PIN shown in Psalm150 under Settings, Phone remote.'
+          : res.status === 429 ? 'Too many wrong PINs. Wait a minute, then try again.'
           : res.ok ? 'Sent ' + path.slice(1) : 'Error ' + res.status;
         pinInput.setAttribute('aria-invalid', res.status === 401 ? 'true' : 'false');
       } catch (err) {

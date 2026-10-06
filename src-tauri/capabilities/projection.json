@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "projection",
+  "description": "Audience and stage windows: app commands and the projection-updated event only",
+  "windows": ["audience", "stage"],
+  "permissions": ["core:default"]
+}

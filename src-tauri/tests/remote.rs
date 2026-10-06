@@ -46,3 +46,26 @@ fn remote_serves_page_guards_actions_with_pin_and_releases_port_on_stop() {
     }
     assert!(released, "port {port} should be released after stop()");
 }
+
+#[test]
+fn remote_rejects_foreign_hosts_and_locks_out_after_wrong_pins() {
+    let (server, actions) = RemoteServer::start(0, "4321".into()).expect("bind ephemeral port");
+    let base = format!("http://127.0.0.1:{}", server.status().port);
+    let client = reqwest::blocking::Client::builder().no_proxy().build().unwrap();
+
+    // DNS rebinding: a public name pointing at this PC is refused.
+    let rebound = client.get(format!("{base}/")).header("Host", "evil.example.com").send().unwrap();
+    assert_eq!(rebound.status(), 403);
+    let named = client.get(format!("{base}/")).header("Host", "church-pc:8757").send().unwrap();
+    assert_eq!(named.status(), 200);
+
+    for _ in 0..5 {
+        let wrong = client.post(format!("{base}/next")).header("X-PSA150-PIN", "0000").send().unwrap();
+        assert_eq!(wrong.status(), 401);
+    }
+    let locked = client.post(format!("{base}/next")).header("X-PSA150-PIN", "4321").send().unwrap();
+    assert_eq!(locked.status(), 429, "the right PIN is refused during the lockout");
+    assert!(actions.try_recv().is_err());
+
+    server.stop();
+}

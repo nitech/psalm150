@@ -1730,8 +1730,11 @@ export class Psa150App extends Psa150Element {
   private async printSongbook() {
     const htmlDoc = await api.printSongbookHtml("Songbook", true);
     const win = window.open("", "_blank");
-    win?.document.write(htmlDoc);
-    win?.document.close();
+    if (!win) return;
+    // Cut the link back to the console (and its Tauri IPC) before writing.
+    win.opener = null;
+    win.document.write(htmlDoc);
+    win.document.close();
   }
 
   private async exportCcli() {

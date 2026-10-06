@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tiny_http::{Header, Method, Request, Response, Server};
@@ -24,6 +24,9 @@ pub struct RemoteStatus {
 
 /// How often the worker checks the stop flag between requests.
 const POLL: Duration = Duration::from_millis(250);
+/// Wrong PINs in a row before actions are refused for `LOCKOUT`.
+const MAX_PIN_FAILURES: u32 = 5;
+const LOCKOUT: Duration = Duration::from_secs(60);
 
 /// PIN-guarded HTTP remote for a phone on the same network (LAN or Tailscale).
 ///
@@ -54,9 +57,10 @@ impl RemoteServer {
         let worker_stop = stop.clone();
         let worker_pin = pin.clone();
         let worker = thread::spawn(move || {
+            let mut guard = PinGuard::default();
             while !worker_stop.load(Ordering::SeqCst) {
                 match worker_server.recv_timeout(POLL) {
-                    Ok(Some(request)) => handle_request(request, &worker_pin, &action_tx),
+                    Ok(Some(request)) => handle_request(request, &worker_pin, &mut guard, &action_tx),
                     Ok(None) => continue,
                     Err(_) => break,
                 }
@@ -104,16 +108,84 @@ impl RemoteServer {
     }
 }
 
-fn handle_request(request: Request, pin: &str, actions: &Sender<RemoteAction>) {
-    let pin_ok = request
+/// Counts wrong PINs so a phone (or a web page in the phone's browser)
+/// cannot guess the PIN by brute force.
+#[derive(Default)]
+struct PinGuard {
+    failures: u32,
+    locked_until: Option<Instant>,
+}
+
+impl PinGuard {
+    fn locked(&mut self) -> bool {
+        match self.locked_until {
+            Some(until) if Instant::now() < until => true,
+            Some(_) => {
+                self.locked_until = None;
+                self.failures = 0;
+                false
+            }
+            None => false,
+        }
+    }
+
+    fn record(&mut self, ok: bool) {
+        if ok {
+            self.failures = 0;
+            return;
+        }
+        self.failures += 1;
+        if self.failures >= MAX_PIN_FAILURES {
+            self.locked_until = Some(Instant::now() + LOCKOUT);
+        }
+    }
+}
+
+fn header<'a>(request: &'a Request, name: &str) -> Option<&'a str> {
+    request
         .headers()
         .iter()
-        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case("x-psa150-pin"))
-        .map(|h| h.value.as_str() == pin)
-        .unwrap_or(false);
+        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case(name))
+        .map(|h| h.value.as_str())
+}
+
+/// DNS rebinding guard: a page on some public domain that re-resolves to this
+/// PC still sends its own name as Host. Accept IP literals, localhost and the
+/// names a phone can reach this PC by without public DNS: a bare machine
+/// name, `*.local` (mDNS) and `*.ts.net` (Tailscale MagicDNS).
+fn host_allowed(host: Option<&str>) -> bool {
+    let Some(host) = host else { return false };
+    let host = host.trim().to_ascii_lowercase();
+    if let Some(rest) = host.strip_prefix('[') {
+        // [IPv6]:port
+        return rest
+            .split(']')
+            .next()
+            .is_some_and(|ip| ip.parse::<std::net::Ipv6Addr>().is_ok());
+    }
+    let name = host.rsplit_once(':').map_or(host.as_str(), |(name, _port)| name);
+    let name = name.trim_end_matches('.');
+    !name.is_empty()
+        && (name.parse::<std::net::Ipv4Addr>().is_ok()
+            || name == "localhost"
+            || !name.contains('.')
+            || name.ends_with(".local")
+            || name.ends_with(".ts.net"))
+}
+
+fn handle_request(request: Request, pin: &str, guard: &mut PinGuard, actions: &Sender<RemoteAction>) {
+    let host_ok = host_allowed(header(&request, "host"));
+    let is_post = request.method() == &Method::Post;
+    let locked = is_post && guard.locked();
+    let pin_ok = header(&request, "x-psa150-pin") == Some(pin);
+    if is_post && host_ok && !locked {
+        guard.record(pin_ok);
+    }
 
     let (status, content_type, body) = match (request.method(), request.url()) {
+        _ if !host_ok => (403, "application/json", "{\"error\":\"forbidden host\"}".to_string()),
         (&Method::Get, "/") => (200, "text/html; charset=utf-8", include_str!("../assets/remote.html").to_string()),
+        (&Method::Post, _) if locked => (429, "application/json", "{\"error\":\"too many wrong PINs\"}".to_string()),
         (&Method::Post, _) if !pin_ok => (401, "application/json", "{\"error\":\"unauthorized\"}".to_string()),
         (&Method::Post, "/next") => (200, "application/json", action(actions, RemoteAction::Next, "next")),
         (&Method::Post, "/prev") => (200, "application/json", action(actions, RemoteAction::Prev, "prev")),

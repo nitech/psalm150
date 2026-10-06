@@ -3,7 +3,13 @@ use tauri::{AppHandle, State};
 use crate::remote::{RemoteServer, RemoteStatus};
 use crate::{with_state, AppState};
 
-const DEFAULT_PIN: &str = "1234";
+/// The fixed PIN older versions saved; replaced by a random one on next start.
+const LEGACY_DEFAULT_PIN: &str = "1234";
+
+/// Six random digits; the operator reads the PIN in Settings, Phone remote.
+fn random_pin() -> String {
+    format!("{:06}", uuid::Uuid::new_v4().as_u128() % 1_000_000)
+}
 
 /// Start the phone remote on `port` (or the configured port), persist the
 /// choice, and hand the action channel to the poll thread in `lib.rs`.
@@ -22,8 +28,8 @@ pub fn start_remote_inner(
             .config
             .remote_pin
             .clone()
-            .filter(|pin| !pin.trim().is_empty())
-            .unwrap_or_else(|| DEFAULT_PIN.into());
+            .filter(|pin| !pin.trim().is_empty() && pin != LEGACY_DEFAULT_PIN)
+            .unwrap_or_else(random_pin);
         let (server, rx) = RemoteServer::start(port, pin.clone())?;
         let status = server.status();
         runtime.remote = Some(server);

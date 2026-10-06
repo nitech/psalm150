@@ -19,7 +19,10 @@ sources:
     title: Windows, bundle, updater endpoint
   - id: caps
     resource: /src-tauri/capabilities/default.json
-    title: Capabilities for main/audience/stage
+    title: Capabilities for main
+  - id: caps-projection
+    resource: /src-tauri/capabilities/projection.json
+    title: Capabilities for audience/stage
   - id: workflow
     resource: /.github/workflows/release.yml
     title: Release workflow
@@ -49,14 +52,23 @@ Vite with three entries (`index.html`, `audience.html`, `stage.html`; see
 Windows, `safari13` elsewhere; `TAURI_ENV_DEBUG` disables minify and enables
 sourcemaps. Fonts (Geist, Geist Mono, Inter) come from Google Fonts at runtime
 with a system fallback stack, so an offline machine renders a fallback font.
-`csp` is `null`. `tsc` runs before `vite build` with `strict`,
+The CSP (`csp`, and `devCsp` which also allows the Vite HMR socket
+`ws://localhost:1420`) allows scripts from the app only, styles from the app,
+inline styles and Google Fonts, fonts from Google Fonts and `data:`, images
+from the app, `data:` and `blob:`, and connections to the app and Tauri IPC
+(`ipc:`, `http://ipc.localhost`). `dangerousDisableAssetCspModification:
+["style-src"]` stops Tauri adding hashes to `style-src`, which would disable
+`'unsafe-inline'` and break inline style attributes. `tsc` runs before `vite build` with `strict`,
 `noUnusedLocals` and `noUnusedParameters`.
 
 ## Backend
 
-Tauri 2 with plugins `process`, `updater`, `dialog`, `fs`, `global-shortcut`.
-Capabilities: `default` (main, audience, stage: core window/event/webview,
-global-shortcut, dialog, fs) and `desktop` (main: updater, process:restart).
+Tauri 2 with plugins `process`, `updater`, `dialog`, `opener`,
+`global-shortcut` (the last two used from Rust only). Capabilities: `default`
+(main: core window/event/webview, dialog), `projection` (audience, stage:
+`core:default`, enough for app commands and events) and `desktop` (main:
+updater, process:restart). The `devtools` feature is off, so only debug
+builds (`bun run tauri dev`) have devtools.
 Notable crates: `rusqlite` (bundled), `jetdb` (Access reader), `notify`,
 `tiny_http`, `reqwest` (rustls, blocking), `scraper`.
 

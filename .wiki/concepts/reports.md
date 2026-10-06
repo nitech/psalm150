@@ -38,8 +38,11 @@ clipboard yet ([gaps](gaps.md)).
 
 `print_songbook_html(title, include_indexes)`: one `<section>` per indexed
 song with title, number, key and category (**no lyrics**), page-break after
-each; optional alphabetical and numeric indexes. Console: Settings, **Print
-songbook HTML** opens it with `window.open` + `document.write`.
+each; optional alphabetical and numeric indexes. Every song field and the
+title are HTML-escaped. Console: Settings, **Print songbook HTML** opens it
+with `window.open`, sets the popup's `opener` to null (so the page cannot
+reach the console's Tauri IPC) and `document.write`s it. The popup inherits
+the console's CSP, so scripts in it do not run.
 
 ## Related
 

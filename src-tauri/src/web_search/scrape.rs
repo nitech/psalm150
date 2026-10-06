@@ -1,4 +1,9 @@
+use std::io::Read;
+
 use scraper::{ElementRef, Html, Selector};
+
+/// Lyric pages are far smaller; stop reading a page that is not.
+const MAX_PAGE_BYTES: u64 = 2 * 1024 * 1024;
 
 pub fn fetch_lyrics(
     client: &reqwest::blocking::Client,
@@ -8,7 +13,12 @@ pub fn fetch_lyrics(
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status()));
     }
-    let body = response.text().map_err(|e| e.to_string())?;
+    let mut bytes = Vec::new();
+    response
+        .take(MAX_PAGE_BYTES)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    let body = String::from_utf8_lossy(&bytes);
     let document = Html::parse_document(&body);
 
     let source_name = host_label(url);

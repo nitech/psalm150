@@ -41,12 +41,15 @@ host in the key column. A failed search toasts "Web search failed".
 
 ## Backend
 
+`search_web_songs` reads `web_search_enabled` under the state lock and
+searches after releasing it, so projection is not stalled meanwhile.
+
 `search_songs(query)`:
 
 1. **Discover**: GET `https://html.duckduckgo.com/html/?q=<query> lyrics chordpro`,
    take up to 8 `a.result__a` hrefs (`uddg=` redirects decoded), skipping
    duckduckgo, youtube and facebook.
-2. **Fetch** each with a 10 s timeout and UA `Psalm150/0.1 (church worship
+2. **Fetch** each (at most 2 MB of body) with a 10 s timeout and UA `Psalm150/0.1 (church worship
    projection; +https://github.com/nitech/psalm150)`. Extractors in order:
    worshipchords `<pre>` containing Verse/Chorus; an ultimate-guitar-style
    `div.js-store, pre, code`; `div.lyrics / div.song-lyrics / article.lyrics /

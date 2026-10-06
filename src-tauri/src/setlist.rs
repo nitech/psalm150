@@ -44,6 +44,13 @@ pub struct ServerSetState {
     pub dirty: bool,
 }
 
+/// Setlist ids name files in the setlists folder and can come from the song
+/// server or the phone remote, so only plain ids (UUIDs and the like) pass.
+pub fn valid_id(id: &str) -> bool {
+    (1..=64).contains(&id.len())
+        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
 pub struct SetlistStore {
     root: PathBuf,
     active: Option<Setlist>,
@@ -62,6 +69,13 @@ impl SetlistStore {
         }
     }
 
+    fn path(&self, id: &str) -> Result<PathBuf, String> {
+        if !valid_id(id) {
+            return Err(format!("Invalid setlist id: {id:?}"));
+        }
+        Ok(self.root.join(format!("{id}.json")))
+    }
+
     pub fn list(&self) -> Result<Vec<Setlist>, String> {
         let mut lists: Vec<Setlist> = Vec::new();
         for entry in fs::read_dir(&self.root).map_err(|e| e.to_string())? {
@@ -76,13 +90,13 @@ impl SetlistStore {
     }
 
     pub fn save(&self, setlist: &Setlist) -> Result<(), String> {
-        let path = self.root.join(format!("{}.json", setlist.id));
+        let path = self.path(&setlist.id)?;
         let text = serde_json::to_string_pretty(setlist).map_err(|e| e.to_string())?;
         fs::write(path, text).map_err(|e| e.to_string())
     }
 
     pub fn load(&mut self, id: &str) -> Result<Setlist, String> {
-        let path = self.root.join(format!("{id}.json"));
+        let path = self.path(id)?;
         let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
         let setlist: Setlist = serde_json::from_str(&text).map_err(|e| e.to_string())?;
         self.active = Some(setlist.clone());
@@ -112,7 +126,7 @@ impl SetlistStore {
         id: &str,
         change: impl FnOnce(&mut Setlist),
     ) -> Result<Setlist, String> {
-        let path = self.root.join(format!("{id}.json"));
+        let path = self.path(id)?;
         let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
         let mut setlist: Setlist = serde_json::from_str(&text).map_err(|e| e.to_string())?;
         change(&mut setlist);
@@ -129,14 +143,14 @@ impl SetlistStore {
 
     /// Read one setlist without making it active.
     pub fn get(&self, id: &str) -> Result<Setlist, String> {
-        let path = self.root.join(format!("{id}.json"));
+        let path = self.path(id)?;
         let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
         serde_json::from_str(&text).map_err(|e| e.to_string())
     }
 
     /// Remove a setlist file; the active copy is cleared when it matches.
     pub fn remove(&mut self, id: &str) -> Result<(), String> {
-        let path = self.root.join(format!("{id}.json"));
+        let path = self.path(id)?;
         if path.exists() {
             fs::remove_file(path).map_err(|e| e.to_string())?;
         }

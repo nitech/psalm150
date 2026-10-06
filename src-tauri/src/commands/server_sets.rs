@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::server_library::{read_manifest, read_token, write_manifest};
-use crate::setlist::{ServerSetState, Setlist, SetlistItem, SetlistItemType};
+use crate::setlist::{valid_id, ServerSetState, Setlist, SetlistItem, SetlistItemType};
 use crate::vsb_sync::ServerSongRef;
 use crate::{with_state, AppState};
 
@@ -401,6 +401,10 @@ fn mirror(
         let mut changed = 0;
 
         for set in server_sets {
+            // The id becomes a file name; ignore a set the server named oddly.
+            if !valid_id(&set.id) {
+                continue;
+            }
             if local
                 .get(&set.id)
                 .and_then(|setlist| setlist.server.as_ref())
@@ -475,7 +479,7 @@ fn mirror(
                 .server
                 .as_ref()
                 .is_some_and(|server| server.version.is_some() && !server.dirty);
-            if uploaded_clean && !on_server.contains(id.as_str()) {
+            if uploaded_clean && valid_id(id) && !on_server.contains(id.as_str()) {
                 store.remove(id)?;
                 changed += 1;
             }

@@ -45,6 +45,9 @@ to a server library.
   the server version this copy is based on (`null` until first uploaded);
   `dirty` means changed on this PC and not yet accepted by the server.
 - `note` is free text for the team, carried from a song server set.
+- The id names the file, so `SetlistStore` refuses ids that are not 1–64 of
+  `[A-Za-z0-9_-]` (`setlist::valid_id`); mirroring skips server sets with
+  such ids.
 - `date` is the local ISO date for setlists made here; a set from the server
   carries its `service_date` (empty when the server has none).
 

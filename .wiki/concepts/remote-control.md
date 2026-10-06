@@ -55,8 +55,9 @@ tailnet address (e.g. `100.64.229.79`), so the phone works from anywhere.
 ### Lifecycle
 
 - **Settings, Phone remote** toggles it. On: `start_remote` binds, saves
-  `remote_enabled = true`, `remote_port` and `remote_pin` (default `1234` when
-  unset) and shows the port and PIN. Off: `stop_remote`.
+  `remote_enabled = true`, `remote_port` and `remote_pin` (six random digits
+  when unset, or when it is `1234`, the fixed default of older versions) and
+  shows the port and PIN. Off: `stop_remote`.
 - **Auto-start**: `setup()` calls `start_remote_inner` when
   `config.remote_enabled` is true, so the remote survives restarts. A failed
   bind is logged as `[remote] not started: …` and the app continues.
@@ -76,6 +77,8 @@ tailnet address (e.g. `100.64.229.79`), so the phone works from anywhere.
 | `GET /` | none | `text/html` remote page |
 | `POST /next`, `/prev`, `/blank` | header `X-PSA150-PIN` equal to the PIN | `200 {"action": "..."}`; queues a `RemoteAction` |
 | `POST` with a wrong or missing PIN | | `401 {"error":"unauthorized"}` |
+| `POST` within 60 s of the fifth wrong PIN in a row | | `429 {"error":"too many wrong PINs"}`, even with the right PIN |
+| any request whose `Host` is not an IP literal, `localhost`, a bare machine name, `*.local` or `*.ts.net` | | `403 {"error":"forbidden host"}` (DNS rebinding guard) |
 | anything else | | `404 {"error":"not found"}` |
 
 Actions travel over an `mpsc` channel that the thread in `lib.rs` drains once
@@ -89,14 +92,17 @@ buttons, safe-area padding, `apple-mobile-web-app-capable` so it can be added
 to the iOS Home Screen. The PIN field is remembered in the phone's
 `localStorage` (`psa150-remote-pin`); each tap reports "Sent next", "Wrong
 PIN. Type the PIN shown in Psalm150 under Settings, Phone remote." (and marks
-the PIN field invalid) or "Psalm150 is not reachable" in a `role="status"`
+the PIN field invalid) or "Too many wrong PINs. Wait a minute, then try again." (429) or
+"Psalm150 is not reachable" in a `role="status"`
 line. The page aims at WCAG 2.2 AA ([accessibility](accessibility.md#lan-remote-page)):
 labelled PIN field with a 3:1 edge, focus ring, `main` landmark.
 
 ### Caveats
 
-- Binding `0.0.0.0` exposes it on every interface; the PIN is the only guard
-  and travels in clear over HTTP. Fine on a tailnet or church Wi-Fi, not on a
+- Binding `0.0.0.0` exposes it on every interface; the PIN (with the lockout
+  and Host check) is the only guard and travels in clear over HTTP. Someone
+  sending wrong PINs keeps the phone locked out. tiny_http has no read
+  timeout. Fine on a tailnet or church Wi-Fi, not on a
   public network.
 - Windows Firewall may prompt the first time a build listens; allow it or the
   phone gets "not reachable".

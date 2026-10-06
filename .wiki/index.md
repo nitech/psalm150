@@ -33,7 +33,7 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 * [Config and theme](concepts/config.md) - `config.json` fields with consumers (including `server_remote` and `server_room_sharing`, both on by default), per-library `SlideTheme`, stored-but-unused settings
 * [Design tokens](concepts/design-tokens.md) - Shared `psa150-tokens.css` and icons mirrored from the song server in `src/shared/`, dark/light themes, console aliases, `designsystem.json` as reference
 * [IPC contract](concepts/ipc-contract.md) - Every Tauri command and event, grouped, with whether the UI calls it
-* [Remote control](concepts/remote-control.md) - PIN-guarded LAN remote for next/prev/blank; the song server remote (on by default) that also projects songs and set items; the PC's room on the song server (flower name, rename, sharing the projected words, `server-room`)
+* [Remote control](concepts/remote-control.md) - LAN remote for next/prev/blank (random PIN, lockout after wrong PINs, Host check); the song server remote (on by default) that also projects songs and set items; the PC's room on the song server (flower name, rename, sharing the projected words, `server-room`)
 * [Reports](concepts/reports.md) - CCLI usage log and CSV export, printable songbook HTML
 * [Build and release](concepts/build-and-release.md) - Bun + Vite multi-entry, the Tauri CLI shim, test suites, GitHub release and updater
 * [Gaps and backlog](concepts/gaps.md) - Known limitations, the Todo list with status, unwired commands
