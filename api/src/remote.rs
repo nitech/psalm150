@@ -326,6 +326,11 @@ pub(crate) fn event_stream(
     response
 }
 
+/// A desktop reports what it projects.
+///
+/// This also keeps it online: report at least every 45 seconds. The words in
+/// `slides` reach people following the desktop's room only while `shares_room`
+/// is set and the church has rooms open.
 #[utoipa::path(
     put,
     path = "/api/v1/remote/desktop",
@@ -363,6 +368,7 @@ pub async fn report_desktop_state(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// A desktop leaves the remote; phones stop listing it until it reports again.
 #[utoipa::path(
     delete,
     path = "/api/v1/remote/desktop",
@@ -380,6 +386,10 @@ pub async fn leave_remote(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// A desktop takes the commands queued for it.
+///
+/// With `wait`, the request stays open up to that many seconds until a command
+/// arrives (long polling). Commands older than 30 seconds are dropped.
 #[utoipa::path(
     get,
     path = "/api/v1/remote/desktop/commands",
@@ -422,6 +432,9 @@ pub async fn wait_for_commands(
     }
 }
 
+/// The church's desktops and what each one projects, online ones first.
+///
+/// For updates as they happen, use `GET /remote/desktops/events`.
 #[utoipa::path(
     get,
     path = "/api/v1/remote/desktops",
@@ -471,10 +484,12 @@ async fn church_desktops(
     Ok(desktops)
 }
 
-/// The church's desktops as server-sent events: a `desktops` event with the
-/// same list as `GET /remote/desktops` straight away and whenever it
-/// changes. A browser's `EventSource` cannot send the bearer token, so read
-/// the stream with `fetch`. The stream ends when the token stops working.
+/// The church's desktops as server-sent events.
+///
+/// Each `desktops` event carries the same list as `GET /remote/desktops`,
+/// straight away and whenever it changes. A browser's `EventSource` cannot
+/// send the bearer token, so read the stream with `fetch`. The stream ends
+/// when the token stops working.
 #[utoipa::path(
     get,
     path = "/api/v1/remote/desktops/events",
@@ -507,6 +522,10 @@ pub async fn desktop_events(
     Ok(event_stream(events))
 }
 
+/// A leader steers a desktop.
+///
+/// Next, previous, blank, a slide, a song or a set item. 404 when the desktop
+/// is offline, 409 when its operator turned remote control off.
 #[utoipa::path(
     post,
     path = "/api/v1/remote/desktops/{device_id}/commands",

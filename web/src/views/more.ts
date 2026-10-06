@@ -18,6 +18,8 @@ export async function moreView(ctx: AppContext): Promise<void> {
     return null;
   });
   const install = installOption();
+  // Offline, About still shows; the version is left out.
+  const info = await ctx.api.info().catch(() => null);
 
   ctx.main.innerHTML = `${pageHead({ title: "More", church: session.church_name, compact: true, menu: true })}
   <section class="card account-card">
@@ -72,7 +74,7 @@ export async function moreView(ctx: AppContext): Promise<void> {
   </div>` : ""}
 
   <h2 class="list-heading">API tokens</h2>
-  <p class="muted">For scripts and other programs that use this server's API. A token can do what you can, or less if you choose, until it is revoked.</p>
+  <p class="muted">For scripts and other programs that use this server's API. A token can do what you can, or less if you choose, until it is revoked. The <a href="#/api">API reference</a> shows what they can call.</p>
   <div class="list" id="api-token-list">
     ${apiTokens === null
       ? `<p class="muted pad">Your API tokens show when you are online.</p>`
@@ -80,7 +82,12 @@ export async function moreView(ctx: AppContext): Promise<void> {
       <button class="button secondary small revoke-api-token" data-token="${token.id}" data-name="${escapeHtml(token.name)}" aria-label="Revoke ${escapeHtml(token.name)}">Revoke</button></div>`).join("") || `<p class="muted pad">No API tokens.</p>`}
     <button class="list-row" id="new-api-token">${icon("plus")}<span class="row-main"><strong>Create an API token</strong><small>For a script or another program</small></span></button>`}
   </div>
-  <p class="fine-print">PSA150 Song Server · ${ctx.isPublic ? "songs open to everyone, sets private to your church" : "private to your church"}</p>`;
+  <h2 class="list-heading">About</h2>
+  <ul class="list" aria-label="About">
+    <li><a class="list-row" href="#/api">${icon("text")}<span class="row-main"><strong>API reference</strong><small>Everything this server does, for scripts and other programs</small></span>${icon("next")}</a></li>
+    <li><a class="list-row" href="/api/openapi.json" download="psa150-openapi.json">${icon("download")}<span class="row-main"><strong>OpenAPI document</strong><small>The API as JSON, for tools such as Postman or Swagger</small></span></a></li>
+  </ul>
+  <p class="fine-print">PSA150 Song Server${info ? ` ${escapeHtml(info.version)}` : ""} · ${ctx.isPublic ? "songs open to everyone, sets private to your church" : "private to your church"}</p>`;
 
   // Arrow keys move between the options of each choice (ARIA radio group).
   ctx.main.querySelectorAll<HTMLElement>('[role="radiogroup"]').forEach(bindRadioGroup);

@@ -2284,6 +2284,23 @@ async fn openapi_describes_every_operation(pool: PgPool) {
                 continue;
             }
             let name = format!("{method} {path}");
+            // Every operation says what it does and sits in one section.
+            assert!(
+                operation["summary"]
+                    .as_str()
+                    .is_some_and(|summary| !summary.trim().is_empty()),
+                "{name} has no summary; give its handler a doc comment"
+            );
+            let tag = operation["tags"][0].as_str().unwrap_or_default();
+            assert!(
+                operation["tags"]
+                    .as_array()
+                    .is_some_and(|tags| tags.len() == 1)
+                    && doc["tags"]
+                        .as_array()
+                        .is_some_and(|tags| tags.iter().any(|known| known["name"] == tag)),
+                "{name} is in no section; add its path to GROUPS in api.rs"
+            );
             let secured = operation["security"]
                 .as_array()
                 .is_some_and(|list| list.iter().any(|item| item.get("bearer").is_some()));

@@ -34,7 +34,9 @@ cd web && bun run test                                     # vitest
 - Everything the server does is reachable through `/api/v1` with a token; no
   operation is web-only or database-only. Authenticated operations carry
   `security(("bearer" = []))`, and `openapi_describes_every_operation` lists
-  the public ones and checks that every documented operation is routed.
+  the public ones and checks that every documented operation is routed, has
+  a summary (the handler's doc comment) and is in one section (`GROUPS` in
+  `api.rs`, matched by path; a new top-level path needs an entry).
 - API (`psa_a_`) tokens act as their person in one church. `authenticate`
   gives them the lower of the token's `role` and the person's current
   membership role, so `require_editor` and `require_owner` treat them like

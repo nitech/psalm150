@@ -21,6 +21,7 @@ use utoipa::{
     openapi::{
         OpenApi as OpenApiDocument,
         security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+        tag::Tag,
     },
 };
 use uuid::Uuid;
@@ -65,7 +66,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
             as the person who made it, for scripts and integrations) or a `psa_d_` desktop token. \
             Errors are JSON `{\"error\": \"...\"}`."
     ),
-    modifiers(&BearerAuth),
+    modifiers(&BearerAuth, &Groups),
     paths(
         health,
         server_info,
@@ -181,8 +182,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         RoomNameRequest,
         RoomStatus,
         RoomView
-    )),
-    tags((name = "PSA150", description = "PSA150 Song Server"))
+    ))
 )]
 struct ApiDoc;
 
@@ -205,6 +205,107 @@ impl Modify for BearerAuth {
                         .build(),
                 ),
             );
+    }
+}
+
+/// The API's sections, in reading order: (name, description, the paths
+/// after `/api/v1/` that belong to it). Every operation is in exactly one;
+/// the web client's API reference and tools such as Swagger group by them.
+const GROUPS: &[(&str, &str, &[&str])] = &[
+    (
+        "Server",
+        "Whether the server is up, what it offers, and setting it up the first time.",
+        &["health", "info", "setup"],
+    ),
+    (
+        "Sign-in and account",
+        "Signing in and out, and changing your own password.",
+        &["session", "account"],
+    ),
+    (
+        "API tokens",
+        "Tokens that act as you, for scripts and other programs.",
+        &["api-tokens"],
+    ),
+    (
+        "People",
+        "The church's people and their roles. Owners only.",
+        &["members"],
+    ),
+    ("Church", "The church's name and settings.", &["church"]),
+    (
+        "Songs",
+        "The church's song library: ChordPro songs with every revision kept.",
+        &["songs"],
+    ),
+    (
+        "Sets",
+        "Song lists for services, shared with the desktops.",
+        &["sets"],
+    ),
+    (
+        "Desktops",
+        "Connecting Psalm150 desktops: browser sign-in, desktop tokens and room names.",
+        &["device-tokens", "desktop-auth"],
+    ),
+    (
+        "Remote control",
+        "Desktops report what they project; leaders' phones follow and steer them.",
+        &["remote"],
+    ),
+    (
+        "Rooms",
+        "Anyone may follow the words a desktop projects by its room name. No token needed.",
+        &["public/rooms"],
+    ),
+    (
+        "Public library",
+        "Songs of churches that opened their library to everyone. No token needed.",
+        &["public/songs"],
+    ),
+];
+
+/// Puts every operation in its section (`GROUPS`), by its path.
+struct Groups;
+
+impl Modify for Groups {
+    fn modify(&self, openapi: &mut OpenApiDocument) {
+        openapi.tags = Some(
+            GROUPS
+                .iter()
+                .map(|(name, description, _)| {
+                    let mut tag = Tag::new(name);
+                    tag.description = Some((*description).to_string());
+                    tag
+                })
+                .collect(),
+        );
+        for (path, item) in openapi.paths.paths.iter_mut() {
+            let rest = path.trim_start_matches("/api/v1/");
+            let group = GROUPS
+                .iter()
+                .find(|(_, _, prefixes)| {
+                    prefixes.iter().any(|prefix| {
+                        rest == *prefix
+                            || rest
+                                .strip_prefix(prefix)
+                                .is_some_and(|tail| tail.starts_with('/'))
+                    })
+                })
+                .map(|(name, _, _)| (*name).to_string());
+            for operation in [
+                &mut item.get,
+                &mut item.put,
+                &mut item.post,
+                &mut item.delete,
+                &mut item.patch,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                operation.tags = group.clone().map(|group| vec![group]);
+            }
+        }
     }
 }
 
@@ -254,6 +355,7 @@ pub async fn openapi() -> Json<OpenApiDocument> {
     Json(ApiDoc::openapi())
 }
 
+/// Checks that the server and its database answer.
 #[utoipa::path(get, path = "/api/v1/health", responses((status = 200, body = HealthResponse)))]
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, AppError> {
     sqlx::query_scalar::<_, i32>("SELECT 1")
@@ -266,6 +368,10 @@ async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, A
     }))
 }
 
+/// What this server is and offers.
+///
+/// Whether it is set up, supports desktop sign-in, has a public library and
+/// shares rooms. No token needed.
 #[utoipa::path(get, path = "/api/v1/info", responses((status = 200, body = ServerInfo)))]
 async fn server_info(State(state): State<AppState>) -> Result<Json<ServerInfo>, AppError> {
     let public = sqlx::query_scalar::<_, String>(
@@ -291,6 +397,7 @@ async fn server_info(State(state): State<AppState>) -> Result<Json<ServerInfo>, 
     }))
 }
 
+/// Whether the server has been set up with a church and its first owner.
 #[utoipa::path(get, path = "/api/v1/setup", responses((status = 200, body = SetupStatus)))]
 async fn setup_status(State(state): State<AppState>) -> Result<Json<SetupStatus>, AppError> {
     Ok(Json(SetupStatus {
@@ -306,6 +413,10 @@ async fn is_initialized(pool: &PgPool) -> Result<bool, AppError> {
     .await?)
 }
 
+/// Sets up a new server.
+///
+/// Creates the church and its first owner, and signs the owner in. Works once;
+/// after that the answer is 409.
 #[utoipa::path(
     post,
     path = "/api/v1/setup",
@@ -472,6 +583,7 @@ async fn unknown_user_hash() -> Result<String, AppError> {
         .cloned()
 }
 
+/// The signed-in church and its settings.
 #[utoipa::path(
     get,
     path = "/api/v1/church",
@@ -542,6 +654,10 @@ async fn update_church(
     Ok(Json(settings))
 }
 
+/// Makes a desktop token by hand.
+///
+/// For a desktop that cannot open a browser to sign in. The `psa_d_` token is
+/// shown once.
 #[utoipa::path(
     post,
     path = "/api/v1/device-tokens",
@@ -608,6 +724,11 @@ async fn insert_device_token(
 /// How long a desktop sign-in code stays valid.
 const DESKTOP_AUTH_CODE_MINUTES: i64 = 5;
 
+/// A leader approves a desktop's browser sign-in.
+///
+/// Returns a one-time code, valid for five minutes, that the browser hands to
+/// the desktop's loopback address. The desktop's PKCE `code_challenge` (S256)
+/// ties the code to that desktop.
 #[utoipa::path(
     post,
     path = "/api/v1/desktop-auth/codes",
@@ -669,6 +790,11 @@ struct ConsumedCode {
     code_challenge: String,
 }
 
+/// A desktop trades its one-time sign-in code for a desktop token.
+///
+/// Send the code and the PKCE `code_verifier`. No bearer token is needed; each
+/// code works once. The answer carries a `psa_d_` token and the desktop's room
+/// name.
 #[utoipa::path(
     post,
     path = "/api/v1/desktop-auth/token",
@@ -742,6 +868,7 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
             == 0
 }
 
+/// The church's connected desktops. Leaders and owners.
 #[utoipa::path(
     get,
     path = "/api/v1/device-tokens",
@@ -766,6 +893,10 @@ async fn list_device_tokens(
     Ok(Json(devices))
 }
 
+/// Revokes a desktop's token.
+///
+/// The desktop stops synchronizing, leaves the remote at once, and its room
+/// name becomes free for another desktop.
 #[utoipa::path(
     delete,
     path = "/api/v1/device-tokens/{device_id}",
@@ -796,6 +927,11 @@ async fn revoke_device_token(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Searches the church's songs.
+///
+/// `q` matches the title, authors, song number and words. Results come a page
+/// at a time (`limit`, `offset`), by title or by number; a page shorter than
+/// `limit` is the last.
 #[utoipa::path(
     get,
     path = "/api/v1/songs",
@@ -820,6 +956,10 @@ async fn list_songs(
     ))
 }
 
+/// Anyone: searches the public libraries.
+///
+/// The songs of churches that opened their library to everyone. Searching,
+/// paging and sorting work as in `GET /songs`.
 #[utoipa::path(
     get,
     path = "/api/v1/public/songs",
@@ -841,6 +981,7 @@ async fn list_public_songs(
     ))
 }
 
+/// Anyone: a song from a public library, with its ChordPro text.
 #[utoipa::path(
     get,
     path = "/api/v1/public/songs/{song_id}",
@@ -936,6 +1077,10 @@ async fn search_songs(
     .await?)
 }
 
+/// Adds a song from its ChordPro text.
+///
+/// The title, authors, song number and other details are read from the ChordPro
+/// directives.
 #[utoipa::path(
     post,
     path = "/api/v1/songs",
@@ -954,6 +1099,7 @@ async fn create_song(
     Ok((StatusCode::CREATED, Json(song)))
 }
 
+/// A song with its current ChordPro text.
 #[utoipa::path(
     get,
     path = "/api/v1/songs/{song_id}",
@@ -973,6 +1119,11 @@ async fn get_song(
     Ok(Json(song))
 }
 
+/// Saves a new revision of a song.
+///
+/// `base_revision_id` must be the song's current revision. If someone saved a
+/// change in between, the answer is 409 and nothing is saved: read the song
+/// again and redo the edit.
 #[utoipa::path(
     put,
     path = "/api/v1/songs/{song_id}",
@@ -1033,6 +1184,10 @@ async fn update_song(
     ))
 }
 
+/// Deletes a song; it can be restored.
+///
+/// With `base_revision_id`, a song that changed since that revision is not
+/// deleted (409).
 #[utoipa::path(
     delete,
     path = "/api/v1/songs/{song_id}",
@@ -1078,6 +1233,7 @@ async fn delete_song(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Every saved revision of a song.
 #[utoipa::path(
     get,
     path = "/api/v1/songs/{song_id}/revisions",
@@ -1216,6 +1372,10 @@ async fn restore_song(
         .ok_or_else(|| AppError::NotFound("song was not found".into()))
 }
 
+/// Adds many songs at once from ChordPro files.
+///
+/// A file whose exact text is already in the library is skipped and counted in
+/// `skipped_existing`.
 #[utoipa::path(
     post,
     path = "/api/v1/songs/import",
@@ -1281,6 +1441,9 @@ async fn import_songs(
     ))
 }
 
+/// The church's whole library as a ZIP of ChordPro files.
+///
+/// `psa150-manifest.json` in the ZIP maps each file to its song.
 #[utoipa::path(
     get,
     path = "/api/v1/songs/export",

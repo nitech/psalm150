@@ -11,6 +11,7 @@ import type { SessionInfo, SetDetail, Session } from "./types.ts";
 import { dateBadge, errorMessage, escapeHtml, hideToast, readPreference, setFormBusy, showToast } from "./ui.ts";
 import { moreView } from "./views/more.ts";
 import { peopleView } from "./views/people.ts";
+import { apiDocs } from "./views/api-docs.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
 import { joinPath, renderJoin, renderRoomFromPath } from "./views/room.ts";
 import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
@@ -54,6 +55,7 @@ openPermalink();
 function openPermalink(): void {
   const song = /^\/songs\/([0-9a-f-]{36})\/?$/i.exec(location.pathname);
   if (song) history.replaceState(null, "", `/#/songs/${song[1].toLowerCase()}`);
+  if (/^\/api\/docs\/?$/.test(location.pathname)) history.replaceState(null, "", "/#/api");
 }
 
 /**
@@ -309,6 +311,7 @@ const ROUTES: Route[] = [
   { pattern: /^\/remote\/([0-9a-f-]{36})$/, view: remoteDesktop, tab: "remote" },
   { pattern: /^\/more$/, view: moreView, tab: "more" },
   { pattern: /^\/people$/, view: peopleView, tab: "more" },
+  { pattern: /^\/api$/, view: apiDocs, tab: "more", visitors: true },
 ];
 
 const TABS: Array<{ tab: Tab; label: string; icon: IconName; href: string }> = [

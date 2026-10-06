@@ -359,7 +359,7 @@ fn desktop_room(device_id: Uuid, identity: DesktopIdentity) -> DesktopRoom {
     }
 }
 
-/// The desktop asking: its room.
+/// A desktop reads its own room name, and whether its church shares rooms.
 #[utoipa::path(
     get,
     path = "/api/v1/remote/desktop",
@@ -376,8 +376,10 @@ pub async fn own_room(
     Ok(Json(desktop_room(device_id, identity)))
 }
 
-/// The desktop renames its own room; a left-out `room_name` picks a new
-/// random flower.
+/// A desktop renames its own room.
+///
+/// Leave out `room_name`, or send null, for a new random flower. A name another
+/// desktop already has is a 409.
 #[utoipa::path(
     put,
     path = "/api/v1/remote/desktop/room",
@@ -400,8 +402,10 @@ pub async fn rename_own_room(
     rename(&state, device_id, request).await
 }
 
-/// A leader renames one of the church's desktops' rooms; a left-out
-/// `room_name` picks a new random flower.
+/// A leader renames one of the church's desktops' rooms.
+///
+/// Leave out `room_name`, or send null, for a new random flower. A name another
+/// desktop already has is a 409.
 #[utoipa::path(
     put,
     path = "/api/v1/device-tokens/{device_id}/room",
@@ -475,8 +479,9 @@ async fn find_room(state: &AppState, room_name: &str) -> Result<(Uuid, String), 
     .ok_or_else(not_found)
 }
 
-/// Anyone: what the room shows now. Words are included only while the
-/// desktop projects and shares them.
+/// Anyone: what a room shows now.
+///
+/// The words are included only while the desktop projects and shares them.
 #[utoipa::path(
     get,
     path = "/api/v1/public/rooms/{room_name}",
@@ -491,9 +496,10 @@ pub async fn get_room(
     Ok(Json(state.remote.room_view(device_id, &room_name)))
 }
 
-/// Anyone: the room as server-sent events, for `EventSource`. A `room` event
-/// carries the same `RoomView` as `GET /public/rooms/{room_name}`, straight
-/// away and whenever it changes.
+/// Anyone: a room's changes as server-sent events.
+///
+/// For `EventSource`. Each `room` event carries the same `RoomView` as
+/// `GET /public/rooms/{room_name}`, straight away and whenever it changes.
 #[utoipa::path(
     get,
     path = "/api/v1/public/rooms/{room_name}/events",

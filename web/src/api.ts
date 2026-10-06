@@ -25,6 +25,7 @@ import type {
   SongSummary,
   SortDirection,
 } from "./types.ts";
+import type { OpenApiDocument } from "./views/api-docs.ts";
 
 const API_ROOT = "/api/v1";
 
@@ -105,6 +106,13 @@ export class SongServerApi {
 
   info(): Promise<ServerInfo> {
     return this.request("/info");
+  }
+
+  /** The server's OpenAPI document (outside `/api/v1`), for the API reference. */
+  async openApi(): Promise<OpenApiDocument> {
+    const response = await send("/api/openapi.json", {});
+    if (!response.ok) throw await this.error(response);
+    return response.json() as Promise<OpenApiDocument>;
   }
 
   setupStatus(): Promise<SetupStatus> {

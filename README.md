@@ -105,7 +105,8 @@ docker compose up --build
 ```
 
 Open `http://localhost:8080` for first-run setup. PostgreSQL is not exposed on a
-host port. API documentation is available at `/api/openapi.json`.
+host port. API documentation is at `/api/docs` (the OpenAPI document itself is
+at `/api/openapi.json`).
 
 Everything the server does is in that API. For scripts and integrations, make
 an API token under **More → API tokens** in the web interface (or with

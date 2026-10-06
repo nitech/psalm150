@@ -400,6 +400,7 @@ impl MemberRow {
 const MEMBER_COLUMNS: &str = "u.id AS user_id, u.username, u.display_name, m.role,
      u.disabled_at IS NOT NULL AS disabled, m.created_at";
 
+/// Owners: the church's people and their roles.
 #[utoipa::path(
     get,
     path = "/api/v1/members",

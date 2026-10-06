@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Web client
-description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and "Follow the desktop", remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
+description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and "Follow the desktop", remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, the API reference, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
 tags: [web, ui, vite, typescript, mobile, pwa, offline]
 status: stable
 sources:
@@ -23,6 +23,9 @@ sources:
   - id: sets
     resource: /web/src/views/sets.ts
     title: Set list, detail, editor, service view
+  - id: api-docs
+    resource: /web/src/views/api-docs.ts
+    title: API reference drawn from /api/openapi.json
   - id: remote
     resource: /web/src/views/remote.ts
     title: Remote list and desktop screen, room rename and link
@@ -150,6 +153,7 @@ navigation offline with the saved `/`, but saves only `/` itself.
 | `#/remote/{deviceId}` | One desktop's remote |
 | `#/more` | Account, app, appearance, library, church, desktops, API tokens |
 | `#/people` | People of the church (owners; others get "Only owners manage people") |
+| `#/api` | API reference (also `/api/docs`; visitors too when the library is public) |
 
 An unknown route goes to `#/sets`. A 401 from any screen clears the session
 and shows sign-in. A 404 shows "Not found".
@@ -328,6 +332,26 @@ own role down ("Everything, like an owner", "Songs, sets and desktops, like a
 leader", "Read only"), shown once with a copy button
 ([auth and roles](auth-and-roles.md#api-tokens)). Offline, the section says the
 tokens show when you are online and the rest of the screen still works.
+
+## API reference
+
+`#/api` is the server's API reference, linked from **More → About** (with the
+OpenAPI document and the server's version) and from the API tokens text, and
+reachable at `/api/docs` (the server answers it with the app, which moves to
+the hash route). It reads `/api/openapi.json`, so it always matches the server
+it comes from, and the service worker keeps a copy for offline reading.
+
+The top says what the API is (the document's description), the base address
+(`<origin>/api/v1`), how to sign requests (with a link to make an API token)
+and links the raw OpenAPI document for tools such as Postman. Operations are
+grouped by the document's tags (the sections of `GROUPS` in `api.rs`), each a
+`<details>` that opens to its description, whether it needs a token, its
+parameters, request body and answers. Fields show their type in plain words
+("text (uuid) or null"), whether they are required and their description;
+data types that hold other types open in place ("Fields of RoomSlide"), so
+reading never leaves the page. Every operation has a curl example built from
+its schema, with a Copy button. A search box filters by path, method and
+words and announces how many operations match.
 
 ## People
 

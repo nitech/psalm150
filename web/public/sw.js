@@ -21,6 +21,7 @@ const NETWORK_WAIT_MS = 4000;
 const CACHED_API = [
   /^\/api\/v1\/setup$/,
   /^\/api\/v1\/info$/,
+  /^\/api\/openapi\.json$/,
   /^\/api\/v1\/public\/songs$/,
   /^\/api\/v1\/public\/songs\/[0-9a-f-]{36}$/,
   /^\/api\/v1\/sets$/,

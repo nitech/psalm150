@@ -1,7 +1,9 @@
 # API
 
 The PSA150 Song Server API is versioned under `/api/v1`. Its generated OpenAPI
-document is served at `/api/openapi.json`. Everything the server does is
+document is served at `/api/openapi.json`, and the web interface shows it as a
+readable reference at `/api/docs` (also under More, About), with every
+operation's fields and a curl example. Everything the server does is
 available through it: the bundled web interface uses these same endpoints and
 has no private server contract, so anyone with a token can do through the API
 whatever that token's person (or desktop) may do.

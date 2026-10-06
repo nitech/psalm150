@@ -168,13 +168,23 @@ before a handler runs. That response is plain text, not `ErrorBody`.
 lists are maintained **by hand**. A new handler or schema that is missing from
 those lists works, but does not appear in `/api/openapi.json`.
 
+Every operation has a summary, from its handler's doc comment: the first
+paragraph is the `summary`, the rest the `description`. The `Groups` modifier
+puts each operation in one section (its only tag), by its path, from the
+`GROUPS` table in `api.rs` (Server, Sign-in and account, API tokens, People,
+Church, Songs, Sets, Desktops, Remote control, Rooms, Public library), and
+lists those sections with descriptions in the document's `tags`. The web
+client's [API reference](web-client.md#api-reference) and tools such as
+Swagger group by them.
+
 The `BearerAuth` modifier declares an HTTP `bearer` security scheme, and every
 operation that needs a token carries `security(("bearer" = []))`. The test
 `openapi_describes_every_operation` reads the served document and fails when
 an operation outside its list of ten public ones (`/health`, `/info`, both
 `/setup`, `POST /session`, the two `/public/songs` reads, the two
 `/public/rooms` reads and `POST /desktop-auth/token`) lacks the scheme, when a public one has it, or
-when a documented operation is not routed (the router's bare 404 or a 405).
+when a documented operation is not routed (the router's bare 404 or a 405),
+has no summary, or is in no section.
 It cannot see a routed handler that is missing from `paths(...)`.
 
 ## Versioning

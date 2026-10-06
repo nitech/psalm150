@@ -43,6 +43,10 @@ pub fn router() -> Router<AppState> {
         .route("/sets/{set_id}/restore", post(restore_set))
 }
 
+/// The church's sets, a page at a time.
+///
+/// `from` leaves out sets dated before that day; sets without a date are always
+/// included.
 #[utoipa::path(
     get,
     path = "/api/v1/sets",
@@ -177,6 +181,10 @@ pub async fn sets_snapshot(
     ))
 }
 
+/// Creates a set.
+///
+/// A desktop may choose the `id`, so a set made offline is uploaded once; an
+/// `id` already in use is a 409.
 #[utoipa::path(
     post,
     path = "/api/v1/sets",
@@ -230,6 +238,7 @@ pub async fn create_set(
     Ok((StatusCode::CREATED, Json(set)))
 }
 
+/// A set with its items and their songs.
 #[utoipa::path(
     get,
     path = "/api/v1/sets/{set_id}",
@@ -249,6 +258,10 @@ pub async fn get_set(
         .ok_or_else(set_not_found)
 }
 
+/// Replaces a set's name, date and items.
+///
+/// `base_version` must be the set's current version; a set changed in between
+/// is a 409.
 #[utoipa::path(
     put,
     path = "/api/v1/sets/{set_id}",
@@ -292,6 +305,9 @@ pub async fn update_set(
         .ok_or_else(set_not_found)
 }
 
+/// Deletes a set; it can be restored.
+///
+/// `base_version` must be the set's current version (409 otherwise).
 #[utoipa::path(
     delete,
     path = "/api/v1/sets/{set_id}",
