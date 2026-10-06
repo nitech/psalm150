@@ -137,7 +137,8 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   // "New set…" from a song page starts the set with that song.
   const query = routeQuery();
   const startSong = query.get("song");
-  if (!existing && startSong) {
+  // Only a song id: the value comes from the link and goes into an API path.
+  if (!existing && startSong && /^[0-9a-f-]{36}$/i.test(startSong)) {
     const song = await ctx.api.getSong(startSong);
     draft.items.push({
       id: crypto.randomUUID(),

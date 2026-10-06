@@ -177,7 +177,7 @@ pub async fn change_password(
     let key = format!("password:{user_id}");
     state
         .throttle
-        .check(&key, throttle::PASSWORD_CHANGE)
+        .attempt(&key, throttle::PASSWORD_CHANGE)
         .map_err(|seconds| AppError::TooManyRequests {
             message: format!(
                 "too many wrong passwords; try again {}",
@@ -189,8 +189,8 @@ pub async fn change_password(
         .bind(user_id)
         .fetch_one(&state.pool)
         .await?;
+    // The attempt already counts as a failure.
     if !verify_password(request.current_password, stored).await? {
-        state.throttle.fail(&key, throttle::PASSWORD_CHANGE);
         return Err(AppError::Forbidden(
             "the current password is incorrect".into(),
         ));
@@ -269,7 +269,8 @@ pub async fn list_api_tokens(
         .map(Json)
 }
 
-/// Makes an API token that acts as the caller, with at most their role.
+/// Makes an API token that acts as the caller, with at most their role. Made
+/// with an API token, it expires no later than that one.
 #[utoipa::path(
     post,
     path = "/api/v1/api-tokens",
@@ -305,6 +306,20 @@ pub async fn create_api_token(
             "expires_at must be in the future".into(),
         ));
     }
+    // A token made by a token that runs out runs out no later, so a copied
+    // short-lived token cannot become a lasting one.
+    let mut expires_at = request.expires_at;
+    if auth.kind == TokenKind::Api {
+        let parent = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+            "SELECT expires_at FROM api_tokens WHERE token_hash = $1",
+        )
+        .bind(&auth.token_hash)
+        .fetch_one(&state.pool)
+        .await?;
+        if let Some(parent) = parent {
+            expires_at = Some(expires_at.map_or(parent, |own| own.min(parent)));
+        }
+    }
 
     let id = Uuid::new_v4();
     let token = new_token("psa_a_");
@@ -320,7 +335,7 @@ pub async fn create_api_token(
     .bind(role.as_db())
     .bind(hash_token(&token))
     .bind(created_at)
-    .bind(request.expires_at)
+    .bind(expires_at)
     .execute(&state.pool)
     .await?;
 
@@ -332,7 +347,7 @@ pub async fn create_api_token(
             role,
             token,
             created_at,
-            expires_at: request.expires_at,
+            expires_at,
         }),
     ))
 }
@@ -507,7 +522,14 @@ pub async fn update_member(
     Json(request): Json<UpdateMemberRequest>,
 ) -> Result<Json<Member>, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    auth.require_owner()?;
+    let owner_id = auth.require_owner()?;
+    // Your own password needs the current one (PUT /account/password), so a
+    // stolen session cannot lock you out.
+    if user_id == owner_id && request.password.is_some() {
+        return Err(AppError::Forbidden(
+            "change your own password with PUT /api/v1/account/password".into(),
+        ));
+    }
     let display_name = request
         .display_name
         .as_deref()

@@ -10,13 +10,21 @@
  *   go to the server.
  * - Everything else, and every write, goes straight to the server.
  *
- * Signing out deletes the "psa150-api" caches (see main.ts).
+ * Signing out deletes the "psa150-api" caches (see main.ts) and tells this
+ * worker, which then drops any read still in flight from before.
  */
 const SHELL = "psa150-shell-v1";
 const ASSETS = "psa150-assets";
 const API = "psa150-api-v1";
 const MAX_ASSETS = 40;
 const NETWORK_WAIT_MS = 4000;
+
+/** Bumped on sign-out: a read that started before it is not saved. */
+let generation = 0;
+
+self.addEventListener("message", (event) => {
+  if (event.data === "clear-api-cache") generation++;
+});
 
 const CACHED_API = [
   /^\/api\/v1\/setup$/,
@@ -69,8 +77,9 @@ self.addEventListener("fetch", (event) => {
 
 async function networkFirst(event, cacheName, key, store = true) {
   const cache = await caches.open(cacheName);
+  const started = generation;
   const network = fetch(event.request).then((response) => {
-    if (store && response.ok) event.waitUntil(cache.put(key, response.clone()));
+    if (store && response.ok && started === generation) event.waitUntil(cache.put(key, response.clone()));
     return response;
   });
   event.waitUntil(network.catch(() => undefined));

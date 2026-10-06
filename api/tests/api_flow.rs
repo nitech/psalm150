@@ -81,6 +81,32 @@ async fn private_library_flow(pool: PgPool) {
     let list = send(&app, "GET", "/api/v1/songs?q=vision", Some(token), None).await;
     assert_eq!(list.0, StatusCode::OK);
     assert_eq!(list.1.as_array().expect("song list").len(), 1);
+    let count = |search: &'static str| {
+        let app = app.clone();
+        async move {
+            let uri = format!("/api/v1/songs?q={search}");
+            let list = send(&app, "GET", &uri, Some(token), None).await;
+            assert_eq!(list.0, StatusCode::OK, "{search}");
+            list.1.as_array().expect("song list").len()
+        }
+    };
+    // Lyrics match from a word of three letters; shorter searches look at the
+    // title, authors and number only. `%` and `_` are plain characters.
+    assert_eq!(count("lord%20of%20my").await, 1);
+    assert_eq!(count("my").await, 1, "title");
+    assert_eq!(count("O").await, 1, "title");
+    assert_eq!(count("of").await, 0, "lyrics need three letters");
+    assert_eq!(count("%25").await, 0);
+    assert_eq!(count("_").await, 0);
+    let long = send(
+        &app,
+        "GET",
+        &format!("/api/v1/songs?q={}", "a".repeat(201)),
+        Some(token),
+        None,
+    )
+    .await;
+    assert_eq!(long.0, StatusCode::BAD_REQUEST);
 
     let device = send(
         &app,
@@ -1528,6 +1554,41 @@ async fn api_tokens_act_as_their_person(pool: PgPool) {
     assert_eq!(copy.0, StatusCode::CREATED);
     assert_eq!(copy.1["role"], "viewer");
 
+    // A token that runs out cannot make one that lasts longer.
+    let expires_at = (chrono::Utc::now() + chrono::Duration::hours(1))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let short = send(
+        &app,
+        "POST",
+        "/api/v1/api-tokens",
+        Some(&owner),
+        Some(json!({ "name": "One hour", "expires_at": expires_at })),
+    )
+    .await;
+    let short_expiry = short.1["expires_at"].clone();
+    let mut made_ids = vec![short.1["id"].as_str().expect("id").to_string()];
+    let short = short.1["token"].as_str().expect("token").to_string();
+    for body in [
+        json!({ "name": "Forever" }),
+        json!({ "name": "Next year", "expires_at": "2099-01-01T00:00:00Z" }),
+    ] {
+        let child = send(&app, "POST", "/api/v1/api-tokens", Some(&short), Some(body)).await;
+        assert_eq!(child.0, StatusCode::CREATED);
+        assert_eq!(child.1["expires_at"], short_expiry);
+        made_ids.push(child.1["id"].as_str().expect("id").to_string());
+    }
+    for id in made_ids {
+        let revoked = send(
+            &app,
+            "DELETE",
+            &format!("/api/v1/api-tokens/{id}"),
+            Some(&owner),
+            None,
+        )
+        .await;
+        assert_eq!(revoked.0, StatusCode::NO_CONTENT);
+    }
+
     // Desktops are not people and make no API tokens.
     let refused = send(
         &app,
@@ -1752,6 +1813,20 @@ async fn owners_manage_members(pool: PgPool) {
     )
     .await;
     assert_eq!(unknown.0, StatusCode::NOT_FOUND);
+
+    // An owner's own password needs the current one, so not here.
+    let own = patch_member(
+        &app,
+        &owner,
+        &owner_id,
+        json!({ "password": "taken-over-pass" }),
+    )
+    .await;
+    assert_eq!(own.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        try_sign_in(&app, "owner", "long-test-password").await,
+        StatusCode::OK
+    );
 
     // The church always keeps an owner who is not disabled.
     for body in [json!({ "role": "leader" }), json!({ "disabled": true })] {

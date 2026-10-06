@@ -157,6 +157,8 @@ settings and everyone's API tokens.
 - A new role takes effect on the person's next request, for their sessions
   and API tokens alike.
 - A password reset ends the person's sessions; their API tokens keep working.
+  Owners change their own password with `PUT /api/v1/account/password`, not
+  here (403).
   Disabling ends their sessions and revokes their API tokens; enabling them
   again lets them sign in but does not bring old tokens back.
 - Removing a person ends their sessions and revokes their API tokens in this

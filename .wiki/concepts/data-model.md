@@ -1,7 +1,7 @@
 ---
 type: Contract
 title: Data model
-description: The PostgreSQL schema from migrations 0001–0009 — tables (including song_sets and song_set_items, churches.public_library and public_rooms, api_tokens, desktop room names), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
+description: The PostgreSQL schema from migrations 0001–0010 — tables (including song_sets and song_set_items, churches.public_library and public_rooms, api_tokens, desktop room names), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
 tags: [postgres, schema, migrations, sqlx]
 status: stable
 sources:
@@ -26,6 +26,9 @@ sources:
   - id: mig9
     resource: /api/migrations/0009_desktop_rooms.sql
     title: Desktop room names, churches.public_rooms
+  - id: mig10
+    resource: /api/migrations/0010_song_search_trigrams.sql
+    title: Trigram indexes for song search
   - id: main
     resource: /api/src/main.rs
     title: sqlx::migrate! at startup, pool size
@@ -129,9 +132,16 @@ null. `DELETE /songs/{id}` and `DELETE /sets/{id}` only set `deleted_at`, and
 - `song_sets_church_date_idx (church_id, service_date DESC NULLS LAST,
   updated_at DESC) WHERE deleted_at IS NULL`, matching the set list order.
 - `song_set_items_song_idx (song_id)`, for the `ON DELETE SET NULL` from songs.
-- `song_revisions_title_lower_idx (lower(title))`, for sorting. Search uses
-  leading-wildcard `ILIKE`, which this index cannot serve
-  ([songs and revisions](songs-and-revisions.md#search)).
+- `song_revisions_title_lower_idx (lower(title))`, for sorting.
+- Migration `0010_song_search_trigrams.sql` turns on `pg_trgm` and adds GIN
+  trigram indexes on `song_revisions` `title`, `authors`, `song_number` and
+  `chordpro` (`*_trgm_idx`), which serve search's `%q%` `ILIKE`, plus
+  `songs_current_revision_idx (current_revision_id)` to join the matching
+  revisions back to their songs ([songs and revisions](songs-and-revisions.md#search)).
+  They cover every revision, not only current ones; the ChordPro index is
+  roughly 1.5 times the text it indexes. The database user needs to be allowed
+  to create the extension (`pg_trgm` is a trusted extension, so the database
+  owner may).
 
 ## Stored but unused
 

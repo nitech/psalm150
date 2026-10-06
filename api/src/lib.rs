@@ -16,11 +16,14 @@ use std::{path::PathBuf, sync::Arc};
 use axum::{
     Router,
     extract::{Path, State},
-    http::HeaderName,
+    http::{HeaderName, HeaderValue, header},
     routing::get,
 };
 use sqlx::PgPool;
-use tower_http::{compression::CompressionLayer, services::ServeDir, trace::TraceLayer};
+use tower_http::{
+    compression::CompressionLayer, services::ServeDir, set_header::SetResponseHeaderLayer,
+    trace::TraceLayer,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -78,10 +81,33 @@ pub fn app(state: AppState, web_dist: PathBuf) -> Router {
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());
 
-    if web_dist.is_dir() {
+    let router = if web_dist.is_dir() {
         router.fallback_service(ServeDir::new(web_dist).append_index_html_on_directories(true))
     } else {
         tracing::warn!(path = %web_dist.display(), "web interface not found; running headlessly");
         router
-    }
+    };
+    security_headers(router)
+}
+
+/// On every response, the files included: the app loads nothing from other
+/// sites and is never shown inside another site's frame. Styles allow inline
+/// `style` attributes, which the reader's text size uses.
+fn security_headers(router: Router) -> Router {
+    const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
+        img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; \
+        base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+    let headers = [
+        (header::CONTENT_SECURITY_POLICY, POLICY),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        (header::X_FRAME_OPTIONS, "DENY"),
+        // Sign-in links carry the desktop's redirect and state.
+        (header::REFERRER_POLICY, "no-referrer"),
+    ];
+    headers.into_iter().fold(router, |router, (name, value)| {
+        router.layer(SetResponseHeaderLayer::if_not_present(
+            name,
+            HeaderValue::from_static(value),
+        ))
+    })
 }

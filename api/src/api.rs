@@ -30,8 +30,8 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 use crate::{
     AppState,
     auth::{
-        Actor, LoginRow, authenticate, hash_password, hash_token, issue_session, new_token,
-        validate_password, verify_password,
+        Actor, LoginRow, MAX_PASSWORD_CHARS, authenticate, hash_password, hash_token,
+        issue_session, new_token, validate_password, verify_password,
     },
     chordpro,
     error::{AppError, ErrorBody},
@@ -513,6 +513,11 @@ async fn login(
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<SessionResponse>, AppError> {
     let username = request.username.trim();
+    // No account has a longer username or password; refusing them here keeps
+    // huge values out of the throttle's keys and the password hash.
+    if username.chars().count() > 100 || request.password.chars().count() > MAX_PASSWORD_CHARS {
+        return Err(invalid_login());
+    }
     let account = format!("sign-in:account:{}", username.to_lowercase());
     let client = format!(
         "sign-in:client:{}",
@@ -522,20 +527,23 @@ async fn login(
             peer.map(|Extension(ConnectInfo(address))| address),
         )
     );
-    for (key, limit) in [
-        (&client, throttle::SIGN_IN_PER_CLIENT),
-        (&account, throttle::SIGN_IN_PER_ACCOUNT),
-    ] {
-        state
-            .throttle
-            .check(key, limit)
-            .map_err(|seconds| AppError::TooManyRequests {
-                message: format!(
-                    "too many failed sign-ins; try again {}",
-                    throttle::wait_text(seconds)
-                ),
-                retry_after_seconds: seconds,
-            })?;
+    let refused = |seconds| AppError::TooManyRequests {
+        message: format!(
+            "too many failed sign-ins; try again {}",
+            throttle::wait_text(seconds)
+        ),
+        retry_after_seconds: seconds,
+    };
+    let client_attempt = state
+        .throttle
+        .attempt(&client, throttle::SIGN_IN_PER_CLIENT)
+        .map_err(refused)?;
+    if let Err(seconds) = state
+        .throttle
+        .attempt(&account, throttle::SIGN_IN_PER_ACCOUNT)
+    {
+        state.throttle.forgive(&client, client_attempt);
+        return Err(refused(seconds));
     }
 
     let user = sqlx::query_as::<_, LoginRow>(
@@ -562,11 +570,11 @@ async fn login(
             false
         }
     };
+    // Both attempts already count as failures.
     let Some(user) = user.filter(|_| verified) else {
-        state.throttle.fail(&client, throttle::SIGN_IN_PER_CLIENT);
-        state.throttle.fail(&account, throttle::SIGN_IN_PER_ACCOUNT);
         return Err(invalid_login());
     };
+    state.throttle.forgive(&client, client_attempt);
     state.throttle.clear(&account);
 
     Ok(Json(
@@ -1048,33 +1056,73 @@ async fn search_songs(
     query: SongQuery,
 ) -> Result<Vec<SongSummary>, AppError> {
     let search = query.q.unwrap_or_default().trim().to_string();
-    let pattern = format!("%{search}%");
+    if search.chars().count() > MAX_SEARCH_CHARS {
+        return Err(AppError::BadRequest(format!(
+            "q must be at most {MAX_SEARCH_CHARS} characters"
+        )));
+    }
     let limit = query.limit.unwrap_or(100).clamp(1, 200);
     let offset = query.offset.unwrap_or(0).max(0);
     let order = song_order(
         query.sort.unwrap_or_default(),
         query.direction.unwrap_or_default(),
     );
+    // Each a separate statement, so the database plans each on its own: the
+    // trigram indexes (migration 0010) answer a search with a word of three
+    // letters or digits. Without one they cannot narrow anything down, so the
+    // ChordPro text, the large column, is left out; such a search would match
+    // nearly every song's lyrics anyway.
+    let matches = if search.is_empty() {
+        ""
+    } else if has_trigram(&search) {
+        "AND (r.title ILIKE $4 OR r.authors ILIKE $4 OR r.song_number ILIKE $4
+              OR r.chordpro ILIKE $4)"
+    } else {
+        "AND (r.title ILIKE $4 OR r.authors ILIKE $4 OR r.song_number ILIKE $4)"
+    };
 
-    Ok(sqlx::query_as::<_, SongSummary>(&format!(
+    let sql = format!(
         "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors,
                 r.language, r.created_at AS updated_at
          FROM songs s
          JOIN churches c ON c.id = s.church_id
          JOIN song_revisions r ON r.id = s.current_revision_id
-         WHERE {LIBRARY_FILTER}
-           AND ($2 = '' OR r.title ILIKE $3 OR r.authors ILIKE $3
-                OR coalesce(r.song_number, '') ILIKE $3 OR r.chordpro ILIKE $3)
+         WHERE {LIBRARY_FILTER} {matches}
          ORDER BY {order}
-         LIMIT $4 OFFSET $5"
-    ))
-    .bind(library.church_id())
-    .bind(&search)
-    .bind(pattern)
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(pool)
-    .await?)
+         LIMIT $2 OFFSET $3"
+    );
+    let mut songs = sqlx::query_as::<_, SongSummary>(&sql)
+        .bind(library.church_id())
+        .bind(limit)
+        .bind(offset);
+    if !search.is_empty() {
+        songs = songs.bind(format!("%{}%", escape_like(&search)));
+    }
+    Ok(songs.fetch_all(pool).await?)
+}
+
+/// The longest song search accepted.
+const MAX_SEARCH_CHARS: usize = 200;
+
+/// Whether a search has a run of three letters or digits, the shortest a
+/// trigram index can look up.
+fn has_trigram(search: &str) -> bool {
+    search
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|word| word.chars().count() >= 3)
+}
+
+/// `%` and `_` match themselves, so a search cannot turn into a pattern that
+/// matches everything and reads every song.
+fn escape_like(search: &str) -> String {
+    let mut escaped = String::with_capacity(search.len());
+    for c in search.chars() {
+        if matches!(c, '\\' | '%' | '_') {
+            escaped.push('\\');
+        }
+        escaped.push(c);
+    }
+    escaped
 }
 
 /// Adds a song from its ChordPro text.
@@ -1699,4 +1747,26 @@ fn invalid_login() -> AppError {
 
 fn setup_complete() -> AppError {
     AppError::Conflict("server setup is already complete".into())
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::{escape_like, has_trigram};
+
+    #[test]
+    fn finds_a_word_the_index_can_look_up() {
+        assert!(has_trigram("amazing gr"));
+        assert!(has_trigram("Blå"));
+        assert!(has_trigram("123"));
+        assert!(!has_trigram("gr"));
+        assert!(!has_trigram("o l m"));
+        assert!(!has_trigram("%%%"));
+        assert!(!has_trigram("---"));
+    }
+
+    #[test]
+    fn escapes_like_wildcards() {
+        assert_eq!(escape_like(r"100% _x\"), r"100\% \_x\\");
+        assert_eq!(escape_like("grace"), "grace");
+    }
 }

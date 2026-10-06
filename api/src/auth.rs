@@ -210,16 +210,37 @@ pub fn role_from_db(value: &str) -> Result<Role, AppError> {
 }
 
 /// The rule for every password a person chooses.
+/// The longest password accepted, when it is set and when signing in.
+pub const MAX_PASSWORD_CHARS: usize = 1024;
+
+/// Password hashes running at once. Each takes about 19 MiB and a core, so
+/// many sign-ins sent together queue here instead of using up the memory.
+static HASH_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
+
 pub fn validate_password(password: &str) -> Result<(), AppError> {
-    if password.chars().count() < 10 {
+    let length = password.chars().count();
+    if length < 10 {
         return Err(AppError::BadRequest(
             "password must contain at least 10 characters".into(),
         ));
     }
+    if length > MAX_PASSWORD_CHARS {
+        return Err(AppError::BadRequest(format!(
+            "password must contain at most {MAX_PASSWORD_CHARS} characters"
+        )));
+    }
     Ok(())
 }
 
+async fn hash_slot() -> Result<tokio::sync::SemaphorePermit<'static>, AppError> {
+    HASH_SLOTS
+        .acquire()
+        .await
+        .map_err(|error| AppError::Internal(format!("password slots closed: {error}")))
+}
+
 pub async fn hash_password(password: String) -> Result<String, AppError> {
+    let _slot = hash_slot().await?;
     tokio::task::spawn_blocking(move || {
         let salt = SaltString::generate(&mut OsRng);
         Argon2::default()
@@ -232,6 +253,7 @@ pub async fn hash_password(password: String) -> Result<String, AppError> {
 }
 
 pub async fn verify_password(password: String, encoded: String) -> Result<bool, AppError> {
+    let _slot = hash_slot().await?;
     tokio::task::spawn_blocking(move || {
         let parsed = PasswordHash::new(&encoded).map_err(|error| {
             AppError::Internal(format!("stored password hash is invalid: {error}"))

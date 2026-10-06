@@ -1,10 +1,10 @@
 //! Limits on wrong passwords, kept in memory.
 //!
 //! Signing in counts failures per username and per client address; changing
-//! a password counts them per person. Once a key holds its limit of failures
-//! within the window, further attempts are refused with 429 and
-//! `Retry-After` until the oldest failure leaves the window, before any
-//! password is checked. Like the remote relay this lives in one process and
+//! a password counts them per person. Each attempt counts as a failure until
+//! it succeeds. Once a key holds its limit of failures within the window,
+//! further attempts are refused with 429 and `Retry-After` until the oldest
+//! failure leaves the window, before any password is checked. Like the remote relay this lives in one process and
 //! starts empty after a restart.
 
 use std::{
@@ -49,13 +49,27 @@ pub struct Throttle {
 }
 
 impl Throttle {
-    /// `Err(seconds to wait)` while `key` holds `limit.failures` failures.
-    pub fn check(&self, key: &str, limit: Limit) -> Result<(), u64> {
-        self.check_at(key, limit, Instant::now())
+    /// Counts an attempt as a failure before the password is checked, so
+    /// requests sent all at once cannot each pass the limit while the slow
+    /// hash runs. `Err(seconds to wait)` while `key` holds `limit.failures`
+    /// failures. A successful attempt is taken back with [`Self::forgive`] or
+    /// [`Self::clear`].
+    pub fn attempt(&self, key: &str, limit: Limit) -> Result<Instant, u64> {
+        self.attempt_at(key, limit, Instant::now())
     }
 
-    pub fn fail(&self, key: &str, limit: Limit) {
-        self.fail_at(key, limit, Instant::now());
+    /// Takes back one attempt, which turned out to be right.
+    pub fn forgive(&self, key: &str, at: Instant) {
+        self.with_failures(|failures| {
+            if let Some(times) = failures.get_mut(key) {
+                if let Some(index) = times.iter().position(|time| *time == at) {
+                    times.remove(index);
+                }
+                if times.is_empty() {
+                    failures.remove(key);
+                }
+            }
+        });
     }
 
     /// Forgets the failures, after a successful attempt.
@@ -65,37 +79,19 @@ impl Throttle {
         });
     }
 
-    fn check_at(&self, key: &str, limit: Limit, now: Instant) -> Result<(), u64> {
+    fn attempt_at(&self, key: &str, limit: Limit, now: Instant) -> Result<Instant, u64> {
         self.with_failures(|failures| {
-            let Some(times) = failures.get_mut(key) else {
-                return Ok(());
-            };
-            expire(times, limit.window, now);
-            if times.len() < limit.failures {
-                return Ok(());
+            if let Some(times) = failures.get_mut(key) {
+                expire(times, limit.window, now);
+                if times.len() >= limit.failures {
+                    let oldest = times.front().copied().unwrap_or(now);
+                    let wait = (oldest + limit.window).saturating_duration_since(now);
+                    return Err(wait.as_secs().max(1));
+                }
             }
-            let oldest = times.front().copied().unwrap_or(now);
-            let wait = (oldest + limit.window).saturating_duration_since(now);
-            Err(wait.as_secs().max(1))
+            record(failures, key, limit, now);
+            Ok(now)
         })
-    }
-
-    fn fail_at(&self, key: &str, limit: Limit, now: Instant) {
-        self.with_failures(|failures| {
-            if failures.len() >= SWEEP_AT {
-                failures.retain(|_, times| {
-                    expire(times, limit.window, now);
-                    !times.is_empty()
-                });
-            }
-            let times = failures.entry(key.to_string()).or_default();
-            expire(times, limit.window, now);
-            times.push_back(now);
-            // Only the newest `limit.failures` matter.
-            while times.len() > limit.failures {
-                times.pop_front();
-            }
-        });
     }
 
     fn with_failures<T>(&self, f: impl FnOnce(&mut HashMap<String, VecDeque<Instant>>) -> T) -> T {
@@ -104,6 +100,27 @@ impl Throttle {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         f(&mut failures)
+    }
+}
+
+fn record(
+    failures: &mut HashMap<String, VecDeque<Instant>>,
+    key: &str,
+    limit: Limit,
+    now: Instant,
+) {
+    if failures.len() >= SWEEP_AT {
+        failures.retain(|_, times| {
+            expire(times, limit.window, now);
+            !times.is_empty()
+        });
+    }
+    let times = failures.entry(key.to_string()).or_default();
+    expire(times, limit.window, now);
+    times.push_back(now);
+    // Only the newest `limit.failures` matter.
+    while times.len() > limit.failures {
+        times.pop_front();
     }
 }
 
@@ -176,30 +193,51 @@ mod tests {
         let throttle = Throttle::default();
         let start = Instant::now();
         for second in 0..3 {
-            assert!(throttle.check_at("a", LIMIT, start).is_ok());
-            throttle.fail_at("a", LIMIT, start + Duration::from_secs(second * 10));
+            assert!(
+                throttle
+                    .attempt_at("a", LIMIT, start + Duration::from_secs(second * 10))
+                    .is_ok()
+            );
         }
         let later = start + Duration::from_secs(25);
-        assert_eq!(throttle.check_at("a", LIMIT, later), Err(35));
-        assert!(throttle.check_at("b", LIMIT, later).is_ok());
+        assert_eq!(throttle.attempt_at("a", LIMIT, later), Err(35));
+        assert!(throttle.attempt_at("b", LIMIT, later).is_ok());
         // The first failure leaves the window after 60 s.
         assert!(
             throttle
-                .check_at("a", LIMIT, start + Duration::from_secs(60))
+                .attempt_at("a", LIMIT, start + Duration::from_secs(60))
                 .is_ok()
         );
     }
 
     #[test]
-    fn success_clears_the_count() {
+    fn attempts_at_the_same_moment_still_stop_at_the_limit() {
+        let throttle = Throttle::default();
+        let now = Instant::now();
+        let allowed = (0..10)
+            .filter(|_| throttle.attempt_at("a", LIMIT, now).is_ok())
+            .count();
+        assert_eq!(allowed, 3);
+    }
+
+    #[test]
+    fn success_clears_or_forgives_the_count() {
         let throttle = Throttle::default();
         let now = Instant::now();
         for _ in 0..3 {
-            throttle.fail_at("a", LIMIT, now);
+            throttle.attempt_at("a", LIMIT, now).expect("allowed");
         }
-        assert!(throttle.check_at("a", LIMIT, now).is_err());
+        assert!(throttle.attempt_at("a", LIMIT, now).is_err());
         throttle.clear("a");
-        assert!(throttle.check_at("a", LIMIT, now).is_ok());
+        assert!(throttle.attempt_at("a", LIMIT, now).is_ok());
+
+        let first = throttle.attempt_at("b", LIMIT, now).expect("allowed");
+        throttle.attempt_at("b", LIMIT, now).expect("allowed");
+        throttle.forgive("b", first);
+        // One left counted, so two more fit under the limit of three.
+        throttle.attempt_at("b", LIMIT, now).expect("allowed");
+        throttle.attempt_at("b", LIMIT, now).expect("allowed");
+        assert!(throttle.attempt_at("b", LIMIT, now).is_err());
     }
 
     #[test]

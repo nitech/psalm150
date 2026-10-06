@@ -754,8 +754,6 @@ async function run(action: () => Promise<void>, options: { exclusive?: boolean }
 /** Back to the public songs when the library is open, else to sign-in. */
 function signOut(): void {
   endSession();
-  currentSet.clear();
-  void clearCachedData();
   leaveShell(() => {
     if (!publicLibrary) return renderLogin();
     if (!visitorRoute(currentPath())) history.replaceState(null, "", "#/songs");
@@ -885,6 +883,8 @@ function registerServiceWorker(): void {
 
 /** Removes cached songs and sets, so the next person on this phone sees none. */
 async function clearCachedData(): Promise<void> {
+  // Tell the worker first, so a read still in flight is not saved afterwards.
+  navigator.serviceWorker?.controller?.postMessage("clear-api-cache");
   if (!("caches" in window)) return;
   for (const key of await caches.keys()) {
     if (key.startsWith("psa150-api")) await caches.delete(key);
@@ -974,4 +974,8 @@ function clearSession(): void {
       // Nothing stored.
     }
   }
+  // Every way out (sign-out, an expired session, another account) leaves
+  // nothing of this person's library on the phone.
+  currentSet.clear();
+  void clearCachedData();
 }

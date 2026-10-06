@@ -92,11 +92,18 @@ conflict store does not exist yet. Today's 409 is the groundwork for it
 
 ## Search
 
-`GET /songs?q=` trims `q` and matches `%q%` case-insensitively against the
-current revision's `title`, `authors`, `song_number` and the **full ChordPro
-source**. So a lyric line matches, but so does a chord name or a directive.
-`%` and `_` in the query are not escaped and act as wildcards. Results are
-unranked. `sort=title` (default) orders by `lower(title)`; `sort=number` by
+`GET /songs?q=` trims `q` (at most 200 characters, else 400) and matches
+`%q%` case-insensitively against the current revision's `title`, `authors`,
+`song_number` and the **full ChordPro source**. So a lyric line matches, but
+so does a chord name or a directive. The ChordPro source is searched only
+when `q` has a run of at least three letters or digits: that is what the
+trigram indexes (migration 0010) can look up, and a shorter search would
+match nearly every song's lyrics while reading all of them. `%`, `_` and
+`\` in the query match themselves (`escape_like`). Each of the three
+shapes (no search, with lyrics, without) is its own statement, so the
+database plans each separately. Results are unranked.
+
+`sort=title` (default) orders by `lower(title)`; `sort=number` by
 the number's leading digits as an integer ("9" before "10", "12a" with 12),
 then the number as text, with songs without a number last in both
 directions. `direction=asc|desc` (default `asc`) flips the chosen column only;

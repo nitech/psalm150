@@ -21,7 +21,13 @@ const RECONNECT_CHECK_MS = 4000;
 export function joinPath(): string | null {
   const match = /^\/join(?:\/([^/]*))?\/?$/.exec(location.pathname);
   if (!match) return null;
-  return match[1] ? decodeURIComponent(match[1]) : "";
+  if (!match[1]) return "";
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    // A broken link such as /join/%ZZ: ask for the room instead.
+    return "";
+  }
 }
 
 export function renderJoin(app: HTMLElement, api: SongServerApi, message = ""): void {

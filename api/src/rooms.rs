@@ -515,9 +515,17 @@ pub async fn room_events(
 ) -> Result<Response, AppError> {
     let (device_id, room_name) = find_room(&state, &room_name).await?;
     let hub = state.remote.clone();
+    let key = room_key(&room_name);
     let events = live_events(state.remote.subscribe(), "room", move || {
         let view = hub.room_view(device_id, &room_name);
-        async move { serde_json::to_string(&view).ok() }
+        // Renaming a room shuts out whoever followed the old name: the
+        // stream ends instead of telling them the new one.
+        let renamed = room_key(&view.room_name) != key;
+        async move {
+            (!renamed)
+                .then(|| serde_json::to_string(&view).ok())
+                .flatten()
+        }
     });
     Ok(event_stream(events))
 }

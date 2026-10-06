@@ -395,7 +395,12 @@ and make read-only API tokens. Owners alone see **Church** (People, and
 - The current set's songs are fetched once per change of the set so the
   service view works offline. An **Offline** notice shows in the dock; writes
   fail with "You are offline. Try again when you are connected."
-- Sign-out deletes the `psa150-api` caches.
+- Every way a session ends (sign-out, an expired session found at boot,
+  **Use another account**, a 401 at desktop consent) goes through
+  `clearSession`, which deletes the `psa150-api` caches and forgets the
+  current set. It also posts `clear-api-cache` to the worker, which then
+  saves no read that started before it.
+- `#/sets/new?song=` takes only a song id; anything else is ignored.
 
 ## Desktop sign-in
 

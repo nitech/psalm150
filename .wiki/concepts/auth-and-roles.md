@@ -135,7 +135,10 @@ optional `expires_at`.
   person's **current** membership role (`Role::at_most`). Demoting a person
   limits their tokens at once and promoting them restores what the cap
   allows; disabling or removing them ends the tokens.
-- `expires_at` must be in the future (400); after it the token is 401.
+- `expires_at` must be in the future (400); after it the token is 401. A
+  token made through an API token that expires expires no later than that
+  one (a later or missing `expires_at` is cut to it), so a leaked short-lived
+  token cannot be turned into a lasting one.
 - `GET /api-tokens` lists active (unrevoked, unexpired) tokens by name: your
   own, or the whole church's for an owner, with `user_id` and
   `user_display_name`. `DELETE /api-tokens/{id}` revokes your own, or any of
@@ -169,7 +172,8 @@ changes to a church's people happen one at a time, then:
   refused with 403, so one church's owner cannot take over or lock out an
   account another church relies on. The role here and removal always work.
 - A password reset deletes the person's sessions (except the one making the
-  request); API tokens stay. Disabling sets `users.disabled_at`, deletes the
+  request); API tokens stay. An owner cannot reset their own password here
+  (403): that needs the current one, at `PUT /account/password`. Disabling sets `users.disabled_at`, deletes the
   sessions and revokes every API token of the person; enabling clears
   `disabled_at` but revives no token.
 - Removing deletes the membership and the person's sessions in this church
@@ -255,12 +259,18 @@ sliding 15-minute window; at the limit the request is refused with
 `429 Too Many Requests`, a `Retry-After` header (seconds until the oldest
 failure leaves the window) and a message such as
 `too many failed sign-ins; try again in 12 minutes`, before any password is
-checked.
+checked. Each attempt counts as a failure from the moment it starts and is
+taken back if it succeeds, so requests sent all at once cannot each slip
+under the limit while their passwords are hashed. At most four Argon2 hashes
+run at once (`HASH_SLOTS` in `auth.rs`); more wait their turn rather than
+using up the memory. A sign-in with a username over 100 or a password over
+1024 characters is refused (401) before any of this; new passwords are
+limited to 1024 characters too.
 
 | Key | Limit | Counts | Cleared by |
 | --- | --- | --- | --- |
 | `sign-in:account:<lowercased username>` | 5 | every failed `POST /session` for that username, known or not, from anywhere | a successful sign-in |
-| `sign-in:client:<address>` | 30 | every failed `POST /session` from that address, any username | time only |
+| `sign-in:client:<address>` | 30 | every failed `POST /session` from that address, any username | time only (a successful sign-in does not count) |
 | `password:<user id>` | 5 | wrong current passwords at `PUT /account/password` | a right one |
 
 The client address is the last entry of the header named by

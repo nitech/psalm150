@@ -71,10 +71,10 @@ name has its spaces collapsed and must have 2–30 letters, digits, spaces,
 hyphens or apostrophes (400 otherwise); a name another desktop has is 409.
 Both answer `DesktopRoom` `{device_id, room_name, public_rooms}`, which the
 desktop also reads with `GET /remote/desktop`. A rename reaches open remote
-and room streams at once. Someone already following the room keeps following
-it under its new name (the stream is tied to the desktop, and the page
-reconnects by the name it last received); the old name answers 404 to anyone
-new.
+and remote streams at once. A room stream ends instead of passing the new
+name on, so a rename shuts out everyone following the old one: the `/join`
+page, reconnecting by the old name, gets 404 and says the room has closed or
+was renamed. Followers who should stay read the new name off the screen.
 
 ## Who sees the words
 

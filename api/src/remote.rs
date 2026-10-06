@@ -506,15 +506,24 @@ pub async fn desktop_events(
     let auth = authenticate(&headers, &state).await?;
     let church_id = auth.church_id;
     let changes = state.remote.subscribe();
+    let mut checked = std::time::Instant::now();
     let events = live_events(changes, "desktops", move || {
         let state = state.clone();
         let headers = headers.clone();
+        // Desktops report often; checking the token on every change would
+        // make each open stream a steady load on the database.
+        let recheck = checked.elapsed() >= LIVE_REFRESH;
+        if recheck {
+            checked = std::time::Instant::now();
+        }
         async move {
             // A session that ended stops getting updates.
-            authenticate(&headers, &state)
-                .await
-                .ok()
-                .filter(|auth| auth.church_id == church_id)?;
+            if recheck {
+                authenticate(&headers, &state)
+                    .await
+                    .ok()
+                    .filter(|auth| auth.church_id == church_id)?;
+            }
             let desktops = church_desktops(&state, church_id).await.ok()?;
             serde_json::to_string(&desktops).ok()
         }

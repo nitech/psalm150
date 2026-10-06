@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Deployment and config
-description: Environment variables and their defaults (including the client-address header for sign-in limits behind a proxy), what a reverse proxy must not buffer (server-sent events), the /join and song permalink pages, the two-service Docker Compose setup, the container image, headless mode, logging and shutdown.
+description: Environment variables and their defaults (including the client-address header for sign-in limits behind a proxy), what a reverse proxy must not buffer (server-sent events), the /join and song permalink pages, the security headers on every response, the two-service Docker Compose setup, the container image, headless mode, logging and shutdown.
 tags: [deployment, docker, compose, config, env]
 status: stable
 sources:
@@ -59,6 +59,16 @@ not hold events back either; the server's own compression leaves
 Each open stream holds a connection for as long as someone follows a room, so
 a large congregation following on their phones means as many open
 connections ([gaps](gaps.md)).
+
+## Security headers
+
+Every response, the web files included, carries `Content-Security-Policy`
+(only this origin for scripts, styles, images, fonts and requests; inline
+`style` attributes allowed; no frames, objects or `<base>`; never framed),
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and
+`Referrer-Policy: no-referrer` (`security_headers` in `lib.rs`). A header a
+handler sets itself wins. A proxy may add HSTS; the server does not, since it
+may be reached over plain HTTP on a LAN.
 
 ## Environment
 
