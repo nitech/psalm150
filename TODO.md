@@ -22,6 +22,7 @@ not yet complete.
 - [ ] Specify typed provenance relationships and public source references.
 - [x] Specify plans and read-only-by-default sharing.
 - [x] Implement church sets (service song lists) with version-checked edits.
+- [x] Let leaders share a set on a link, read-only or letting people add and remove songs.
 - [x] Design the initial PostgreSQL migration, indexes, and transactional boundaries.
 - [ ] Define search behavior, including languages and alternate titles.
 
@@ -64,6 +65,7 @@ not yet complete.
 - [x] Give every desktop a room name and let anyone follow the projected words in large text on their own phone.
 - [ ] Keep remote control working across server restarts and several server instances.
 - [ ] Limit how often rooms are read and how many people may follow one at a time.
+- [ ] Limit how often shared set links are read and changed.
 - [x] Define and implement Phase 1 merge-then-pull PSA150-client synchronization.
 - [ ] Define additional integration guidance for external church websites.
 

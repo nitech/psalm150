@@ -63,7 +63,8 @@ pub async fn list_sets(
     let limit = query.limit.unwrap_or(100).clamp(1, 500);
     let sets = sqlx::query_as::<_, SetSummary>(
         "SELECT s.id, s.name, s.service_date, s.version, s.updated_at,
-                (SELECT count(*) FROM song_set_items i WHERE i.set_id = s.id) AS item_count
+                (SELECT count(*) FROM song_set_items i WHERE i.set_id = s.id) AS item_count,
+                s.share_key IS NOT NULL AS shared
          FROM song_sets s
          WHERE s.church_id = $1 AND s.deleted_at IS NULL
            AND ($2::date IS NULL OR s.service_date IS NULL OR s.service_date >= $2)
@@ -161,7 +162,7 @@ pub async fn sets_snapshot(
 ) -> Result<Json<Vec<SetDetail>>, AppError> {
     let auth = authenticate(&headers, &state).await?;
     let rows = sqlx::query_as::<_, SetRow>(
-        "SELECT id, name, service_date, version, updated_at
+        "SELECT id, name, service_date, version, updated_at, share_key IS NOT NULL AS shared
          FROM song_sets
          WHERE church_id = $1 AND deleted_at IS NULL
          ORDER BY service_date DESC NULLS LAST, updated_at DESC",
@@ -423,7 +424,7 @@ async fn validate_items(
     Ok(())
 }
 
-async fn write_items(
+pub(crate) async fn write_items(
     transaction: &mut Transaction<'_, Postgres>,
     set_id: Uuid,
     items: &[SetItemInput],
@@ -498,7 +499,7 @@ fn stale(base: i32, current: i32) -> AppError {
     ))
 }
 
-fn set_not_found() -> AppError {
+pub(crate) fn set_not_found() -> AppError {
     AppError::NotFound("set was not found".into())
 }
 
@@ -509,6 +510,7 @@ struct SetRow {
     service_date: Option<NaiveDate>,
     version: i32,
     updated_at: DateTime<Utc>,
+    shared: bool,
 }
 
 impl SetRow {
@@ -519,6 +521,7 @@ impl SetRow {
             service_date: self.service_date,
             version: self.version,
             updated_at: self.updated_at,
+            shared: self.shared,
             items,
         }
     }
@@ -544,7 +547,7 @@ pub async fn fetch_set(
     set_id: Uuid,
 ) -> Result<Option<SetDetail>, AppError> {
     let Some(row) = sqlx::query_as::<_, SetRow>(
-        "SELECT id, name, service_date, version, updated_at
+        "SELECT id, name, service_date, version, updated_at, share_key IS NOT NULL AS shared
          FROM song_sets
          WHERE id = $1 AND church_id = $2 AND deleted_at IS NULL",
     )
@@ -564,7 +567,7 @@ pub async fn fetch_set(
 
 /// Items of the given sets in order, keyed by set, with their songs'
 /// current revisions. Deleted songs appear without `song`.
-async fn fetch_items(
+pub(crate) async fn fetch_items(
     pool: &PgPool,
     church_id: Uuid,
     set_ids: &[Uuid],

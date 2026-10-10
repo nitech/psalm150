@@ -15,6 +15,7 @@ import { apiDocs } from "./views/api-docs.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
 import { joinPath, renderJoin, renderRoomFromPath } from "./views/room.ts";
 import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
+import { renderSharedSet, sharedSetPath } from "./views/shared-set.ts";
 import { songDetail, songEditor, songList } from "./views/songs.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -86,6 +87,12 @@ async function boot(): Promise<void> {
     if (room !== null) {
       if (room) await renderRoomFromPath(app, api, room);
       else renderJoin(app, api);
+      return;
+    }
+    // So does a set shared on a link.
+    const shared = sharedSetPath();
+    if (shared) {
+      await renderSharedSet(app, api, shared);
       return;
     }
     const info = await api.info();

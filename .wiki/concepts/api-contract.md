@@ -41,7 +41,7 @@ generated: { by: agent, at: 2026-10-05T18:00:00Z }
 # API contract
 
 All routes are nested under `/api/v1` (`api::router()`, which merges
-`access::router()`, `sets::router()`, `remote::router()` and `rooms::router()`). The generated OpenAPI
+`access::router()`, `sets::router()`, `shared_sets::router()`, `remote::router()` and `rooms::router()`). The generated OpenAPI
 JSON is at `/api/openapi.json`. Responses are gzip-compressed when the client
 accepts it (`CompressionLayer`). Human notes live in [/docs/api.md](../../docs/api.md).
 
@@ -111,6 +111,14 @@ the lower of its own `role` and its person's
 | PUT | `/sets/{id}` | editor or desktop | 200 `SetDetail` | Body `{base_version, name, service_date, items}`; items replaced; 409 when the base is stale | yes | yes |
 | DELETE | `/sets/{id}?base_version=` | editor or desktop | 204 | Soft delete; 409 when the optional base is stale | yes | – |
 | POST | `/sets/{id}/restore` | editor or desktop | 200 `SetDetail` | Clears `deleted_at` and raises `version` by one; a live set is returned unchanged; 404 when missing | – | – |
+| GET | `/sets/{id}/share` | editor | 200 `SetShare` | `{key, editable, shared_at}`; 404 when not shared ([shared sets](shared-sets.md)) | yes | – |
+| PUT | `/sets/{id}/share` | editor | 200 `SetShare` | Body `{editable}`; shares the set or changes `editable`, keeping the key; 403 for viewers and desktops | yes | – |
+| DELETE | `/sets/{id}/share` | editor | 204 | Stops sharing; the link answers 404 from then on | yes | – |
+| GET | `/public/sets/{key}` | none | 200 `SharedSet` | `{name, service_date, version, updated_at, church_name, editable, items}`; 404 for an unknown, stopped or deleted set's key | yes (`/shared/{key}`) | – |
+| GET | `/public/sets/{key}/songs/{song_id}` | none | 200 `SongDetail` | A song in the set; any song of the church through an editable link; 404 otherwise | yes | – |
+| GET | `/public/sets/{key}/songs` | none | 200 `SongSummary[]` | Editable links only (403): searches the church's songs like `GET /songs` | yes | – |
+| POST | `/public/sets/{key}/items` | none | 200 `SharedSet` | Editable links only (403). Body `{song_id, position?}`; a song of the church (400), at most 200 items (400); raises `version` | yes | – |
+| DELETE | `/public/sets/{key}/items/{item_id}` | none | 200 `SharedSet` | Editable links only (403). Song items only (a blank is 403); 404 for an unknown item; raises `version` | yes | – |
 | GET | `/remote/desktop` | desktop | 200 `DesktopRoom` | `{device_id, room_name, public_rooms}`: the desktop's room and whether its church has rooms open ([rooms](rooms.md)) | – | yes |
 | PUT | `/remote/desktop` | desktop | 204 | Body `DesktopState`; see [remote control](remote-control.md) | – | yes |
 | DELETE | `/remote/desktop` | desktop | 204 | The desktop leaves the relay | – | yes |
@@ -172,7 +180,8 @@ Every operation has a summary, from its handler's doc comment: the first
 paragraph is the `summary`, the rest the `description`. The `Groups` modifier
 puts each operation in one section (its only tag), by its path, from the
 `GROUPS` table in `api.rs` (Server, Sign-in and account, API tokens, People,
-Church, Songs, Sets, Desktops, Remote control, Rooms, Public library), and
+Church, Songs, Sets, Desktops, Remote control, Rooms, Shared sets, Public
+library), and
 lists those sections with descriptions in the document's `tags`. The web
 client's [API reference](web-client.md#api-reference) and tools such as
 Swagger group by them.
@@ -180,9 +189,10 @@ Swagger group by them.
 The `BearerAuth` modifier declares an HTTP `bearer` security scheme, and every
 operation that needs a token carries `security(("bearer" = []))`. The test
 `openapi_describes_every_operation` reads the served document and fails when
-an operation outside its list of ten public ones (`/health`, `/info`, both
-`/setup`, `POST /session`, the two `/public/songs` reads, the two
-`/public/rooms` reads and `POST /desktop-auth/token`) lacks the scheme, when a public one has it, or
+an operation outside its list of fifteen public ones (`/health`, `/info`,
+both `/setup`, `POST /session`, the two `/public/songs` reads, the two
+`/public/rooms` reads, the five `/public/sets` operations and
+`POST /desktop-auth/token`) lacks the scheme, when a public one has it, or
 when a documented operation is not routed (the router's bare 404 or a 405),
 has no summary, or is in no section.
 It cannot see a routed handler that is missing from `paths(...)`.

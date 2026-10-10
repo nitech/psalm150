@@ -922,6 +922,312 @@ async fn sets_flow(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn shared_sets_flow(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (session, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+    let (grace, _) = create_song(&app, &session, "Amazing Grace").await;
+    let (vision, _) = create_song(&app, &session, "Be Thou My Vision").await;
+    let (other, _) = create_song(&app, &session, "Not In The Set").await;
+    let created = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&session),
+        Some(json!({
+            "name": "Sunday morning",
+            "service_date": "2026-10-04",
+            "items": [
+                { "kind": "song", "song_id": grace, "transpose": 2, "note": "Capo 2" },
+                { "kind": "blank" }
+            ]
+        })),
+    )
+    .await;
+    assert_eq!(created.0, StatusCode::CREATED);
+    assert_eq!(created.1["shared"], false);
+    let set_id = created.1["id"].as_str().expect("set id").to_string();
+    let share_uri = format!("/api/v1/sets/{set_id}/share");
+
+    // Not shared yet; only leaders and owners may share, never a desktop.
+    assert_eq!(
+        send(&app, "GET", &share_uri, Some(&session), None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    for token in [&viewer, &desktop] {
+        let refused = send(
+            &app,
+            "PUT",
+            &share_uri,
+            Some(token),
+            Some(json!({ "editable": false })),
+        )
+        .await;
+        assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    }
+
+    // A read-only link.
+    let shared = send(&app, "PUT", &share_uri, Some(&session), Some(json!({}))).await;
+    assert_eq!(shared.0, StatusCode::OK);
+    assert_eq!(shared.1["editable"], false);
+    let key = shared.1["key"].as_str().expect("key").to_string();
+    assert_eq!(key.len(), 32);
+    let detail = send(
+        &app,
+        "GET",
+        &format!("/api/v1/sets/{set_id}"),
+        Some(&viewer),
+        None,
+    )
+    .await;
+    assert_eq!(detail.1["shared"], true);
+    let list = send(&app, "GET", "/api/v1/sets", Some(&viewer), None).await;
+    assert_eq!(list.1[0]["shared"], true);
+    // Viewers see that a set is shared, not its link.
+    assert_eq!(
+        send(&app, "GET", &share_uri, Some(&viewer), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Anyone with the link reads the set and its songs, without a token.
+    let public = format!("/api/v1/public/sets/{key}");
+    let read = send(&app, "GET", &public, None, None).await;
+    assert_eq!(read.0, StatusCode::OK);
+    assert_eq!(read.1["name"], "Sunday morning");
+    assert_eq!(read.1["church_name"], "Test Church");
+    assert_eq!(read.1["editable"], false);
+    assert_eq!(read.1["items"][0]["song"]["title"], "Amazing Grace");
+    assert_eq!(read.1["items"][0]["transpose"], 2);
+    assert_eq!(read.1["items"][1]["kind"], "blank");
+    assert!(read.1.get("id").is_none());
+    let song = send(&app, "GET", &format!("{public}/songs/{grace}"), None, None).await;
+    assert_eq!(song.0, StatusCode::OK);
+    assert!(
+        song.1["chordpro"]
+            .as_str()
+            .unwrap()
+            .contains("Amazing Grace")
+    );
+    // A read-only link opens only the set's own songs, and changes nothing.
+    assert_eq!(
+        send(&app, "GET", &format!("{public}/songs/{other}"), None, None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        send(&app, "GET", &format!("{public}/songs"), None, None)
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let add = send(
+        &app,
+        "POST",
+        &format!("{public}/items"),
+        None,
+        Some(json!({ "song_id": vision })),
+    )
+    .await;
+    assert_eq!(add.0, StatusCode::FORBIDDEN);
+    // The church's songs and sets stay closed to the link.
+    assert_eq!(
+        send(
+            &app,
+            "GET",
+            &format!("/api/v1/public/songs/{grace}"),
+            None,
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        send(&app, "GET", "/api/v1/sets", None, None).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+
+    // Made editable, the link keeps its key.
+    let editable = send(
+        &app,
+        "PUT",
+        &share_uri,
+        Some(&session),
+        Some(json!({ "editable": true })),
+    )
+    .await;
+    assert_eq!(editable.0, StatusCode::OK);
+    assert_eq!(editable.1["key"], key);
+    assert_eq!(editable.1["editable"], true);
+
+    // People with the link search the library and add songs.
+    let found = send(&app, "GET", &format!("{public}/songs?q=vision"), None, None).await;
+    assert_eq!(found.0, StatusCode::OK);
+    assert_eq!(found.1.as_array().unwrap().len(), 1);
+    assert_eq!(found.1[0]["title"], "Be Thou My Vision");
+    let added = send(
+        &app,
+        "POST",
+        &format!("{public}/items"),
+        None,
+        Some(json!({ "song_id": vision })),
+    )
+    .await;
+    assert_eq!(added.0, StatusCode::OK);
+    assert_eq!(added.1["version"], 2);
+    assert_eq!(added.1["items"][2]["song"]["title"], "Be Thou My Vision");
+    assert_eq!(added.1["items"][2]["transpose"], 0);
+    // Existing items keep their id, transpose and note.
+    assert_eq!(added.1["items"][0]["id"], read.1["items"][0]["id"]);
+    assert_eq!(added.1["items"][0]["note"], "Capo 2");
+    let first = send(
+        &app,
+        "POST",
+        &format!("{public}/items"),
+        None,
+        Some(json!({ "song_id": other, "position": 0 })),
+    )
+    .await;
+    assert_eq!(first.0, StatusCode::OK);
+    assert_eq!(first.1["items"][0]["song"]["title"], "Not In The Set");
+    assert_eq!(first.1["items"].as_array().unwrap().len(), 4);
+    // Only songs of this library.
+    let foreign = send(
+        &app,
+        "POST",
+        &format!("{public}/items"),
+        None,
+        Some(json!({ "song_id": uuid::Uuid::new_v4() })),
+    )
+    .await;
+    assert_eq!(foreign.0, StatusCode::BAD_REQUEST);
+
+    // They remove songs, but not the blank screen.
+    let blank = first.1["items"][2]["id"].as_str().unwrap().to_string();
+    assert_eq!(first.1["items"][2]["kind"], "blank");
+    assert_eq!(
+        send(
+            &app,
+            "DELETE",
+            &format!("{public}/items/{blank}"),
+            None,
+            None
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let removed_id = first.1["items"][0]["id"].as_str().unwrap().to_string();
+    let removed = send(
+        &app,
+        "DELETE",
+        &format!("{public}/items/{removed_id}"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(removed.0, StatusCode::OK);
+    assert_eq!(removed.1["version"], 4);
+    assert_eq!(removed.1["items"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        send(
+            &app,
+            "DELETE",
+            &format!("{public}/items/{removed_id}"),
+            None,
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+
+    // The church sees the change as a new version; an edit based on the old
+    // one is refused as usual.
+    let church_view = send(
+        &app,
+        "GET",
+        &format!("/api/v1/sets/{set_id}"),
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(church_view.1["version"], 4);
+    assert_eq!(
+        church_view.1["items"][2]["song"]["title"],
+        "Be Thou My Vision"
+    );
+    let stale = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/sets/{set_id}"),
+        Some(&session),
+        Some(json!({
+            "base_version": 1, "name": "Sunday morning", "service_date": null, "items": []
+        })),
+    )
+    .await;
+    assert_eq!(stale.0, StatusCode::CONFLICT);
+
+    // A deleted set's link answers 404 and comes back with the set.
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/sets/{set_id}"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    assert_eq!(
+        send(&app, "GET", &public, None, None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let restored = send(
+        &app,
+        "POST",
+        &format!("/api/v1/sets/{set_id}/restore"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(restored.0, StatusCode::OK);
+    assert_eq!(
+        send(&app, "GET", &public, None, None).await.0,
+        StatusCode::OK
+    );
+
+    // Stopping the share ends the link; sharing again makes a new one.
+    assert_eq!(
+        send(&app, "DELETE", &share_uri, Some(&session), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        send(&app, "GET", &public, None, None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        send(&app, "GET", &format!("{public}/songs/{grace}"), None, None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+    let again = send(&app, "PUT", &share_uri, Some(&session), Some(json!({}))).await;
+    assert_ne!(again.1["key"], key);
+    assert_eq!(again.1["editable"], false);
+    // A key that could never have been made is turned away.
+    assert_eq!(
+        send(&app, "GET", "/api/v1/public/sets/not-a-key", None, None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn remote_control_flow(pool: PgPool) {
     let app = test_app(pool.clone());
     let (session, desktop) = owner_and_desktop(&app).await;
@@ -2349,6 +2655,11 @@ async fn openapi_describes_every_operation(pool: PgPool) {
         "GET /api/v1/public/songs/{song_id}",
         "GET /api/v1/public/rooms/{room_name}",
         "GET /api/v1/public/rooms/{room_name}/events",
+        "GET /api/v1/public/sets/{share_key}",
+        "GET /api/v1/public/sets/{share_key}/songs",
+        "GET /api/v1/public/sets/{share_key}/songs/{song_id}",
+        "POST /api/v1/public/sets/{share_key}/items",
+        "DELETE /api/v1/public/sets/{share_key}/items/{item_id}",
         "POST /api/v1/desktop-auth/token",
     ];
     let mut operations = 0;

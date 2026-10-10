@@ -16,7 +16,9 @@ import type {
   ServerInfo,
   SetDetail,
   SetItemInput,
+  SetShare,
   SetSummary,
+  SharedSet,
   Session,
   SessionInfo,
   SetupStatus,
@@ -271,6 +273,50 @@ export class SongServerApi {
 
   async deleteSet(id: string, baseVersion: number): Promise<void> {
     await this.requestEmpty(`/sets/${id}?base_version=${baseVersion}`, { method: "DELETE" });
+  }
+
+  /** Leaders: the set's share link; 404 when it is not shared. */
+  getSetShare(id: string): Promise<SetShare> {
+    return this.request(`/sets/${id}/share`, { cache: "no-store" });
+  }
+
+  /** Leaders: shares the set on a link (keeping a link it has), or changes whether the link may edit it. */
+  shareSet(id: string, editable: boolean): Promise<SetShare> {
+    return this.request(`/sets/${id}/share`, { method: "PUT", body: JSON.stringify({ editable }) });
+  }
+
+  /** Leaders: the link stops working; sharing again makes a new one. */
+  async stopSharingSet(id: string): Promise<void> {
+    await this.requestEmpty(`/sets/${id}/share`, { method: "DELETE" });
+  }
+
+  /** Anyone with the link: the shared set. 404 when the link was stopped. */
+  getSharedSet(key: string): Promise<SharedSet> {
+    return this.request(`/public/sets/${encodeURIComponent(key)}`, { cache: "no-store" });
+  }
+
+  /** Anyone with the link: a song of the set (any song of the library through an editable link). */
+  getSharedSong(key: string, songId: string): Promise<SongDetail> {
+    return this.request(`/public/sets/${encodeURIComponent(key)}/songs/${songId}`);
+  }
+
+  /** Anyone with an editable link: searches the church's songs. */
+  searchSharedSongs(key: string, search: string): Promise<SongSummary[]> {
+    const query = search ? `?q=${encodeURIComponent(search)}` : "";
+    return this.request(`/public/sets/${encodeURIComponent(key)}/songs${query}`);
+  }
+
+  /** Anyone with an editable link: adds a song at `position`, or at the end. */
+  addSharedSong(key: string, songId: string, position?: number): Promise<SharedSet> {
+    return this.request(`/public/sets/${encodeURIComponent(key)}/items`, {
+      method: "POST",
+      body: JSON.stringify({ song_id: songId, position }),
+    });
+  }
+
+  /** Anyone with an editable link: removes a song from the set. */
+  removeSharedSong(key: string, itemId: string): Promise<SharedSet> {
+    return this.request(`/public/sets/${encodeURIComponent(key)}/items/${itemId}`, { method: "DELETE" });
   }
 
   listDesktops(): Promise<RemoteDesktop[]> {

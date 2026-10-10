@@ -13,8 +13,9 @@ import {
   renderSongBody,
   stepTranspose,
 } from "../song-render.ts";
-import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetSummary, SongDetail } from "../types.ts";
+import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetShare, SetSummary, SongDetail, SongSummary } from "../types.ts";
 import {
+  copyText,
   dateBadge,
   errorMessage,
   escapeHtml,
@@ -32,7 +33,7 @@ import { closeSheet, openSheet } from "./songs.ts";
 function setRow(set: SetSummary, currentId?: string): string {
   return `<li><a class="list-row" href="#/sets/${set.id}">
     ${dateBadge(set.service_date)}
-    <span class="row-main"><strong>${escapeHtml(set.name)}${set.id === currentId ? ` <span class="badge">Current</span>` : ""}</strong><small>${serviceDate(set.service_date)} · ${set.item_count} ${set.item_count === 1 ? "item" : "items"}</small></span>
+    <span class="row-main"><strong>${escapeHtml(set.name)}${set.id === currentId ? ` <span class="badge">Current</span>` : ""}${set.shared ? ` <span class="badge">Shared</span>` : ""}</strong><small>${serviceDate(set.service_date)} · ${set.item_count} ${set.item_count === 1 ? "item" : "items"}</small></span>
     ${icon("next")}
   </a></li>`;
 }
@@ -55,7 +56,7 @@ export async function setList(ctx: AppContext): Promise<void> {
   ${past.length ? `<h2 class="list-heading" id="sets-past">Earlier</h2>${rows(past, "sets-past")}` : ""}`;
 }
 
-function itemTitle(item: SetItem): string {
+export function itemTitle(item: SetItem): string {
   if (item.kind === "blank") return "Blank screen";
   return item.song?.title ?? "Deleted song";
 }
@@ -72,13 +73,20 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     }
     return over ? "" : `<button type="button" class="button secondary small" data-current="choose">${icon("check")}Make this the current set</button>`;
   };
+  const shareStatus = () => !set.shared ? "" : `<p class="current-note">${icon("link")}<span>${ctx.canEdit
+    ? `Shared on a link. <button type="button" class="link-button" data-share>Manage the link</button>`
+    : "A leader shared this set on a link: anyone who has it can see it."}</span></p>`;
   ctx.main.innerHTML = `${pageHead({
     title: set.name,
     subtitle: serviceDate(set.service_date, true),
     back: "#/sets",
-    actions: ctx.canEdit ? `<a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="Edit set">${icon("edit")}</a>` : "",
+    actions: ctx.canEdit
+      ? `<button type="button" class="icon-button ghost" data-share aria-label="Share on a link" title="Share on a link">${icon("share")}</button>
+         <a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="Edit set">${icon("edit")}</a>`
+      : "",
   })}
   <div id="current-status">${currentStatus()}</div>
+  <div id="share-status">${shareStatus()}</div>
   ${set.items.length
     ? `<a class="button primary wide" href="#/sets/${set.id}/play/0">${icon("play")}Open for the service</a>
        <ol class="list numbered">${set.items.map((item, index) => `<li>
@@ -91,6 +99,16 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     : emptyState("This set is empty", ctx.canEdit ? "Edit the set to add songs." : "A leader has not added songs yet.")}
   <p class="fine-print">Updated ${new Date(set.updated_at).toLocaleString()} · version ${set.version}</p>`;
 
+  const shareBox = ctx.main.querySelector<HTMLElement>("#share-status")!;
+  const share = (event: Event) => {
+    if (!(event.target as HTMLElement).closest("[data-share]")) return;
+    void ctx.run(() => openShareSheet(ctx, set, (shared) => {
+      set.shared = shared;
+      shareBox.innerHTML = shareStatus();
+    }));
+  };
+  shareBox.addEventListener("click", share);
+  ctx.main.querySelector(".page-actions")?.addEventListener("click", share);
   const status = ctx.main.querySelector<HTMLElement>("#current-status")!;
   status.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-current]");
@@ -103,6 +121,117 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
   });
   return ctx.currentSet.subscribe(() => {
     keepFocus(status, () => { status.innerHTML = currentStatus(); }, () => status.querySelector<HTMLElement>("button"));
+  });
+}
+
+/** Where a shared set opens, for anyone with the link. */
+export function sharedSetUrl(key: string): string {
+  return `${location.origin}/shared/${key}`;
+}
+
+/**
+ * Leaders: share the set on a link, choose whether people with the link may
+ * add and remove songs, copy or send the link, or stop sharing. `onChange`
+ * hears whether the set is shared afterwards.
+ */
+async function openShareSheet(ctx: AppContext, set: SetDetail, onChange: (shared: boolean) => void): Promise<void> {
+  let share: SetShare | null = null;
+  if (set.shared) {
+    try {
+      share = await ctx.api.getSetShare(set.id);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 404)) throw error;
+    }
+  }
+  let editable = share?.editable ?? false;
+  const sheet = openSheet(`<h2>Share this set</h2><div class="stack" id="share-body"></div>`);
+  const body = sheet.querySelector<HTMLElement>("#share-body")!;
+  const render = () => keepFocus(body, () => {
+    const url = share ? sharedSetUrl(share.key) : "";
+    body.innerHTML = `<p class="muted">Anyone with the link can open this set and go through its songs, with their words, chords and notes, without signing in. They cannot change the songs or control a desktop.</p>
+      <div class="stack">
+        <h3 class="list-heading" id="share-edit-label">Who can add and remove songs</h3>
+        <div class="segmented" role="radiogroup" aria-labelledby="share-edit-label">
+          ${[false, true].map((value) => `<button type="button" role="radio" aria-checked="${editable === value}" class="${editable === value ? "on" : ""}" data-editable="${value}">${value ? "Anyone with the link" : "Only leaders"}</button>`).join("")}
+        </div>
+        <p class="hint">${editable
+          ? "People with the link can add songs from your library to this set and remove songs from it, so they can also search and read every song in the library. Nothing else about the set changes through the link."
+          : "People with the link can read the set; only leaders change it."}</p>
+      </div>
+      ${share
+        ? `<label>Link<input id="share-url" readonly value="${escapeHtml(url)}" /></label>
+          <div class="inline-actions wrap">
+            <button type="button" class="button primary" id="share-copy">${icon("copy")}Copy the link</button>
+            ${"share" in navigator ? `<button type="button" class="button secondary" id="share-send">${icon("share")}Share</button>` : ""}
+          </div>
+          <button type="button" class="button secondary danger wide" id="share-stop">${icon("close")}Stop sharing</button>
+          <p class="hint">Stopping turns the link off at once for everyone who has it. Sharing again makes a new link.</p>`
+        : `<button type="button" class="button primary wide" id="share-create">${icon("link")}Create the link</button>`}
+      <p class="form-message" role="status"></p>`;
+  }, () => body.querySelector<HTMLElement>("#share-copy, #share-create"));
+  /** Errors stay in the sheet, where the person is looking. */
+  const act = async (action: () => Promise<void>) => {
+    const message = body.querySelector<HTMLElement>(".form-message");
+    if (message) message.textContent = "";
+    try {
+      await action();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        closeSheet(sheet);
+        ctx.signOut();
+        return;
+      }
+      const after = body.querySelector<HTMLElement>(".form-message");
+      if (after) after.textContent = errorMessage(error);
+    }
+  };
+  render();
+
+  body.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const choice = target.closest<HTMLButtonElement>("[data-editable]");
+    if (choice) {
+      const value = choice.dataset.editable === "true";
+      if (value === editable) return;
+      if (!share) {
+        editable = value;
+        render();
+        return;
+      }
+      void act(async () => {
+        share = await ctx.api.shareSet(set.id, value);
+        editable = share.editable;
+        render();
+        showToast(editable ? "People with the link can now add and remove songs." : "The link now only shows the set.");
+      });
+    } else if (target.closest("#share-create")) {
+      void act(async () => {
+        share = await ctx.api.shareSet(set.id, editable);
+        onChange(true);
+        render();
+        showToast("Link created. Copy it or share it.");
+      });
+    } else if (target.closest("#share-copy") && share) {
+      const url = sharedSetUrl(share.key);
+      void copyText(url).then((copied) => {
+        if (copied) showToast("Link copied.");
+        else prompt("Copy the link:", url);
+      });
+    } else if (target.closest("#share-send") && share) {
+      void navigator.share({ title: set.name, url: sharedSetUrl(share.key) }).catch(() => undefined);
+    } else if (target.closest("#share-stop")) {
+      if (!confirm("Stop sharing this set? The link stops working for everyone who has it.")) return;
+      void act(async () => {
+        await ctx.api.stopSharingSet(set.id);
+        share = null;
+        onChange(false);
+        render();
+        showToast("The set is no longer shared.");
+      });
+    }
+  });
+  body.addEventListener("focusin", (event) => {
+    if ((event.target as HTMLElement).id === "share-url") (event.target as HTMLInputElement).select();
   });
 }
 
@@ -298,7 +427,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     announce(`Blank screen added as item ${draft.items.length}.`);
   });
   const inDraft = (songId: string) => draft.items.filter((item) => item.song_id === songId).length;
-  form.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker(ctx, inDraft, (song) => {
+  form.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker((search) => ctx.api.listSongs(search), inDraft, (song) => {
     draft.items.push({
       id: crypto.randomUUID(),
       kind: "song",
@@ -356,9 +485,12 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   });
 }
 
-/** Search sheet that adds songs one tap at a time and stays open. */
-function openSongPicker(
-  ctx: AppContext,
+/**
+ * Search sheet that adds songs one tap at a time and stays open. `search`
+ * reads the library: the church's, or the one a shared link opens.
+ */
+export function openSongPicker(
+  search: (query: string) => Promise<SongSummary[]>,
   inDraft: (songId: string) => number,
   onPick: (song: { id: string; title: string; song_number: string | null }) => void,
 ): void {
@@ -373,7 +505,7 @@ function openSongPicker(
   const load = async () => {
     const mine = ++request;
     try {
-      const songs = await ctx.api.listSongs(input.value.trim());
+      const songs = await search(input.value.trim());
       if (mine !== request) return;
       results.innerHTML = songs.slice(0, 50).map((song) => {
         const added = inDraft(song.id) > 0;

@@ -147,7 +147,7 @@ navigation offline with the saved `/`, but saves only `/` itself.
 | `#/songs/{id}` | Song reader |
 | `#/sets` | Set list (default route) |
 | `#/sets/new`, `#/sets/{id}/edit` | Set editor (`#/sets/new?song=…&transpose=…` starts with one song) |
-| `#/sets/{id}` | Set detail |
+| `#/sets/{id}` | Set detail (leaders: Share on a link) |
 | `#/sets/{id}/play/{index}` | Service view |
 | `#/remote` | Desktops of the church |
 | `#/remote/{deviceId}` | One desktop's remote |
@@ -250,7 +250,9 @@ other people's phones and the desktops are not affected.
   "Earlier" (newest first), with a date badge, item count and a **Current**
   badge ([sets](sets.md)).
 - **Detail**: whether it is the current set (or **Make this the current
-  set**, unless its date is past), then the items in order with number,
+  set**, unless its date is past), whether it is shared on a link (leaders:
+  the Share button and **Manage the link** open the share sheet,
+  [shared sets](shared-sets.md)), then the items in order with number,
   transpose and note. A deleted song shows as "Deleted song". **Open for the
   service** starts the service view at the first item.
 - **Editor**: name, service date (defaults to the next Sunday), items that can
@@ -296,6 +298,15 @@ instead of polling. Leaving the screen closes the stream; a 401 signs out
   get a rename button in the bar: a sheet with the room name and **Pick
   another flower** (`PUT /device-tokens/{id}/room`; a taken name shows the
   server's message) ([rooms](rooms.md)).
+
+## Shared set page
+
+`/shared/{key}` (`views/shared-set.ts`) is for anyone with a set's share
+link, signed in or not, and stands outside the shell like the room reader:
+the set, **Go through the songs**, and one item at a time at
+`#/item/{itemId}` with words, chords and the reader panel, but no Follow or
+Project. An editable link adds remove buttons (with Undo) and **Add songs**.
+Details in [shared sets](shared-sets.md).
 
 ## Following a room
 

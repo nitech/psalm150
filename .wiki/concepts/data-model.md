@@ -1,7 +1,7 @@
 ---
 type: Contract
 title: Data model
-description: The PostgreSQL schema from migrations 0001–0010 — tables (including song_sets and song_set_items, churches.public_library and public_rooms, api_tokens, desktop room names), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
+description: The PostgreSQL schema from migrations 0001–0011 — tables (including song_sets and song_set_items with their share links, churches.public_library and public_rooms, api_tokens, desktop room names), keys, indexes, cascade rules, church scoping — and how migrations run at startup.
 tags: [postgres, schema, migrations, sqlx]
 status: stable
 sources:
@@ -58,7 +58,7 @@ exist yet ([gaps](gaps.md)).
 | `desktop_auth_codes` | `code_hash CHAR(64)` | One-time desktop sign-in codes: `church_id`, `user_id` (the approver), `device_name`, `code_challenge` (S256), `created_at`, `expires_at` (5 minutes), `used_at` |
 | `songs` | `id` | `church_id`, `current_revision_id`, `deleted_at`, `deleted_by`, `deleted_by_device` |
 | `song_revisions` | `id` | `song_id`, `parent_revision_id`, the extracted `title` / `song_number` / `authors` / `language`, the full `chordpro`, `content_hash CHAR(64)`, `created_by`, `created_by_device` |
-| `song_sets` | `id` (may be client-chosen) | `church_id`, `name` (not blank), `service_date DATE`, `version INTEGER` (starts at 1), `created_by` / `created_by_device`, `updated_by` / `updated_by_device`, `created_at`, `updated_at`, `deleted_at` |
+| `song_sets` | `id` (may be client-chosen) | `church_id`, `name` (not blank), `service_date DATE`, `version INTEGER` (starts at 1), `created_by` / `created_by_device`, `updated_by` / `updated_by_device`, `created_at`, `updated_at`, `deleted_at`, `share_key` (null unless shared; unique server-wide), `share_editable BOOLEAN` (default false), `shared_at` |
 | `song_set_items` | `id` | `set_id`, `position` (≥ 0, `UNIQUE (set_id, position)`), `kind` in `song` / `blank`, `song_id`, `transpose SMALLINT` (−11 to 11), `note` (at most 500 characters) |
 
 Migration `0002_device_song_edits.sql` added the three audit columns; the
@@ -133,6 +133,9 @@ null. `DELETE /songs/{id}` and `DELETE /sets/{id}` only set `deleted_at`, and
   updated_at DESC) WHERE deleted_at IS NULL`, matching the set list order.
 - `song_set_items_song_idx (song_id)`, for the `ON DELETE SET NULL` from songs.
 - `song_revisions_title_lower_idx (lower(title))`, for sorting.
+- Migration `0011_shared_sets.sql` adds the share columns to `song_sets` and
+  the partial unique index `song_sets_share_key_unique` on `share_key`
+  ([shared sets](shared-sets.md)). The key is stored as it is, not hashed.
 - Migration `0010_song_search_trigrams.sql` turns on `pg_trgm` and adds GIN
   trigram indexes on `song_revisions` `title`, `authors`, `song_number` and
   `chordpro` (`*_trgm_idx`), which serve search's `%q%` `ILIKE`, plus

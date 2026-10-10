@@ -60,7 +60,15 @@ cd web && bun run test                                     # vitest
   church has `public_rooms`; a church with rooms closed answers 404 like an
   unknown name. Room names are unique across the server (not per church),
   matched by `room_key`, and freed when the desktop is revoked.
-- Store tokens only as SHA-256 hashes; never log a raw token.
+- Shared sets (`shared_sets.rs`) are public through their link:
+  `/public/sets/{key}` reads one set and its songs, and an editable link may
+  only add song items and remove song items (never blanks, other items'
+  fields, the name or date). Sharing is `require_editor`, so desktops cannot
+  share. Every public lookup filters on `share_key` and `deleted_at IS NULL`,
+  and songs on the set's own `church_id`.
+- Store tokens only as SHA-256 hashes; never log a raw token. A set's
+  `share_key` is the one exception: it is a link leaders copy again, and it
+  opens only that set.
 - Wrong passwords are counted in memory (`throttle.rs`). Check the limit
   before any Argon2 work, and count unknown usernames like wrong passwords,
   so neither a 429 nor the timing tells which usernames exist.

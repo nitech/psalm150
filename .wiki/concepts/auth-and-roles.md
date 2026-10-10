@@ -99,6 +99,8 @@ command uses `require_editor`.
 | Approve a desktop sign-in (`POST /desktop-auth/codes`) | yes | yes | 403 | 403 |
 | List, read sets; sets snapshot | yes | yes | yes | yes |
 | Create, edit, delete or restore a set | yes | yes | 403 | **yes**, recorded as the device ([sets](sets.md)) |
+| Share a set on a link, read its link, change or stop it (`/sets/{id}/share`) | yes | yes | 403 | 403 ([shared sets](shared-sets.md)) |
+| Read a shared set and its songs, and change an editable one (`/public/sets/*`; also without any token) | yes | yes | yes | yes |
 | List the church's desktops for remote control, or follow the list live (`/remote/desktops/events`) | yes | yes | yes | yes |
 | Follow a room (`/public/rooms/*`; also without any token, see [public rooms](#public-rooms)) | yes | yes | yes | yes |
 | Send a remote command to a desktop | yes | yes | 403 | 403 |

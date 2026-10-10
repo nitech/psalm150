@@ -90,6 +90,10 @@ generated: { by: agent, at: 2026-10-05T20:30:00Z }
   Room names are short guessable flowers, unique per server, with no code or
   PIN; an owner's switch, the operator's checkbox and renaming are the only
   controls ([rooms](rooms.md)).
+- **Shared set links are not limited**: the token-free `/public/sets/{key}`
+  endpoints have no rate limit, an editable link records no one for its
+  changes, and links do not expire by themselves; stopping the share is the
+  only control ([shared sets](shared-sets.md)).
 - **Event streams need an unbuffered proxy**: a reverse proxy that buffers
   `text/event-stream` delays the Remote screens and rooms until it flushes
   ([deployment](deployment.md#behind-a-reverse-proxy)). The service view

@@ -188,6 +188,8 @@ export interface SetSummary {
   version: number;
   item_count: number;
   updated_at: string;
+  /** A leader shared the set on a link. */
+  shared: boolean;
 }
 
 export interface SetDetail {
@@ -196,6 +198,28 @@ export interface SetDetail {
   service_date: string | null;
   version: number;
   updated_at: string;
+  /** A leader shared the set on a link. */
+  shared: boolean;
+  items: SetItem[];
+}
+
+/** A set's share link, `<server>/shared/{key}` (leaders and owners). */
+export interface SetShare {
+  key: string;
+  /** Anyone with the link may also add songs to the set and remove them. */
+  editable: boolean;
+  shared_at: string;
+}
+
+/** A set as people with its share link see it (`/public/sets/{key}`). */
+export interface SharedSet {
+  name: string;
+  service_date: string | null;
+  version: number;
+  updated_at: string;
+  church_name: string;
+  /** Anyone with the link may add songs and remove them, and search the library. */
+  editable: boolean;
   items: SetItem[];
 }
 

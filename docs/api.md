@@ -74,7 +74,8 @@ code and its PKCE verifier at `POST /api/v1/desktop-auth/token`.
 
 An owner may make the church's library public (`PUT /api/v1/church`). Anyone
 may then search and read its songs through `/api/v1/public/songs` without a
-bearer token. Sets, revisions, export and every write still need a token.
+bearer token. Sets, revisions, export and every write still need a token,
+except a set a leader shares on a link (see Shared sets).
 
 Anyone may also follow a desktop's room by its name through
 `/api/v1/public/rooms/{room_name}` without a token, unless the church's owner
@@ -133,6 +134,14 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `PUT` | `/api/v1/sets/{id}` | Replace a set's name, date and items from an expected base version |
 | `DELETE` | `/api/v1/sets/{id}?base_version=` | Delete a set (soft); a stale base version is `409` |
 | `POST` | `/api/v1/sets/{id}/restore` | Bring a deleted set back with its items, as a new version |
+| `GET` | `/api/v1/sets/{id}/share` | Read a set's share link (leaders and owners) |
+| `PUT` | `/api/v1/sets/{id}/share` | Share a set on a link, or choose whether the link may add and remove songs |
+| `DELETE` | `/api/v1/sets/{id}/share` | Stop sharing a set; its link stops working |
+| `GET` | `/api/v1/public/sets/{key}` | Anyone with the link: read the shared set |
+| `GET` | `/api/v1/public/sets/{key}/songs/{song_id}` | Anyone with the link: read a song of the set |
+| `GET` | `/api/v1/public/sets/{key}/songs?q=` | Anyone with an editable link: search the church's songs |
+| `POST` | `/api/v1/public/sets/{key}/items` | Anyone with an editable link: add a song |
+| `DELETE` | `/api/v1/public/sets/{key}/items/{item_id}` | Anyone with an editable link: remove a song |
 | `GET` | `/api/v1/remote/desktop` | Desktop reads its room name and whether its church shares rooms |
 | `PUT` | `/api/v1/remote/desktop` | Desktop reports its projection state |
 | `DELETE` | `/api/v1/remote/desktop` | Desktop leaves remote control |
@@ -216,6 +225,23 @@ copy of the set.
 A deleted set keeps its items. `GET /sets/deleted` lists deleted sets and
 `POST /sets/{id}/restore` brings one back as a new `version`, so desktops pick
 it up at their next sync.
+
+### Shared sets
+
+A leader or owner may share a set on a link with `PUT /sets/{id}/share`
+`{"editable": false}`. The answer's `key` makes the link
+`<server>/shared/{key}`, which the web interface opens for anyone, signed in
+or not. Without a token, `GET /public/sets/{key}` reads the set and
+`GET /public/sets/{key}/songs/{song_id}` its songs. People with the link
+cannot steer a desktop or change a song.
+
+With `editable: true`, people with the link may also search the church's
+songs (`GET /public/sets/{key}/songs?q=`), add one
+(`POST /public/sets/{key}/items` `{song_id, position?}`) and remove song
+items (`DELETE /public/sets/{key}/items/{item_id}`). Each change raises the
+set's `version` like any other edit. Nothing else about the set changes
+through the link. `DELETE /sets/{id}/share` stops sharing at once; sharing
+again makes a new link.
 
 ## Remote relay
 

@@ -396,7 +396,8 @@ pub struct ServerInfo {
 pub struct ChurchSettings {
     pub id: Uuid,
     pub name: String,
-    /// Anyone, signed in or not, may read the songs (never the sets).
+    /// Anyone, signed in or not, may read the songs. Sets stay private
+    /// unless a leader shares one on a link.
     pub public_library: bool,
     /// Anyone who knows a desktop's room name may follow the words it
     /// projects. On by default; each desktop can also stop sharing.
@@ -529,6 +530,8 @@ pub struct SetSummary {
     pub version: i32,
     pub item_count: i64,
     pub updated_at: DateTime<Utc>,
+    /// A leader shared the set on a link (see `SetShare`).
+    pub shared: bool,
 }
 
 /// A deleted set, as it was when it was deleted.
@@ -569,7 +572,54 @@ pub struct SetDetail {
     pub service_date: Option<NaiveDate>,
     pub version: i32,
     pub updated_at: DateTime<Utc>,
+    /// A leader shared the set on a link (see `SetShare`).
+    pub shared: bool,
     pub items: Vec<SetItem>,
+}
+
+/// `PUT /sets/{set_id}/share`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ShareSetRequest {
+    /// Anyone with the link may also add songs to the set and remove them.
+    #[serde(default)]
+    pub editable: bool,
+}
+
+/// A set's share link. The link is `<server>/shared/{key}`; anyone who has it
+/// reads the set and its songs through `/public/sets/{key}` without a token.
+#[derive(Debug, Clone, Serialize, FromRow, ToSchema)]
+pub struct SetShare {
+    /// The secret part of the link: 32 letters and digits.
+    pub key: String,
+    /// Anyone with the link may also add songs to the set and remove them.
+    pub editable: bool,
+    pub shared_at: DateTime<Utc>,
+}
+
+/// A set as people with its share link see it.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SharedSet {
+    pub name: String,
+    pub service_date: Option<NaiveDate>,
+    /// Goes up with every change, by the church or through the link.
+    pub version: i32,
+    pub updated_at: DateTime<Utc>,
+    /// The church the set belongs to.
+    pub church_name: String,
+    /// Anyone with the link may add songs to the set and remove them. Then
+    /// they may also search and read the church's songs, to find one to add.
+    pub editable: bool,
+    pub items: Vec<SetItem>,
+}
+
+/// `POST /public/sets/{share_key}/items`: adds a song through an editable link.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AddSharedSetItemRequest {
+    /// A song of the set's church.
+    pub song_id: Uuid,
+    /// Where it goes, counting from 0; the end of the set when left out or
+    /// past the end.
+    pub position: Option<usize>,
 }
 
 /// What a desktop reports about its projection, so phones can show it.

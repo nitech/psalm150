@@ -36,16 +36,17 @@ use crate::{
     chordpro,
     error::{AppError, ErrorBody},
     models::{
-        ApiTokenResponse, ApiTokenSummary, ChangePasswordRequest, ChurchSettings,
-        CreateApiTokenRequest, CreateDesktopAuthCodeRequest, CreateDeviceTokenRequest,
-        CreateMemberRequest, CreateSetRequest, CreateSongRequest, DeleteSongQuery, DeletedSet,
-        DeletedSong, DesktopAuthCodeResponse, DesktopRoom, DesktopState, DesktopTokenRequest,
-        DesktopTokenResponse, DeviceTokenResponse, DeviceTokenSummary, ExportManifestEntry,
-        HealthResponse, ImportSongInput, ImportSongsRequest, ImportSongsResponse, LoginRequest,
-        Member, PageQuery, RemoteAction, RemoteCommand, RemoteCommandRequest, RemoteDesktop,
-        RevisionDetail, RevisionSummary, Role, RoomNameRequest, RoomSlide, RoomStatus, RoomView,
-        ServerInfo, SessionInfo, SessionResponse, SetDetail, SetItem, SetItemInput, SetItemKind,
-        SetSongRef, SetSummary, SetupRequest, SetupStatus, SongDetail, SongQuery, SongSort,
+        AddSharedSetItemRequest, ApiTokenResponse, ApiTokenSummary, ChangePasswordRequest,
+        ChurchSettings, CreateApiTokenRequest, CreateDesktopAuthCodeRequest,
+        CreateDeviceTokenRequest, CreateMemberRequest, CreateSetRequest, CreateSongRequest,
+        DeleteSongQuery, DeletedSet, DeletedSong, DesktopAuthCodeResponse, DesktopRoom,
+        DesktopState, DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse,
+        DeviceTokenSummary, ExportManifestEntry, HealthResponse, ImportSongInput,
+        ImportSongsRequest, ImportSongsResponse, LoginRequest, Member, PageQuery, RemoteAction,
+        RemoteCommand, RemoteCommandRequest, RemoteDesktop, RevisionDetail, RevisionSummary, Role,
+        RoomNameRequest, RoomSlide, RoomStatus, RoomView, ServerInfo, SessionInfo, SessionResponse,
+        SetDetail, SetItem, SetItemInput, SetItemKind, SetShare, SetSongRef, SetSummary,
+        SetupRequest, SetupStatus, ShareSetRequest, SharedSet, SongDetail, SongQuery, SongSort,
         SongSummary, SortDirection, TokenKind, UpdateChurchRequest, UpdateMemberRequest,
         UpdateSetRequest, UpdateSongRequest,
     },
@@ -111,6 +112,14 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::sets::delete_set,
         crate::sets::list_deleted_sets,
         crate::sets::restore_set,
+        crate::shared_sets::get_set_share,
+        crate::shared_sets::share_set,
+        crate::shared_sets::stop_sharing_set,
+        crate::shared_sets::get_shared_set,
+        crate::shared_sets::get_shared_set_song,
+        crate::shared_sets::list_shared_set_songs,
+        crate::shared_sets::add_shared_set_item,
+        crate::shared_sets::remove_shared_set_item,
         crate::remote::report_desktop_state,
         crate::remote::leave_remote,
         crate::remote::wait_for_commands,
@@ -172,6 +181,10 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         SetSongRef,
         SetItem,
         SetDetail,
+        ShareSetRequest,
+        SetShare,
+        SharedSet,
+        AddSharedSetItemRequest,
         DesktopState,
         RemoteDesktop,
         RemoteAction,
@@ -257,6 +270,11 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
         "Rooms",
         "Anyone may follow the words a desktop projects by its room name. No token needed.",
         &["public/rooms"],
+    ),
+    (
+        "Shared sets",
+        "Sets a leader shared on a link: anyone with the link reads the set and its songs, and          adds or removes songs when the leader allows it. No token needed.",
+        &["public/sets"],
     ),
     (
         "Public library",
@@ -347,6 +365,7 @@ pub fn router() -> Router<AppState> {
         .route("/public/songs/{song_id}", get(get_public_song))
         .merge(crate::access::router())
         .merge(crate::sets::router())
+        .merge(crate::shared_sets::router())
         .merge(crate::remote::router())
         .merge(crate::rooms::router())
 }
@@ -1008,7 +1027,7 @@ async fn get_public_song(
 
 /// Which songs a read may see.
 #[derive(Clone, Copy)]
-enum Library {
+pub(crate) enum Library {
     /// The signed-in caller's church.
     Church(Uuid),
     /// Every church whose owner made the library public; no sign-in.
@@ -1050,7 +1069,7 @@ fn song_order(sort: SongSort, direction: SortDirection) -> String {
     }
 }
 
-async fn search_songs(
+pub(crate) async fn search_songs(
     pool: &PgPool,
     library: Library,
     query: SongQuery,
@@ -1675,7 +1694,7 @@ async fn lock_song(
     .ok_or_else(|| AppError::NotFound("song was not found".into()))
 }
 
-async fn fetch_song(
+pub(crate) async fn fetch_song(
     pool: &PgPool,
     library: Library,
     song_id: Uuid,

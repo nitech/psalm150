@@ -56,7 +56,8 @@ already prepared service.
 - Immutable song revision history and explicit conflict handling.
 - Provenance between originals, translations, adaptations, arrangements,
   corrections, and added verses.
-- Shared service sets (plans) that viewers read and leaders edit.
+- Shared service sets (plans) that viewers read and leaders edit, and that a
+  leader may share on a link for anyone to read, or to add and remove songs.
 - Simple owner, leader, and viewer access.
 - Optional public profiles and public, unlisted, or private song sharing.
 - Import, export, backup, restore, and database migration tooling.

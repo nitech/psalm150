@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Sets
-description: Church sets (ordered song lists for one service) — the endpoints, item rules and limits, paging, the version check with 409, soft delete and restore, deleted songs inside a set, and who may change them.
+description: Church sets (ordered song lists for one service) — the endpoints, item rules and limits, paging, the version check with 409, soft delete and restore, deleted songs inside a set, who may change them, and sharing one on a link.
 tags: [sets, services, conflicts, desktop]
 status: stable
 sources:
@@ -31,7 +31,9 @@ church. It has a `name` (1–200 characters after trimming), an optional
 to the church reads sets, including viewers and desktops. Owners, leaders and
 desktop tokens change them (`require_song_editor`,
 [auth and roles](auth-and-roles.md)). The design called these "plans"; the
-code and the UI say "sets".
+code and the UI say "sets". A leader may also share one set on a link that
+anyone can open without an account ([shared sets](shared-sets.md)); `shared`
+on `SetSummary` and `SetDetail` says whether it is.
 
 ## Items
 
@@ -95,6 +97,7 @@ They are stored but not returned by any endpoint.
 ## Not built
 
 - No history or restore of earlier versions; only a deleted set can come back.
-- No per-set sharing or visibility: every set is visible to the whole church.
+- Every set is visible to the whole church; sharing on a link adds readers
+  outside it ([shared sets](shared-sets.md)) but cannot hide a set from members.
 - The web client never sends `from`, `limit` or `offset`, so it shows the
   newest 100, and it has no screen for deleted sets.

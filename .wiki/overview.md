@@ -65,6 +65,9 @@ directory, the server runs without the web client and logs a warning
    a read-only offline copy ([desktop sync](concepts/desktop-sync.md)).
 6. Leaders (on a phone or a desktop) arrange songs into [sets](concepts/sets.md)
    for a service. Desktops keep every set offline through `GET /sets/snapshot`.
+   A leader may share a set on a link that anyone can open without an
+   account, and may let people with the link add and remove songs
+   ([shared sets](concepts/shared-sets.md)).
 7. A leader's phone can steer a projection desktop through the server's
    [remote control](concepts/remote-control.md) relay, if the desktop allows
    it (it does unless its operator turns it off). Each desktop has a
@@ -113,6 +116,7 @@ directory, the server runs without the web client and logs a warning
 - Songs: [songs and revisions](concepts/songs-and-revisions.md),
   [import and export](concepts/import-export.md),
   [sets](concepts/sets.md), [desktop sync](concepts/desktop-sync.md),
+  [shared sets](concepts/shared-sets.md),
   [remote control](concepts/remote-control.md), [rooms](concepts/rooms.md).
 - Operating it: [web client](concepts/web-client.md),
   [deployment and config](concepts/deployment.md),
