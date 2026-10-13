@@ -264,6 +264,8 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
      stays for screen readers. */
   .page-titles.compact, .page-titles.wide-only { display: block; position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .app-bar.compact .bar-title { opacity: 1; transform: none; font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; }
+  /* Beside Back (the set editor) the title is bar-sized, like the caret. */
+  .app-bar.compact.sub .bar-title { margin-left: 0; font-family: inherit; font-size: 17px; font-weight: 600; letter-spacing: 0; }
 }
 .eyebrow { margin: 0 0 2px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .page-meta { margin: calc(-1 * var(--psa-space-3)) 0 var(--psa-space-4); color: var(--psa-text-secondary); font-size: 14px; }

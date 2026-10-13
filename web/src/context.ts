@@ -89,7 +89,8 @@ export function pageHead(options: {
     : options.menu ? menuButton() : "";
   // On wide screens the rail replaces ☰, so a bar with nothing else goes.
   const menuOnly = options.menu && !options.back && !options.actions && !options.panel;
-  return `<header class="app-bar${options.autohide ? " autohide" : ""}${options.compact ? " compact" : ""}${menuOnly ? " menu-only" : ""}">
+  // A compact screen under another (with Back) has a plain bar title.
+  return `<header class="app-bar${options.autohide ? " autohide" : ""}${options.compact ? " compact" : ""}${options.compact && options.back ? " sub" : ""}${menuOnly ? " menu-only" : ""}">
       <div class="app-bar-row">
         ${back}
         <p class="bar-title" aria-hidden="true">${escapeHtml(options.title)}</p>

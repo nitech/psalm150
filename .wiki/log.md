@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-13
+* **Bar-sized title beside Back**: a compact screen with Back (the set editor) gets `app-bar compact sub`, whose bar title is 17 px semibold like the rest of the bar instead of the 22 px display title of top-level screens such as Sets. Pages touched: web-client.
 * **Set editor top**: on phones "Edit set" / "New set" sits in the bar beside Back, and name and service date share one row. Pages touched: web-client.
 * **No current set bar on set pages**: a set's own page (`#/sets/{id}`) hides the current set bar in the dock; the offline notice still shows there. Pages touched: web-client.
 * **Leaner set editor, and no focus ring round the page**: set editor rows show only the title (and a transpose if the item has one): no position number, song number or note field (notes are kept). Delete and Save moved into the bar, with Back as Cancel; the sticky bottom bar is gone. The page container (`.page`), which takes focus after a sheet closes, no longer draws the lime focus ring that showed as a line across the screen. Pages touched: web-client.
