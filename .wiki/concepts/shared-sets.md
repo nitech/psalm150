@@ -109,9 +109,8 @@ their next snapshot and a leader editing from an older version gets the usual
   songs** choice (**Only leaders** or **Anyone with the link**) and **Create
   the link**. Once shared it shows the link with **Copy the link**, **Share**
   (where the browser can) and **Stop sharing** (with a confirmation). Changing
-  the choice on a shared set saves at once. The page then says "Shared on a
-  link" with **Manage the link**; viewers see that a leader shared it. The
-  set list shows a **Shared** badge.
+  the choice on a shared set saves at once. The Share button then looks
+  switched on. The set list shows a **Shared** badge.
 - **Shared page** (`/shared/{key}`, served as `index.html` by the API, outside
   the app shell, signed in or not): the church, date and set name, the items
   with their numbers, transpose and notes, and **Go through the songs**.

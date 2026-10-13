@@ -249,13 +249,12 @@ other people's phones and the desktops are not affected.
 - **List**: "Upcoming" (today or later, soonest first), "No date" and
   "Earlier" (newest first), with a date badge, item count and a **Current**
   badge ([sets](sets.md)).
-- **Detail**: whether it is the current set (or **Make this the current
-  set**, unless its date is past), whether it is shared on a link (leaders:
-  the Share button and **Manage the link** open the share sheet,
-  [shared sets](shared-sets.md)), then the items in order with number,
-  transpose and note. A deleted song shows as "Deleted song". **Go through the
-  songs**, with a line saying what it does, starts the service view at the
-  first item; tapping an item starts it there.
+- **Detail**: **Make this the current set** (unless it is the current set,
+  shown in the bar below, or its date is past), then the items in order with
+  number, transpose and note. Tapping an item starts the service view there.
+  A deleted song shows as "Deleted song". Leaders have Share and Edit in the
+  bar; Share looks switched on while the set is shared and opens the share
+  sheet ([shared sets](shared-sets.md)).
 - **Editor**: name, service date (defaults to the next Sunday), items that can
   be dragged by their grip (with a mouse; touch screens have no grip) or
   moved with the arrow buttons, removed and given a note, a blank-screen item,

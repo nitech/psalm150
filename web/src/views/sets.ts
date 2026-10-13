@@ -60,32 +60,24 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
   const set = await ctx.api.getSet(setId);
   setTitle(set.name, "Sets");
   const over = Boolean(set.service_date && set.service_date < today());
-  const currentStatus = () => {
-    if (ctx.currentSet.value?.id === set.id) {
-      return `<p class="current-note">${icon("check")}<span>Current set on this phone${ctx.canEdit ? ": songs you add go here" : ""}.${ctx.currentSet.chosen
-        ? ` <button type="button" class="link-button" data-current="auto">Use the next service instead</button>`
-        : ""}</span></p>`;
-    }
-    return over ? "" : `<button type="button" class="button secondary small" data-current="choose">${icon("check")}Make this the current set</button>`;
-  };
-  const shareStatus = () => !set.shared ? "" : `<p class="current-note">${icon("link")}<span>${ctx.canEdit
-    ? `Shared on a link. <button type="button" class="link-button" data-share>Manage the link</button>`
-    : "A leader shared this set on a link: anyone who has it can see it."}</span></p>`;
+  // The current set shows in the bar at the bottom; another set can become it.
+  const currentStatus = () => ctx.currentSet.value?.id === set.id || over
+    ? ""
+    : `<button type="button" class="button secondary small" data-current="choose">${icon("check")}Make this the current set</button>`;
+  /** The share button looks switched on while the set is shared. */
+  const shareLabel = () => set.shared ? "Shared on a link: manage the link" : "Share on a link";
   ctx.main.innerHTML = `${pageHead({
     title: set.name,
     subtitle: serviceDate(set.service_date, true),
     back: "#/sets",
     actions: ctx.canEdit
-      ? `<button type="button" class="icon-button ghost" data-share aria-label="Share on a link" title="Share on a link">${icon("share")}</button>
+      ? `<button type="button" class="icon-button ghost${set.shared ? " on" : ""}" data-share aria-label="${shareLabel()}" title="${shareLabel()}">${icon("share")}</button>
          <a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="Edit set">${icon("edit")}</a>`
       : "",
   })}
   <div id="current-status">${currentStatus()}</div>
-  <div id="share-status">${shareStatus()}</div>
   ${set.items.length
-    ? `<a class="button primary wide set-start" href="#/sets/${set.id}/play/0">${icon("play")}Go through the songs</a>
-       <p class="hint set-start-hint">One song at a time, with chords, to sing or play from. Swipe or use Previous and Next.</p>
-       <ol class="list numbered">${set.items.map((item, index) => `<li>
+    ? `<ol class="list numbered" aria-label="Songs: tap one to go through the set from there">${set.items.map((item, index) => `<li>
         <a class="list-row" href="#/sets/${set.id}/play/${index}">
           <span class="row-lead">${index + 1}</span>
           <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>
@@ -95,16 +87,13 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     : emptyState("This set is empty", ctx.canEdit ? "Edit the set to add songs." : "A leader has not added songs yet.")}
   <p class="fine-print">Updated ${new Date(set.updated_at).toLocaleString()} · version ${set.version}</p>`;
 
-  const shareBox = ctx.main.querySelector<HTMLElement>("#share-status")!;
-  const share = (event: Event) => {
-    if (!(event.target as HTMLElement).closest("[data-share]")) return;
-    void ctx.run(() => openShareSheet(ctx, set, (shared) => {
-      set.shared = shared;
-      shareBox.innerHTML = shareStatus();
-    }));
-  };
-  shareBox.addEventListener("click", share);
-  ctx.main.querySelector(".page-actions")?.addEventListener("click", share);
+  const shareButton = ctx.main.querySelector<HTMLButtonElement>("[data-share]");
+  shareButton?.addEventListener("click", () => void ctx.run(() => openShareSheet(ctx, set, (shared) => {
+    set.shared = shared;
+    shareButton.classList.toggle("on", shared);
+    shareButton.setAttribute("aria-label", shareLabel());
+    shareButton.title = shareLabel();
+  })));
   const status = ctx.main.querySelector<HTMLElement>("#current-status")!;
   status.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-current]");
