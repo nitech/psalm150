@@ -400,6 +400,9 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 @keyframes bump { 40% { transform: scale(1.03); border-color: var(--psa-accent); } }
 /* Forms and the service view have their own bottom bars. */
 body[data-route$="/edit"] .dock, body[data-route$="/new"] .dock, body[data-route^="/sets/id/play"] .dock { display: none; }
+/* A set's own page needs no reminder of the current set; an offline notice still shows. */
+body[data-route="/sets/id"] .current-bar { display: none; }
+body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padding: 0; }
 @media (min-width: 900px) {
   .dock { left: 220px; bottom: 0; padding: 0 var(--psa-space-6) var(--psa-space-4); }
   .dock > * { width: min(100%, 712px); margin-inline: auto; }

@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-13
+* **No current set bar on set pages**: a set's own page (`#/sets/{id}`) hides the current set bar in the dock; the offline notice still shows there. Pages touched: web-client.
 * **Leaner set editor, and no focus ring round the page**: set editor rows show only the title (and a transpose if the item has one): no position number, song number or note field (notes are kept). Delete and Save moved into the bar, with Back as Cancel; the sticky bottom bar is gone. The page container (`.page`), which takes focus after a sheet closes, no longer draws the lime focus ring that showed as a line across the screen. Pages touched: web-client.
 * **Plainer set page**: the "Current set on this phone" and "Shared on a link" lines and the **Go through the songs** button with its hint are gone. Tapping a song starts the service view there; the Share button looks switched on while the set is shared; other sets still offer **Make this the current set**. Pages touched: web-client, shared-sets.
 * **Service view without the reader panel**: the **Text and chords** button is gone from the service view, which shows the item's own transpose with the chords and text size last set on a song page; the Lead button's count pill sits higher, over the button's corner. Pages touched: web-client.

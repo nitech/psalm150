@@ -131,7 +131,8 @@ in from the left 24 px pulls the drawer out under the finger, with the same
 thresholds, on screens that show ☰ and when no sheet is open. In the browser
 that edge is Safari's Back, so the edge swipe is off there. At the bottom sits the **dock**: the offline notice and the
 [current set](#current-set) bar. The service view hides the dock; the song and
-set editors hide it too.
+set editors hide it too, and a set's own page hides the current set bar
+(an offline notice still shows).
 Routes live in the URL hash, so the server's static file serving (which has no
 SPA fallback) is enough, and links can be shared or bookmarked. The real
 paths are the song permalink `/songs/{id}`
@@ -249,8 +250,8 @@ other people's phones and the desktops are not affected.
 - **List**: "Upcoming" (today or later, soonest first), "No date" and
   "Earlier" (newest first), with a date badge, item count and a **Current**
   badge ([sets](sets.md)).
-- **Detail**: **Make this the current set** (unless it is the current set,
-  shown in the bar below, or its date is past), then the items in order with
+- **Detail**: **Make this the current set** (unless it is the current set
+  or its date is past; the current set bar is hidden here), then the items in order with
   number, transpose and note. Tapping an item starts the service view there.
   A deleted song shows as "Deleted song". Leaders have Share and Edit in the
   bar; Share looks switched on while the set is shared and opens the share
