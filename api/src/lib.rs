@@ -67,17 +67,21 @@ pub fn app(state: AppState, web_dist: PathBuf) -> Router {
     if web_dist.is_dir() {
         let index = web_dist.join("index.html");
         // Following a room: `/join` asks for its name, `/join/{name}` opens it.
-        // `/shared/{key}` is a set shared on a link. `/api/docs` is the API
-        // reference.
-        for path in [
-            "/join",
-            "/join/{room_name}",
-            "/shared/{share_key}",
-            "/api/docs",
-        ] {
+        // `/api/docs` is the API reference.
+        for path in ["/join", "/join/{room_name}", "/api/docs"] {
             let index = index.clone();
             router = router.route(path, get(move || pages::app_page(index.clone())));
         }
+        // A set shared on a link, with its name, day and songs for link previews.
+        let shared_index = index.clone();
+        router = router.route(
+            "/shared/{share_key}",
+            get(
+                move |State(state): State<AppState>, Path(share_key): Path<String>| {
+                    pages::shared_set_page(state, share_key, shared_index.clone())
+                },
+            ),
+        );
         router = router.route(
             "/songs/{song_id}",
             get(

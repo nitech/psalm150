@@ -313,13 +313,48 @@ instead of polling. Leaving the screen closes the stream; a 401 signs out
   another flower** (`PUT /device-tokens/{id}/room`; a taken name shows the
   server's message) ([rooms](rooms.md)).
 
+## Movement on phones
+
+`transitions.ts` makes the app move like a native one below 900 px, unless
+reduced motion is asked for:
+
+- **Screens slide** inside a view transition (`swapScreen`, where the browser
+  has `document.startViewTransition`; elsewhere screens just change). `route`
+  draws the new screen into a fresh `<main id="page">` off the page and swaps
+  it in when ready (the old screen stays, dimmed after 150 ms, until then), so
+  both can be animated as snapshots. `slideBetween` picks the way: deeper in
+  the same section slides in from the right over the old (`push`), shallower
+  slides out to the right (`pop`), a set's items slide sideways by their order
+  (`next`, `prev`), another section does not slide. The bars (`.app-bar`,
+  `.play-nav`, the dock, the shared page's banner) have their own
+  `view-transition-name`, so they cross-fade in place while the content moves.
+- **Swiping through a set** (service view and shared page, `bindItemSwipe`):
+  the item follows the finger (`.play` `--drag`; the bars stay), past the ends
+  it gives only a quarter; a swipe over 22 % of the width or a flick goes to
+  the neighbour, whose slide starts where the finger let go; otherwise it
+  springs back. Vertical scrolling stays the browser's (`touch-action: pan-y`).
+  The left 24 px are left for Back.
+- **Back**: in Safari, its own edge swipe animates; a `popstate` with
+  `hasUAVisualTransition`, or within 1.5 s of a touch at the screen's edge, is
+  not slid again (`takeBrowserAnimated`). The installed app has no browser
+  gesture, so `bindSwipeBack` adds one on screens with Back: the screen follows
+  the finger from the left edge (`#page` `left`, so the fixed bars stay put);
+  past a third of the width, or on a flick, Back is pressed and the slide
+  carries on from there.
+- **Speed**: a song or set link starts loading on `pointerdown`; single song
+  and set reads are remembered for 30 s and forgotten on any change made from
+  the app (`SongServerApi.remembered`); the service view and shared page read
+  the neighbouring items' songs ahead; taps have no highlight flash or zoom
+  delay (`touch-action: manipulation`).
+
 ## Shared set page
 
 `/shared/{key}` (`views/shared-set.ts`) is for anyone with a set's share
 link, signed in or not, and stands outside the shell like the room reader:
 the set, **Go through the songs**, and one item at a time at
 `#/item/{itemId}` with words, chords and the reader panel, but no Follow or
-Project. When a leader leads the set, the page moves to the item they show
+Project. The tab title has the set's day. Moving between the set and its
+items slides like the app ([movement](#movement-on-phones)). When a leader leads the set, the page moves to the item they show
 and says "Following <name>" above it. An editable link adds remove buttons
 (with Undo) and **Add songs**.
 Details in [shared sets](shared-sets.md).

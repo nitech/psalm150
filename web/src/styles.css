@@ -587,3 +587,55 @@ body[data-route^="/sets/id/play"] .toast { bottom: calc(80px + env(safe-area-ins
 .api-example { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--psa-space-2); }
 .api-example pre { flex: 1 1 240px; min-width: 0; margin: 0; padding: var(--psa-space-3); border-radius: var(--psa-radius-sm); background: var(--psa-bg-sunken); overflow-x: auto; font-size: 13px; line-height: 1.5; }
 .api-example pre:focus-visible { box-shadow: var(--psa-focus-ring); }
+
+/* ── App-like movement on phones (transitions.ts) ───────────────────────────
+   Screens are swapped inside a view transition. The bars keep their place
+   and cross-fade (their own view-transition-name); the rest of the screen
+   slides: in from the right when going deeper, out to the right going back,
+   sideways between a set's items. */
+@media (max-width: 899px) and (prefers-reduced-motion: no-preference) {
+  .app-bar { view-transition-name: app-bar; }
+  .play-nav { view-transition-name: play-nav; }
+  .dock { view-transition-name: dock; }
+  .live-banner { view-transition-name: live-banner; }
+
+  ::view-transition-group(*) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1); }
+  html[data-slide] ::view-transition-old(root),
+  html[data-slide] ::view-transition-new(root) {
+    animation-duration: 340ms;
+    animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1);
+    animation-fill-mode: both;
+    mix-blend-mode: normal;
+  }
+  /* Deeper: the new screen comes in over the old, which drifts left. */
+  html[data-slide="push"]::view-transition-old(root) { animation-name: vt-to-left-part; }
+  html[data-slide="push"]::view-transition-new(root) { animation-name: vt-from-right; box-shadow: -10px 0 30px rgb(0 0 0 / 0.25); }
+  /* Back: the old screen leaves to the right, over the one coming back. */
+  html[data-slide="pop"]::view-transition-old(root) { animation-name: vt-to-right; z-index: 2; box-shadow: -10px 0 30px rgb(0 0 0 / 0.25); }
+  html[data-slide="pop"]::view-transition-new(root) { animation-name: vt-from-left-part; }
+  /* A set's items: side by side, like pages. */
+  html[data-slide="next"]::view-transition-old(root) { animation-name: vt-to-left; }
+  html[data-slide="next"]::view-transition-new(root) { animation-name: vt-from-right; }
+  html[data-slide="prev"]::view-transition-old(root) { animation-name: vt-to-right; }
+  html[data-slide="prev"]::view-transition-new(root) { animation-name: vt-from-left; }
+}
+@keyframes vt-from-right { from { transform: translateX(100%); } }
+@keyframes vt-from-left { from { transform: translateX(-100%); } }
+@keyframes vt-from-left-part { from { transform: translateX(-28%); opacity: 0.6; } }
+@keyframes vt-to-left { to { transform: translateX(-100%); } }
+@keyframes vt-to-right { to { transform: translateX(100%); } }
+@keyframes vt-to-left-part { to { transform: translateX(-28%); opacity: 0.6; } }
+
+/* Swiping through a set: the item (not the bars) follows the finger. */
+.play { touch-action: pan-y; }
+.play.dragging > :not(.app-bar, .play-nav),
+.play.settling > :not(.app-bar, .play-nav) { transform: translateX(var(--drag, 0px)); will-change: transform; }
+.play.settling > :not(.app-bar, .play-nav) { transition: transform 240ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+
+/* The installed app's swipe back: the screen follows the finger. `left`
+   rather than a transform, so the fixed bars inside stay where they are. */
+#page.swiping-back, #page.settling-back { position: relative; left: var(--back, 0px); box-shadow: -10px 0 30px rgb(0 0 0 / 0.25); }
+#page.settling-back { transition: left 240ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+
+/* Taps answer at once: no grey flash, no double-tap zoom wait. */
+a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }

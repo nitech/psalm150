@@ -100,12 +100,26 @@ path. Headless servers have no such routes.
 
 With a web build present, `GET /songs/{id}` (outside `/api`, `pages.rs`)
 serves the web client's `index.html`, read from disk on each request, with
-`Cache-Control: no-cache`. When the song is live and in a public library, the
-page's `<title>` becomes "<song> · <church>" and it gains `og:type`,
-`og:title`, `og:description` (authors and church) and `og:site_name`, so chat
-apps can show a preview. For a private, deleted, unknown or malformed id the
-page is served unchanged (200): a private song's title is never sent without
-a sign-in. Headless servers have no such route.
+`Cache-Control: no-cache`, plus a descriptive `<title>`, `description`,
+`og:type`, `og:title`, `og:description` and `og:site_name`, so chat apps can
+show a preview:
+
+- a song in a public library: "<song> · <church>", described by its
+  authors and church;
+- a private song: "A song from <church>", described "Sign in to read it.";
+  its title and authors are never sent without a sign-in.
+
+A deleted, unknown or malformed id gets the page unchanged (200). Headless
+servers have no such route.
+
+## Shared set links
+
+`GET /shared/{key}` (`pages::shared_set_page`) serves the app the same way.
+For a key that opens a live shared set, the preview names the set and its
+day, "Kvelds · Sunday 18 October 2026", with "<church> · 3 songs: A, B, C"
+(the first five titles, then "and N more"); whoever has the link may read
+the set anyway ([shared sets](shared-sets.md)). Any other key gets the page
+unchanged, and the app says the link is gone.
 
 ## Docker Compose
 

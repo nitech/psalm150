@@ -6,6 +6,7 @@ import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { icon, type IconName } from "./icons.ts";
 import { installLyricsCopy } from "./song-render.ts";
+import { installedApp, slideBetween, swapScreen, takeBrowserAnimated } from "./transitions.ts";
 import "./install.ts";
 import type { SessionInfo, SetDetail, Session } from "./types.ts";
 import { dateBadge, errorMessage, escapeHtml, hideToast, readPreference, setFormBusy, showToast } from "./ui.ts";
@@ -332,6 +333,8 @@ let cleanup: Cleanup | void;
 let routeToken = 0;
 /** The route on screen, so a redraw of the same screen keeps focus in place. */
 let shownRoute: Route | null = null;
+/** The hash path of the screen shown, to know which way the next one slides. */
+let shownPath: string | null = null;
 let hashListener: (() => void) | null = null;
 
 function currentPath(): string {
@@ -513,11 +516,6 @@ function bindMenuSwipe(nav: HTMLElement, scrim: HTMLElement): void {
   });
 }
 
-/** The app was opened from the Home Screen, so Safari's own edge swipe (Back) is not in play. */
-function installedApp(): boolean {
-  return matchMedia("(display-mode: standalone)").matches
-    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-}
 
 /**
  * In the installed app on a phone, a swipe in from the left edge pulls the
@@ -590,6 +588,76 @@ function bindEdgeSwipe(): void {
   document.addEventListener("touchcancel", end);
 }
 
+/**
+ * The installed app has no browser Back gesture, so it gets one: a swipe in
+ * from the left edge on a screen with Back pulls the screen to the right
+ * under the finger. Past a third of the width, or on a flick, it goes back,
+ * and the slide carries on from where the finger let go; otherwise it
+ * springs back. (Screens with the menu button open the drawer from that edge.)
+ */
+function bindSwipeBack(): void {
+  const EDGE = 24;
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let offset = 0;
+  let mode: "off" | "maybe" | "drag" = "off";
+  let page: HTMLElement | null = null;
+  let back: HTMLAnchorElement | null = null;
+
+  document.addEventListener("touchstart", (event) => {
+    mode = "off";
+    if (event.touches.length !== 1 || event.touches[0].clientX > EDGE || !installedApp()) return;
+    if (menuIsOpen() || document.querySelector("dialog[open]")) return;
+    page = document.querySelector<HTMLElement>("#page");
+    back = page?.querySelector<HTMLAnchorElement>('.app-bar a[aria-label="Back"]') ?? null;
+    if (!page || !back) return;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    startTime = event.timeStamp;
+    offset = 0;
+    mode = "maybe";
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (event) => {
+    if (mode === "off" || !page) return;
+    const dx = event.touches[0].clientX - startX;
+    const dy = event.touches[0].clientY - startY;
+    if (mode === "maybe") {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) {
+        mode = "off";
+        return;
+      }
+      mode = "drag";
+      page.classList.remove("settling-back");
+      page.classList.add("swiping-back");
+    }
+    event.preventDefault();
+    offset = Math.max(0, dx);
+    page.style.setProperty("--back", `${offset}px`);
+  }, { passive: false });
+
+  const end = (event: TouchEvent) => {
+    if (mode !== "drag" || !page) {
+      mode = "off";
+      return;
+    }
+    mode = "off";
+    const speed = offset / Math.max(1, event.timeStamp - startTime);
+    if (back && (offset > window.innerWidth * 0.33 || (offset > 40 && speed > 0.4))) {
+      back.click();
+      return;
+    }
+    const settling = page;
+    settling.classList.replace("swiping-back", "settling-back");
+    settling.style.setProperty("--back", "0px");
+    window.setTimeout(() => settling.classList.remove("settling-back"), 260);
+  };
+  document.addEventListener("touchend", end);
+  document.addEventListener("touchcancel", end);
+}
+
 async function route(): Promise<void> {
   // Going somewhere from the drawer closes it.
   closeMenu(false);
@@ -614,42 +682,28 @@ async function route(): Promise<void> {
   const sameScreen = shownRoute === match.entry;
   // An error toast belongs to the screen it came from.
   if (document.querySelector("#toast.error.visible")) hideToast();
-  if (typeof cleanup === "function") cleanup();
-  cleanup = undefined;
   const token = ++routeToken;
-  document.querySelectorAll<HTMLElement>("[data-tab]").forEach((tab) => {
-    const on = tab.dataset.tab === match.entry.tab;
-    tab.classList.toggle("on", on);
-    if (on) tab.setAttribute("aria-current", "page");
-    else tab.removeAttribute("aria-current");
-  });
-  document.body.dataset.route = path.split("/").slice(0, 4).join("/").replace(/[0-9a-f-]{36}/g, "id").replace(/\/\d+$/, "");
-  document.body.classList.remove("bar-away", "title-away", "scrolled");
+  // Swiping back in Safari already moved the screens; do not slide again.
+  const slide = takeBrowserAnimated() ? null : slideBetween(shownPath, path);
   // Views name their screen more exactly ("Amazing Grace · Songs · PSA150").
   setTitle(TABS.find((tab) => tab.tab === match.entry.tab)?.label);
   main.classList.add("loading");
 
+  // The new screen is drawn off the page and swapped in once it is ready, so
+  // the old one stays until then and the two can slide past each other.
+  const next = document.createElement("main");
+  next.className = "page";
+  next.id = "page";
+  next.tabIndex = -1;
+  let result: Cleanup | void = undefined;
+  let failed = false;
   try {
     await currentReady;
     const params = match.found.slice(1);
-    const ctx = libraryContext(main);
-    const result = match.entry.visitors
+    const ctx = libraryContext(next);
+    result = match.entry.visitors
       ? await match.entry.view(ctx, params)
       : await match.entry.view({ ...ctx, session: session! }, params);
-    if (token !== routeToken) {
-      if (typeof result === "function") result();
-      return;
-    }
-    cleanup = result;
-    shownRoute = match.entry;
-    main.classList.remove("loading");
-    // Back and Forward return to where you were; anything else starts at the top.
-    const saved = (history.state as { scrollY?: number } | null)?.scrollY;
-    window.scrollTo({ top: saved ?? 0 });
-    updateScrollState();
-    // A new screen: focus its heading, so a screen reader says where you are
-    // and Tab starts from the top. The same screen redrawn: the same control.
-    if (userActed && !document.querySelector("dialog[open]") && !(sameScreen && refocus(main, focused))) focusPageStart();
   } catch (error) {
     if (token !== routeToken) return;
     main.classList.remove("loading");
@@ -657,13 +711,39 @@ async function route(): Promise<void> {
       signOut();
       return;
     }
-    shownRoute = null;
+    failed = true;
     const notFound = error instanceof ApiError && error.status === 404;
     setTitle(notFound ? "Not found" : "Could not load this page");
     const home = session ? `<a class="button secondary" href="#/sets">Go to sets</a>` : `<a class="button secondary" href="#/songs">Go to songs</a>`;
-    main.innerHTML = `<div class="empty-state"><h1 tabindex="-1">${notFound ? "Not found" : "Could not load this page"}</h1><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
-    if (userActed) focusPageStart();
+    next.innerHTML = `<div class="empty-state"><h1 tabindex="-1">${notFound ? "Not found" : "Could not load this page"}</h1><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
   }
+  if (token !== routeToken) {
+    if (typeof result === "function") result();
+    return;
+  }
+  const previous = cleanup;
+  cleanup = result;
+  shownRoute = failed ? null : match.entry;
+  shownPath = path;
+  swapScreen(slide, () => {
+    if (typeof previous === "function") previous();
+    main.replaceWith(next);
+    document.querySelectorAll<HTMLElement>("[data-tab]").forEach((tab) => {
+      const on = tab.dataset.tab === match.entry.tab;
+      tab.classList.toggle("on", on);
+      if (on) tab.setAttribute("aria-current", "page");
+      else tab.removeAttribute("aria-current");
+    });
+    document.body.dataset.route = path.split("/").slice(0, 4).join("/").replace(/[0-9a-f-]{36}/g, "id").replace(/\/\d+$/, "");
+    document.body.classList.remove("bar-away", "title-away", "scrolled");
+    // Back and Forward return to where you were; anything else starts at the top.
+    const saved = (history.state as { scrollY?: number } | null)?.scrollY;
+    window.scrollTo({ top: saved ?? 0 });
+    updateScrollState();
+    // A new screen: focus its heading, so a screen reader says where you are
+    // and Tab starts from the top. The same screen redrawn: the same control.
+    if (userActed && !document.querySelector("dialog[open]") && !(sameScreen && !failed && refocus(next, focused))) focusPageStart();
+  });
 }
 
 /** The screen's heading, or the main area when it has none. */
@@ -841,6 +921,16 @@ function startShellListeners(): void {
   // Turning a tablet to landscape shows the rail; the drawer state must not linger.
   matchMedia("(min-width: 900px)").addEventListener("change", () => closeMenu(false));
   bindEdgeSwipe();
+  bindSwipeBack();
+  // Start reading a song or set as the finger lands on its link, so the
+  // screen is usually ready by the time the tap ends.
+  document.addEventListener("pointerdown", (event) => {
+    const href = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#/"]')?.getAttribute("href") ?? "";
+    const song = /^#\/songs\/([0-9a-f-]{36})$/i.exec(href);
+    const set = /^#\/sets\/([0-9a-f-]{36})(?:\/play\/\d+)?$/i.exec(href);
+    if (song) void api.getSong(song[1]).catch(() => undefined);
+    if (set && session) void api.getSet(set[1]).catch(() => undefined);
+  }, { capture: true, passive: true });
   window.addEventListener("scroll", () => {
     if (!scrollFrame) {
       scrollFrame = requestAnimationFrame(() => {

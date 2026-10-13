@@ -643,6 +643,42 @@ async fn song_permalink_page(pool: PgPool) {
     assert_eq!(status, StatusCode::OK);
     assert!(html.contains("<div id=\"app\">"));
     assert!(!html.contains("Amazing Grace"));
+    assert!(html.contains("<title>A song from Test Church</title>"));
+
+    // A shared set's link names the set, its day, its church and its songs.
+    let set = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&owner),
+        Some(json!({
+            "name": "Kvelds",
+            "service_date": "2026-10-18",
+            "items": [{ "kind": "song", "song_id": song_id }, { "kind": "blank" }]
+        })),
+    )
+    .await;
+    let set_id = set.1["id"].as_str().unwrap().to_string();
+    let key = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/sets/{set_id}/share"),
+        Some(&owner),
+        Some(json!({})),
+    )
+    .await
+    .1["key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (status, html) = page(format!("/shared/{key}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains("<title>Kvelds · Sunday 18 October 2026 · Test Church</title>"));
+    assert!(html.contains("content=\"Test Church · 1 song: Amazing Grace\""));
+    // A stopped or made-up link only loads the app, which says it is gone.
+    let (status, html) = page("/shared/0123456789abcdef0123456789abcdef".into()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains("<title>PSA150</title>"));
 
     send(
         &app,

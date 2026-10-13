@@ -104,8 +104,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Reads of one song or set that may be answered from memory for a short while. */
+const REMEMBERED = [
+  /^\/(?:public\/)?songs\/[0-9a-f-]{36}$/i,
+  /^\/sets\/[0-9a-f-]{36}$/i,
+  /^\/public\/sets\/[^/]+\/songs\/[0-9a-f-]{36}$/i,
+];
+/** How long such a read is reused. Any change made from this app forgets them all. */
+const REMEMBER_MS = 30_000;
+
 export class SongServerApi {
   constructor(private readonly token: () => string | null) {}
+
+  /**
+   * Recent reads of single songs and sets, so a link touched a moment ago
+   * (read as the finger landed) or an item swiped back to opens at once.
+   */
+  private readonly remembered = new Map<string, { at: number; value: Promise<unknown> }>();
 
   info(): Promise<ServerInfo> {
     return this.request("/info");
@@ -422,7 +437,25 @@ export class SongServerApi {
     return response.blob();
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  private request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const method = (init.method ?? "GET").toUpperCase();
+    if (method !== "GET") {
+      this.remembered.clear();
+      return this.fetchJson<T>(path, init);
+    }
+    if (init.cache || !REMEMBERED.some((pattern) => pattern.test(path))) return this.fetchJson<T>(path, init);
+    const key = `${this.token() ?? ""} ${path}`;
+    const hit = this.remembered.get(key);
+    if (hit && Date.now() - hit.at < REMEMBER_MS) return hit.value as Promise<T>;
+    const value = this.fetchJson<T>(path, init);
+    this.remembered.set(key, { at: Date.now(), value });
+    value.catch(() => {
+      if (this.remembered.get(key)?.value === value) this.remembered.delete(key);
+    });
+    return value;
+  }
+
+  private async fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await send(`${API_ROOT}${path}`, {
       ...init,
       headers: { ...this.headers(Boolean(init.body)), ...init.headers },
@@ -434,6 +467,7 @@ export class SongServerApi {
   }
 
   private async requestEmpty(path: string, init: RequestInit): Promise<void> {
+    this.remembered.clear();
     const response = await send(`${API_ROOT}${path}`, {
       ...init,
       headers: { ...this.headers(Boolean(init.body)), ...init.headers },

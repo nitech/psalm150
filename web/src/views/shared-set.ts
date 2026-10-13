@@ -15,6 +15,7 @@ import {
 import type { SetItem, SharedSet, SharedSetLive, SongDetail } from "../types.ts";
 import { errorMessage, escapeHtml, serviceDate, showToast, startPolling, transposeLabel } from "../ui.ts";
 import { itemTitle, openSongPicker, playNav } from "./sets.ts";
+import { bindItemSwipe, swapScreen, type Slide } from "../transitions.ts";
 
 /**
  * A set a leader shared on a link: anyone who has `/shared/{key}` reads the
@@ -60,21 +61,37 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     const itemId = /^#\/item\/([0-9a-f-]{36})$/i.exec(location.hash)?.[1];
     const screen = itemId ? `item:${itemId}` : "set";
     const same = screen === shown;
+    const slide = same ? null : slideFrom(shown, screen);
     shown = screen;
+    // Draws the screen, sliding from the last one, and starts it at the top.
+    const present = (draw: () => void) => swapScreen(slide, () => {
+      draw();
+      if (!same) {
+        window.scrollTo({ top: 0 });
+        if (document.activeElement !== document.body || userActed) main.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
+      }
+      scrolled();
+    });
     try {
-      cleanup = itemId ? await showItem(itemId) : showSet();
+      cleanup = itemId ? await showItem(itemId, present) : showSet(present);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         gone(main, error);
         return;
       }
-      main.innerHTML = `<div class="empty-state"><h1 tabindex="-1">Could not load this page</h1><p>${escapeHtml(errorMessage(error))}</p><a class="button secondary" href="#/">Back to the set</a></div>`;
+      present(() => {
+        main.innerHTML = `<div class="empty-state"><h1 tabindex="-1">Could not load this page</h1><p>${escapeHtml(errorMessage(error))}</p><a class="button secondary" href="#/">Back to the set</a></div>`;
+      });
     }
-    if (!same) {
-      window.scrollTo({ top: 0 });
-      if (document.activeElement !== document.body || userActed) main.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
-    }
-    scrolled();
+  };
+
+  /** Into an item slides in, out to the set slides back, between items sideways. */
+  const slideFrom = (from: string, to: string): Slide => {
+    if (!from) return null;
+    if (from === "set") return "push";
+    if (to === "set") return "pop";
+    const position = (screen: string) => set.items.findIndex((item) => `item:${item.id}` === screen);
+    return position(to) > position(from) ? "next" : "prev";
   };
 
   /** Reads the set again; true when it changed. A stopped link shows as gone. */
@@ -103,7 +120,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
   };
 
   const drawSet = () => {
-    setTitle(set.name, set.church_name);
+    setTitle(set.service_date ? `${set.name}, ${serviceDate(set.service_date, true)}` : set.name, set.church_name);
     const first = set.items[0];
     main.innerHTML = `${pageHead({
       title: set.name,
@@ -136,8 +153,8 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     </li>`;
   };
 
-  const showSet = () => {
-    drawSet();
+  const showSet = (present: (draw: () => void) => void = (draw) => draw()) => {
+    present(drawSet);
     main.addEventListener("click", onSetClick);
     // The first tick would only read again what was just drawn.
     let fresh = true;
@@ -184,7 +201,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     }
   };
 
-  const showItem = async (itemId: string) => {
+  const showItem = async (itemId: string, present: (draw: () => void) => void) => {
     const index = set.items.findIndex((item) => item.id === itemId);
     const item = set.items[index];
     if (!item) {
@@ -192,7 +209,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       history.replaceState(null, "", location.pathname);
       shown = "set";
       showToast("That item is no longer in the set.");
-      return showSet();
+      return showSet(present);
     }
     const song = item.kind === "song" && item.song_id ? await loadSong(item.song_id) : null;
     const options = readReaderOptions();
@@ -234,19 +251,12 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       main.querySelector("#play-next")?.addEventListener("click", () => go(index + 1));
     };
 
-    // Swipe left or right, or the arrow keys, to move through the set.
-    let startX = 0;
-    let startY = 0;
-    const touchStart = (event: TouchEvent) => {
-      startX = event.touches[0].clientX;
-      startY = event.touches[0].clientY;
-    };
-    const touchEnd = (event: TouchEvent) => {
-      const dx = event.changedTouches[0].clientX - startX;
-      const dy = event.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      go(dx < 0 ? index + 1 : index - 1);
-    };
+    // Swipe sideways (the item follows the finger), or the arrow keys.
+    const unbindSwipe = bindItemSwipe(main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step));
+    // The neighbours' songs, read now so a swipe to them opens at once.
+    for (const neighbour of [set.items[index + 1], set.items[index - 1]]) {
+      if (neighbour?.song_id) void loadSong(neighbour.song_id).catch(() => undefined);
+    }
     const keys = (event: KeyboardEvent) => {
       if ((event.target as HTMLElement).closest("input,textarea")) return;
       if (event.key === "ArrowRight") go(index + 1);
@@ -261,15 +271,12 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     const visibility = () => {
       if (document.visibilityState === "visible") lockScreen();
     };
-    main.addEventListener("touchstart", touchStart, { passive: true });
-    main.addEventListener("touchend", touchEnd);
     document.addEventListener("keydown", keys);
     document.addEventListener("visibilitychange", visibility);
     lockScreen();
-    draw();
+    present(draw);
     return () => {
-      main.removeEventListener("touchstart", touchStart);
-      main.removeEventListener("touchend", touchEnd);
+      unbindSwipe();
       document.removeEventListener("keydown", keys);
       document.removeEventListener("visibilitychange", visibility);
       void wakeLock?.release().catch(() => undefined);

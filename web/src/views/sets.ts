@@ -24,6 +24,7 @@ import {
   transposeLabel,
 } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
+import { bindItemSwipe } from "../transitions.ts";
 
 function setRow(set: SetSummary, currentId?: string): string {
   return `<li><a class="list-row" href="#/sets/${set.id}">
@@ -202,7 +203,8 @@ async function openShareSheet(ctx: AppContext, set: SetDetail, onChange: (shared
         else prompt("Copy the link:", url);
       });
     } else if (target.closest("#share-send") && share) {
-      void navigator.share({ title: set.name, url: sharedSetUrl(share.key) }).catch(() => undefined);
+      const title = set.service_date ? `${set.name} · ${serviceDate(set.service_date, true)}` : set.name;
+      void navigator.share({ title, text: `${title} · ${ctx.session.church_name}`, url: sharedSetUrl(share.key) }).catch(() => undefined);
     } else if (target.closest("#share-stop")) {
       if (!confirm("Stop sharing this set? The link stops working for everyone who has it.")) return;
       void act(async () => {
@@ -649,27 +651,17 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     if ((target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "") !== renderedTarget) render();
   };
 
-  // Swipe left/right to move through the set.
-  let startX = 0;
-  let startY = 0;
-  const touchStart = (event: TouchEvent) => {
-    startX = event.touches[0].clientX;
-    startY = event.touches[0].clientY;
-  };
-  const touchEnd = (event: TouchEvent) => {
-    const dx = event.changedTouches[0].clientX - startX;
-    const dy = event.changedTouches[0].clientY - startY;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0 && index + 1 < set.items.length) go(index + 1);
-    if (dx > 0 && index > 0) go(index - 1);
-  };
+  // Swipe sideways through the set; the item follows the finger.
+  const unbindSwipe = bindItemSwipe(ctx.main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step));
+  // The neighbours' songs, read now so a swipe to them opens at once.
+  for (const neighbour of [set.items[index + 1], set.items[index - 1]]) {
+    if (neighbour?.song_id) void loadSong(ctx, songCache, neighbour.song_id).catch(() => undefined);
+  }
   const keys = (event: KeyboardEvent) => {
     if ((event.target as HTMLElement).closest("input,textarea")) return;
     if (event.key === "ArrowRight" && index + 1 < set.items.length) go(index + 1);
     if (event.key === "ArrowLeft" && index > 0) go(index - 1);
   };
-  ctx.main.addEventListener("touchstart", touchStart, { passive: true });
-  ctx.main.addEventListener("touchend", touchEnd);
   document.addEventListener("keydown", keys);
 
   // Keep the phone awake while reading from it.
@@ -691,8 +683,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   return () => {
     poller.stop();
     livePoller?.stop();
-    ctx.main.removeEventListener("touchstart", touchStart);
-    ctx.main.removeEventListener("touchend", touchEnd);
+    unbindSwipe();
     document.removeEventListener("keydown", keys);
     document.removeEventListener("visibilitychange", visibility);
     void wakeLock?.release().catch(() => undefined);

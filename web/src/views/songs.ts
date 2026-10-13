@@ -304,12 +304,22 @@ async function copyLyrics(title: string, text: string): Promise<void> {
 }
 
 /**
- * Copies the song's permalink, `/songs/{id}`. The server serves the app
- * there (with the title for link previews when the library is public), and
- * the app moves on to `#/songs/{id}`.
+ * Shares the song's permalink, `/songs/{id}`, through the phone's share sheet
+ * with the song's title, or copies it where there is none. The server serves
+ * the app there, with a descriptive title for link previews, and the app
+ * moves on to `#/songs/{id}`.
  */
 async function shareSong(ctx: LibraryContext, song: SongRef): Promise<void> {
   const url = `${location.origin}/songs/${song.id}`;
+  if ("share" in navigator && matchMedia("(pointer: coarse)").matches) {
+    try {
+      await navigator.share({ title: `${song.title} · ${ctx.libraryName}`, text: song.title, url });
+      return;
+    } catch (error) {
+      // Closed without sharing.
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
   if (!(await copyText(url))) {
     window.prompt(`Copy this link to ${song.title}:`, url);
     return;

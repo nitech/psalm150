@@ -108,7 +108,10 @@ their next snapshot and a leader editing from an older version gets the usual
   It explains what people with the link see, has a **Who can add and remove
   songs** choice (**Only leaders** or **Anyone with the link**) and **Create
   the link**. Once shared it shows the link with **Copy the link**, **Share**
-  (where the browser can) and **Stop sharing** (with a confirmation). Changing
+  (where the browser can; it sends "<set> · <day>" as the title) and **Stop
+  sharing** (with a confirmation). The link's own page carries a preview
+  naming the set, its day, church and songs
+  ([deployment](deployment.md#shared-set-links)). Changing
   the choice on a shared set saves at once. The Share button then looks
   switched on. The set list shows a **Shared** badge.
 - **Shared page** (`/shared/{key}`, served as `index.html` by the API, outside
