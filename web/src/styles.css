@@ -431,7 +431,9 @@ body[data-route^="/sets/id/play"] .page, .page:has(.play-nav) { padding-bottom: 
   position: fixed; inset: auto 0 0 0; z-index: 30;
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--psa-space-2);
   padding: var(--psa-space-2) var(--psa-space-3) calc(var(--psa-space-2) + env(safe-area-inset-bottom));
-  background: var(--psa-bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  /* Solid page colour, so it runs on into the strip under the browser's own
+     bar at the bottom without a seam (like the top bar). */
+  background: var(--psa-bg-canvas);
   border-top: 1px solid var(--psa-border);
 }
 /* Compact steps: the chevron at the outer edge, then a small label over the
