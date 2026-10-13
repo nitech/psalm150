@@ -4,14 +4,10 @@ import { emptyState, pageHead, routeQuery, type AppContext, type Cleanup } from 
 import { groupSets } from "../current-set.ts";
 import { icon } from "../icons.ts";
 import {
-  bindReaderControls,
   keyLabel,
   prepareSong,
   readReaderOptions,
-  readerPanel,
-  readerToggle,
   renderSongBody,
-  stepTranspose,
 } from "../song-render.ts";
 import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetLive, SetShare, SetSummary, SongDetail, SongSummary } from "../types.ts";
 import {
@@ -545,8 +541,8 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const set: SetDetail = await ctx.api.getSet(setId);
   const index = Math.max(0, Math.min(set.items.length - 1, Number(indexParam) || 0));
   const item = set.items[index];
+  // Chords and text size as last set on a song page; no panel here.
   const options = readReaderOptions();
-  let extraTranspose = 0;
   let wakeLock: { release(): Promise<void> } | null = null;
   const go = (next: number) => ctx.navigate(`#/sets/${set.id}/play/${next}`, true);
 
@@ -568,7 +564,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const render = () => {
     const prev = set.items[index - 1];
     const next = set.items[index + 1];
-    const transpose = stepTranspose(item.transpose, extraTranspose);
+    const transpose = item.transpose;
     const display = song ? prepareSong(song.chordpro, transpose) : null;
     const target = pickDesktop(desktops);
     renderedTarget = target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "";
@@ -580,8 +576,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
         subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
         back: `#/sets/${set.id}`,
         autohide: true,
-        actions: `${ctx.canEdit ? `<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>` : ""}${display ? readerToggle(options) : ""}`,
-        panel: display ? readerPanel(display, options, transpose) : "",
+        actions: ctx.canEdit ? `<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>` : "",
       })}
       ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
       ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
@@ -590,12 +585,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
       ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
     </div>`;
 
-    if (display) {
-      bindReaderControls(ctx.main, options, (step) => {
-        extraTranspose = stepTranspose(extraTranspose, step);
-        render();
-      });
-    }
     drawLead();
     // A redraw (a desktop appearing, a reader setting) keeps focus where it was.
     if (active instanceof HTMLElement && active.id && !active.isConnected) ctx.main.querySelector<HTMLElement>(`#${active.id}`)?.focus({ preventScroll: true });
