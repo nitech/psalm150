@@ -42,13 +42,13 @@ use crate::{
         DeleteSongQuery, DeletedSet, DeletedSong, DesktopAuthCodeResponse, DesktopRoom,
         DesktopState, DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse,
         DeviceTokenSummary, ExportManifestEntry, HealthResponse, ImportSongInput,
-        ImportSongsRequest, ImportSongsResponse, LoginRequest, Member, PageQuery, RemoteAction,
-        RemoteCommand, RemoteCommandRequest, RemoteDesktop, RevisionDetail, RevisionSummary, Role,
-        RoomNameRequest, RoomSlide, RoomStatus, RoomView, ServerInfo, SessionInfo, SessionResponse,
-        SetDetail, SetItem, SetItemInput, SetItemKind, SetShare, SetSongRef, SetSummary,
-        SetupRequest, SetupStatus, ShareSetRequest, SharedSet, SongDetail, SongQuery, SongSort,
-        SongSummary, SortDirection, TokenKind, UpdateChurchRequest, UpdateMemberRequest,
-        UpdateSetRequest, UpdateSongRequest,
+        ImportSongsRequest, ImportSongsResponse, LeadSetRequest, LoginRequest, Member, PageQuery,
+        RemoteAction, RemoteCommand, RemoteCommandRequest, RemoteDesktop, RevisionDetail,
+        RevisionSummary, Role, RoomNameRequest, RoomSlide, RoomStatus, RoomView, ServerInfo,
+        SessionInfo, SessionResponse, SetDetail, SetItem, SetItemInput, SetItemKind, SetLive,
+        SetShare, SetSongRef, SetSummary, SetupRequest, SetupStatus, ShareSetRequest, SharedSet,
+        SharedSetLive, SongDetail, SongQuery, SongSort, SongSummary, SortDirection, TokenKind,
+        UpdateChurchRequest, UpdateMemberRequest, UpdateSetRequest, UpdateSongRequest,
     },
     throttle,
 };
@@ -120,6 +120,10 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::shared_sets::list_shared_set_songs,
         crate::shared_sets::add_shared_set_item,
         crate::shared_sets::remove_shared_set_item,
+        crate::live_sets::get_set_live,
+        crate::live_sets::lead_set,
+        crate::live_sets::stop_leading_set,
+        crate::live_sets::shared_set_live,
         crate::remote::report_desktop_state,
         crate::remote::leave_remote,
         crate::remote::wait_for_commands,
@@ -185,6 +189,9 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         SetShare,
         SharedSet,
         AddSharedSetItemRequest,
+        LeadSetRequest,
+        SetLive,
+        SharedSetLive,
         DesktopState,
         RemoteDesktop,
         RemoteAction,
@@ -273,7 +280,7 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     ),
     (
         "Shared sets",
-        "Sets a leader shared on a link: anyone with the link reads the set and its songs, and          adds or removes songs when the leader allows it. No token needed.",
+        "Sets a leader shared on a link: anyone with the link reads the set and its songs,          follows a leader through it live, and adds or removes songs when the leader allows it.          No token needed.",
         &["public/sets"],
     ),
     (
@@ -366,6 +373,7 @@ pub fn router() -> Router<AppState> {
         .merge(crate::access::router())
         .merge(crate::sets::router())
         .merge(crate::shared_sets::router())
+        .merge(crate::live_sets::router())
         .merge(crate::remote::router())
         .merge(crate::rooms::router())
 }

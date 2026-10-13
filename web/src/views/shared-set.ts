@@ -12,7 +12,7 @@ import {
   renderSongBody,
   stepTranspose,
 } from "../song-render.ts";
-import type { SetItem, SharedSet, SongDetail } from "../types.ts";
+import type { SetItem, SharedSet, SharedSetLive, SongDetail } from "../types.ts";
 import { errorMessage, escapeHtml, serviceDate, showToast, startPolling, transposeLabel } from "../ui.ts";
 import { itemTitle, openSongPicker, playNav } from "./sets.ts";
 
@@ -35,7 +35,8 @@ export function sharedSetPath(): string | null {
 }
 
 export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key: string): Promise<void> {
-  app.innerHTML = `<main class="page shared-page" id="page" tabindex="-1"></main>
+  app.innerHTML = `<p class="live-banner" id="live-banner" role="status" hidden></p>
+    <main class="page shared-page" id="page" tabindex="-1"></main>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <p class="sr-only" id="announcer" role="status" aria-live="polite"></p>`;
   const main = app.querySelector<HTMLElement>("#page")!;
@@ -299,6 +300,60 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
   window.addEventListener("scroll", scrolled, { passive: true });
   window.addEventListener("hashchange", () => void route());
   await route();
+  followLeader();
+
+  /**
+   * A leader may go through the set live: this page then moves to the item
+   * they show whenever they move. Between moves people may look elsewhere.
+   * While the stream is open, the leader counts this page as watching.
+   */
+  function followLeader() {
+    const banner = app.querySelector<HTMLElement>("#live-banner")!;
+    let lastItem: string | null = null;
+    let checkTimer = 0;
+    const source = new EventSource(`/api/v1/public/sets/${encodeURIComponent(key)}/live/events`);
+    source.addEventListener("live", (event) => {
+      const live = JSON.parse((event as MessageEvent<string>).data) as SharedSetLive;
+      const text = live.item_id && live.leader_name ? `Following ${live.leader_name}` : "";
+      if (banner.textContent !== text) {
+        banner.textContent = text;
+        banner.hidden = !text;
+      }
+      if (!live.item_id || live.item_id === lastItem) {
+        lastItem = live.item_id;
+        return;
+      }
+      lastItem = live.item_id;
+      void show(live.item_id);
+    });
+    // EventSource reconnects by itself; when it gives up, the link may have
+    // been stopped: look, and say so.
+    source.addEventListener("error", () => {
+      if (source.readyState !== EventSource.CLOSED) return;
+      window.clearTimeout(checkTimer);
+      checkTimer = window.setTimeout(async () => {
+        try {
+          await api.getSharedSet(key);
+          followLeader();
+        } catch (error) {
+          banner.hidden = true;
+          if (error instanceof ApiError && error.status === 404) gone(main, error);
+          else checkTimer = window.setTimeout(followLeader, 10_000);
+        }
+      }, 4000);
+    });
+  }
+
+  /** Goes to the leader's item, reading the set again if it is new here. */
+  async function show(itemId: string) {
+    if (!set.items.some((item) => item.id === itemId)) await reload().catch(() => false);
+    if (!set.items.some((item) => item.id === itemId)) return;
+    const target = `#/item/${itemId}`;
+    if (location.hash === target) return;
+    // From the list, Back returns to it; between items, history stays short.
+    if (shown.startsWith("item:")) location.replace(target);
+    else location.hash = target;
+  }
 }
 
 /**

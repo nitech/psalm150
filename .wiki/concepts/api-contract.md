@@ -118,6 +118,10 @@ the lower of its own `role` and its person's
 | GET | `/public/sets/{key}/songs/{song_id}` | none | 200 `SongDetail` | A song in the set; any song of the church through an editable link; 404 otherwise | yes | – |
 | GET | `/public/sets/{key}/songs` | none | 200 `SongSummary[]` | Editable links only (403): searches the church's songs like `GET /songs` | yes | – |
 | POST | `/public/sets/{key}/items` | none | 200 `SharedSet` | Editable links only (403). Body `{song_id, position?}`; a song of the church (400), at most 200 items (400); raises `version` | yes | – |
+| GET | `/sets/{id}/live` | any token | 200 `SetLive` | `{leading, item_id, leader_name, viewers}`; 404 when missing, deleted or in another church ([shared sets](shared-sets.md#leading-live)) | yes (service view) | – |
+| PUT | `/sets/{id}/live` | editor | 200 `SetLive` | Body `{item_id}` (an item of the set, else 400). Leads the set: shared-link pages move to that item. Send on every move and at least every 30 s; leading ends 60 s after the last | yes | – |
+| DELETE | `/sets/{id}/live` | editor | 204 | Stops leading; pages stay where they are | yes | – |
+| GET | `/public/sets/{key}/live/events` | none | 200 `text/event-stream` | A `live` event `SharedSetLive {item_id, leader_name}` on connect and whenever it changes; the open stream counts as a viewer; ends when the link stops working (checked every 30 s); 404 for an unknown key | yes (`/shared/{key}`, `EventSource`) | – |
 | DELETE | `/public/sets/{key}/items/{item_id}` | none | 200 `SharedSet` | Editable links only (403). Song items only (a blank is 403); 404 for an unknown item; raises `version` | yes | – |
 | GET | `/remote/desktop` | desktop | 200 `DesktopRoom` | `{device_id, room_name, public_rooms}`: the desktop's room and whether its church has rooms open ([rooms](rooms.md)) | – | yes |
 | PUT | `/remote/desktop` | desktop | 204 | Body `DesktopState`; see [remote control](remote-control.md) | – | yes |
@@ -189,9 +193,9 @@ Swagger group by them.
 The `BearerAuth` modifier declares an HTTP `bearer` security scheme, and every
 operation that needs a token carries `security(("bearer" = []))`. The test
 `openapi_describes_every_operation` reads the served document and fails when
-an operation outside its list of fifteen public ones (`/health`, `/info`,
+an operation outside its list of sixteen public ones (`/health`, `/info`,
 both `/setup`, `POST /session`, the two `/public/songs` reads, the two
-`/public/rooms` reads, the five `/public/sets` operations and
+`/public/rooms` reads, the six `/public/sets` operations and
 `POST /desktop-auth/token`) lacks the scheme, when a public one has it, or
 when a documented operation is not routed (the router's bare 404 or a 405),
 has no summary, or is in no section.

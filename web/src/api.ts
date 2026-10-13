@@ -16,6 +16,7 @@ import type {
   ServerInfo,
   SetDetail,
   SetItemInput,
+  SetLive,
   SetShare,
   SetSummary,
   SharedSet,
@@ -288,6 +289,21 @@ export class SongServerApi {
   /** Leaders: the link stops working; sharing again makes a new one. */
   async stopSharingSet(id: string): Promise<void> {
     await this.requestEmpty(`/sets/${id}/share`, { method: "DELETE" });
+  }
+
+  /** Who leads the set live and how many shared-link pages have it open. */
+  getSetLive(id: string): Promise<SetLive> {
+    return this.request(`/sets/${id}/live`, { cache: "no-store" });
+  }
+
+  /** Leaders: everyone with the shared link moves to this item. Send on every move and every 30 s. */
+  leadSet(id: string, itemId: string): Promise<SetLive> {
+    return this.request(`/sets/${id}/live`, { method: "PUT", body: JSON.stringify({ item_id: itemId }) });
+  }
+
+  /** Leaders: stop leading; shared-link pages stay where they are. */
+  async stopLeadingSet(id: string): Promise<void> {
+    await this.requestEmpty(`/sets/${id}/live`, { method: "DELETE" });
   }
 
   /** Anyone with the link: the shared set. 404 when the link was stopped. */

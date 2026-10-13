@@ -211,6 +211,21 @@ export interface SetShare {
   shared_at: string;
 }
 
+/** Who leads a set live and how many shared-link pages have it open. */
+export interface SetLive {
+  /** People with the shared link move with the leader. Ends a minute after the last report. */
+  leading: boolean;
+  item_id: string | null;
+  leader_name: string | null;
+  viewers: number;
+}
+
+/** What a shared-link page hears: the item the leader shows, if anyone leads. */
+export interface SharedSetLive {
+  item_id: string | null;
+  leader_name: string | null;
+}
+
 /** A set as people with its share link see it (`/public/sets/{key}`). */
 export interface SharedSet {
   name: string;

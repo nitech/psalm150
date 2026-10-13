@@ -65,7 +65,8 @@ not yet complete.
 - [x] Give every desktop a room name and let anyone follow the projected words in large text on their own phone.
 - [ ] Keep remote control working across server restarts and several server instances.
 - [ ] Limit how often rooms are read and how many people may follow one at a time.
-- [ ] Limit how often shared set links are read and changed.
+- [x] Let a leader lead a shared set live, moving everyone with the link along.
+- [ ] Limit how often shared set links are read and changed, and how many follow one live.
 - [x] Define and implement Phase 1 merge-then-pull PSA150-client synchronization.
 - [ ] Define additional integration guidance for external church websites.
 

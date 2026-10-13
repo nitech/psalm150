@@ -142,6 +142,10 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `GET` | `/api/v1/public/sets/{key}/songs?q=` | Anyone with an editable link: search the church's songs |
 | `POST` | `/api/v1/public/sets/{key}/items` | Anyone with an editable link: add a song |
 | `DELETE` | `/api/v1/public/sets/{key}/items/{item_id}` | Anyone with an editable link: remove a song |
+| `GET` | `/api/v1/sets/{id}/live` | Who leads a set live and how many shared-link pages have it open |
+| `PUT` | `/api/v1/sets/{id}/live` | Lead a set from an item: shared-link pages move there (leaders and owners) |
+| `DELETE` | `/api/v1/sets/{id}/live` | Stop leading a set |
+| `GET` | `/api/v1/public/sets/{key}/live/events` | Anyone with the link: the item the leader shows, as server-sent events |
 | `GET` | `/api/v1/remote/desktop` | Desktop reads its room name and whether its church shares rooms |
 | `PUT` | `/api/v1/remote/desktop` | Desktop reports its projection state |
 | `DELETE` | `/api/v1/remote/desktop` | Desktop leaves remote control |
@@ -242,6 +246,13 @@ items (`DELETE /public/sets/{key}/items/{item_id}`). Each change raises the
 set's `version` like any other edit. Nothing else about the set changes
 through the link. `DELETE /sets/{id}/share` stops sharing at once; sharing
 again makes a new link.
+
+A leader or owner can lead a shared set live: `PUT /sets/{id}/live`
+`{"item_id": …}` on every move, and at least every 30 seconds, moves every
+page that follows `GET /public/sets/{key}/live/events` to that item.
+Leading ends a minute after the last report, or at once with
+`DELETE /sets/{id}/live`. `GET /sets/{id}/live` says who leads and how many
+pages have the set open. This state is kept in memory, like the remote relay.
 
 ## Remote relay
 

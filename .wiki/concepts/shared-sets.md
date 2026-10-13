@@ -125,9 +125,37 @@ their next snapshot and a leader editing from an older version gets the usual
   **Add songs** opens the same picker as the set editor, searching through
   the link; each tap adds the song at once.
 
+## Leading live
+
+A leader or owner can go through a shared set on their phone and take
+everyone with the link along: whenever they move to an item, every page
+that has the set open through the link moves there too. Between moves
+people may look elsewhere; the next move brings them back. The leader sees
+how many pages have the set open.
+
+The state is in memory (`live_sets.rs`, `AppState.live_sets`), like the
+remote relay, and works with one server process only.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/sets/{id}/live` | Any token of the church. `SetLive {leading, item_id, leader_name, viewers}` |
+| PUT | `/sets/{id}/live` | `require_editor`. Body `{item_id}`, an item of the set (400 otherwise). Leads the set from that item; the last leader to report wins. Send it on every move and at least every 30 s: leading ends 60 s after the last one |
+| DELETE | `/sets/{id}/live` | `require_editor`. Stops leading; pages stay where they are |
+| GET | `/public/sets/{key}/live/events` | No token. Server-sent `live` events `SharedSetLive {item_id, leader_name}`: at once, and whenever it changes (looked at again every 10 s, so an expired lead shows as `null`). While open, the page counts in `viewers`; closing it stops the count. The stream ends when the link no longer works (checked every 30 s) |
+
+Web client: in the service view leaders have **Lead** in the bar (the
+icon that was "Follow the desktop", which is gone). On, it reports the item
+shown on every move and every 5 s; off, it reads the count every 5 s. A
+pill on the button shows how many pages watch. Leading stays on from item to
+item while the app is open. On the shared page an `EventSource` follows
+`/live/events`: a new `item_id` opens that item (reading the set again if
+the item is new to the page) and "Following <name>" shows above the page
+while someone leads.
+
 ## Not limited yet
 
-- The public endpoints have no rate limit, like rooms ([gaps](gaps.md)).
+- The public endpoints have no rate limit, like rooms, and the number of
+  pages watching a set live is not capped ([gaps](gaps.md)).
 - Anyone holding an editable link can add and remove songs; there is no
   record of who did it, and no way to tell link edits from each other.
 - A link does not expire by itself; the leader stops it.

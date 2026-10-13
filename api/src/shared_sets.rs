@@ -333,8 +333,8 @@ pub async fn remove_shared_set_item(
 
 /// The set a share key opens.
 #[derive(FromRow)]
-struct Link {
-    id: Uuid,
+pub(crate) struct Link {
+    pub(crate) id: Uuid,
     church_id: Uuid,
     editable: bool,
 }
@@ -353,7 +353,7 @@ fn read_only_link() -> AppError {
     AppError::Forbidden("this link lets you read the set, not change it".into())
 }
 
-async fn find_link(pool: &PgPool, key: &str) -> Result<Link, AppError> {
+pub(crate) async fn find_link(pool: &PgPool, key: &str) -> Result<Link, AppError> {
     if !plausible_key(key) {
         return Err(link_not_found());
     }

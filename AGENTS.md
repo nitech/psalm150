@@ -66,6 +66,10 @@ cd web && bun run test                                     # vitest
   fields, the name or date). Sharing is `require_editor`, so desktops cannot
   share. Every public lookup filters on `share_key` and `deleted_at IS NULL`,
   and songs on the set's own `church_id`.
+- Leading a set live (`live_sets.rs`) is in memory like the relay. `PUT`
+  and `DELETE /sets/{id}/live` are `require_editor`; the public
+  `/public/sets/{key}/live/events` stream holds a `Viewer` guard that
+  counts it and ends when the link stops working.
 - Store tokens only as SHA-256 hashes; never log a raw token. A set's
   `share_key` is the one exception: it is a link leaders copy again, and it
   opens only that set.

@@ -415,6 +415,13 @@ body[data-route$="/edit"] .dock, body[data-route$="/new"] .dock, body[data-route
 /* Service view: no tab bar, a step bar at the bottom instead. */
 body[data-route^="/sets/id/play"] .tabbar { display: none; }
 body[data-route^="/sets/id/play"] .page, .page:has(.play-nav) { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+/* Leading a set: how many shared-link pages watch, on the lead button. */
+.lead-button { position: relative; }
+.count-pill { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--psa-radius-full); background: var(--psa-accent); color: var(--psa-on-accent); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+/* A shared-link page that follows a leader says whom, above the page. */
+.live-banner { display: flex; align-items: center; gap: var(--psa-space-2); width: min(100%, 760px); margin: 0 auto; padding: calc(var(--psa-space-2) + env(safe-area-inset-top)) var(--page-pad) 0; color: var(--psa-accent-text); font-size: 13px; font-weight: 600; }
+.live-banner[hidden] { display: none; }
+.live-banner::before { content: ""; width: 8px; height: 8px; flex: none; border-radius: 50%; background: currentColor; }
 .set-start { margin-bottom: var(--psa-space-1); }
 .set-start-hint { margin: 0 0 var(--psa-space-4); text-align: center; }
 .play .song-body { font-size: calc(20px * var(--reader-scale)); }

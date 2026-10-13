@@ -13,7 +13,7 @@ import {
   renderSongBody,
   stepTranspose,
 } from "../song-render.ts";
-import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetShare, SetSummary, SongDetail, SongSummary } from "../types.ts";
+import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetLive, SetShare, SetSummary, SongDetail, SongSummary } from "../types.ts";
 import {
   copyText,
   dateBadge,
@@ -26,7 +26,6 @@ import {
   startPolling,
   today,
   transposeLabel,
-  writePreference,
 } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
 
@@ -548,7 +547,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const item = set.items[index];
   const options = readReaderOptions();
   let extraTranspose = 0;
-  let following = readPreference("follow") === "on";
   let wakeLock: { release(): Promise<void> } | null = null;
   const go = (next: number) => ctx.navigate(`#/sets/${set.id}/play/${next}`, true);
 
@@ -563,6 +561,9 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   announce(`${itemTitle(item)}, ${index + 1} of ${set.items.length}`);
   let desktops: RemoteDesktop[] = [];
   let renderedTarget = "";
+  /** Who leads this set and how many shared-link pages have it open. */
+  let live: SetLive | null = null;
+  const leading = () => leadingSet === set.id;
 
   const render = () => {
     const prev = set.items[index - 1];
@@ -579,7 +580,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
         subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
         back: `#/sets/${set.id}`,
         autohide: true,
-        actions: `<button class="icon-button ghost${following ? " on" : ""}" id="follow" aria-pressed="${following}" aria-label="Follow the desktop" title="Follow the desktop">${icon("follow")}</button>${display ? readerToggle(options) : ""}`,
+        actions: `${ctx.canEdit ? `<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>` : ""}${display ? readerToggle(options) : ""}`,
         panel: display ? readerPanel(display, options, transpose) : "",
       })}
       ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
@@ -595,16 +596,34 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
         render();
       });
     }
-    // A redraw (Follow pressed, a desktop appearing) keeps focus where it was.
+    drawLead();
+    // A redraw (a desktop appearing, a reader setting) keeps focus where it was.
     if (active instanceof HTMLElement && active.id && !active.isConnected) ctx.main.querySelector<HTMLElement>(`#${active.id}`)?.focus({ preventScroll: true });
     ctx.main.querySelector("#play-prev")?.addEventListener("click", () => prev && go(index - 1));
     ctx.main.querySelector("#play-next")?.addEventListener("click", () => next && go(index + 1));
-    ctx.main.querySelector("#follow")?.addEventListener("click", () => {
-      following = !following;
-      writePreference("follow", following ? "on" : null);
-      render();
-      if (following) poller.soon(0);
-    });
+    ctx.main.querySelector("#lead")?.addEventListener("click", () => void ctx.run(async () => {
+      if (leading()) {
+        leadingSet = null;
+        drawLead();
+        await ctx.api.stopLeadingSet(set.id);
+        showToast("You no longer lead this set.");
+        return;
+      }
+      // Pressed at once; let go again if the server refuses.
+      leadingSet = set.id;
+      drawLead();
+      try {
+        live = await ctx.api.leadSet(set.id, item.id);
+      } catch (error) {
+        leadingSet = null;
+        drawLead();
+        throw error;
+      }
+      drawLead();
+      showToast(!set.shared
+        ? "Leading. Share the set on a link so others can follow you."
+        : `People with the shared link now follow you${live.viewers ? ` (${live.viewers} watching)` : ""}.`);
+    }));
     ctx.main.querySelector("#project-here")?.addEventListener("click", () => void ctx.run(async () => {
       const desktop = pickDesktop(desktops);
       if (!desktop) throw new Error("No desktop accepts remote control right now.");
@@ -613,16 +632,41 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     }));
   };
 
+  /** The lead button's inside: the icon and, when anyone watches, how many. */
+  function leadButton(): string {
+    const viewers = live?.viewers ?? 0;
+    return `${icon("follow")}${viewers ? `<span class="count-pill" aria-hidden="true">${viewers}</span>` : ""}`;
+  }
+  /** Redraws the lead button in place, so a count update never moves focus. */
+  const drawLead = () => {
+    const button = ctx.main.querySelector<HTMLButtonElement>("#lead");
+    if (!button) return;
+    const viewers = live?.viewers ?? 0;
+    const watching = viewers ? `, ${viewers} watching` : "";
+    const other = !leading() && live?.leading && live.leader_name ? ` ${live.leader_name} leads it now.` : "";
+    button.innerHTML = leadButton();
+    button.classList.toggle("on", leading());
+    button.setAttribute("aria-pressed", String(leading()));
+    button.setAttribute("aria-label", `Lead the shared link${watching}`);
+    button.title = `${leading() ? "Leading: people with the shared link follow you" : "Lead: move everyone with the shared link to the song you show"}${watching}.${other}`;
+  };
+
+  // Leading: tell the server where this phone is now, and keep telling it
+  // (it lets go a minute after the last word). Not leading: read the count.
+  const liveTick = async () => {
+    try {
+      live = leading() ? await ctx.api.leadSet(set.id, item.id) : await ctx.api.getSetLive(set.id);
+    } catch {
+      return;
+    }
+    drawLead();
+  };
+
   const poll = async () => {
     try {
       desktops = await ctx.api.listDesktops();
     } catch {
       desktops = [];
-    }
-    const leader = desktops.find((desktop) => desktop.online && desktop.state.set_id === set.id && desktop.state.set_item_index !== null);
-    if (following && leader && leader.state.set_item_index !== index && leader.state.set_item_index! < set.items.length) {
-      go(leader.state.set_item_index!);
-      return;
     }
     // Re-render only when the "Project this" button changes, so a poll never
     // interrupts a tap or resets the page.
@@ -666,10 +710,12 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   lockScreen();
 
   render();
-  const poller = startPolling(poll, () => (following ? 2500 : 15000));
+  const poller = startPolling(poll, () => 15000);
+  const livePoller = ctx.canEdit ? startPolling(liveTick, () => 5000) : null;
 
   return () => {
     poller.stop();
+    livePoller?.stop();
     ctx.main.removeEventListener("touchstart", touchStart);
     ctx.main.removeEventListener("touchend", touchEnd);
     document.removeEventListener("keydown", keys);
@@ -677,6 +723,12 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     void wakeLock?.release().catch(() => undefined);
   };
 }
+
+/**
+ * The set this phone leads, if any. It lasts while the app is open, so going
+ * from item to item (each its own screen) keeps leading.
+ */
+let leadingSet: string | null = null;
 
 /**
  * The step bar at the bottom of a service view: Previous and Next with the

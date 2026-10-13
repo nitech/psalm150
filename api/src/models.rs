@@ -612,6 +612,34 @@ pub struct SharedSet {
     pub items: Vec<SetItem>,
 }
 
+/// `PUT /sets/{set_id}/live`: the item a leader shows now.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LeadSetRequest {
+    /// An item of the set.
+    pub item_id: Uuid,
+}
+
+/// Who leads a set live and how many follow it through its shared link.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SetLive {
+    /// Someone leads the set: people with its shared link move with them.
+    /// Leading ends a minute after the leader's last report.
+    pub leading: bool,
+    /// The item the leader shows; null when nobody leads.
+    pub item_id: Option<Uuid>,
+    pub leader_name: Option<String>,
+    /// Shared-link pages that have the set open now.
+    pub viewers: usize,
+}
+
+/// What a shared-link page hears while it has the set open: the item to show.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SharedSetLive {
+    /// The item the leader shows; null when nobody leads.
+    pub item_id: Option<Uuid>,
+    pub leader_name: Option<String>,
+}
+
 /// `POST /public/sets/{share_key}/items`: adds a song through an editable link.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AddSharedSetItemRequest {

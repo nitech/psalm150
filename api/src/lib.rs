@@ -4,6 +4,7 @@ pub mod auth;
 pub mod chordpro;
 pub mod config;
 pub mod error;
+pub mod live_sets;
 pub mod models;
 pub mod pages;
 pub mod remote;
@@ -32,6 +33,8 @@ pub struct AppState {
     pub session_hours: i64,
     /// In-memory relay for remote control through the server.
     pub remote: Arc<remote::RemoteHub>,
+    /// In-memory record of who leads which set and how many follow it.
+    pub live_sets: Arc<live_sets::LiveSets>,
     /// In-memory counts of wrong passwords.
     pub throttle: Arc<throttle::Throttle>,
     /// Where the reverse proxy puts the client's address
@@ -45,6 +48,7 @@ impl AppState {
             pool,
             session_hours,
             remote: Arc::default(),
+            live_sets: Arc::default(),
             throttle: Arc::default(),
             client_ip_header: None,
         }

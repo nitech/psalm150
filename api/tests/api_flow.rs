@@ -1228,6 +1228,139 @@ async fn shared_sets_flow(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn leading_a_shared_set(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (session, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+    let (grace, _) = create_song(&app, &session, "Amazing Grace").await;
+    let created = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&session),
+        Some(json!({
+            "name": "Sunday morning",
+            "items": [{ "kind": "song", "song_id": grace }, { "kind": "blank" }]
+        })),
+    )
+    .await;
+    let set_id = created.1["id"].as_str().unwrap().to_string();
+    let first = created.1["items"][0]["id"].as_str().unwrap().to_string();
+    let second = created.1["items"][1]["id"].as_str().unwrap().to_string();
+    let live = format!("/api/v1/sets/{set_id}/live");
+    let key = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/sets/{set_id}/share"),
+        Some(&session),
+        Some(json!({})),
+    )
+    .await
+    .1["key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let idle = send(&app, "GET", &live, Some(&viewer), None).await;
+    assert_eq!(idle.0, StatusCode::OK);
+    assert_eq!(idle.1["leading"], false);
+    assert_eq!(idle.1["viewers"], 0);
+
+    // A shared-link page opens the set: it counts, and hears nobody leads.
+    let (status, mut events) = open_events(
+        &app,
+        &format!("/api/v1/public/sets/{key}/live/events"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (name, data) = next_event(&mut events).await;
+    assert_eq!(name, "live");
+    assert!(data["item_id"].is_null());
+    assert_eq!(
+        send(&app, "GET", &live, Some(&session), None).await.1["viewers"],
+        1
+    );
+
+    // Only leaders and owners lead, and only with an item of the set.
+    for token in [&viewer, &desktop] {
+        let refused = send(
+            &app,
+            "PUT",
+            &live,
+            Some(token),
+            Some(json!({ "item_id": first })),
+        )
+        .await;
+        assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    }
+    let stranger = send(
+        &app,
+        "PUT",
+        &live,
+        Some(&session),
+        Some(json!({ "item_id": uuid::Uuid::new_v4() })),
+    )
+    .await;
+    assert_eq!(stranger.0, StatusCode::BAD_REQUEST);
+
+    // The leader moves; the page hears each move.
+    let led = send(
+        &app,
+        "PUT",
+        &live,
+        Some(&session),
+        Some(json!({ "item_id": first })),
+    )
+    .await;
+    assert_eq!(led.0, StatusCode::OK);
+    assert_eq!(led.1["leading"], true);
+    assert_eq!(led.1["viewers"], 1);
+    assert_eq!(led.1["leader_name"], "Test Owner");
+    let (_, data) = next_event(&mut events).await;
+    assert_eq!(data["item_id"], first);
+    assert_eq!(data["leader_name"], "Test Owner");
+    send(
+        &app,
+        "PUT",
+        &live,
+        Some(&session),
+        Some(json!({ "item_id": second })),
+    )
+    .await;
+    let (_, data) = next_event(&mut events).await;
+    assert_eq!(data["item_id"], second);
+    // Viewers see who leads too.
+    let watched = send(&app, "GET", &live, Some(&viewer), None).await;
+    assert_eq!(watched.1["item_id"], second);
+
+    // Stopping leaves the page where it is and says nobody leads.
+    assert_eq!(
+        send(&app, "DELETE", &live, Some(&session), None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, data) = next_event(&mut events).await;
+    assert!(data["item_id"].is_null());
+
+    // A closed page stops counting.
+    drop(events);
+    tokio::task::yield_now().await;
+    assert_eq!(
+        send(&app, "GET", &live, Some(&session), None).await.1["viewers"],
+        0
+    );
+
+    // Unknown links, and other churches' or unknown sets, are 404.
+    let (status, _) = open_events(&app, "/api/v1/public/sets/not-a-key/live/events", None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let unknown = format!("/api/v1/sets/{}/live", uuid::Uuid::new_v4());
+    assert_eq!(
+        send(&app, "GET", &unknown, Some(&session), None).await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn remote_control_flow(pool: PgPool) {
     let app = test_app(pool.clone());
     let (session, desktop) = owner_and_desktop(&app).await;
@@ -2660,6 +2793,7 @@ async fn openapi_describes_every_operation(pool: PgPool) {
         "GET /api/v1/public/sets/{share_key}/songs/{song_id}",
         "POST /api/v1/public/sets/{share_key}/items",
         "DELETE /api/v1/public/sets/{share_key}/items/{item_id}",
+        "GET /api/v1/public/sets/{share_key}/live/events",
         "POST /api/v1/desktop-auth/token",
     ];
     let mut operations = 0;

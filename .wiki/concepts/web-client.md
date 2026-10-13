@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Web client
-description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and "Follow the desktop", remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, the API reference, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
+description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and Lead (moving shared-link pages along, with a watching count), remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, the API reference, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
 tags: [web, ui, vite, typescript, mobile, pwa, offline]
 status: stable
 sources:
@@ -271,9 +271,13 @@ other people's phones and the desktops are not affected.
   title it leads to; at either end of the set that button is left out, and a
   set of one item has no bar), a horizontal swipe, or
   the arrow keys. It asks for a screen wake lock where the browser supports
-  it. **Follow the desktop** (remembered) polls `GET /remote/desktops` every
-  2.5 s and jumps to the item an online desktop reports for this set; without
-  it the poll runs every 15 s. A poll redraws the page only when the
+  it. Leaders get **Lead** in the bar: on, every page that has the set open
+  through its shared link moves to the item this phone shows, whenever it
+  moves; a pill on the button counts those pages (also while off). It stays on
+  from item to item while the app is open (`leadingSet`), reports every 5 s
+  (`PUT /sets/{id}/live` leading, `GET` otherwise) and lets go a minute after
+  the phone goes quiet ([shared sets](shared-sets.md#leading-live)). The page
+  also polls `GET /remote/desktops` every 15 s and redraws only when the
   **Project this on <desktop>** button (leaders, when a desktop accepts
   commands) changes ([remote control](remote-control.md)).
 
@@ -310,7 +314,9 @@ instead of polling. Leaving the screen closes the stream; a 401 signs out
 link, signed in or not, and stands outside the shell like the room reader:
 the set, **Go through the songs**, and one item at a time at
 `#/item/{itemId}` with words, chords and the reader panel, but no Follow or
-Project. An editable link adds remove buttons (with Undo) and **Add songs**.
+Project. When a leader leads the set, the page moves to the item they show
+and says "Following <name>" above it. An editable link adds remove buttons
+(with Undo) and **Add songs**.
 Details in [shared sets](shared-sets.md).
 
 ## Following a room
@@ -390,7 +396,7 @@ person who also belongs to another church, show in the sheet
 edit, add-to-set (＋ or button), new-set, import, desktop-token, steering,
 room-rename or project buttons; editor routes send them back to the read-only screen. They
 can read songs and sets, see the current set bar and choose the current set,
-use the service view, follow a desktop, watch the remote screen and export,
+use the service view, watch the remote screen and export,
 and make read-only API tokens. Owners alone see **Church** (People, and
 **Who can read the songs**), **Rooms** and everyone's API tokens.
 
@@ -450,7 +456,7 @@ on that browser goes straight to the consent screen. The whole flow is in
   or you sign out. A session left in `sessionStorage` by an older version moves
   over on first read.
 - Per-device preferences are in `localStorage` under `psa150-*`: `theme`,
-  `chords`, `text-size`, `follow`, `desktop` and `current-set`, and for the
+  `chords`, `text-size`, `desktop` and `current-set`, and for the
   room reader `room` (the last room), `room-size`, `room-contrast`,
   `room-follow` and `room-announce`. Blocked storage is ignored.
 - One `busy` flag stops overlapping actions; adding and removing songs from

@@ -97,7 +97,12 @@ generated: { by: agent, at: 2026-10-05T20:30:00Z }
 - **Event streams need an unbuffered proxy**: a reverse proxy that buffers
   `text/event-stream` delays the Remote screens and rooms until it flushes
   ([deployment](deployment.md#behind-a-reverse-proxy)). The service view
-  still polls `GET /remote/desktops` instead of following the stream.
+  still polls `GET /remote/desktops` and `GET /sets/{id}/live` instead of
+  following a stream.
+- **Leading a set is in memory and single-instance**, like the relay: a
+  restart forgets who leads and who watches until the leader's phone reports
+  and the pages reconnect (seconds), and the number of watching pages is not
+  capped ([shared sets](shared-sets.md#leading-live)).
 - **Song language**: songs carry no language, so the web client marks
   lyrics as English like its interface and a screen reader may read them
   with the wrong voice (WCAG 3.1.2; [accessibility](accessibility.md)).
