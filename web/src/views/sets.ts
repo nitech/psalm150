@@ -79,7 +79,6 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
   ${set.items.length
     ? `<ol class="list numbered" aria-label="Songs: tap one to go through the set from there">${set.items.map((item, index) => `<li>
         <a class="list-row" href="#/sets/${set.id}/play/${index}">
-          <span class="row-lead">${index + 1}</span>
           <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>
             <small>${[item.song?.song_number ? `No. ${escapeHtml(item.song.song_number)}` : "", item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "", escapeHtml(item.note)].filter(Boolean).join(" · ") || "&nbsp;"}</small></span>
           ${icon("next")}

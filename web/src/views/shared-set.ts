@@ -126,8 +126,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "",
       escapeHtml(item.note),
     ].filter(Boolean).join(" · ") || "&nbsp;";
-    const main = `<span class="row-lead">${index + 1}</span>
-      <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong><small>${details}</small></span>`;
+    const main = `<span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong><small>${details}</small></span>`;
     if (!set.editable || item.kind !== "song") {
       return `<li><a class="list-row" href="#/item/${item.id}">${main}${icon("next")}</a></li>`;
     }

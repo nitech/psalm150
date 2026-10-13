@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-13
+* **No position column in set lists**: the set page and the shared-link page list items without the 1, 2, 3 column. Pages touched: web-client, shared-sets.
 * **Bar-sized title beside Back**: a compact screen with Back (the set editor) gets `app-bar compact sub`, whose bar title is 17 px semibold like the rest of the bar instead of the 22 px display title of top-level screens such as Sets. Pages touched: web-client.
 * **Set editor top**: on phones "Edit set" / "New set" sits in the bar beside Back, and name and service date share one row. Pages touched: web-client.
 * **No current set bar on set pages**: a set's own page (`#/sets/{id}`) hides the current set bar in the dock; the offline notice still shows there. Pages touched: web-client.

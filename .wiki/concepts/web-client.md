@@ -251,8 +251,8 @@ other people's phones and the desktops are not affected.
   "Earlier" (newest first), with a date badge, item count and a **Current**
   badge ([sets](sets.md)).
 - **Detail**: **Make this the current set** (unless it is the current set
-  or its date is past; the current set bar is hidden here), then the items in order with
-  number, transpose and note. Tapping an item starts the service view there.
+  or its date is past; the current set bar is hidden here), then the items in order (no
+  position column) with song number, transpose and note. Tapping an item starts the service view there.
   A deleted song shows as "Deleted song". Leaders have Share and Edit in the
   bar; Share looks switched on while the set is shared and opens the share
   sheet ([shared sets](shared-sets.md)).
