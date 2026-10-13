@@ -243,9 +243,9 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
           transpose: item.transpose,
           note: item.note,
           title: itemTitle(item),
-          // A transpose made elsewhere (the desktop, "Add to a set") is kept.
-          subtitle: [item.song?.song_number ? `No. ${item.song.song_number}` : "", item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : ""]
-            .filter(Boolean).join(" · "),
+          // A transpose made elsewhere (the desktop, "Add to a set") is kept,
+          // and so is a note; neither is edited here.
+          subtitle: item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "",
         })),
       }
     : { name: "", service_date: nextSunday(), items: [] };
@@ -263,13 +263,19 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
       transpose: Number(query.get("transpose") ?? 0) || 0,
       note: "",
       title: song.title,
-      subtitle: song.song_number ? `No. ${song.song_number}` : "",
+      subtitle: Number(query.get("transpose")) ? `Transpose ${transposeLabel(Number(query.get("transpose")))}` : "",
     });
   }
 
   const back = existing ? `#/sets/${existing.id}` : "#/sets";
   setTitle(existing ? `Edit ${existing.name}` : "New set", "Sets");
-  ctx.main.innerHTML = `${pageHead({ title: existing ? "Edit set" : "New set", back })}
+  // Back is Cancel; Delete and Save sit in the bar, always in reach.
+  ctx.main.innerHTML = `${pageHead({
+    title: existing ? "Edit set" : "New set",
+    back,
+    actions: `${existing ? `<button type="button" class="icon-button ghost danger" id="delete-set" aria-label="Delete set" title="Delete set">${icon("trash")}</button>` : ""}
+      <button class="button primary small" type="submit" form="set-form" id="save-set">${icon("check")}Save</button>`,
+  })}
   <form class="set-form" id="set-form">
     <label>Name<input name="name" required maxlength="200" value="${escapeHtml(draft.name)}" placeholder="Sunday morning" /></label>
     <label>Service date<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
@@ -281,16 +287,12 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     </div>
     <ol class="list editable" id="draft-items" aria-labelledby="items-heading"></ol>
     <p class="form-message" role="status"></p>
-    <div class="form-actions sticky">
-      ${existing ? `<button type="button" class="icon-button danger" id="delete-set" aria-label="Delete set">${icon("trash")}</button>` : ""}
-      <a class="button secondary" href="${back}">Cancel</a>
-      <button class="button primary" type="submit">${icon("check")}Save</button>
-    </div>
   </form>`;
 
   const form = ctx.main.querySelector<HTMLFormElement>("#set-form")!;
   const list = form.querySelector<HTMLOListElement>("#draft-items")!;
   const message = form.querySelector<HTMLElement>(".form-message")!;
+  const saveButton = ctx.main.querySelector<HTMLButtonElement>("#save-set")!;
 
   // Rows carry their item's id (`data-key`), so the button pressed keeps
   // focus when a move or removal redraws the list.
@@ -301,16 +303,12 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
         return `<li class="edit-row" data-index="${index}" data-key="${item.id}">
         <div class="edit-row-main">
           <span class="grip" data-grip aria-hidden="true" title="Drag to reorder">${icon("grip")}</span>
-          <span class="row-lead">${index + 1}</span>
-          <span class="row-main"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.subtitle) || "&nbsp;"}</small></span>
+          <span class="row-main"><strong>${escapeHtml(item.title)}</strong>${item.subtitle ? `<small>${escapeHtml(item.subtitle)}</small>` : ""}</span>
           <div class="row-tools">
             <button type="button" class="icon-button small" data-act="up" aria-label="Move up: ${name}" ${index === 0 ? "disabled" : ""}>${icon("up")}</button>
             <button type="button" class="icon-button small" data-act="down" aria-label="Move down: ${name}" ${index === draft.items.length - 1 ? "disabled" : ""}>${icon("down")}</button>
             <button type="button" class="icon-button small danger" data-act="remove" aria-label="Remove: ${name}">${icon("close")}</button>
           </div>
-        </div>
-        <div class="edit-row-extra">
-          <label class="note-field"><span>Note</span><input class="note-input" data-act="note" maxlength="500" placeholder="For the team" value="${escapeHtml(item.note ?? "")}" /></label>
         </div>
       </li>`;
       }).join("")
@@ -391,12 +389,6 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     document.addEventListener("pointerup", end);
     document.addEventListener("pointercancel", end);
   });
-  list.addEventListener("input", (event) => {
-    const input = event.target as HTMLInputElement;
-    const row = input.closest<HTMLElement>("[data-index]");
-    if (input.dataset.act === "note" && row) draft.items[Number(row.dataset.index)].note = input.value;
-  });
-
   form.querySelector("#add-blank")?.addEventListener("click", () => {
     draft.items.push({ id: crypto.randomUUID(), kind: "blank", note: "", transpose: 0, title: "Blank screen", subtitle: "" });
     renderItems();
@@ -411,12 +403,12 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
       transpose: 0,
       note: "",
       title: song.title,
-      subtitle: song.song_number ? `No. ${song.song_number}` : "",
+      subtitle: "",
     });
     renderItems();
   }));
 
-  form.querySelector("#delete-set")?.addEventListener("click", () => {
+  ctx.main.querySelector("#delete-set")?.addEventListener("click", () => {
     if (!existing || !confirm(`Delete “${existing.name}” for everyone?`)) return;
     void ctx.run(async () => {
       try {
@@ -442,6 +434,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
       })),
     };
     setFormBusy(form, true);
+    saveButton.disabled = true;
     try {
       const saved = existing
         ? await ctx.api.updateSet(existing.id, existing.version, input)
@@ -451,6 +444,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
       ctx.navigate(`#/sets/${saved.id}`, true);
     } catch (error) {
       setFormBusy(form, false);
+      saveButton.disabled = false;
       if (error instanceof ApiError && error.status === 401) return ctx.signOut();
       if (error instanceof ApiError && error.status === 409) {
         message.innerHTML = `Someone else saved this set while you were editing. <a href="#/sets/${existing?.id}">Open their version</a> and make your change again.`;

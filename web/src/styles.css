@@ -169,7 +169,9 @@ body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
 .shell { min-height: 100dvh; }
 .page { width: min(100%, 760px); margin: 0 auto; padding: 0 var(--page-pad) calc(var(--tabbar-h) + var(--dock-h) + 24px); }
 .page > :first-child:not(.app-bar, .play) { margin-top: var(--psa-space-4); }
-.page:focus { outline: none; }
+/* The page itself takes focus only as a place to start reading (after a
+   sheet closes, the skip link); it is not a control, so no ring. */
+.page:focus, .page:focus-visible { outline: none; box-shadow: none; }
 .page.loading { opacity: 0.6; transition: opacity var(--psa-dur-base) 150ms; }
 
 /* Phones: the sections live in a drawer that slides in from the left (☰),
@@ -355,24 +357,18 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .set-form .list { margin: 0; }
 .inline-actions { display: flex; gap: var(--psa-space-2); }
 .inline-actions.wrap { flex-wrap: wrap; }
-.edit-row { padding: var(--psa-space-2) var(--psa-space-3) var(--psa-space-3); }
+.edit-row { padding: var(--psa-space-2) var(--psa-space-3); }
 .edit-row-main { display: flex; align-items: center; gap: var(--psa-space-2); min-height: 48px; }
 .row-tools { display: flex; gap: 4px; }
-.edit-row-extra { display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-4); padding-left: 64px; }
 .grip { display: grid; place-items: center; width: 28px; height: 44px; flex: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
-/* Grip, number and title sit close; the title takes two lines before it is
-   cut, and the note lines up under it (28 + 8 + 20 + 8 px). */
-.edit-row .row-lead { min-width: 20px; text-align: left; }
 /* Touch screens reorder with the arrow buttons; no grip, no drag. */
 @media (pointer: coarse) {
   .grip { display: none; }
-  .edit-row-extra { padding-left: 28px; }
 }
+/* The title takes two lines before it is cut. */
 .edit-row .row-main strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
 .edit-row.dragging { position: relative; z-index: 2; background: var(--psa-bg-elevated); box-shadow: var(--psa-shadow-md); }
 .edit-row.dragging .grip { cursor: grabbing; color: var(--psa-accent-text); }
-.note-field { display: flex; flex: 1; flex-direction: row; align-items: center; gap: var(--psa-space-2); min-width: min(100%, 180px); }
-.note-input { flex: 1; min-width: 0; min-height: 38px; padding: 6px 12px; font-size: 14px; }
 .form-actions.sticky {
   position: sticky; bottom: calc(var(--tabbar-h) + 10px); z-index: 5;
   padding: var(--psa-space-3) 0; background: linear-gradient(transparent, var(--psa-bg-canvas) 30%);

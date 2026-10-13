@@ -255,15 +255,18 @@ other people's phones and the desktops are not affected.
   A deleted song shows as "Deleted song". Leaders have Share and Edit in the
   bar; Share looks switched on while the set is shared and opens the share
   sheet ([shared sets](shared-sets.md)).
-- **Editor**: name, service date (defaults to the next Sunday), items that can
-  be dragged by their grip (with a mouse; touch screens have no grip) or
-  moved with the arrow buttons, removed and given a note, a blank-screen item,
-  (no transpose control: an item's transpose, set on the desktop or by "Add
-  to a set" from the reader, is kept and shown under its title), and a song picker sheet
-  that stays open while adding and marks songs already in the set. Item ids
-  are made in the browser (`crypto.randomUUID()`) and kept across edits. Save
-  sends the set's `version` as `base_version`; a 409 keeps the form and links
-  to the other version. Delete asks for confirmation and sends `base_version`.
+- **Editor**: name, service date (defaults to the next Sunday), items by
+  title only (no position number or song number) that can be dragged by
+  their grip (with a mouse; touch screens have no grip) or moved with the
+  arrow buttons and removed, a blank-screen item, and a song picker sheet
+  that stays open while adding and marks songs already in the set. There is
+  no note or transpose control: an item's note and transpose (set on the
+  desktop, or a transpose from "Add to a set" in the reader) are kept, and a
+  transpose shows under the title. Back is Cancel; Delete and **Save** sit in
+  the bar. Item ids are made in the browser (`crypto.randomUUID()`) and kept
+  across edits. Save sends the set's `version` as `base_version`; a 409 keeps
+  the form and links to the other version. Delete asks for confirmation and
+  sends `base_version`.
 - **Service view**: one item at a time, with the key under the title, in
   the item's own transpose, with chords and text size as last set on a song
   page (no **Text and chords** panel here). Move with the bottom step bar (Previous and Next, each with the
