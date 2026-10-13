@@ -147,6 +147,9 @@ export function showToast(message: string, options: boolean | ToastOptions = fal
   toast.classList.add("visible");
   window.clearTimeout(toastTimer);
   toastDelay = toastDuration(message, { error, action: Boolean(action) }) ?? 0;
+  // Held only while a mouse is over it or focus is in it now, never by an
+  // earlier toast's state.
+  toastHeld = toastInUse(toast);
   if (toastDelay && !toastHeld) toastTimer = window.setTimeout(hideToast, toastDelay);
 }
 
@@ -160,7 +163,16 @@ export function hideToast(): void {
   toastHeld = false;
 }
 
-/** Hover and focus hold the toast; Escape closes it. Bound once per toast element. */
+/**
+ * A mouse is over the toast or focus is in it. Touch does not count: on a
+ * phone a tap leaves the toast `:hover` until something else is tapped, which
+ * kept toasts on screen for good.
+ */
+function toastInUse(toast: HTMLElement): boolean {
+  return (matchMedia("(hover: hover)").matches && toast.matches(":hover")) || toast.contains(document.activeElement);
+}
+
+/** A mouse over it and focus hold the toast; Escape closes it. Bound once per toast element. */
 function bindToast(toast: HTMLElement): void {
   if (toast.dataset.bound) return;
   toast.dataset.bound = "true";
@@ -169,13 +181,17 @@ function bindToast(toast: HTMLElement): void {
     window.clearTimeout(toastTimer);
   };
   const release = () => {
-    if (toast.matches(":hover") || toast.contains(document.activeElement)) return;
+    if (toastInUse(toast)) return;
     toastHeld = false;
     if (toast.classList.contains("visible") && toastDelay) toastTimer = window.setTimeout(hideToast, toastDelay);
   };
-  toast.addEventListener("pointerenter", hold);
+  toast.addEventListener("pointerenter", (event) => {
+    if (event.pointerType === "mouse") hold();
+  });
   toast.addEventListener("focusin", hold);
-  toast.addEventListener("pointerleave", release);
+  toast.addEventListener("pointerleave", (event) => {
+    if (event.pointerType === "mouse") release();
+  });
   toast.addEventListener("focusout", () => queueMicrotask(release));
   toast.addEventListener("keydown", (event) => {
     if (event.key === "Escape") hideToast();

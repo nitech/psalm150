@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-13
+* **Toasts no longer stick on phones**: a toast held while `:hover`, and on a phone a tap leaves it `:hover`, so after a tap it (and every later toast, since the hold carried over) never hid. Now only a mouse over the toast (`pointerType` mouse, `(hover: hover)`) or focus inside it holds it, and each new toast works out its hold afresh. Pages touched: accessibility.
 * **Phone layout fixes in the web client**: the service date field no longer runs off the right edge in Safari on iPhone (date fields get `min-width: 0`, no native appearance and left-aligned text). Set editor rows sit tighter (narrow number column) and show titles on up to two lines; they no longer have a transpose control (an item's transpose is kept and shown under its title), and on touch screens the grip and dragging are gone, leaving the arrow buttons to reorder. The set page's **Open for the service** is now **Go through the songs**, with a line saying what it does and space before the list. The service view's step bar is compact (48 px steps, label over title, chevrons at the outer edges), leaves out Previous or Next at the ends of the set and is gone for a set of one item; the shared set page uses the same bar (`playNav` in `views/sets.ts`) and now keeps its last lines clear of it. Pages touched: web-client.
 
 ## 2026-10-10

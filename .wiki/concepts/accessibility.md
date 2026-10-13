@@ -146,8 +146,9 @@ pairs wrap together). Nothing clips with WCAG's text-spacing overrides.
 
 **Timing and motion (2.2.1, 2.2.2, 2.3.1)**: errors in toasts stay until
 dismissed (✕ or Escape) or the screen changes; other toasts stay at least
-5 s (10 s with Undo), longer for long text, and hold while hovered or
-focused. Undo is a shortcut: tapping ✓ again (or adding again) does the same
+5 s (10 s with Undo), longer for long text, and hold while a mouse is over them or
+focus is in them. A touch never holds a toast: a tap leaves it `:hover` on
+phones, which once kept toasts on screen for good. Undo is a shortcut: tapping ✓ again (or adding again) does the same
 without a time limit. Animations are short and off with
 `prefers-reduced-motion`. Nothing flashes.
 
