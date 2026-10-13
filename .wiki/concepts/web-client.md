@@ -253,18 +253,23 @@ other people's phones and the desktops are not affected.
   set**, unless its date is past), whether it is shared on a link (leaders:
   the Share button and **Manage the link** open the share sheet,
   [shared sets](shared-sets.md)), then the items in order with number,
-  transpose and note. A deleted song shows as "Deleted song". **Open for the
-  service** starts the service view at the first item.
+  transpose and note. A deleted song shows as "Deleted song". **Go through the
+  songs**, with a line saying what it does, starts the service view at the
+  first item; tapping an item starts it there.
 - **Editor**: name, service date (defaults to the next Sunday), items that can
-  be dragged by their grip or moved with the arrow buttons, removed,
-  transposed and given a note, a blank-screen item, and a song picker sheet
+  be dragged by their grip (with a mouse; touch screens have no grip) or
+  moved with the arrow buttons, removed and given a note, a blank-screen item,
+  (no transpose control: an item's transpose, set on the desktop or by "Add
+  to a set" from the reader, is kept and shown under its title), and a song picker sheet
   that stays open while adding and marks songs already in the set. Item ids
   are made in the browser (`crypto.randomUUID()`) and kept across edits. Save
   sends the set's `version` as `base_version`; a 409 keeps the form and links
   to the other version. Delete asks for confirmation and sends `base_version`.
 - **Service view**: one item at a time, with the key under the title and the
   **Text and chords** panel (transpose here adds to the item's own transpose,
-  view only). Move with the bottom Previous/Next bar, a horizontal swipe, or
+  view only). Move with the bottom step bar (Previous and Next, each with the
+  title it leads to; at either end of the set that button is left out, and a
+  set of one item has no bar), a horizontal swipe, or
   the arrow keys. It asks for a screen wake lock where the browser supports
   it. **Follow the desktop** (remembered) polls `GET /remote/desktops` every
   2.5 s and jumps to the item an online desktop reports for this set; without

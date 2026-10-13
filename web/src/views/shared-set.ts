@@ -14,7 +14,7 @@ import {
 } from "../song-render.ts";
 import type { SetItem, SharedSet, SongDetail } from "../types.ts";
 import { errorMessage, escapeHtml, serviceDate, showToast, startPolling, transposeLabel } from "../ui.ts";
-import { itemTitle, openSongPicker } from "./sets.ts";
+import { itemTitle, openSongPicker, playNav } from "./sets.ts";
 
 /**
  * A set a leader shared on a link: anyone who has `/shared/{key}` reads the
@@ -222,10 +222,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
         ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
         ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
         ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : emptyState("This song was deleted", "It is no longer in the library.")}
-        <nav class="play-nav" aria-label="Set navigation">
-          <button class="play-step" id="play-prev" ${prev ? "" : "disabled"}>${icon("back")}<span><small>Previous</small>${prev ? escapeHtml(itemTitle(prev)) : ""}</span></button>
-          <button class="play-step next" id="play-next" ${next ? "" : "disabled"}><span><small>Next</small>${next ? escapeHtml(itemTitle(next)) : ""}</span>${icon("next")}</button>
-        </nav>
+        ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
       </div>`;
       if (display) {
         bindReaderControls(main, options, (step) => {

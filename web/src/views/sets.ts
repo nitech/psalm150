@@ -88,7 +88,8 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
   <div id="current-status">${currentStatus()}</div>
   <div id="share-status">${shareStatus()}</div>
   ${set.items.length
-    ? `<a class="button primary wide" href="#/sets/${set.id}/play/0">${icon("play")}Open for the service</a>
+    ? `<a class="button primary wide set-start" href="#/sets/${set.id}/play/0">${icon("play")}Go through the songs</a>
+       <p class="hint set-start-hint">One song at a time, with chords, to sing or play from. Swipe or use Previous and Next.</p>
        <ol class="list numbered">${set.items.map((item, index) => `<li>
         <a class="list-row" href="#/sets/${set.id}/play/${index}">
           <span class="row-lead">${index + 1}</span>
@@ -258,7 +259,9 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
           transpose: item.transpose,
           note: item.note,
           title: itemTitle(item),
-          subtitle: item.song?.song_number ? `No. ${item.song.song_number}` : "",
+          // A transpose made elsewhere (the desktop, "Add to a set") is kept.
+          subtitle: [item.song?.song_number ? `No. ${item.song.song_number}` : "", item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : ""]
+            .filter(Boolean).join(" · "),
         })),
       }
     : { name: "", service_date: nextSunday(), items: [] };
@@ -323,11 +326,6 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
           </div>
         </div>
         <div class="edit-row-extra">
-          ${item.kind === "song" ? `<div class="stepper" role="group" aria-label="Transpose ${escapeHtml(item.title)}">
-            <button type="button" class="icon-button small" data-act="tdown" aria-label="Transpose down">${icon("minus")}</button>
-            <span data-transpose aria-live="polite">Transpose ${transposeLabel(item.transpose ?? 0)}</span>
-            <button type="button" class="icon-button small" data-act="tup" aria-label="Transpose up">${icon("plus")}</button>
-          </div>` : ""}
           <label class="note-field"><span>Note</span><input class="note-input" data-act="note" maxlength="500" placeholder="For the team" value="${escapeHtml(item.note ?? "")}" /></label>
         </div>
       </li>`;
@@ -367,19 +365,13 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
         draft.items.splice(index, 1);
         announce(`${item.title} removed.`);
         break;
-      case "tup":
-      case "tdown": {
-        // In place, so the live value beside the buttons is read out.
-        item.transpose = stepTranspose(item.transpose ?? 0, button.dataset.act === "tup" ? 1 : -1);
-        const value = row.querySelector("[data-transpose]");
-        if (value) value.textContent = `Transpose ${transposeLabel(item.transpose)}`;
-        return;
-      }
     }
     renderItems();
   });
-  // Drag a row by its grip to reorder; the arrow buttons stay for keyboards.
+  // With a mouse, drag a row by its grip to reorder. On touch screens the
+  // grip is hidden and the arrow buttons reorder, as they do for keyboards.
   list.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "touch") return;
     const grip = (event.target as HTMLElement).closest<HTMLElement>("[data-grip]");
     const row = grip?.closest<HTMLElement>("[data-index]");
     if (!grip || !row) return;
@@ -594,10 +586,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
       ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
       ${target && ctx.canEdit ? `<button class="button secondary wide" id="project-here">${icon("remote")}Project this on ${escapeHtml(target.room_name)}</button>` : ""}
       ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : emptyState("This song was deleted", "It is no longer in the library.")}
-      <nav class="play-nav" aria-label="Set navigation">
-        <button class="play-step" id="play-prev" ${prev ? "" : "disabled"}>${icon("back")}<span><small>Previous</small>${prev ? escapeHtml(itemTitle(prev)) : ""}</span></button>
-        <button class="play-step next" id="play-next" ${next ? "" : "disabled"}><span><small>Next</small>${next ? escapeHtml(itemTitle(next)) : ""}</span>${icon("next")}</button>
-      </nav>
+      ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
     </div>`;
 
     if (display) {
@@ -687,6 +676,22 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     document.removeEventListener("visibilitychange", visibility);
     void wakeLock?.release().catch(() => undefined);
   };
+}
+
+/**
+ * The step bar at the bottom of a service view: Previous and Next with the
+ * title they lead to. At either end of the set its button is left out, and a
+ * set of one item has no bar.
+ */
+export function playNav(previous: string | undefined, next: string | undefined): string {
+  if (!previous && !next) return "";
+  const step = (id: string, label: string, title: string) => `<button class="play-step${id === "play-next" ? " next" : ""}" id="${id}" aria-label="${label}: ${escapeHtml(title)}">
+      ${id === "play-prev" ? icon("back") : ""}<span><small>${label}</small><strong>${escapeHtml(title)}</strong></span>${id === "play-next" ? icon("next") : ""}
+    </button>`;
+  return `<nav class="play-nav" aria-label="Set navigation">
+    ${previous ? step("play-prev", "Previous", previous) : "<span></span>"}
+    ${next ? step("play-next", "Next", next) : "<span></span>"}
+  </nav>`;
 }
 
 /** Songs already opened in a service view, so moving back and forth is instant. */
