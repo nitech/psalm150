@@ -355,6 +355,8 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .set-note { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-left: 3px solid var(--psa-accent); border-radius: var(--psa-radius-xs); background: var(--psa-bg-surface); }
 .set-form { display: grid; gap: var(--psa-space-4); }
 .set-form .list { margin: 0; }
+/* Name and date side by side; the date takes what it needs. */
+.set-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 10.5rem); gap: var(--psa-space-3); }
 .inline-actions { display: flex; gap: var(--psa-space-2); }
 .inline-actions.wrap { flex-wrap: wrap; }
 .edit-row { padding: var(--psa-space-2) var(--psa-space-3); }

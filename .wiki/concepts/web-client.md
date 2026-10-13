@@ -256,7 +256,8 @@ other people's phones and the desktops are not affected.
   A deleted song shows as "Deleted song". Leaders have Share and Edit in the
   bar; Share looks switched on while the set is shared and opens the share
   sheet ([shared sets](shared-sets.md)).
-- **Editor**: name, service date (defaults to the next Sunday), items by
+- **Editor**: the title in the bar beside Back on phones (`compact`); name
+  and service date (defaults to the next Sunday) side by side, items by
   title only (no position number or song number) that can be dragged by
   their grip (with a mouse; touch screens have no grip) or moved with the
   arrow buttons and removed, a blank-screen item, and a song picker sheet

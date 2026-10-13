@@ -273,12 +273,16 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   ctx.main.innerHTML = `${pageHead({
     title: existing ? "Edit set" : "New set",
     back,
+    // On phones the title sits in the bar beside Back.
+    compact: true,
     actions: `${existing ? `<button type="button" class="icon-button ghost danger" id="delete-set" aria-label="Delete set" title="Delete set">${icon("trash")}</button>` : ""}
       <button class="button primary small" type="submit" form="set-form" id="save-set">${icon("check")}Save</button>`,
   })}
   <form class="set-form" id="set-form">
-    <label>Name<input name="name" required maxlength="200" value="${escapeHtml(draft.name)}" placeholder="Sunday morning" /></label>
-    <label>Service date<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
+    <div class="set-form-row">
+      <label>Name<input name="name" required maxlength="200" value="${escapeHtml(draft.name)}" placeholder="Sunday morning" /></label>
+      <label>Service date<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
+    </div>
     <div class="list-heading-row"><h2 class="list-heading" id="items-heading">Items</h2>
       <div class="inline-actions">
         <button type="button" class="button secondary small" id="add-blank" aria-label="Add a blank screen">${icon("blank")}Blank</button>
