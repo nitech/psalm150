@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-15
+* **Version bumped on every commit**: `.githooks/pre-commit` (enable with `git config core.hooksPath .githooks`) raises the patch version in `api/Cargo.toml`, `api/Cargo.lock` and `web/package.json` together; a version changed by hand in `Cargo.toml` is kept and copied. Pages touched: build-and-ci.
 * **Current set bar really frosted**: the dock's `view-transition-name` made it a backdrop root, so the bar's `backdrop-filter` had nothing behind it to blur and the page showed through sharp. The names now sit on `.current-bar` and `.offline-bar` instead; the bar is 62 % opaque with an 18 px blur. Pages touched: none (style only).
 * **Version in the menu**: the foot of the menu (drawer and side rail) shows "Version <package.json version> · <build time>", baked in by Vite (`__APP_VERSION__`, `__BUILD_TIME__`), so a fresh deploy can be recognised. Pages touched: web-client.
 * **Putting the current set away**: the current set bar has a ✕, and a set's page offers **Stop using as the current set** when it is current. Either stores `none` as the `current-set` preference, so the phone has no current set (the next dated service is not picked either) until a set is chosen again; the toast has **Undo**. The bar is now frosted (stronger blur, more opaque) so the list behind it is not legible through it. Pages touched: web-client.

@@ -26,6 +26,7 @@ cargo fmt --manifest-path api/Cargo.toml --all -- --check
 cd web && bun install && bun run dev                       # proxies /api to :8080
 cd web && bun run build                                    # tsc --noEmit + vite build
 cd web && bun run test                                     # vitest
+git config core.hooksPath .githooks                        # once per clone: bump the version on every commit
 ```
 
 ## Rules that are easy to break

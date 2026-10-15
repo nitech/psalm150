@@ -1,0 +1,40 @@
+#!/bin/sh
+# Bumps the patch version on every commit, in the three places that hold it:
+# api/Cargo.toml (the API's /health and /info), api/Cargo.lock (the Docker
+# build runs `cargo build --locked`) and web/package.json (the web client's
+# menu). A version already changed in api/Cargo.toml in this commit is kept
+# and copied to the others, so a hand-made minor or major bump goes through.
+# SKIP_VERSION_BUMP=1 skips the hook.
+# Enabled per clone with: git config core.hooksPath .githooks
+set -e
+[ -n "$SKIP_VERSION_BUMP" ] && exit 0
+
+cargo_version() { sed -n 's/^version = "\(.*\)"\r\{0,1\}$/\1/p' | head -n 1; }
+
+staged=$(git show :api/Cargo.toml | cargo_version)
+committed=$(git show HEAD:api/Cargo.toml 2>/dev/null | cargo_version || true)
+if [ -n "$committed" ] && [ "$staged" != "$committed" ]; then
+  next=$staged
+else
+  next=$(echo "$staged" | awk -F. '{ printf "%d.%d.%d", $1, $2, $3 + 1 }')
+fi
+
+# Sets the version line in the staged file and the working copy alone, so
+# other unstaged edits in the same file stay unstaged. Carriage returns (a
+# Windows working copy) are set aside and put back.
+set_version() {
+  file=$1
+  script="{ cr = sub(/\\r\$/, \"\") } $2 { printf \"%s%s\\n\", \$0, (cr ? \"\\r\" : \"\") }"
+  blob=$(git show ":$file" | awk -v to="$next" "$script" | git hash-object -w --stdin)
+  mode=$(git ls-files -s "$file" | cut -d' ' -f1)
+  git update-index --cacheinfo "$mode,$blob,$file"
+  awk -v to="$next" "$script" "$file" > "$file.bump"
+  cat "$file.bump" > "$file"
+  rm "$file.bump"
+}
+
+set_version api/Cargo.toml '!done && /^version = "/ { $0 = "version = \"" to "\""; done = 1 }'
+set_version api/Cargo.lock 'pkg && /^version = "/ { $0 = "version = \"" to "\"" } { pkg = ($0 == "name = \"psa150-server\"") }'
+set_version web/package.json '!done && /^  "version": "/ { $0 = "  \"version\": \"" to "\","; done = 1 }'
+
+echo "pre-commit: version $next"

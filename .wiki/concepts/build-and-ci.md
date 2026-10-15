@@ -20,7 +20,10 @@ sources:
   - id: pkg
     resource: /web/package.json
     title: Web scripts
-generated: { by: agent, at: 2026-10-05T20:30:00Z }
+  - id: hook
+    resource: /.githooks/pre-commit
+    title: Version bump on every commit
+generated: { by: agent, at: 2026-10-15T16:45:00Z }
 ---
 
 # Build and CI
@@ -43,6 +46,20 @@ cd web && bun run test                     # vitest run (web/tests/)
 # Everything, as deployed
 docker compose up --build
 ```
+
+## Version
+
+Every commit bumps the patch version (`0.1.4` → `0.1.5`) through
+`.githooks/pre-commit`, which needs `git config core.hooksPath .githooks` once
+per clone. It writes the same version to `api/Cargo.toml` (`version` in
+`/api/v1/health` and `/api/v1/info`), the `psa150-server` entry in
+`api/Cargo.lock` (the Docker build runs `cargo build --locked`, which fails if
+the two disagree) and `web/package.json` (shown with the build time at the foot
+of the web client's menu). If `api/Cargo.toml`'s version was already changed in
+the commit, that version is kept and copied to the other two, so a minor or
+major bump is made by hand there. `SKIP_VERSION_BUMP=1` skips the hook; an
+amend bumps again. `.gitattributes` keeps the hook's line endings LF so it runs
+from a Windows checkout.
 
 ## Tests
 
