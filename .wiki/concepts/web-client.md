@@ -185,8 +185,9 @@ link comes first. Keyboard, screen reader and contrast behaviour is on the
 ## Current set
 
 The set this phone adds songs to (`current-set.ts`). A set chosen on the
-phone (**Make this the current set** on a set's page, stored as the
-`current-set` preference) wins while it exists and its date is not past;
+phone (**Make this the current set** on a set's page, adding a song to a set
+from the add-to-set sheet, or saving a set started with **New set…** from a
+song; stored as the `current-set` preference) wins while it exists and its date is not past;
 otherwise it is the next dated service, today included, with the most
 recently edited winning a tie. Undated sets are current only when chosen.
 Putting the current set away (the bar's ✕, or **Stop using as the current

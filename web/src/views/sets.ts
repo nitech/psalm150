@@ -265,8 +265,9 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   const query = routeQuery();
   const startSong = query.get("song");
   // Only a song id: the value comes from the link and goes into an API path.
-  if (!existing && startSong && /^[0-9a-f-]{36}$/i.test(startSong)) {
-    const song = await ctx.api.getSong(startSong);
+  const startedFromSong = Boolean(!existing && startSong && /^[0-9a-f-]{36}$/i.test(startSong));
+  if (startedFromSong) {
+    const song = await ctx.api.getSong(startSong!);
     draft.items.push({
       id: crypto.randomUUID(),
       kind: "song",
@@ -455,7 +456,9 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
         ? await ctx.api.updateSet(existing.id, existing.version, input)
         : await ctx.api.createSet(input);
       showToast(existing ? "Set saved." : "Set created.");
-      void ctx.currentSet.refresh().catch(() => undefined);
+      // A set started from a song becomes the current set, like adding a song to one.
+      const current = startedFromSong ? ctx.currentSet.choose(saved.id) : ctx.currentSet.refresh();
+      void current.catch(() => undefined);
       ctx.navigate(`#/sets/${saved.id}`, true);
     } catch (error) {
       setFormBusy(form, false);

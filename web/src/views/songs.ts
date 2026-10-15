@@ -1,7 +1,7 @@
 import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
-import { groupSets, itemInputs } from "../current-set.ts";
+import { groupSets } from "../current-set.ts";
 import { icon } from "../icons.ts";
 import {
   bindReaderControls,
@@ -343,26 +343,12 @@ export async function openAddToSet(ctx: LibraryContext, song: SongRef, transpose
 
   sheet.querySelectorAll<HTMLButtonElement>("[data-set]").forEach((button) => {
     button.addEventListener("click", () => void ctx.run(async () => {
+      // The set a song goes into becomes the current one, so the next ＋ adds there too.
       const setId = String(button.dataset.set);
-      if (setId === currentId) {
-        await ctx.currentSet.addSong(song.id, transpose);
-        closeSheet(sheet);
-        showToast(`Added to ${ctx.currentSet.value?.name ?? "the set"}.`);
-        return;
-      }
-      const set = await ctx.api.getSet(setId, { fresh: true });
-      const items = itemInputs(set.items);
-      items.push({ id: crypto.randomUUID(), kind: "song", song_id: song.id, transpose, note: "" });
-      try {
-        await ctx.api.updateSet(set.id, set.version, { name: set.name, service_date: set.service_date, items });
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
-          throw new Error("Someone changed that set just now. Try again.");
-        }
-        throw error;
-      }
+      if (setId !== currentId) await ctx.currentSet.choose(setId);
+      await ctx.currentSet.addSong(song.id, transpose);
       closeSheet(sheet);
-      showToast(`Added to ${set.name}.`);
+      showToast(`Added to ${ctx.currentSet.value?.name ?? "the set"}.`);
     }));
   });
   sheet.querySelector("a")?.addEventListener("click", () => closeSheet(sheet));

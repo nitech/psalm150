@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-15
+* **Adding a song to a set makes it current**: picking a set in the add-to-set sheet makes it the current set before adding (through the current set's queued, retried edit), and a set started from a song with **New set…** becomes current when saved. Pages touched: web-client.
 * **Version bumped on every commit**: `.githooks/pre-commit` (enable with `git config core.hooksPath .githooks`) raises the patch version in `api/Cargo.toml`, `api/Cargo.lock` and `web/package.json` together; a version changed by hand in `Cargo.toml` is kept and copied. Pages touched: build-and-ci.
 * **Current set bar really frosted**: the dock's `view-transition-name` made it a backdrop root, so the bar's `backdrop-filter` had nothing behind it to blur and the page showed through sharp. The names now sit on `.current-bar` and `.offline-bar` instead; the bar is 62 % opaque with an 18 px blur. Pages touched: none (style only).
 * **Version in the menu**: the foot of the menu (drawer and side rail) shows "Version <package.json version> · <build time>", baked in by Vite (`__APP_VERSION__`, `__BUILD_TIME__`), so a fresh deploy can be recognised. Pages touched: web-client.
