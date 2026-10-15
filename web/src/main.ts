@@ -337,6 +337,12 @@ let shownRoute: Route | null = null;
 let shownPath: string | null = null;
 let hashListener: (() => void) | null = null;
 
+/** "Version 0.1.0 · 15 Oct, 16:27": the build time tells deploys apart. */
+function versionLabel(): string {
+  const built = new Date(__BUILD_TIME__).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return `Version ${escapeHtml(__APP_VERSION__)} · <time datetime="${__BUILD_TIME__}" title="Built ${escapeHtml(new Date(__BUILD_TIME__).toLocaleString())}">${escapeHtml(built)}</time>`;
+}
+
 function currentPath(): string {
   return location.hash.replace(/^#/, "").split("?")[0];
 }
@@ -358,6 +364,7 @@ function renderShell(): void {
     <nav class="tabbar" id="sections" aria-label="Sections">
       <div class="brand" aria-hidden="true"><span class="brand-mark">150</span><span>PSA150</span></div>
       ${tabs}
+      <p class="app-version">${versionLabel()}</p>
     </nav>
     <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
     <main class="page" id="page" tabindex="-1"></main>

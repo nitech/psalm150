@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-15
+* **Version in the menu**: the foot of the menu (drawer and side rail) shows "Version <package.json version> · <build time>", baked in by Vite (`__APP_VERSION__`, `__BUILD_TIME__`), so a fresh deploy can be recognised. Pages touched: web-client.
 * **Putting the current set away**: the current set bar has a ✕, and a set's page offers **Stop using as the current set** when it is current. Either stores `none` as the `current-set` preference, so the phone has no current set (the next dated service is not picked either) until a set is chosen again; the toast has **Undo**. The bar is now frosted (stronger blur, more opaque) so the list behind it is not legible through it. Pages touched: web-client.
 
 ## 2026-10-14

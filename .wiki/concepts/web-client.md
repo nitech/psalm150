@@ -119,7 +119,8 @@ subtitle is `public_library_name` from `/info`.
 
 Signed in, the app is a shell with four sections: **Songs**, **Sets**,
 **Remote** and **More** (visitors: **Songs** and **Sign in**). At 900 px and
-wider they are a side rail with the brand. On phones there is no tab bar: the
+wider they are a side rail with the brand, and the version and build time at
+its foot (`__APP_VERSION__`, `__BUILD_TIME__` from `vite.config.ts`). On phones there is no tab bar: the
 same `nav#sections` is a drawer that slides in from the left when you tap ☰
 (`menuButton()`: beside the search field on Songs, in the bar on Sets, Remote
 and More; screens with Back have no ☰). A dimmed shade covers the page. The

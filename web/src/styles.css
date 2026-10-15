@@ -208,6 +208,8 @@ body.menu-dragging .tabbar, body.menu-dragging .nav-scrim { transition: none; }
 .tab.on::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--psa-accent-text); }
 button.tab { width: 100%; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
 button.tab:not(.on) { background: none; }
+/* Foot of the menu: the version and build. */
+.app-version { margin: auto 0 0; padding: var(--psa-space-4) var(--psa-space-3) 0; color: var(--psa-text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* Side rail on wide screens. */
 @media (min-width: 900px) {
