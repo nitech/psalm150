@@ -188,11 +188,15 @@ phone (**Make this the current set** on a set's page, stored as the
 `current-set` preference) wins while it exists and its date is not past;
 otherwise it is the next dated service, today included, with the most
 recently edited winning a tie. Undated sets are current only when chosen.
-**Use the next service instead** goes back to the calendar. It is per phone:
-other people's phones and the desktops are not affected.
+Putting the current set away (the bar's ✕, or **Stop using as the current
+set** on its page) stores `none`: there is then no current set, dated
+services included, until a set is chosen again; the toast's **Undo** restores
+the earlier choice. It is per phone: other people's phones and the desktops
+are not affected.
 
-- **Current set bar** in the dock: date, name and song count; tapping it
-  opens the set. It pulses when the count changes.
+- **Current set bar** in the dock, frosted over the page: date, name and song
+  count; tapping it opens the set, and its ✕ puts the set away. It pulses
+  when the count changes.
 - **Song list**: leaders see a ＋ on every row. Tapping adds the song to the
   current set; a ✓ shows it is already there, and tapping ✓ removes its last
   entry. Both show a toast with **Undo**. Without a current set the tap opens
@@ -222,9 +226,9 @@ other people's phones and the desktops are not affected.
 - **Reader**: the song with section labels and chords above the lyrics,
   parsed in the browser by `chordpro.ts` with the desktop's stanza rules
   (a blank line starts a new verse; unlabelled verses are numbered). The
-  **Text and chords** button in the bar opens a panel under it: chords on or
-  off, transpose (only when the song has chords; view only, never saved), and
-  text size (−2 to +4). Chords and text size are remembered. The key (with
+  **Chords and key** button in the bar (only for a song with chords) opens a panel under it:
+  chords on or off and transpose (view only, never saved). There is no text
+  size control (see [accessibility](accessibility.md)). Chords are remembered. The key (with
   any transpose) shows under the title. Shows the first 8 characters of the
   revision id, and sets the tab title to the song's. **Share** in the bar
   copies the song's permalink, `<origin>/songs/{id}` (a real path, so the
@@ -250,8 +254,8 @@ other people's phones and the desktops are not affected.
 - **List**: "Upcoming" (today or later, soonest first), "No date" and
   "Earlier" (newest first), with a date badge, item count and a **Current**
   badge ([sets](sets.md)).
-- **Detail**: **Make this the current set** (unless it is the current set
-  or its date is past; the current set bar is hidden here), then the items in order (no
+- **Detail**: **Make this the current set** (unless its date is past), or
+  **Stop using as the current set** when it is (the current set bar is hidden here), then the items in order (no
   position column) with song number, transpose and note. Tapping an item starts the service view there.
   A deleted song shows as "Deleted song". Leaders have Share and Edit in the
   bar; Share looks switched on while the set is shared and opens the share
@@ -271,8 +275,8 @@ other people's phones and the desktops are not affected.
   the form and links to the other version. Delete asks for confirmation and
   sends `base_version`.
 - **Service view**: one item at a time, with the key under the title, in
-  the item's own transpose, with chords and text size as last set on a song
-  page (no **Text and chords** panel here). Move with the bottom step bar (Previous and Next, each with the
+  the item's own transpose, with chords on or off as last set on a song
+  page (no **Chords and key** panel here). Move with the bottom step bar (Previous and Next, each with the
   title it leads to; at either end of the set that button is left out, and a
   set of one item has no bar), a horizontal swipe, or
   the arrow keys. It asks for a screen wake lock where the browser supports
@@ -496,7 +500,7 @@ on that browser goes straight to the consent screen. The whole flow is in
   or you sign out. A session left in `sessionStorage` by an older version moves
   over on first read.
 - Per-device preferences are in `localStorage` under `psa150-*`: `theme`,
-  `chords`, `text-size`, `desktop` and `current-set`, and for the
+  `chords`, `desktop` and `current-set`, and for the
   room reader `room` (the last room), `room-size`, `room-contrast`,
   `room-follow` and `room-announce`. Blocked storage is ignored.
 - One `busy` flag stops overlapping actions; adding and removing songs from

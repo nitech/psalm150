@@ -336,7 +336,7 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .reader-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-4); margin-bottom: var(--psa-space-5); }
 /* Selecting a song selects only the words (see installLyricsCopy). */
 .song-section > h2, .song-body .ch, .song-comment { -webkit-user-select: none; user-select: none; }
-.song-body { --reader-scale: 1; font-family: var(--psa-font-lyrics); font-size: calc(18px * var(--reader-scale)); line-height: 1.5; }
+.song-body { font-family: var(--psa-font-lyrics); font-size: 18px; line-height: 1.5; }
 .song-section { margin-bottom: 1.2em; }
 .song-section h2 { margin: 0 0 0.3em; color: var(--psa-accent-text); font-size: 0.7em; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .song-line { margin: 0; overflow-wrap: anywhere; }
@@ -391,15 +391,19 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .offline-bar { display: flex; align-items: center; gap: var(--psa-space-2); margin: 0; padding: 8px 14px; border: 1px solid var(--psa-warning); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); color: var(--psa-text); font-size: 13px; font-weight: 600; }
 .offline-bar .icon { width: 18px; height: 18px; color: var(--psa-warning); }
 .current-bar {
-  display: flex; align-items: center; gap: var(--psa-space-3); min-height: 56px; padding: 6px 12px 6px 6px;
+  display: flex; align-items: center; gap: var(--psa-space-1); min-height: 56px; padding: 6px 6px 6px 6px;
   border: 1px solid var(--psa-accent-medium); border-radius: var(--psa-radius-lg);
-  background: var(--psa-bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  /* Frosted: the list moving behind it shows only as soft colour, never as legible text. */
+  background: color-mix(in srgb, var(--psa-bg-elevated) 80%, transparent);
+  backdrop-filter: blur(32px) saturate(1.6); -webkit-backdrop-filter: blur(32px) saturate(1.6);
   box-shadow: var(--psa-shadow-md); color: var(--psa-text); text-decoration: none;
 }
+.current-link { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--psa-space-3); align-self: stretch; border-radius: var(--psa-radius-md); color: inherit; text-decoration: none; }
+.current-close { flex: none; color: var(--psa-text-secondary); }
 .current-bar .date-badge { width: 42px; height: 42px; }
 .current-bar .row-main small { color: var(--psa-accent-text); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .current-count { color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
-.current-bar > .icon:last-child { color: var(--psa-text-tertiary); }
+.current-link > .icon:last-child { color: var(--psa-text-tertiary); }
 .current-bar.bump { animation: bump 420ms var(--psa-ease-standard); }
 @keyframes bump { 40% { transform: scale(1.03); border-color: var(--psa-accent); } }
 /* Forms and the service view have their own bottom bars. */
@@ -425,7 +429,7 @@ body[data-route^="/sets/id/play"] .page, .page:has(.play-nav) { padding-bottom: 
 .live-banner { display: flex; align-items: center; gap: var(--psa-space-2); width: min(100%, 760px); margin: 0 auto; padding: calc(var(--psa-space-2) + env(safe-area-inset-top)) var(--page-pad) 0; color: var(--psa-accent-text); font-size: 13px; font-weight: 600; }
 .live-banner[hidden] { display: none; }
 .live-banner::before { content: ""; width: 8px; height: 8px; flex: none; border-radius: 50%; background: currentColor; }
-.play .song-body { font-size: calc(20px * var(--reader-scale)); }
+.play .song-body { font-size: 20px; }
 .blank-slide { display: grid; place-items: center; min-height: 40vh; border: 1px dashed var(--psa-border-strong); border-radius: var(--psa-radius-lg); color: var(--psa-text-tertiary); }
 .play-nav {
   position: fixed; inset: auto 0 0 0; z-index: 30;

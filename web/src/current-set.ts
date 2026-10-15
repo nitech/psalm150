@@ -3,13 +3,17 @@ import type { SetDetail, SetItem, SetItemInput, SetSummary } from "./types.ts";
 import { readPreference, today, writePreference } from "./ui.ts";
 
 const CHOSEN_KEY = "current-set";
+/** Stored instead of a set id when the person put the current set away. */
+export const NO_SET = "none";
 
 /**
  * The set this phone adds songs to. A set chosen on this phone wins while it
  * exists and its service is not over; otherwise it is the next dated service
- * (today counts). Undated sets are only current when chosen.
+ * (today counts). Undated sets are only current when chosen. After the person
+ * puts the current set away there is none until they choose one again.
  */
 export function resolveCurrentSet(sets: SetSummary[], chosen: string | null, now: string): SetSummary | null {
+  if (chosen === NO_SET) return null;
   const pick = chosen ? sets.find((set) => set.id === chosen) : undefined;
   if (pick && (!pick.service_date || pick.service_date >= now)) return pick;
   const upcoming = sets
@@ -79,6 +83,19 @@ export class CurrentSet {
   choose(setId: string | null): Promise<SetDetail | null> {
     writePreference(CHOSEN_KEY, setId);
     return this.refresh();
+  }
+
+  /**
+   * No current set on this phone, until one is chosen again. Resolves with
+   * the earlier choice (`null` for the calendar), which `choose` puts back.
+   */
+  dismiss(): Promise<string | null> {
+    return this.enqueue(async () => {
+      const previous = readPreference(CHOSEN_KEY);
+      writePreference(CHOSEN_KEY, NO_SET);
+      this.update(null);
+      return previous === NO_SET ? null : previous;
+    });
   }
 
   /** Appends a song. Resolves with the new item's id, for Undo. */

@@ -22,7 +22,7 @@ sources:
     title: openSheet (labelled modal dialog, focus return), song list, reader, editor
   - id: render
     resource: /web/src/song-render.ts
-    title: Reader controls keep focus and announce key and text size
+    title: Reader controls keep focus and announce the key
   - id: sets
     resource: /web/src/views/sets.ts
     title: Set editor buttons named per item, moves announced; service view announces the item
@@ -109,7 +109,7 @@ ring for 3:1.
 button: ☰ and the shade for the drawer swipes, Previous/Next for the service
 view's swipe, Move up/down for drag-to-reorder. Actions fire on release.
 Targets are at least 24 × 24 px (most are 36–44). Visible labels are part of
-the accessible names; A−/A+ are symbols named "Smaller text"/"Larger text".
+the accessible names.
 
 **Colour and contrast (1.4.1, 1.4.3, 1.4.11)**: token colours as above.
 Accent text and the greys keep 4.5:1 on accent tints too (shared tokens). "On" states are not only a
@@ -122,7 +122,10 @@ sets a yellow `--psa-focus-color`; the ring follows, because the tokens work
 the ring out on each element. Desktops say "online"/"offline" in words; the
 dot is decorative. Chords differ from words by position and weight too.
 
-**Text and layout (1.3.4, 1.4.4, 1.4.10, 1.4.12)**: the viewport allows
+**Text and layout (1.3.4, 1.4.4, 1.4.10, 1.4.12)**: there is no in-app text
+size control; 1.4.4 is met by browser zoom and the browser's or phone's own text
+size, which the layout survives to 200 % (the `/join` room keeps its own
+size buttons as a reading tool for low vision). The viewport allows
 zoom, any orientation (`manifest.webmanifest`). At 320 CSS px every screen
 fits without horizontal scrolling, chord lines included (chord and syllable
 pairs wrap together). Nothing clips with WCAG's text-spacing overrides.
@@ -140,8 +143,8 @@ pairs wrap together). Nothing clips with WCAG's text-spacing overrides.
   `showFormError` sets `aria-invalid`, links the message with
   `aria-describedby` and focuses the field.
 - Status messages are spoken without moving focus: the toast (`role=status`)
-  and a visually hidden `#announcer` for search result counts, the new key or
-  text size, items moved or removed in the set editor, the item reached in
+  and a visually hidden `#announcer` for search result counts, the new key,
+  items moved or removed in the set editor, the item reached in
   the service view, what a desktop shows now, offline and back online.
 
 **Timing and motion (2.2.1, 2.2.2, 2.3.1)**: errors in toasts stay until

@@ -233,7 +233,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
           title: itemTitle(item),
           subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
           back: "#/",
-          actions: display ? readerToggle(options) : "",
+          actions: display ? readerToggle(display, options) : "",
           panel: display ? readerPanel(display, options, transpose) : "",
         })}
         ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}

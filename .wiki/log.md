@@ -1,5 +1,11 @@
 # Directory Update Log
 
+## 2026-10-15
+* **Putting the current set away**: the current set bar has a ✕, and a set's page offers **Stop using as the current set** when it is current. Either stores `none` as the `current-set` preference, so the phone has no current set (the next dated service is not picked either) until a set is chosen again; the toast has **Undo**. The bar is now frosted (stronger blur, more opaque) so the list behind it is not legible through it. Pages touched: web-client.
+
+## 2026-10-14
+* **No text size buttons in the song reader**: the A−/A+ buttons and the `text-size` preference are gone; WCAG 2.2 AA (1.4.4) is met by browser zoom and the browser's or phone's own text size, not an in-app control. The bar button is now **Chords and key** (chords icon instead of Aa) and only shows for a song with chords. The `/join` room keeps its own size buttons. Pages touched: web-client, accessibility, shared-sets.
+
 ## 2026-10-13
 * **Native-feeling movement on phones** (new `web/src/transitions.ts`): screens slide in view transitions (in from the right going deeper, out to the right going back, sideways between a set's items; another section does not slide), with the bars cross-fading in place. `route` now draws each screen into a fresh `<main id="page">` and swaps it in when ready. Swiping through a set follows the finger, springs back on a short swipe and carries the slide on from where the finger let go; Safari's own edge-swipe Back is not slid twice (`hasUAVisualTransition` or a recent edge touch); the installed app gets its own swipe back. Song and set links start loading on `pointerdown`; single song and set reads are remembered for 30 s (forgotten on any change from the app); the neighbouring items' songs are read ahead. The shared page moves the same way.
 * **Descriptive link titles**: `/shared/{key}` (new `pages::shared_set_page`) previews "<set> · <day>" with "<church> · N songs: …"; a private song's permalink now says "A song from <church>" (still never its title); all previews also carry a `description` meta. Share sends "<set> · <day>" for a set and, on phones, opens the share sheet for a song with its title. Pages touched: web-client, deployment, shared-sets.

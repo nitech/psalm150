@@ -364,7 +364,10 @@ function renderShell(): void {
   </div>
   <aside class="dock" id="dock" aria-label="Current set">
     <p class="offline-bar" id="offline-bar" role="status" hidden>${icon("offline")}<span>Offline. Showing the songs and sets saved on this phone.</span></p>
-    <a class="current-bar" id="current-bar" hidden></a>
+    <div class="current-bar" id="current-bar" hidden>
+      <a class="current-link" id="current-link"></a>
+      <button type="button" class="icon-button ghost current-close" id="current-close" aria-label="Put the current set away" title="No current set">${icon("close")}</button>
+    </div>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <p class="sr-only" id="announcer" role="status" aria-live="polite"></p>`;
@@ -384,6 +387,7 @@ function renderShell(): void {
     leaveShell(renderLogin);
   });
   bindMenuSwipe(document.querySelector<HTMLElement>("#sections")!, document.querySelector<HTMLElement>("#nav-scrim")!);
+  document.querySelector("#current-close")?.addEventListener("click", () => void dismissCurrentSet());
   currentSet.subscribe(renderCurrentBar);
   renderCurrentBar(currentSet.value);
   showOffline();
@@ -851,16 +855,20 @@ function signOut(): void {
 /* ── Current set bar, offline notice, scrolling ──────────────────────────── */
 
 function renderCurrentBar(set: SetDetail | null): void {
-  const bar = document.querySelector<HTMLAnchorElement>("#current-bar");
-  if (!bar) return;
+  const bar = document.querySelector<HTMLElement>("#current-bar");
+  const link = document.querySelector<HTMLAnchorElement>("#current-link");
+  if (!bar || !link) return;
   bar.hidden = !set;
-  if (!set) return;
+  if (!set) {
+    delete bar.dataset.count;
+    return;
+  }
   const songs = set.items.filter((item) => item.kind === "song").length;
   const previous = bar.dataset.count;
-  bar.href = `#/sets/${set.id}`;
+  link.href = `#/sets/${set.id}`;
   bar.dataset.count = String(songs);
-  bar.setAttribute("aria-label", `Current set: ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
-  bar.innerHTML = `${dateBadge(set.service_date)}
+  link.setAttribute("aria-label", `Current set: ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
+  link.innerHTML = `${dateBadge(set.service_date)}
     <span class="row-main"><small>Current set</small><strong>${escapeHtml(set.name)}</strong></span>
     <span class="current-count">${songs} ${songs === 1 ? "song" : "songs"}</span>${icon("next")}`;
   // A small pulse when a song lands in the set.
@@ -869,6 +877,18 @@ function renderCurrentBar(set: SetDetail | null): void {
     void bar.offsetWidth;
     bar.classList.add("bump");
   }
+}
+
+/** The bar's ✕: no current set on this phone until one is chosen, with Undo. */
+async function dismissCurrentSet(): Promise<void> {
+  const name = currentSet.value?.name;
+  const hadFocus = document.activeElement?.id === "current-close";
+  const previous = await currentSet.dismiss();
+  // The button is gone with the bar; keep focus on the page, not the body.
+  if (hadFocus) document.querySelector<HTMLElement>("#page")?.focus({ preventScroll: true });
+  showToast(name ? `${name} is no longer the current set.` : "No current set.", {
+    action: { label: "Undo", run: () => void currentSet.choose(previous).catch(() => undefined) },
+  });
 }
 
 function showOffline(): void {

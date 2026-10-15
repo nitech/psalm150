@@ -6,23 +6,16 @@ import { escapeHtml, readPreference, transposeLabel, writePreference } from "./u
 /** Reader settings shared by the song page and the service view. */
 export interface ReaderOptions {
   chords: boolean;
-  /** Text scale step, -2 to 4. */
-  size: number;
   /** Whether the settings panel under the bar is open; not saved. */
   panelOpen?: boolean;
 }
 
 export function readReaderOptions(): ReaderOptions {
-  const size = Number(readPreference("text-size") ?? "0");
-  return {
-    chords: readPreference("chords") !== "off",
-    size: Number.isFinite(size) ? Math.min(4, Math.max(-2, size)) : 0,
-  };
+  return { chords: readPreference("chords") !== "off" };
 }
 
 export function saveReaderOptions(options: ReaderOptions): void {
   writePreference("chords", options.chords ? null : "off");
-  writePreference("text-size", options.size ? String(options.size) : null);
 }
 
 export function prepareSong(chordpro: string, transpose: number): DisplaySong {
@@ -33,7 +26,7 @@ export function prepareSong(chordpro: string, transpose: number): DisplaySong {
 export function renderSongBody(song: DisplaySong, options: ReaderOptions): string {
   if (!song.sections.length) return `<p class="muted">This song has no lyrics yet.</p>`;
   const withChords = options.chords && hasChords(song);
-  return `<div class="song-body${withChords ? " with-chords" : ""}" style="--reader-scale:${1 + options.size * 0.12}">
+  return `<div class="song-body${withChords ? " with-chords" : ""}">
     ${song.sections.map((section) => `<section class="song-section">
       <h2>${escapeHtml(section.label)}</h2>
       ${section.lines.map((line) => {
@@ -96,7 +89,11 @@ export function lyricsIn(fragment: DocumentFragment): string {
     .join("\n\n");
 }
 
-/** Chord, transpose and text size controls. `transpose` is null to hide it. */
+/**
+ * Chord and transpose controls. `transpose` is null to hide it. There is no
+ * text size control: bigger words come from browser zoom or the browser's or
+ * phone's text size, which is what WCAG 1.4.4 asks for.
+ */
 export function readerControls(song: DisplaySong, options: ReaderOptions, transpose: number | null): string {
   const chordToggle = hasChords(song)
     ? `<button class="chip${options.chords ? " on" : ""}" data-reader="chords" aria-pressed="${options.chords}">${icon("chords")}Chords</button>`
@@ -109,20 +106,18 @@ export function readerControls(song: DisplaySong, options: ReaderOptions, transp
   return `<div class="reader-controls">
     ${chordToggle}
     ${transposer}
-    <div class="stepper" role="group" aria-label="Text size">
-      <button class="icon-button small" data-reader="smaller" aria-label="Smaller text">A−</button>
-      <button class="icon-button small" data-reader="larger" aria-label="Larger text">A+</button>
-    </div>
   </div>`;
 }
 
-/** The bar button that opens the reader settings panel. */
-export function readerToggle(options: ReaderOptions): string {
-  return `<button class="icon-button ghost${options.panelOpen ? " on" : ""}" data-reader="panel" aria-controls="reader-panel" aria-expanded="${Boolean(options.panelOpen)}" aria-label="Text and chords" title="Text and chords">${icon("text")}</button>`;
+/** The bar button that opens the reader settings panel; none for a song without chords. */
+export function readerToggle(song: DisplaySong, options: ReaderOptions): string {
+  if (!hasChords(song)) return "";
+  return `<button class="icon-button ghost${options.panelOpen ? " on" : ""}" data-reader="panel" aria-controls="reader-panel" aria-expanded="${Boolean(options.panelOpen)}" aria-label="Chords and key" title="Chords and key">${icon("chords")}</button>`;
 }
 
-/** The reader settings, dropping down from the sticky bar. */
+/** The reader settings, dropping down from the sticky bar; none for a song without chords. */
 export function readerPanel(song: DisplaySong, options: ReaderOptions, transpose: number | null): string {
+  if (!hasChords(song)) return "";
   return `<div class="reader-panel" id="reader-panel"${options.panelOpen ? "" : " hidden"}>${readerControls(song, options, transpose)}</div>`;
 }
 
@@ -136,7 +131,7 @@ export function keyLabel(song: DisplaySong, transpose: number): string {
  * Wires the controls rendered by `readerControls`. `onChange` re-renders;
  * transpose changes are reported as a step so the caller keeps its own value.
  * The button pressed keeps focus through the re-render, and a screen reader
- * hears the new key or text size.
+ * hears the new key.
  */
 export function bindReaderControls(
   root: HTMLElement,
@@ -161,12 +156,6 @@ export function bindReaderControls(
         case "chords":
           options.chords = !options.chords;
           break;
-        case "smaller":
-          options.size = Math.max(-2, options.size - 1);
-          break;
-        case "larger":
-          options.size = Math.min(4, options.size + 1);
-          break;
         case "up":
         case "down":
           onChange(control === "up" ? 1 : -1);
@@ -175,7 +164,7 @@ export function bindReaderControls(
       }
       saveReaderOptions(options);
       onChange(0);
-      after(() => control === "chords" ? "" : `Text size ${Math.round((1 + options.size * 0.12) * 100)}%`);
+      after(() => "");
     });
   });
 }

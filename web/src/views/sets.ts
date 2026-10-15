@@ -61,10 +61,13 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
   const set = await ctx.api.getSet(setId);
   setTitle(set.name, "Sets");
   const over = Boolean(set.service_date && set.service_date < today());
-  // The current set shows in the bar at the bottom; another set can become it.
-  const currentStatus = () => ctx.currentSet.value?.id === set.id || over
-    ? ""
-    : `<button type="button" class="button secondary small" data-current="choose">${icon("check")}Make this the current set</button>`;
+  // The bar at the bottom is hidden here, so this says whether the set is
+  // current and lets the person switch it on or off.
+  const currentStatus = () => ctx.currentSet.value?.id === set.id
+    ? `<button type="button" class="button secondary small" data-current="clear">${icon("close")}Stop using as the current set</button>`
+    : over
+      ? ""
+      : `<button type="button" class="button secondary small" data-current="choose">${icon("check")}Make this the current set</button>`;
   /** The share button looks switched on while the set is shared. */
   const shareLabel = () => set.shared ? "Shared on a link: manage the link" : "Share on a link";
   ctx.main.innerHTML = `${pageHead({
@@ -99,7 +102,14 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-current]");
     if (!button) return;
     void ctx.run(async () => {
-      await ctx.currentSet.choose(button.dataset.current === "choose" ? set.id : null);
+      if (button.dataset.current === "clear") {
+        const previous = await ctx.currentSet.dismiss();
+        showToast(`${set.name} is no longer the current set.`, {
+          action: { label: "Undo", run: () => void ctx.run(async () => { await ctx.currentSet.choose(previous); }, { exclusive: false }) },
+        });
+        return;
+      }
+      await ctx.currentSet.choose(set.id);
       const now = ctx.currentSet.value;
       showToast(now ? `${now.name} is the current set.` : "No upcoming set.");
     });
@@ -529,7 +539,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const set: SetDetail = await ctx.api.getSet(setId);
   const index = Math.max(0, Math.min(set.items.length - 1, Number(indexParam) || 0));
   const item = set.items[index];
-  // Chords and text size as last set on a song page; no panel here.
+  // Chords as last set on a song page; no panel here.
   const options = readReaderOptions();
   let wakeLock: { release(): Promise<void> } | null = null;
   const go = (next: number) => ctx.navigate(`#/sets/${set.id}/play/${next}`, true);

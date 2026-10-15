@@ -252,7 +252,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       title: song.title,
       back: "#/songs",
       autohide: true,
-      actions: `<button type="button" class="icon-button ghost" id="copy-lyrics" aria-label="Copy the words" title="Copy the words">${icon("copy")}</button><button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
+      actions: `<button type="button" class="icon-button ghost" id="copy-lyrics" aria-label="Copy the words" title="Copy the words">${icon("copy")}</button><button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(display, options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
       panel: readerPanel(display, options, transpose),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}

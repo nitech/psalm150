@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupSets, resolveCurrentSet } from "../src/current-set.ts";
+import { groupSets, NO_SET, resolveCurrentSet } from "../src/current-set.ts";
 import type { SetSummary } from "../src/types.ts";
 
 function set(id: string, service_date: string | null, updated_at = "2026-09-01T10:00:00Z"): SetSummary {
@@ -36,6 +36,10 @@ describe("resolveCurrentSet", () => {
   it("forgets a chosen set once its service is over or it is gone", () => {
     expect(resolveCurrentSet(sets, "past", TODAY)?.id).toBe("next");
     expect(resolveCurrentSet(sets, "deleted", TODAY)?.id).toBe("next");
+  });
+
+  it("has none after the person put it away, even with services ahead", () => {
+    expect(resolveCurrentSet(sets, NO_SET, TODAY)).toBeNull();
   });
 
   it("never picks an undated set by itself", () => {
