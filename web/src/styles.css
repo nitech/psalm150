@@ -395,9 +395,10 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .current-bar {
   display: flex; align-items: center; gap: var(--psa-space-1); min-height: 56px; padding: 6px 6px 6px 6px;
   border: 1px solid var(--psa-accent-medium); border-radius: var(--psa-radius-lg);
-  /* Frosted: the list moving behind it shows only as soft colour, never as legible text. */
-  background: color-mix(in srgb, var(--psa-bg-elevated) 80%, transparent);
-  backdrop-filter: blur(32px) saturate(1.6); -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  /* Frosted glass: the page moving behind it shows through blurred, never legible.
+     No ancestor may be a backdrop root (filter, opacity, view-transition-name). */
+  background: color-mix(in srgb, var(--psa-bg-elevated) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.8); -webkit-backdrop-filter: blur(18px) saturate(1.8);
   box-shadow: var(--psa-shadow-md); color: var(--psa-text); text-decoration: none;
 }
 .current-link { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--psa-space-3); align-self: stretch; border-radius: var(--psa-radius-md); color: inherit; text-decoration: none; }
@@ -602,7 +603,10 @@ body[data-route^="/sets/id/play"] .toast { bottom: calc(80px + env(safe-area-ins
 @media (max-width: 899px) and (prefers-reduced-motion: no-preference) {
   .app-bar { view-transition-name: app-bar; }
   .play-nav { view-transition-name: play-nav; }
-  .dock { view-transition-name: dock; }
+  /* On the dock's bars, not the dock: a named element is a backdrop root, so
+     a name on the dock would leave the current set bar nothing to frost. */
+  .current-bar { view-transition-name: current-bar; }
+  .offline-bar { view-transition-name: offline-bar; }
   .live-banner { view-transition-name: live-banner; }
 
   ::view-transition-group(*) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1); }
