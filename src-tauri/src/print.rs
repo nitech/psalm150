@@ -48,11 +48,19 @@ pub fn render_indexes_html(songs: &[SongRow]) -> String {
     numeric.sort_by(|a, b| a.song_num.cmp(&b.song_num));
     let mut html = String::from("<h2>General Index</h2><ul>");
     for song in alpha {
-        html.push_str(&format!("<li>{} — {}</li>", escape(&song.title), escape(&song.filename)));
+        html.push_str(&format!(
+            "<li>{} — {}</li>",
+            escape(&song.title),
+            escape(&song.filename)
+        ));
     }
     html.push_str("</ul><h2>Numeric Index</h2><ul>");
     for song in numeric {
-        html.push_str(&format!("<li>{} — {}</li>", song_num(&song), escape(&song.title)));
+        html.push_str(&format!(
+            "<li>{} — {}</li>",
+            song_num(&song),
+            escape(&song.title)
+        ));
     }
     html.push_str("</ul>");
     html

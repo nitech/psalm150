@@ -60,7 +60,9 @@ impl RemoteServer {
             let mut guard = PinGuard::default();
             while !worker_stop.load(Ordering::SeqCst) {
                 match worker_server.recv_timeout(POLL) {
-                    Ok(Some(request)) => handle_request(request, &worker_pin, &mut guard, &action_tx),
+                    Ok(Some(request)) => {
+                        handle_request(request, &worker_pin, &mut guard, &action_tx)
+                    }
                     Ok(None) => continue,
                     Err(_) => break,
                 }
@@ -163,7 +165,9 @@ fn host_allowed(host: Option<&str>) -> bool {
             .next()
             .is_some_and(|ip| ip.parse::<std::net::Ipv6Addr>().is_ok());
     }
-    let name = host.rsplit_once(':').map_or(host.as_str(), |(name, _port)| name);
+    let name = host
+        .rsplit_once(':')
+        .map_or(host.as_str(), |(name, _port)| name);
     let name = name.trim_end_matches('.');
     !name.is_empty()
         && (name.parse::<std::net::Ipv4Addr>().is_ok()
@@ -173,7 +177,12 @@ fn host_allowed(host: Option<&str>) -> bool {
             || name.ends_with(".ts.net"))
 }
 
-fn handle_request(request: Request, pin: &str, guard: &mut PinGuard, actions: &Sender<RemoteAction>) {
+fn handle_request(
+    request: Request,
+    pin: &str,
+    guard: &mut PinGuard,
+    actions: &Sender<RemoteAction>,
+) {
     let host_ok = host_allowed(header(&request, "host"));
     let is_post = request.method() == &Method::Post;
     let locked = is_post && guard.locked();
@@ -183,14 +192,46 @@ fn handle_request(request: Request, pin: &str, guard: &mut PinGuard, actions: &S
     }
 
     let (status, content_type, body) = match (request.method(), request.url()) {
-        _ if !host_ok => (403, "application/json", "{\"error\":\"forbidden host\"}".to_string()),
-        (&Method::Get, "/") => (200, "text/html; charset=utf-8", include_str!("../assets/remote.html").to_string()),
-        (&Method::Post, _) if locked => (429, "application/json", "{\"error\":\"too many wrong PINs\"}".to_string()),
-        (&Method::Post, _) if !pin_ok => (401, "application/json", "{\"error\":\"unauthorized\"}".to_string()),
-        (&Method::Post, "/next") => (200, "application/json", action(actions, RemoteAction::Next, "next")),
-        (&Method::Post, "/prev") => (200, "application/json", action(actions, RemoteAction::Prev, "prev")),
-        (&Method::Post, "/blank") => (200, "application/json", action(actions, RemoteAction::Blank, "blank")),
-        _ => (404, "application/json", "{\"error\":\"not found\"}".to_string()),
+        _ if !host_ok => (
+            403,
+            "application/json",
+            "{\"error\":\"forbidden host\"}".to_string(),
+        ),
+        (&Method::Get, "/") => (
+            200,
+            "text/html; charset=utf-8",
+            include_str!("../assets/remote.html").to_string(),
+        ),
+        (&Method::Post, _) if locked => (
+            429,
+            "application/json",
+            "{\"error\":\"too many wrong PINs\"}".to_string(),
+        ),
+        (&Method::Post, _) if !pin_ok => (
+            401,
+            "application/json",
+            "{\"error\":\"unauthorized\"}".to_string(),
+        ),
+        (&Method::Post, "/next") => (
+            200,
+            "application/json",
+            action(actions, RemoteAction::Next, "next"),
+        ),
+        (&Method::Post, "/prev") => (
+            200,
+            "application/json",
+            action(actions, RemoteAction::Prev, "prev"),
+        ),
+        (&Method::Post, "/blank") => (
+            200,
+            "application/json",
+            action(actions, RemoteAction::Blank, "blank"),
+        ),
+        _ => (
+            404,
+            "application/json",
+            "{\"error\":\"not found\"}".to_string(),
+        ),
     };
 
     let mut response = Response::from_string(body).with_status_code(status);

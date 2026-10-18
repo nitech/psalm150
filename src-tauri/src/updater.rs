@@ -4,9 +4,12 @@
 //! if they choose "Restart now". It never interrupts a service on its own.
 //!
 //! A desktop connected to a song server only takes a release that server can
-//! serve: each release's `latest.json` carries the `desktop_api` it needs
-//! (`REQUIRED_DESKTOP_API` when it was built), and the server reports the
-//! `desktop_api` it speaks in `GET /api/v1/info`.
+//! serve. Each release's `latest.json` carries `server_endpoints`, every
+//! server path that build calls (`scripts/server-endpoints.mjs` finds them),
+//! and the server must describe each one in `GET /api/openapi.json`. It also
+//! carries `desktop_api` (`REQUIRED_DESKTOP_API`), which the server's
+//! `GET /api/v1/info` must match or exceed: a manual lever, only for a
+//! behaviour change on a path that already exists.
 
 use std::time::Duration;
 
@@ -17,9 +20,10 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::AppState;
 
-/// The song server contract this build needs. Raise it together with the
-/// server's `DESKTOP_API` when this build depends on something new there.
-/// The release workflow copies it into `latest.json`.
+/// The song server contract this build needs. New server paths are checked
+/// on their own; raise this together with the server's `DESKTOP_API` only
+/// when this build depends on changed behaviour of a path that already
+/// exists. The release workflow copies it into `latest.json`.
 pub const REQUIRED_DESKTOP_API: u32 = 1;
 
 /// Servers from before the contract number existed speak contract 1.
@@ -117,8 +121,9 @@ async fn check_and_download(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Ok when no song server is connected, or the connected one speaks at least
-/// the contract the release needs. An unreachable server means "not now".
+/// Ok when no song server is connected, or the connected one has every path
+/// the release calls and speaks at least the contract it needs. An
+/// unreachable server means "not now".
 async fn server_can_serve(app: &AppHandle, update: &Update) -> Result<(), String> {
     let needed = update
         .raw_json
@@ -142,7 +147,82 @@ async fn server_can_serve(app: &AppHandle, update: &Update) -> Result<(), String
             "it needs song server contract {needed}, {server_url} offers {offered}"
         ));
     }
+
+    // Releases from before the endpoint list existed carry none.
+    let Some(needed_paths) = update.raw_json.get("server_endpoints") else {
+        return Ok(());
+    };
+    let needed_paths: Vec<String> =
+        serde_json::from_value(needed_paths.clone()).map_err(|e| e.to_string())?;
+    let offered_paths = server_paths(&server_url).await?;
+    let missing = missing_paths(&needed_paths, &offered_paths);
+    if !missing.is_empty() {
+        return Err(format!("{server_url} does not have {}", missing.join(", ")));
+    }
     Ok(())
+}
+
+/// `/api/v1/sets/{set_id}?wait=5` → `/api/v1/sets/{}`, the form
+/// `scripts/server-endpoints.mjs` writes.
+fn normalize_path(path: &str) -> String {
+    let path = path
+        .split('?')
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('/');
+    let mut normalized = String::with_capacity(path.len() + 1);
+    if !path.starts_with('/') {
+        normalized.push('/');
+    }
+    let mut in_parameter = false;
+    for ch in path.chars() {
+        match ch {
+            '{' => {
+                in_parameter = true;
+                normalized.push_str("{}");
+            }
+            '}' => in_parameter = false,
+            _ if in_parameter => {}
+            _ => normalized.push(ch),
+        }
+    }
+    normalized
+}
+
+fn missing_paths(needed: &[String], offered: &[String]) -> Vec<String> {
+    let offered: std::collections::HashSet<String> =
+        offered.iter().map(|path| normalize_path(path)).collect();
+    needed
+        .iter()
+        .map(|path| normalize_path(path))
+        .filter(|path| !offered.contains(path))
+        .collect()
+}
+
+/// The paths the server describes in its OpenAPI document.
+async fn server_paths(server_url: &str) -> Result<Vec<String>, String> {
+    #[derive(serde::Deserialize)]
+    struct OpenApi {
+        paths: serde_json::Map<String, serde_json::Value>,
+    }
+    let url = format!("{}/api/openapi.json", server_url.trim_end_matches('/'));
+    let document: OpenApi = server_get_json(&url).await?;
+    Ok(document.paths.keys().cloned().collect())
+}
+
+async fn server_get_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> {
+    reqwest::Client::builder()
+        .timeout(SERVER_TIMEOUT)
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(url)
+        .send()
+        .await
+        .and_then(|response| response.error_for_status())
+        .map_err(|e| format!("could not ask {url}: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("unexpected answer from {url}: {e}"))
 }
 
 async fn server_desktop_api(server_url: &str) -> Result<u32, String> {
@@ -151,18 +231,7 @@ async fn server_desktop_api(server_url: &str) -> Result<u32, String> {
         desktop_api: Option<u32>,
     }
     let url = format!("{}/api/v1/info", server_url.trim_end_matches('/'));
-    let info: Info = reqwest::Client::builder()
-        .timeout(SERVER_TIMEOUT)
-        .build()
-        .map_err(|e| e.to_string())?
-        .get(&url)
-        .send()
-        .await
-        .and_then(|response| response.error_for_status())
-        .map_err(|e| format!("could not ask {url}: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("unexpected answer from {url}: {e}"))?;
+    let info: Info = server_get_json(&url).await?;
     Ok(info.desktop_api.unwrap_or(UNVERSIONED_DESKTOP_API))
 }
 
@@ -179,7 +248,10 @@ pub fn restart_to_update(app: AppHandle) -> Result<(), String> {
         return Err("No update is ready".into());
     };
     // On Windows this hands over to the installer, which restarts the app.
-    ready.update.install(&ready.bytes).map_err(|e| e.to_string())?;
+    ready
+        .update
+        .install(&ready.bytes)
+        .map_err(|e| e.to_string())?;
     app.restart();
 }
 
@@ -217,4 +289,36 @@ fn start_windows_installer_without_restart(ready: &ReadyUpdate) -> Result<(), St
             e.to_string()
         })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_parameters_queries_and_roots() {
+        assert_eq!(normalize_path("/api/v1/sets/{set_id}"), "/api/v1/sets/{}");
+        assert_eq!(
+            normalize_path("api/v1/remote/desktop/commands?wait={}"),
+            "/api/v1/remote/desktop/commands"
+        );
+        assert_eq!(normalize_path("/api/v1/songs/"), "/api/v1/songs");
+    }
+
+    #[test]
+    fn reports_only_paths_the_server_lacks() {
+        let needed = vec![
+            "/api/v1/sets/{}".to_string(),
+            "/api/v1/remote/desktop/room".to_string(),
+        ];
+        let offered = vec![
+            "/api/v1/sets/{set_id}".to_string(),
+            "/api/v1/remote/desktop".to_string(),
+        ];
+        assert_eq!(
+            missing_paths(&needed, &offered),
+            vec!["/api/v1/remote/desktop/room"]
+        );
+        assert!(missing_paths(&needed[..1], &offered).is_empty());
+    }
 }

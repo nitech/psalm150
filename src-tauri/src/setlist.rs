@@ -48,7 +48,9 @@ pub struct ServerSetState {
 /// server or the phone remote, so only plain ids (UUIDs and the like) pass.
 pub fn valid_id(id: &str) -> bool {
     (1..=64).contains(&id.len())
-        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 pub struct SetlistStore {

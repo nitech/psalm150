@@ -47,9 +47,9 @@ fn parse_scraped_body(body: &str) -> Vec<SongSection> {
     let mut skipping_instrumental = false;
 
     let flush = |sections: &mut Vec<SongSection>,
-                     label: &mut String,
-                     kind: &mut crate::library::chordpro::SectionKind,
-                     lines: &mut Vec<_>| {
+                 label: &mut String,
+                 kind: &mut crate::library::chordpro::SectionKind,
+                 lines: &mut Vec<_>| {
         if !lines.is_empty() {
             sections.push(SongSection {
                 label: label.clone(),
@@ -99,8 +99,9 @@ fn parse_scraped_body(body: &str) -> Vec<SongSection> {
             );
             let label = header.get(1).map(|m| m.as_str()).unwrap_or("verse");
             let lower = label.to_lowercase();
-            skipping_instrumental =
-                lower.starts_with("intro") || lower.starts_with("instrumental") || lower.starts_with("outro");
+            skipping_instrumental = lower.starts_with("intro")
+                || lower.starts_with("instrumental")
+                || lower.starts_with("outro");
             if !skipping_instrumental {
                 current_label = normalize_section_label(label);
                 current_kind = classify_section_for_scrape(label);
@@ -115,7 +116,8 @@ fn parse_scraped_body(body: &str) -> Vec<SongSection> {
         }
 
         let next = lines.get(i + 1).map(|l| l.trim()).unwrap_or("");
-        let looks_like_chord_line = chord_line_re.is_match(trimmed) && !next.is_empty() && !section_re.is_match(next);
+        let looks_like_chord_line =
+            chord_line_re.is_match(trimmed) && !next.is_empty() && !section_re.is_match(next);
 
         if looks_like_chord_line {
             current_lines.push(parse_scraped_chord_pair(trimmed, next));
@@ -194,12 +196,17 @@ C#                   G#m
             .collect();
 
         assert!(
-            all_text.iter().any(|t| t.contains("Here is where I lay it down")),
+            all_text
+                .iter()
+                .any(|t| t.contains("Here is where I lay it down")),
             "expected lyrics, got {all_text:?}"
         );
         assert!(
             !all_text.iter().any(|t| {
-                t.trim().chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                t.trim()
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_uppercase())
                     && t.contains('#')
                     && !t.contains(' ')
                     || t.trim() == "F#"
