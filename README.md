@@ -67,7 +67,9 @@ Every push to `main` builds and publishes a release (`.github/workflows/release.
 
 Installed copies check `latest.json` on GitHub Releases ([Tauri updater](https://v2.tauri.app/plugin/updater/)) 30 s after start and then every hour. A new version is downloaded and verified in the background, and an **Update ready** chip appears in the console header. The update installs when the operator closes Psalm150 (it does not reopen), or straight away from the chip's **Restart now**. It never interrupts a service on its own. Debug builds never update.
 
-A copy connected to a song server only takes a release that server can serve. The server reports its contract number as `desktop_api` in `GET /api/v1/info`; each release records the number it needs (`REQUIRED_DESKTOP_API` in `src-tauri/src/updater.rs`) in `latest.json`. When a desktop change depends on something new on the server, raise the server's `DESKTOP_API` and this constant together, and deploy the server first. Until the server catches up, connected copies stay on their current version (and drop a download they were holding); an unreachable server also means "not now".
+A copy connected to a song server only takes a release that server can serve, and this is tracked automatically. At release time `scripts/server-endpoints.mjs` lists every server path the desktop calls (`api/v1/…` literals in `src-tauri/src`) into `latest.json`, and the workflow warns if praise.otab.no lacks one. Before downloading, a connected copy checks its server describes each path in `GET /api/openapi.json`. So a desktop change that uses a new server endpoint simply waits for the server; deploy the server first and nothing else is needed.
+
+For the rare change in *behaviour* of a path that already exists, there is a manual lever: the server's `DESKTOP_API` (reported as `desktop_api` in `GET /api/v1/info`) and the desktop's `REQUIRED_DESKTOP_API` in `src-tauri/src/updater.rs`, raised together. Until the server catches up, connected copies stay on their current version (and drop a download they were holding); an unreachable server also means "not now".
 
 ### One-time setup
 

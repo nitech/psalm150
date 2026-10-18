@@ -31,6 +31,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       release_id: ${{ steps.release.outputs.id }}
       desktop_api: ${{ steps.version.outputs.desktop_api }}
+      server_endpoints: ${{ steps.endpoints.outputs.list }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +43,30 @@ jobs:
           api=$(sed -n "s/^pub const REQUIRED_DESKTOP_API: u32 = //p" src-tauri/src/updater.rs | tr -dc '0-9')
           test -n "$api" || { echo "::error::REQUIRED_DESKTOP_API not found"; exit 1; }
           echo "desktop_api=$api" >> "$GITHUB_OUTPUT"
+
+      # Every song server path this build calls. Installed apps connected to a
+      # server check it describes each one before taking this release.
+      - id: endpoints
+        run: |
+          list=$(node scripts/server-endpoints.mjs)
+          echo "$list"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+
+      # praise.otab.no runs the song server from main. A path it lacks is a
+      # server change not deployed yet, or a mistake in the client: connected
+      # apps will not take this release until their server has it.
+      - name: Check the paths on praise.otab.no
+        env:
+          ENDPOINTS: ${{ steps.endpoints.outputs.list }}
+        run: |
+          node -e '
+            (async () => {
+              const doc = await (await fetch("https://praise.otab.no/api/openapi.json")).json();
+              const offered = new Set(Object.keys(doc.paths).map((p) => p.replace(/\{[^}]*\}/g, "{}")));
+              const missing = JSON.parse(process.env.ENDPOINTS).filter((p) => !offered.has(p));
+              for (const path of missing) console.log(`::warning::praise.otab.no does not have ${path}; connected apps will wait for a server that does`);
+            })().catch((error) => console.log(`::warning::Could not read praise.otab.no OpenAPI: ${error}`));
+          '
 
       - id: release
         env:
@@ -122,16 +147,17 @@ jobs:
     needs: [create, build]
     runs-on: ubuntu-latest
     steps:
-      # Installed apps connected to a song server skip a release that needs a
-      # newer server contract than that server speaks.
-      - name: Record the song server contract in latest.json
+      # Installed apps connected to a song server skip a release that calls a
+      # path the server lacks or needs a newer contract than it speaks.
+      - name: Record the song server requirements in latest.json
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.create.outputs.version }}
           DESKTOP_API: ${{ needs.create.outputs.desktop_api }}
+          ENDPOINTS: ${{ needs.create.outputs.server_endpoints }}
         run: |
           gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern latest.json
-          jq --argjson api "$DESKTOP_API" '. + {desktop_api: $api}' latest.json > stamped.json
+          jq --argjson api "$DESKTOP_API" --argjson endpoints "$ENDPOINTS"             '. + {desktop_api: $api, server_endpoints: $endpoints}' latest.json > stamped.json
           mv stamped.json latest.json
           gh release upload "v$VERSION" latest.json --repo "$GITHUB_REPOSITORY" --clobber
 

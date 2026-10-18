@@ -1,8 +1,8 @@
 use psalm150_lib::library::chordpro::parse_chordpro;
+use psalm150_lib::library::chordpro::{LyricLine, SectionKind, SongSection};
 use psalm150_lib::projection::modes::audience_slide;
 use psalm150_lib::projection::split::{max_chars_per_row, split_section_into_stanzas};
 use psalm150_lib::projection::{build_slides, SlideTheme};
-use psalm150_lib::library::chordpro::{LyricLine, SectionKind, SongSection};
 
 #[test]
 fn imported_song_produces_audience_slides_with_lyrics() {
@@ -64,7 +64,11 @@ fn audience_slides_never_contain_chord_brackets() {
     for slide in &slides {
         let audience = audience_slide(slide);
         for line in &audience.lines {
-            assert!(!line.text.contains('['), "chord bracket in audience: {}", line.text);
+            assert!(
+                !line.text.contains('['),
+                "chord bracket in audience: {}",
+                line.text
+            );
             assert!(line.chords.is_empty());
         }
     }

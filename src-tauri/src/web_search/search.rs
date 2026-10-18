@@ -1,6 +1,9 @@
 use scraper::{Html, Selector};
 
-pub fn discover_urls(client: &reqwest::blocking::Client, query: &str) -> Result<Vec<String>, String> {
+pub fn discover_urls(
+    client: &reqwest::blocking::Client,
+    query: &str,
+) -> Result<Vec<String>, String> {
     let search_query = format!("{query} lyrics chordpro");
     let url = format!(
         "https://html.duckduckgo.com/html/?q={}",

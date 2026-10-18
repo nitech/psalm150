@@ -263,9 +263,9 @@ pub fn parse_chordpro(content: &str, filename: &str) -> ParsedSong {
     let mut current_lines: Vec<LyricLine> = Vec::new();
 
     let flush_section = |sections: &mut Vec<SongSection>,
-                             label: &mut String,
-                             kind: &mut SectionKind,
-                             lines: &mut Vec<LyricLine>| {
+                         label: &mut String,
+                         kind: &mut SectionKind,
+                         lines: &mut Vec<LyricLine>| {
         trim_section_boundary_lines(lines);
         if !lines.is_empty() || *kind == SectionKind::Chorus {
             sections.push(SongSection {

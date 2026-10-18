@@ -42,7 +42,10 @@ pub fn fetch_lyrics(
 fn host_label(url: &str) -> String {
     url::Url::parse(url)
         .ok()
-        .and_then(|u| u.host_str().map(|h| h.trim_start_matches("www.").to_string()))
+        .and_then(|u| {
+            u.host_str()
+                .map(|h| h.trim_start_matches("www.").to_string())
+        })
         .unwrap_or_else(|| "Web".into())
 }
 
@@ -77,7 +80,10 @@ fn extract_ultimate_guitar(document: &Html) -> Option<String> {
 }
 
 fn extract_worship_together(document: &Html) -> Option<String> {
-    for sel_str in ["div.lyrics, div.song-lyrics, article.lyrics", "div.entry-content"] {
+    for sel_str in [
+        "div.lyrics, div.song-lyrics, article.lyrics",
+        "div.entry-content",
+    ] {
         let sel = Selector::parse(sel_str).ok()?;
         for element in document.select(&sel) {
             let text = element_text(&element);

@@ -94,12 +94,17 @@ the app with a simulated display.
 1. `create` works out the version: `<major>.<minor>` from
    `tauri.conf.json` plus `github.run_number`, so it always goes up. It
    creates a draft release `v<version>` with the commit message as notes.
+   It also lists the server paths the build calls
+   (`scripts/server-endpoints.mjs`: `api/v1/…` string literals in
+   `src-tauri/src` outside comments and `#[cfg(test)]` modules, parameters
+   as `{}`, queries dropped) and warns for any that
+   `https://praise.otab.no/api/openapi.json` lacks.
 2. `build` stamps that version into `tauri.conf.json` and builds on Windows,
    macOS (arm64 and x86_64) and Ubuntu 22.04 with `tauri-action`, signing
    with `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)` and uploading to the draft
    with `latest.json` (NSIS preferred on Windows).
 3. `publish` adds `desktop_api` (`REQUIRED_DESKTOP_API` from
-   `updater.rs`, read in `create`) to `latest.json`, then makes the release
+   `updater.rs`) and `server_endpoints` to `latest.json`, then makes the release
    public and latest once every platform is up,
    so `latest.json` is never partial; `cleanup` deletes the draft if a build
    fails.
@@ -114,12 +119,16 @@ The repository is public so installed apps can read
 hourly it calls `check()`; a newer version is downloaded (the plugin
 verifies the signature) and held in `UpdateState`,
 only if the song server is compatible: with a [server library](server-library.md)
-connected, `GET <server>/api/v1/info` must report a `desktop_api` (missing
-means 1) at least the release's `desktop_api` in `latest.json` (missing
-means 1). Otherwise, or if the server cannot be reached, the release is
-skipped until the next check, and a held download is dropped
-(`update-ready` with null hides the chip). Raise `REQUIRED_DESKTOP_API`
-together with the server's `DESKTOP_API`, and deploy the server first.
+connected, the server's `GET /api/openapi.json` must describe every path in
+the release's `server_endpoints` (compared with parameters as `{}`; a
+release without the list skips this), and `GET <server>/api/v1/info` must
+report a `desktop_api` (missing means 1) at least the release's `desktop_api`
+(missing means 1). Otherwise, or if the server cannot be reached, the
+release is skipped until the next check, and a held download is dropped
+(`update-ready` with null hides the chip). New endpoints need no action
+beyond deploying the server; `REQUIRED_DESKTOP_API` and the server's
+`DESKTOP_API` are raised together only for a behaviour change on an
+existing path.
 A taken download emits `update-ready`
 (`UpdateInfo { version, current_version, notes }`). A newer push
 replaces a held download. The console shows an **Update ready** chip in the
