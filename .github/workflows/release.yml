@@ -39,7 +39,7 @@ jobs:
           base=$(node -p "require('./src-tauri/tauri.conf.json').version.split('.').slice(0, 2).join('.')")
           echo "version=$base.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           # The song server contract this build needs (see src-tauri/src/updater.rs).
-          api=$(sed -n 's/^pub const REQUIRED_DESKTOP_API: u32 = \([0-9]\+\);$//p' src-tauri/src/updater.rs)
+          api=$(sed -n "s/^pub const REQUIRED_DESKTOP_API: u32 = //p" src-tauri/src/updater.rs | tr -dc '0-9')
           test -n "$api" || { echo "::error::REQUIRED_DESKTOP_API not found"; exit 1; }
           echo "desktop_api=$api" >> "$GITHUB_OUTPUT"
 
