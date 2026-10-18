@@ -1,16 +1,58 @@
 name: Release
 
+# Every push to main publishes a signed release. Installed apps poll
+# releases/latest/download/latest.json, download the new build in the
+# background and install it when the operator closes Psalm150.
+#
+# The version is <major>.<minor> from src-tauri/tauri.conf.json plus the run
+# number, so it always goes up. Bump major or minor there by hand.
+
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - ".wiki/**"
+      - "docs/**"
+  workflow_dispatch:
+
+# One release at a time, in push order; never cancel a half-built release.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
-  release:
-    permissions:
-      contents: write
+  create:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_id: ${{ steps.release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: version
+        run: |
+          base=$(node -p "require('./src-tauri/tauri.conf.json').version.split('.').slice(0, 2).join('.')")
+          echo "version=$base.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git log -1 --format=%B > notes.txt
+          gh release create "v$VERSION" --draft --target "$GITHUB_SHA" \
+            --title "Psalm150 $VERSION" --notes-file notes.txt
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"v$VERSION\") | .id")
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: create
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - platform: windows-latest
@@ -29,6 +71,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -42,16 +86,48 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - name: Stamp the version
+        shell: bash
+        env:
+          VERSION: ${{ needs.create.outputs.version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = 'src-tauri/tauri.conf.json';
+            const conf = JSON.parse(fs.readFileSync(path, 'utf8'));
+            conf.version = process.env.VERSION;
+            fs.writeFileSync(path, JSON.stringify(conf, null, 2) + '\n');
+          "
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: Psalm150 v__VERSION__
-          releaseBody: Download the installer for your platform, or let an existing install update automatically.
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create.outputs.release_id }}
           includeUpdaterJson: true
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+  # Publish only once every platform is uploaded, so latest.json is complete
+  # the moment installed apps can see it.
+  publish:
+    needs: [create, build]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.create.outputs.version }}
+        run: gh release edit "v$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+  # A failed build leaves a draft nobody can see; remove it.
+  cleanup:
+    needs: [create, build]
+    if: failure() && needs.create.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.create.outputs.version }}
+        run: gh release delete "v$VERSION" --repo "$GITHUB_REPOSITORY" --yes

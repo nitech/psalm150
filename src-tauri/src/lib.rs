@@ -12,6 +12,7 @@ pub mod remote;
 pub mod search;
 pub mod setlist;
 pub mod stage;
+pub mod updater;
 pub mod vsb_sync;
 pub mod web_search;
 
@@ -83,11 +84,19 @@ pub mod state {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .manage(updater::UpdateState::default())
+        .on_window_event(|window, event| {
+            // The hidden projection windows would otherwise keep the app alive.
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                let app = window.app_handle();
+                updater::install_on_quit(app);
+                app.exit(0);
+            }
+        })
         .setup(|app| {
             use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -179,6 +188,7 @@ pub fn run() {
             commands::vsb_sync_cmd::spawn_background_sync(app.handle());
             commands::server_sets::spawn_background(app.handle());
             commands::server_remote::spawn_background(app.handle());
+            updater::spawn_background(app.handle());
 
             if let Some(ref folder) = config.last_songs_folder {
                 let path = PathBuf::from(folder);
@@ -295,6 +305,8 @@ pub fn run() {
             commands::server_remote::set_server_room_sharing,
             commands::server_remote::get_server_room,
             commands::server_remote::rename_server_room,
+            updater::get_ready_update,
+            updater::restart_to_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

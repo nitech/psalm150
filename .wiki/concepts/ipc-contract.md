@@ -118,6 +118,13 @@ while the browser is open.
 | `print_songbook_html` | `title, includeIndexes` → HTML string | yes |
 | `start_remote` `port?`, `stop_remote`, `get_remote_status` | → `RemoteStatus { running, port, pin }`; start also runs in `setup()` when `remote_enabled` | yes (Settings) |
 
+## Updates
+
+| Command | Behaviour | Used by |
+| --- | --- | --- |
+| `get_ready_update` | → `Option<UpdateInfo { version, current_version, notes }>`; the downloaded update waiting to install ([build and release](build-and-release.md#updates-in-the-installed-app)) | yes (console startup) |
+| `restart_to_update` | installs the downloaded update and restarts; errors when none is ready | yes (update chip) |
+
 ## Events (Rust to webviews)
 
 | Event | Payload | Listener |
@@ -134,6 +141,7 @@ while the browser is open.
 | `setlists-changed` | `SetSyncReport { uploaded, downloaded, conflicts[], skipped_items, fetched_songs, unsupported }`; background runs emit it only when something changed | console reloads setlists (and the Setlist view), toasts conflicts and skipped items |
 | `remote-project` | `RemoteProject { filename, transpose, set_id?, item_index?, issued_by }` from the [song server remote](remote-control.md#through-the-song-server) | console selects the setlist and song, projects, applies the transpose |
 | `server-room` | `ServerRoom { room_name, public_rooms, join_url }` or null; emitted only when the PC's [room](remote-control.md#room) as known changes (checked on connecting, every 60 s while reporting, by `get_server_room` and on rename) and null when the server library is disconnected | console room chip and Settings, Church server ([operator console](operator-console.md#room)) |
+| `update-ready` | `UpdateInfo { version, current_version, notes }`; a new version is downloaded and verified | console update chip |
 
 Each page subscribes before fetching `get_projection_snapshot`, closing the
 startup race without targeted events or `window.eval` delivery.

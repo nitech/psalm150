@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Build and release
-description: Bun + Vite multi-entry frontend, the Tauri CLI shim, the two test suites, and the tag-driven GitHub release with signed auto-updates.
+description: Bun + Vite multi-entry frontend, the Tauri CLI shim, the two test suites, and the GitHub release on every push to main with signed background updates.
 tags: [build, bun, vite, tauri, ci, updater, tests]
 status: stable
 sources:
@@ -20,6 +20,9 @@ sources:
   - id: caps
     resource: /src-tauri/capabilities/default.json
     title: Capabilities for main
+  - id: updater
+    resource: /src-tauri/src/updater.rs
+    title: Background check, download and install on quit
   - id: caps-projection
     resource: /src-tauri/capabilities/projection.json
     title: Capabilities for audience/stage
@@ -63,11 +66,12 @@ from the app, `data:` and `blob:`, and connections to the app and Tauri IPC
 
 ## Backend
 
-Tauri 2 with plugins `process`, `updater`, `dialog`, `opener`,
-`global-shortcut` (the last two used from Rust only). Capabilities: `default`
-(main: core window/event/webview, dialog), `projection` (audience, stage:
-`core:default`, enough for app commands and events) and `desktop` (main:
-updater, process:restart). The `devtools` feature is off, so only debug
+Tauri 2 with plugins `updater`, `dialog`, `opener`, `global-shortcut`
+(`updater`, `opener` and `global-shortcut` used from Rust only). Capabilities:
+`default` (main: core window/event/webview, dialog) and `projection`
+(audience, stage: `core:default`, enough for app commands and events).
+Closing the main window exits the app (the hidden projection windows would
+otherwise keep it running). The `devtools` feature is off, so only debug
 builds (`bun run tauri dev`) have devtools.
 Notable crates: `rusqlite` (bundled), `jetdb` (Access reader), `notify`,
 `tiny_http`, `reqwest` (rustls, blocking), `scraper`.
@@ -84,17 +88,38 @@ the app with a simulated display.
 
 ## Release
 
-1. Bump `version` in `package.json`, `src-tauri/tauri.conf.json` and
-   `src-tauri/Cargo.toml`.
-2. Tag `vX.Y.Z` and push. `release.yml` builds on Windows, macOS (arm64 and
-   x86_64) and Ubuntu 22.04 with `tauri-action`, signing with
-   `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)`, and creates a **draft** release
-   with `latest.json`.
-3. Publish the draft. Installed apps call `checkForUpdates()` on startup in
-   production (`src/updater.ts`): `check()`, ask, `downloadAndInstall()`,
-   `relaunch()`. The updater endpoint is the GitHub `releases/latest` URL and
-   the public key is embedded in `tauri.conf.json`; the private key lives in
-   `%USERPROFILE%\.tauri\psalm150.key`.
+`release.yml` runs on every push to `main` (not for changes to Markdown,
+`docs/` or `.wiki/` only) and on manual dispatch, one run at a time.
+
+1. `create` works out the version: `<major>.<minor>` from
+   `tauri.conf.json` plus `github.run_number`, so it always goes up. It
+   creates a draft release `v<version>` with the commit message as notes.
+2. `build` stamps that version into `tauri.conf.json` and builds on Windows,
+   macOS (arm64 and x86_64) and Ubuntu 22.04 with `tauri-action`, signing
+   with `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)` and uploading to the draft
+   with `latest.json` (NSIS preferred on Windows).
+3. `publish` makes the release public and latest once every platform is up,
+   so `latest.json` is never partial; `cleanup` deletes the draft if a build
+   fails.
+
+The repository is public so installed apps can read
+`releases/latest/download/latest.json` without a token. The public key is in
+`tauri.conf.json`; the private key lives in `%USERPROFILE%\.tauri\psalm150.key`.
+
+## Updates in the installed app
+
+`src-tauri/src/updater.rs`, release builds only. 30 s after start and then
+hourly it calls `check()`; a newer version is downloaded (the plugin
+verifies the signature) and held in `UpdateState`, and `update-ready`
+(`UpdateInfo { version, current_version, notes }`) is emitted. A newer push
+replaces a held download. The console shows an **Update ready** chip in the
+header ([operator console](operator-console.md)); clicking it asks to
+restart (warning when projecting) and calls `restart_to_update`, which
+installs and restarts. Otherwise the update installs when the main window is
+destroyed: on Windows the verified NSIS installer is started with `/P /UPDATE`
+and without `/R`, so the app does not reopen; macOS and Linux replace the app
+in place. Nothing installs or restarts during a service unless the operator
+asks.
 
 ## Related
 

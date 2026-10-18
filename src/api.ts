@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
+/** A new version, downloaded and verified, waiting to be installed. */
+export interface UpdateInfo {
+  version: string;
+  current_version: string;
+  notes: string | null;
+}
+
 export interface LibraryStatus {
   songs_folder: string | null;
   song_count: number;
@@ -481,4 +488,6 @@ export const api = {
   startRemote: (port?: number) => invoke<RemoteStatus>("start_remote", { port }),
   stopRemote: () => invoke<void>("stop_remote"),
   getRemoteStatus: () => invoke<RemoteStatus | null>("get_remote_status"),
+  getReadyUpdate: () => invoke<UpdateInfo | null>("get_ready_update"),
+  restartToUpdate: () => invoke<void>("restart_to_update"),
 };

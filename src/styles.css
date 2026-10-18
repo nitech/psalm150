@@ -3318,6 +3318,26 @@ body.stage-projection {
   border-color: var(--accent-lime);
 }
 
+.update-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--accent-lime);
+  border-radius: var(--radius-full);
+  background: var(--psa-accent-soft);
+  color: var(--text-primary, var(--psa-text));
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.update-chip:hover {
+  background: var(--psa-accent-medium);
+}
+
 /* Words not shared: dashed outline, so the state is not colour alone. */
 .room-chip.muted {
   border-color: var(--border-control);

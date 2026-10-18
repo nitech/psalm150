@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Operator console
-description: The main window — state ownership, the two toolbar groups, the song server room chip, search with #key, History/Favourites/Setlist views, the add-to-setlist button, the song list with sortable Song/No/Key columns, keyboard model, projecting mode, settings (including the room), edit and import modals.
+description: The main window — state ownership, the two toolbar groups, the song server room chip, the update chip, search with #key, History/Favourites/Setlist views, the add-to-setlist button, the song list with sortable Song/No/Key columns, keyboard model, projecting mode, settings (including the room), edit and import modals.
 tags: [console, ui, lit, keyboard, settings]
 status: stable
 sources:
@@ -70,6 +70,10 @@ double-click toggles the default and the widest width.
   projecting), Prev, Next and Blank **only while projecting**, and Settings.
   Left of the group, in a [server library](server-library.md), sits the
   **room chip** ("Room · Lily", [below](#room)).
+  Left of that, once a new version is downloaded, the **Update ready** chip;
+  its tooltip names the versions and says it installs on close, and a click
+  asks to restart now ("Later" keeps it for close; the question warns when
+  projecting). See [build and release](build-and-release.md#updates-in-the-installed-app).
 - **Activity bar** (as in VS Code, left of the song list): Search, Setlist,
   History and Favourites choose what the song list shows; the active one has
   a lime edge. The VSB sync icon sits at the bottom when a database is linked

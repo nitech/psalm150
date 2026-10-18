@@ -35,5 +35,5 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 * [IPC contract](concepts/ipc-contract.md) - Every Tauri command and event, grouped, with whether the UI calls it
 * [Remote control](concepts/remote-control.md) - LAN remote for next/prev/blank (random PIN, lockout after wrong PINs, Host check); the song server remote (on by default) that also projects songs and set items; the PC's room on the song server (flower name, rename, sharing the projected words, `server-room`)
 * [Reports](concepts/reports.md) - CCLI usage log and CSV export, printable songbook HTML
-* [Build and release](concepts/build-and-release.md) - Bun + Vite multi-entry, the Tauri CLI shim, test suites, GitHub release and updater
+* [Build and release](concepts/build-and-release.md) - Bun + Vite multi-entry, the Tauri CLI shim, test suites, release on every push to main, background updates
 * [Gaps and backlog](concepts/gaps.md) - Known limitations, the Todo list with status, unwired commands

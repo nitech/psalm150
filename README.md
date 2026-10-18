@@ -63,7 +63,9 @@ bun run test:rust
 
 ## Releasing & auto-updates
 
-Installed copies check for updates on startup via [Tauri updater](https://v2.tauri.app/plugin/updater/), using `latest.json` from GitHub Releases.
+Every push to `main` builds and publishes a release (`.github/workflows/release.yml`); pushes that only touch Markdown, `docs/` or `.wiki/` are skipped. The version is `<major>.<minor>` from `src-tauri/tauri.conf.json` plus the workflow run number, so it always goes up; bump major or minor there by hand.
+
+Installed copies check `latest.json` on GitHub Releases ([Tauri updater](https://v2.tauri.app/plugin/updater/)) 30 s after start and then every hour. A new version is downloaded and verified in the background, and an **Update ready** chip appears in the console header. The update installs when the operator closes Psalm150 (it does not reopen), or straight away from the chip's **Restart now**. It never interrupts a service on its own. Debug builds never update.
 
 ### One-time setup
 
@@ -73,17 +75,8 @@ Installed copies check for updates on startup via [Tauri updater](https://v2.tau
 
 2. **GitHub repository secrets** (Settings → Secrets → Actions):
    - `TAURI_SIGNING_PRIVATE_KEY` — paste the full contents of `psalm150.key`
-   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — leave empty if the key has no password
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — leave unset if the key has no password
 
-### Publish a new version
+3. The repository is public, so installed apps can download releases without a token.
 
-1. Bump `version` in `package.json` and `src-tauri/tauri.conf.json` (and `src-tauri/Cargo.toml`)
-2. Commit, tag, and push:
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-3. GitHub Actions builds installers for Windows, macOS, and Linux and creates a **draft** release with `latest.json`
-4. Review the draft release on GitHub and publish it — installed apps will pick up the update on next launch
-
-First-time users still download an installer from the GitHub release; the updater handles subsequent versions.
+First-time users download an installer from the latest GitHub release; the updater handles subsequent versions.

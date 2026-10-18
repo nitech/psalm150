@@ -25,6 +25,7 @@ import {
   type Setlist,
   type SongDetail,
   type SongRow,
+  type UpdateInfo,
   type VsbSyncConfig,
   type VsbSyncFinished,
   type VsbSyncProgress,
@@ -184,6 +185,7 @@ export class Psa150App extends Psa150Element {
     serverRemoteEnabled: { state: true },
     serverRoomSharing: { state: true },
     serverRoom: { state: true },
+    readyUpdate: { state: true },
     roomNameDraft: { state: true },
     roomRenaming: { state: true },
     vsbProgress: { state: true },
@@ -266,6 +268,7 @@ export class Psa150App extends Psa150Element {
   declare serverRoomSharing: boolean;
   /** This PC's room on the song server, when connected to one. */
   declare serverRoom: ServerRoom | null;
+  declare readyUpdate: UpdateInfo | null;
   declare roomNameDraft: string;
   declare roomRenaming: boolean;
   declare vsbProgress: VsbSyncProgress | null;
@@ -329,6 +332,7 @@ export class Psa150App extends Psa150Element {
   private unlistenSetlistsChanged: UnlistenFn | null = null;
   private unlistenRemoteProject: UnlistenFn | null = null;
   private unlistenServerRoom: UnlistenFn | null = null;
+  private unlistenUpdateReady: UnlistenFn | null = null;
   private importBusy = false;
   private keysLoaded = false;
   private songsRefreshGeneration = 0;
@@ -381,6 +385,7 @@ export class Psa150App extends Psa150Element {
     this.serverRemoteEnabled = true;
     this.serverRoomSharing = true;
     this.serverRoom = null;
+    this.readyUpdate = null;
     this.roomNameDraft = "";
     this.roomRenaming = false;
     this.vsbProgress = null;
@@ -511,6 +516,10 @@ export class Psa150App extends Psa150Element {
         this.setServerRoom(event.payload);
       });
       void this.refreshServerRoom();
+      this.unlistenUpdateReady = await listen<UpdateInfo>("update-ready", (event) => {
+        this.setReadyUpdate(event.payload);
+      });
+      void api.getReadyUpdate().then((update) => update && this.setReadyUpdate(update));
       this.applyProjectionSnapshot(await api.getProjectionSnapshot());
       this.shortcuts = resolveShortcuts(await api.getShortcuts().catch(() => null));
     } catch (err) {
@@ -538,6 +547,7 @@ export class Psa150App extends Psa150Element {
     this.unlistenSetlistsChanged?.();
     this.unlistenRemoteProject?.();
     this.unlistenServerRoom?.();
+    this.unlistenUpdateReady?.();
     document.removeEventListener("pointerdown", this.onDocumentPointerDown);
     void this.unlistenImport?.();
     void this.unlistenServerSync?.();
@@ -1855,6 +1865,46 @@ export class Psa150App extends Psa150Element {
     }
   }
 
+  private setReadyUpdate(update: UpdateInfo) {
+    const isNew = this.readyUpdate?.version !== update.version;
+    this.readyUpdate = update;
+    if (isNew) {
+      this.announce(`Psalm150 ${update.version} is ready. It installs when you close Psalm150.`, false);
+    }
+  }
+
+  /** Shown once a new version is downloaded; it installs on close or on restart. */
+  private renderUpdateChip() {
+    const update = this.readyUpdate;
+    if (!update) return nothing;
+    return html`<button
+      class="update-chip"
+      type="button"
+      title="Psalm150 ${update.version} is downloaded (you have ${update.current_version}). It installs when you close Psalm150. Click to restart and install it now."
+      @click=${() => void this.restartToUpdate()}
+    >${icon("install", 14)}<span>Update ready</span></button>`;
+  }
+
+  private async restartToUpdate() {
+    const update = this.readyUpdate;
+    if (!update) return;
+    const message = this.projecting
+      ? `Restarting closes the projection for a moment. Install Psalm150 ${update.version} now?`
+      : `Restart Psalm150 now to install ${update.version}? Otherwise it installs when you close Psalm150.`;
+    const ok = await confirm(message, {
+      title: "Update ready",
+      kind: "info",
+      okLabel: "Restart now",
+      cancelLabel: "Later",
+    });
+    if (!ok) return;
+    try {
+      await api.restartToUpdate();
+    } catch (err) {
+      this.showToast(`Update failed: ${String(err)}`, "error");
+    }
+  }
+
   private renderRoomChip() {
     const room = this.serverRoom;
     if (!room || !this.serverLibrary) return nothing;
@@ -2672,6 +2722,7 @@ export class Psa150App extends Psa150Element {
         </div>
         <div class="header-end app-no-drag">
           ${this.anyModalOpen() ? nothing : this.renderToast()}
+          ${this.renderUpdateChip()}
           ${this.renderRoomChip()}
           <span
             class="badge ${this.libraryStatus?.library_dirty ? "" : "hidden"}"
