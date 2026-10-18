@@ -2,6 +2,11 @@
 //! checks for it, downloads and verifies it quietly, then tells the console.
 //! The update is installed when the operator closes Psalm150, or straight away
 //! if they choose "Restart now". It never interrupts a service on its own.
+//!
+//! A desktop connected to a song server only takes a release that server can
+//! serve: each release's `latest.json` carries the `desktop_api` it needs
+//! (`REQUIRED_DESKTOP_API` when it was built), and the server reports the
+//! `desktop_api` it speaks in `GET /api/v1/info`.
 
 use std::time::Duration;
 
@@ -9,6 +14,17 @@ use parking_lot::Mutex;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
+
+use crate::AppState;
+
+/// The song server contract this build needs. Raise it together with the
+/// server's `DESKTOP_API` when this build depends on something new there.
+/// The release workflow copies it into `latest.json`.
+pub const REQUIRED_DESKTOP_API: u32 = 1;
+
+/// Servers from before the contract number existed speak contract 1.
+const UNVERSIONED_DESKTOP_API: u32 = 1;
+const SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Let startup (songs folder, server sync) settle before the first check.
 const FIRST_CHECK_DELAY: Duration = Duration::from_secs(30);
@@ -70,6 +86,15 @@ async fn check_and_download(app: &AppHandle) -> Result<(), String> {
     };
 
     let state = app.state::<UpdateState>();
+    if let Err(reason) = server_can_serve(app, &update).await {
+        eprintln!("[updater] not taking {}: {reason}", update.version);
+        // A download held for an older or different server is no longer safe.
+        if state.ready.lock().take().is_some() {
+            let _ = app.emit("update-ready", None::<UpdateInfo>);
+        }
+        return Ok(());
+    }
+
     let already_ready = state
         .ready
         .lock()
@@ -88,8 +113,57 @@ async fn check_and_download(app: &AppHandle) -> Result<(), String> {
     let info = ready.info();
     *state.ready.lock() = Some(ready);
     eprintln!("[updater] {} downloaded, installs on close", info.version);
-    let _ = app.emit("update-ready", info);
+    let _ = app.emit("update-ready", Some(info));
     Ok(())
+}
+
+/// Ok when no song server is connected, or the connected one speaks at least
+/// the contract the release needs. An unreachable server means "not now".
+async fn server_can_serve(app: &AppHandle, update: &Update) -> Result<(), String> {
+    let needed = update
+        .raw_json
+        .get("desktop_api")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(u64::from(UNVERSIONED_DESKTOP_API));
+    let server_url = app
+        .state::<AppState>()
+        .inner
+        .lock()
+        .config
+        .server_library
+        .as_ref()
+        .map(|server| server.url.clone());
+    let Some(server_url) = server_url else {
+        return Ok(());
+    };
+    let offered = server_desktop_api(&server_url).await?;
+    if u64::from(offered) < needed {
+        return Err(format!(
+            "it needs song server contract {needed}, {server_url} offers {offered}"
+        ));
+    }
+    Ok(())
+}
+
+async fn server_desktop_api(server_url: &str) -> Result<u32, String> {
+    #[derive(serde::Deserialize)]
+    struct Info {
+        desktop_api: Option<u32>,
+    }
+    let url = format!("{}/api/v1/info", server_url.trim_end_matches('/'));
+    let info: Info = reqwest::Client::builder()
+        .timeout(SERVER_TIMEOUT)
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(&url)
+        .send()
+        .await
+        .and_then(|response| response.error_for_status())
+        .map_err(|e| format!("could not ask {url}: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("unexpected answer from {url}: {e}"))?;
+    Ok(info.desktop_api.unwrap_or(UNVERSIONED_DESKTOP_API))
 }
 
 /// The downloaded update, for a console that loaded after `update-ready` fired.

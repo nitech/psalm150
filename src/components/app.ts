@@ -516,8 +516,10 @@ export class Psa150App extends Psa150Element {
         this.setServerRoom(event.payload);
       });
       void this.refreshServerRoom();
-      this.unlistenUpdateReady = await listen<UpdateInfo>("update-ready", (event) => {
-        this.setReadyUpdate(event.payload);
+      // null: the held update no longer suits the connected song server.
+      this.unlistenUpdateReady = await listen<UpdateInfo | null>("update-ready", (event) => {
+        if (event.payload) this.setReadyUpdate(event.payload);
+        else this.readyUpdate = null;
       });
       void api.getReadyUpdate().then((update) => update && this.setReadyUpdate(update));
       this.applyProjectionSnapshot(await api.getProjectionSnapshot());

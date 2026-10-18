@@ -98,7 +98,9 @@ the app with a simulated display.
    macOS (arm64 and x86_64) and Ubuntu 22.04 with `tauri-action`, signing
    with `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)` and uploading to the draft
    with `latest.json` (NSIS preferred on Windows).
-3. `publish` makes the release public and latest once every platform is up,
+3. `publish` adds `desktop_api` (`REQUIRED_DESKTOP_API` from
+   `updater.rs`, read in `create`) to `latest.json`, then makes the release
+   public and latest once every platform is up,
    so `latest.json` is never partial; `cleanup` deletes the draft if a build
    fails.
 
@@ -110,8 +112,16 @@ The repository is public so installed apps can read
 
 `src-tauri/src/updater.rs`, release builds only. 30 s after start and then
 hourly it calls `check()`; a newer version is downloaded (the plugin
-verifies the signature) and held in `UpdateState`, and `update-ready`
-(`UpdateInfo { version, current_version, notes }`) is emitted. A newer push
+verifies the signature) and held in `UpdateState`,
+only if the song server is compatible: with a [server library](server-library.md)
+connected, `GET <server>/api/v1/info` must report a `desktop_api` (missing
+means 1) at least the release's `desktop_api` in `latest.json` (missing
+means 1). Otherwise, or if the server cannot be reached, the release is
+skipped until the next check, and a held download is dropped
+(`update-ready` with null hides the chip). Raise `REQUIRED_DESKTOP_API`
+together with the server's `DESKTOP_API`, and deploy the server first.
+A taken download emits `update-ready`
+(`UpdateInfo { version, current_version, notes }`). A newer push
 replaces a held download. The console shows an **Update ready** chip in the
 header ([operator console](operator-console.md)); clicking it asks to
 restart (warning when projecting) and calls `restart_to_update`, which
