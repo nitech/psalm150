@@ -10,5 +10,5 @@ src-tauri/target/
 test-library/
 songs-export/
 
-# Keep sample mdb
-!brattvaag-2018-12-28.mdb
+# Songbook databases stay local; the sample tests skip without one
+*.mdb
