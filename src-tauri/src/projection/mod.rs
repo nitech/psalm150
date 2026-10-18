@@ -169,9 +169,7 @@ pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Ve
 /// Chorus2 sections are alternate-chorus templates. When a song defines chorus2,
 /// the main chorus block before it is also a template; performance slots after
 /// chorus2 alternate between main and alternate content.
-fn expand_chorus_sections(
-    sections: &[crate::library::chordpro::SongSection],
-) -> Vec<crate::library::chordpro::SongSection> {
+fn expand_chorus_sections(sections: &[crate::library::chordpro::SongSection]) -> Vec<crate::library::chordpro::SongSection> {
     use crate::library::chordpro::{SectionKind, SongSection};
 
     let chorus2_idx = sections.iter().position(|s| s.kind == SectionKind::Chorus2);
