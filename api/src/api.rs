@@ -395,8 +395,9 @@ async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, A
     }))
 }
 
-/// The desktop API contract. Raise it when the server gains something a new
-/// desktop release cannot do without, and raise the desktop's
+/// The desktop API contract. Desktops check new paths against the OpenAPI
+/// document on their own, so raise this only when an existing path changes
+/// behaviour that a new desktop release depends on, and raise the desktop's
 /// `REQUIRED_DESKTOP_API` to match in that release. Never lower it.
 pub const DESKTOP_API: u32 = 1;
 

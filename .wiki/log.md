@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-18
+* **Desktops check the OpenAPI document before updating**: a desktop release lists the paths it calls, and a connected desktop takes it only when `/api/openapi.json` describes all of them. `DESKTOP_API` is now raised only for a behaviour change on an existing path. Pages touched: api-contract.
 * **Desktop API contract number**: `GET /info` now returns `desktop_api` (`DESKTOP_API` in `api.rs`, 1). Desktop releases record the contract they need and installed desktops connected to this server skip updates that need a higher number. Raise it only when a desktop release will depend on something new here, and never lower it. Pages touched: api-contract.
 
 ## 2026-10-15
