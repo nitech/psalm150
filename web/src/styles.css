@@ -88,7 +88,11 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 .button.secondary { background: var(--psa-bg-surface); border-color: var(--psa-border-strong); color: var(--psa-text); }
 @media (hover: hover) { .button.secondary:hover:not(:disabled) { background: var(--psa-bg-elevated); } }
 .button.small { min-height: 36px; padding: 0 var(--psa-space-3); font-size: 14px; }
-.button.wide { width: 100%; }
+.button.wide { display: flex; width: 100%; }
+/* In plain block flow (no .stack gap), a full-width button keeps clear of
+   its neighbours; the margins collapse with theirs. */
+:is(.auth-card, .sheet-body, .page) > .button.wide:not(:first-child) { margin-top: var(--psa-space-3); }
+:is(.auth-card, .sheet-body, .page) > .button.wide:not(:last-child) { margin-bottom: var(--psa-space-3); }
 .button.grow { flex: 1; min-width: 0; }
 /* Accent text on an accent tint is a little darker (lighter in the dark
    theme) than plain accent text, to keep 4.5:1. */
