@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-18
+* **Desktop API contract number**: `GET /info` now returns `desktop_api` (`DESKTOP_API` in `api.rs`, 1). Desktop releases record the contract they need and installed desktops connected to this server skip updates that need a higher number. Raise it only when a desktop release will depend on something new here, and never lower it. Pages touched: api-contract.
+
 ## 2026-10-15
 * **Adding a song to a set makes it current**: picking a set in the add-to-set sheet makes it the current set before adding (through the current set's queued, retried edit), and a set started from a song with **New set…** becomes current when saved. Pages touched: web-client.
 * **Version bumped on every commit**: `.githooks/pre-commit` (enable with `git config core.hooksPath .githooks`) raises the patch version in `api/Cargo.toml`, `api/Cargo.lock` and `web/package.json` together; a version changed by hand in `Cargo.toml` is kept and copied. Pages touched: build-and-ci.

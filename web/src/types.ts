@@ -119,6 +119,8 @@ export interface ServerInfo {
   version: string;
   initialized: boolean;
   desktop_sign_in: boolean;
+  /** The desktop API contract this server speaks. */
+  desktop_api: number;
   /** Anyone may read the songs through `/public/songs` without signing in. */
   public_library: boolean;
   /** The public library's church, when exactly one church's library is public. */

@@ -89,7 +89,7 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Check API and PostgreSQL availability |
-| `GET` | `/api/v1/info` | Public ping: service name, version, `initialized`, `desktop_sign_in`, `public_library`, `public_library_name`, `rooms` |
+| `GET` | `/api/v1/info` | Public ping: service name, version, `desktop_api`, `initialized`, `desktop_sign_in`, `public_library`, `public_library_name`, `rooms` |
 | `GET` | `/api/v1/church` | The signed-in church and its settings (`public_library`, `public_rooms`) |
 | `PUT` | `/api/v1/church` | Owner renames the church (`name`), opens the library to everyone, read only, or closes it (`public_library`), or opens or closes its rooms (`public_rooms`); fields left out stay |
 | `GET` | `/api/v1/public/songs?q=&limit=&offset=&sort=&direction=` | Search public libraries without signing in (same paging as `/songs`) |

@@ -378,6 +378,10 @@ pub struct ServerInfo {
     /// Always `psalm150-song-server`.
     pub service: &'static str,
     pub version: &'static str,
+    /// The desktop API contract this server speaks (`DESKTOP_API`). A desktop
+    /// release declares the contract it needs and does not update itself
+    /// past what its server offers.
+    pub desktop_api: u32,
     pub initialized: bool,
     /// The server supports browser sign-in for desktops (`/desktop-auth/*`).
     pub desktop_sign_in: bool,

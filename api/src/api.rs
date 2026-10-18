@@ -395,6 +395,11 @@ async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, A
     }))
 }
 
+/// The desktop API contract. Raise it when the server gains something a new
+/// desktop release cannot do without, and raise the desktop's
+/// `REQUIRED_DESKTOP_API` to match in that release. Never lower it.
+pub const DESKTOP_API: u32 = 1;
+
 /// What this server is and offers.
 ///
 /// Whether it is set up, supports desktop sign-in, has a public library and
@@ -413,6 +418,7 @@ async fn server_info(State(state): State<AppState>) -> Result<Json<ServerInfo>, 
     Ok(Json(ServerInfo {
         service: "psalm150-song-server",
         version: env!("CARGO_PKG_VERSION"),
+        desktop_api: DESKTOP_API,
         initialized: is_initialized(&state.pool).await?,
         desktop_sign_in: true,
         public_library: !public.is_empty(),

@@ -232,6 +232,7 @@ async fn desktop_browser_sign_in_flow(pool: PgPool) {
     assert_eq!(info.1["service"], "psalm150-song-server");
     assert_eq!(info.1["initialized"], false);
     assert_eq!(info.1["desktop_sign_in"], true);
+    assert_eq!(info.1["desktop_api"], 1);
     assert!(info.1["version"].is_string());
 
     let setup = send(
