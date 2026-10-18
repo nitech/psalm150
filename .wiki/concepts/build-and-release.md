@@ -80,8 +80,8 @@ Notable crates: `rusqlite` (bundled), `jetdb` (Access reader), `notify`,
 
 | Command | What runs |
 | --- | --- |
-| `bun run test` | Vitest over `tests/*.test.ts`: ad hoc editing and performance sections, audience fit planning, song sorting, sample-fixture presence |
-| `bun run test:rust` | `cargo test`: parser, safe song files and source-mapped edits, duplicate grouping, slide splitting, chorus2, import/body conversion, plus the repository MDB fixture in a temporary output folder |
+| `bun run test` | Vitest over `tests/*.test.ts`: ad hoc editing and performance sections, audience fit planning, song sorting, the sample MDB when present |
+| `bun run test:rust` | `cargo test`: parser, safe song files and source-mapped edits, duplicate grouping, slide splitting, chorus2, import/body conversion, plus the sample MDB (git-ignored; skipped when absent) in a temporary output folder |
 
 There is no UI or end-to-end test; window behaviour is verified by running
 the app with a simulated display.

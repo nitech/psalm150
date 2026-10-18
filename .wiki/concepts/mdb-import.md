@@ -28,7 +28,7 @@ sources:
     title: Original VB6 application source (reference only)
   - id: fixture
     resource: /brattvaag-2018-12-28.mdb
-    title: Sample database (963 songs) committed as a test fixture
+    title: Sample database (963 songs), kept locally and git-ignored
 generated: { by: agent, at: 2026-09-23T18:00:00Z }
 ---
 
@@ -89,8 +89,9 @@ normalized lyric text and never merges automatically.
   `MarginLeft/Right/Top/Bottom` may be twips rather than pixels; they are
   applied as px. Large values shrink the audience area (the
   [audience fit](audience-display.md) copes), but the unit is unverified.
-- Import integration tests use the repository fixture and a temporary output
-  directory; repeating the import verifies that existing files are skipped.
+- Import integration tests use the sample database at the repo root when it
+  is there (it is git-ignored, like every `*.mdb`, and they skip without it)
+  and a temporary output directory; repeating the import verifies that existing files are skipped.
 
 ## Related
 
