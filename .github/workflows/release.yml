@@ -49,9 +49,10 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           git log -1 --format=%B > notes.txt
-          gh release create "v$VERSION" --draft --target "$GITHUB_SHA" \
-            --title "Psalm150 $VERSION" --notes-file notes.txt
-          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"v$VERSION\") | .id")
+          id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="v$VERSION" -f target_commitish="$GITHUB_SHA" \
+            -f name="Psalm150 $VERSION" -F body=@notes.txt -F draft=true --jq .id)
+          test -n "$id" || { echo "::error::No release id"; exit 1; }
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
   build:
