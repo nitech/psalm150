@@ -95,9 +95,9 @@ pub fn parse_vsb_body(body: &str) -> Vec<SongSection> {
     let mut current_lines = Vec::new();
 
     let flush = |sections: &mut Vec<SongSection>,
-                 label: &mut String,
-                 kind: &mut SectionKind,
-                 lines: &mut Vec<_>| {
+                     label: &mut String,
+                     kind: &mut SectionKind,
+                     lines: &mut Vec<_>| {
         if !lines.is_empty() {
             sections.push(SongSection {
                 label: label.clone(),
@@ -354,11 +354,7 @@ mod tests {
         };
         let content = serialize_chordpro(&song);
         let reparsed = parse_chordpro(&content, "test.pro");
-        let verses: Vec<_> = reparsed
-            .sections
-            .iter()
-            .filter(|s| s.kind == SectionKind::Verse)
-            .collect();
+        let verses: Vec<_> = reparsed.sections.iter().filter(|s| s.kind == SectionKind::Verse).collect();
         assert_eq!(verses.len(), 2);
         assert_eq!(verses[0].lines[0].text, "First line");
         assert_eq!(verses[1].lines[0].text, "Second stanza line");
@@ -395,18 +391,9 @@ mod tests {
 
     #[test]
     fn chorus_label_applies_to_one_stanza_only() {
-        let body =
-            "chorus\nLov min Gud, Å min sjel\nÅ min sjel\n\nSolen står opp\nog en ny dag begynner";
+        let body = "chorus\nLov min Gud, Å min sjel\nÅ min sjel\n\nSolen står opp\nog en ny dag begynner";
         let sections = parse_vsb_body(body);
-        assert_eq!(
-            sections.len(),
-            2,
-            "sections: {:?}",
-            sections
-                .iter()
-                .map(|s| (&s.kind, s.lines.len()))
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(sections.len(), 2, "sections: {:?}", sections.iter().map(|s| (&s.kind, s.lines.len())).collect::<Vec<_>>());
         assert_eq!(sections[0].kind, SectionKind::Chorus);
         assert_eq!(sections[1].kind, SectionKind::Verse);
         assert_eq!(sections[1].lines[0].text, "Solen står opp");
