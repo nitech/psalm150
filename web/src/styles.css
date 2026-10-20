@@ -507,11 +507,14 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 @keyframes ce-pop { from { transform: translateX(var(--ce-shift)) scale(0.6); } }
 /* Where a new chord goes while the bubble is open. */
 .ce-ghost { position: absolute; width: 26px; height: 22px; border: 2px dashed var(--psa-accent-text); border-radius: 6px; background: var(--psa-accent-soft); transform: translateX(-7px); pointer-events: none; }
-/* With a mouse: a box per letter in the space above the line being pointed at. */
-.ce-cell { position: absolute; height: 22px; border-radius: 4px; background: var(--psa-accent-soft); box-shadow: inset -1px 0 0 var(--psa-bg-surface); cursor: pointer; pointer-events: auto; transition: background var(--psa-dur-fast); }
-.ce-cell:hover { background: var(--psa-accent); box-shadow: 0 0 0 1px var(--psa-accent-text); }
-.ce-cell.end { display: grid; place-items: center; width: 22px; border: 1.5px dashed var(--psa-accent-text); background: transparent; box-shadow: none; color: var(--psa-accent-text); font-size: 14px; font-weight: 700; line-height: 1; }
-.ce-cell.end:hover { border-style: solid; background: var(--psa-accent); color: var(--psa-on-accent); }
+/* With a mouse: an unseen box per letter in the space above the line; the
+   one under the pointer shows, reaching down over its letter. */
+.ce-cell { position: absolute; height: 22px; cursor: pointer; pointer-events: auto; }
+.ce-cell::before { content: ""; position: absolute; inset: 0 -1px auto; height: calc(100% + var(--letter-h, 22px) + 2px); border: 1.5px solid transparent; border-radius: 5px; pointer-events: none; }
+.ce-cell:hover::before { border-color: var(--psa-accent-text); background: var(--psa-accent-medium); }
+.ce-cell.end { display: grid; place-items: start center; width: 22px; padding-top: 2px; color: transparent; font-size: 14px; font-weight: 700; line-height: 1; }
+.ce-cell.end:hover { color: var(--psa-accent-text); }
+.ce-cell.end:hover::before { border-style: dashed; background: transparent; }
 .ce-chip { z-index: 1; }
 .ce-chip.editing { border-color: var(--psa-accent-text); background: var(--psa-accent); color: var(--psa-on-accent); }
 .ce-ghost[hidden] { display: none; }

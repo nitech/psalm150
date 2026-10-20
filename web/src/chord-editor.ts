@@ -665,9 +665,10 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     }
   });
 
-  /* With a mouse, pointing at a line splits the space above it into a box
-     per letter (as wide as the letter); clicking a box opens the chord
-     bubble there, and clicking the words only edits them. On a touch
+  /* With a mouse, the space above a line is split into an unseen box per
+     letter (as wide as the letter); the one under the pointer shows,
+     reaching down over its letter, and clicking it opens the chord bubble
+     there. Clicking the words only edits them. On a touch
      screen, tapping a place in the words opens the bubble. Tapping the
      space above a row does too, without moving the caret (or opening a
      phone's keyboard). */
@@ -688,14 +689,14 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       const top = box.top - origin.top - 23;
       if (i === length) {
         // A place after the last letter, for a chord that ends the line: set apart, so it does not read as a letter.
-        cells.push(`<span class="ce-cell end" data-pos="${i}" title="After the line" style="left:${box.x - origin.left + (length ? 6 : 0)}px;top:${top}px">+</span>`);
+        cells.push(`<span class="ce-cell end" data-pos="${i}" title="After the line" style="left:${box.x - origin.left + (length ? 6 : 0)}px;top:${top}px;--letter-h:${box.h}px">+</span>`);
         continue;
       }
       range.setStart(node!, i);
       range.setEnd(node!, i + 1);
       const width = range.getClientRects()[0]?.width ?? 0;
       if (width < 1) continue;
-      cells.push(`<span class="ce-cell" data-pos="${i}" style="left:${box.x - origin.left}px;top:${top}px;width:${width}px"></span>`);
+      cells.push(`<span class="ce-cell" data-pos="${i}" style="left:${box.x - origin.left}px;top:${top}px;width:${width}px;--letter-h:${box.h}px"></span>`);
     }
     wrap.querySelector(".ce-chips")!.insertAdjacentHTML("afterbegin", cells.join(""));
   }
