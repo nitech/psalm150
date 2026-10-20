@@ -50,7 +50,8 @@ h1[tabindex="-1"]:focus { outline: none; box-shadow: none; }
 code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 
 .icon { width: 20px; height: 20px; flex: none; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* No margin: a hidden <p> after the shell would otherwise make the page taller than its content. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .muted { color: var(--psa-text-secondary); }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: var(--psa-radius-full); background: var(--psa-accent-soft); color: var(--psa-accent-text); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 2px; }
@@ -220,7 +221,8 @@ button.tab:not(.on) { background: none; }
   :root { --page-pad: var(--psa-space-6); --tabbar-h: 0px; }
   .shell { display: grid; grid-template-columns: 220px 1fr; }
   .tabbar, body.menu-open .tabbar {
-    position: sticky; top: 0; inset: auto; z-index: auto; width: auto; height: 100dvh;
+    /* `top` after `inset`, which would otherwise reset it and let the rail scroll away. */
+    position: sticky; inset: auto; top: 0; z-index: auto; width: auto; height: 100dvh;
     padding: var(--psa-space-5) var(--psa-space-3); overflow: visible;
     background: var(--psa-bg-glass); box-shadow: none; transform: none; visibility: visible; transition: none;
   }
