@@ -2,6 +2,7 @@ import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets } from "../current-set.ts";
+import { mountChordEditor } from "../chord-editor.ts";
 import { icon } from "../icons.ts";
 import {
   bindReaderControls,
@@ -504,7 +505,7 @@ export async function openAddToSet(ctx: LibraryContext, song: SongRef, transpose
   sheet.querySelector("a")?.addEventListener("click", () => closeSheet(sheet));
 }
 
-export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<void> {
+export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<Cleanup | void> {
   const song = songId ? await ctx.api.getSong(songId) : null;
   if (!ctx.canEdit) {
     ctx.navigate(song ? `#/songs/${song.id}` : "#/songs", true);
@@ -512,23 +513,28 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<v
   }
   const back = song ? `#/songs/${song.id}` : "#/songs";
   setTitle(song ? `Edit ${song.title}` : "New song", "Songs");
-  ctx.main.innerHTML = `${pageHead({ title: song ? "Edit song" : "New song", subtitle: song?.title, back })}
+  ctx.main.innerHTML = `${pageHead({ title: song ? "Edit song" : "New song", subtitle: song?.title, back, actions: `<div class="segmented ce-modes" role="group" aria-label="Edit as"></div>` })}
   <form class="editor" id="editor-form">
-    <label for="chordpro" class="sr-only">ChordPro source</label>
-    <textarea id="chordpro" name="chordpro" spellcheck="true" autocapitalize="sentences" aria-describedby="chordpro-hint">${escapeHtml(song?.chordpro ?? NEW_SONG_TEMPLATE)}</textarea>
-    <p class="hint" id="chordpro-hint">ChordPro: put chords in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
+    <div id="chord-editor"></div>
     <p class="form-message" role="status"></p>
-    <div class="form-actions sticky">
-      <a class="button secondary" href="${back}">Cancel</a>
-      <button class="button primary" type="submit">${icon("check")}Save</button>
+    <div class="form-actions sticky ce-actions">
+      <div class="ce-palette"></div>
+      <div class="ce-buttons">
+        <a class="button secondary" href="${back}">Cancel</a>
+        <button class="button primary" type="submit">${icon("check")}Save</button>
+      </div>
     </div>
   </form>`;
 
+  const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? NEW_SONG_TEMPLATE, {
+    modes: ctx.main.querySelector<HTMLElement>(".ce-modes")!,
+    palette: ctx.main.querySelector<HTMLElement>(".ce-palette")!,
+  });
   const form = ctx.main.querySelector<HTMLFormElement>("#editor-form")!;
   const message = form.querySelector<HTMLElement>(".form-message")!;
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const source = String(new FormData(form).get("chordpro") ?? "");
+    const source = editor.source();
     setFormBusy(form, true);
     try {
       if (song) {
@@ -548,9 +554,10 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<v
         return;
       }
       // The server's objection is to the text: tie it to the field.
-      showFormError(form, errorMessage(error), form.querySelector("textarea"));
+      showFormError(form, errorMessage(error));
     }
   });
+  return () => editor.destroy();
 }
 
 let sheetCount = 0;

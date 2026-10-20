@@ -251,10 +251,27 @@ are not affected.
   the Clipboard API, then `execCommand("copy")` (plain-HTTP LAN addresses have
   no Clipboard API), then a prompt. When the library is private, the share
   toast says only people who can sign in can open the link.
-- **Editor**: a raw ChordPro textarea. New songs start from a
-  title/author/key/verse template. Saving an existing song sends its
-  `revision_id` as the base; a 409 keeps the text and links to the latest
-  version ([songs and revisions](songs-and-revisions.md)).
+- **Editor** (`chord-editor.ts` on the model in `chord-doc.ts`): **Visual**
+  by default, with a **Visual / ChordPro** switch in the bar. Visual shows
+  the song details as fields (title, author, key, capo; number, CCLI, tempo,
+  time and copyright under *More details*; other `{meta}` fields as
+  read-only text) and each section as a card with its type, an optional
+  name and a menu (move, duplicate, add a note, delete with Undo). Lines
+  are plain editable text with their chords as buttons above the
+  characters: tap or click just above a word, type `[` or Ctrl+K, or use
+  the bar of chords in the song's key (at the bottom, above Cancel/Save) to
+  add one; drag a chord or use ←/→ to move it. Dragging a section's grip
+  folds every section to one row until it is dropped. Changing the key
+  offers to move the chords too. Pasting chords written over the words
+  turns them into ChordPro, and headings such as "Chorus" start sections.
+  Unknown directives and `#` lines show as grey rows and are kept. The
+  ChordPro side is the source with colours, a list of problems by line and
+  a preview (beside it on wide screens). The source round-trips: lines that
+  were not edited are written back exactly, so saving an untouched song
+  sends the same bytes (the import dedup hash is over the bytes). New songs
+  start from a title/author/key/verse template. Saving an existing song
+  sends its `revision_id` as the base; a 409 keeps the editor's text and
+  links to the latest version ([songs and revisions](songs-and-revisions.md)).
 - **Add to a set** sheet: upcoming sets (soonest first) and undated ones,
   the current one marked; appends the song with the reader's transpose
   through `PUT /sets/{id}` with the set's version, or starts a new set with it.

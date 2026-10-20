@@ -619,6 +619,8 @@ function bindSwipeBack(): void {
   document.addEventListener("touchstart", (event) => {
     mode = "off";
     if (event.touches.length !== 1 || event.touches[0].clientX > EDGE || !installedApp()) return;
+    // Chords and sections in the song editor are dragged, not swiped.
+    if ((event.target as Element).closest?.(".ce-chip, .ce-grip")) return;
     if (menuIsOpen() || document.querySelector("dialog[open]")) return;
     page = document.querySelector<HTMLElement>("#page");
     back = page?.querySelector<HTMLAnchorElement>('.app-bar a[aria-label="Back"]') ?? null;
