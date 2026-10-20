@@ -60,6 +60,8 @@ type Bubble =
 type MenuItem = { label: string; run: () => void; disabled?: boolean; danger?: boolean } | "rule";
 
 const coarse = matchMedia("(pointer: coarse)").matches;
+/** A mouse: chords are placed from boxes above the letters, not by clicking the words. */
+const mouse = matchMedia("(hover: hover) and (pointer: fine)").matches;
 const editable = (() => {
   const probe = document.createElement("div");
   try { probe.contentEditable = "plaintext-only"; } catch { /* older browsers */ }
@@ -120,13 +122,13 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
         <button type="button" class="button secondary small" data-add="chorus">${icon("plus")}Chorus</button>
         <button type="button" class="button secondary small" data-add-more aria-haspopup="menu">${icon("plus")}Other</button>
       </div>
-      <p class="hint ce-hint">${coarse ? "Tap" : "Click"} a place in the words to put a chord there, and drag a chord to move it. You can paste a song with chords over the words.</p>
+      <p class="hint ce-hint">${mouse ? "Point at a line and click a box above a letter" : "Tap a place in the words"} to put a chord there, and drag a chord to move it. You can paste a song with chords over the words.</p>
     </div>
     <div class="ce-code" hidden>
       <div class="ce-code-main">
         <div class="ce-code-box"><pre class="ce-hl" aria-hidden="true"></pre><textarea class="ce-src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="ChordPro source"></textarea></div>
         <ul class="ce-issues" aria-live="polite"></ul>
-        <p class="hint">${coarse ? "Tap" : "Click"} a place to put a chord there. Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
+        <p class="hint">${mouse ? "Press Ctrl+K to put a chord at the cursor, or click a chord to change it." : "Tap a place to put a chord there."} Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
       </div>
       <div class="ce-preview-col">
         <button type="button" class="button secondary small ce-preview-toggle" aria-expanded="false">Show preview</button>
@@ -330,6 +332,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     </section>`;
   }
   function render(): void {
+    cellsLine = null;
     let verse = 0;
     sectionsEl.innerHTML = doc.items.filter((item) => item.kind !== "meta").map((item) => {
       if (item.kind === "raw") return `<div class="ce-raw" data-item="${item.id}" title="Edit this line in ChordPro"><code>${escapeHtml(item.text)}</code></div>`;
@@ -377,6 +380,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const found = lyric(id);
     if (!wrap || !found) return;
     wrap.querySelector(".ce-chips")!.innerHTML = chipsHtml(found.line);
+    if (cellsLine === id) cellsLine = null;
     layoutChips(id);
     if (fresh) wrap.querySelector(`.ce-chip[data-chord="${fresh}"]`)?.classList.add("fresh");
     if (focusChord) wrap.querySelector<HTMLElement>(`.ce-chip[data-chord="${focusChord}"]`)?.focus({ preventScroll: true });
@@ -461,6 +465,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const held = typingAfter?.lineId === found.line.id ? found.line.chords.find((chord) => chord.id === typingAfter!.chordId) : undefined;
     typingAfter = null;
     applyEdit(found.line, edit.start, edit.end, edit.insert);
+    if (cellsLine === found.line.id) hideCells();
     if (held && held.pos === edit.start + edit.insert.length && edit.start === edit.end) held.pos = edit.start;
     layoutChips(found.line.id);
     rememberSoon();
@@ -660,12 +665,58 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     }
   });
 
-  /* Tapping a place in the words opens the chord bubble there. Tapping the
+  /* With a mouse, pointing at a line splits the space above it into a box
+     per letter (as wide as the letter); clicking a box opens the chord
+     bubble there, and clicking the words only edits them. On a touch
+     screen, tapping a place in the words opens the bubble. Tapping the
      space above a row does too, without moving the caret (or opening a
      phone's keyboard). */
+  let cellsLine: string | null = null;
+  function showCells(wrap: HTMLElement): void {
+    const id = wrap.dataset.line!;
+    if (cellsLine === id) return;
+    hideCells();
+    cellsLine = id;
+    const text = wrap.querySelector<HTMLElement>(".ce-text")!;
+    const node = textNode(text);
+    const length = node?.length ?? 0;
+    const origin = wrap.getBoundingClientRect();
+    const range = document.createRange();
+    const cells: string[] = [];
+    for (let i = 0; i <= length; i += 1) {
+      const box = charBox(text, i);
+      let width = 16;
+      if (node && i < length) {
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        width = range.getClientRects()[0]?.width ?? 0;
+      }
+      if (width < 1) continue;
+      cells.push(`<span class="ce-cell" data-pos="${i}" style="left:${box.x - origin.left}px;top:${box.top - origin.top - 23}px;width:${width}px"></span>`);
+    }
+    wrap.querySelector(".ce-chips")!.insertAdjacentHTML("afterbegin", cells.join(""));
+  }
+  function hideCells(): void {
+    sectionsEl.querySelectorAll(".ce-cell").forEach((cell) => cell.remove());
+    cellsLine = null;
+  }
+  sectionsEl.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "mouse" || event.buttons) return;
+    const wrap = (event.target as HTMLElement).closest<HTMLElement>(".ce-line");
+    if (wrap) showCells(wrap);
+    else if (cellsLine) hideCells();
+  });
+  sectionsEl.addEventListener("pointerleave", hideCells);
+  let pointerType = "";
   sectionsEl.addEventListener("pointerdown", (event) => {
+    pointerType = event.pointerType;
     const target = event.target as HTMLElement;
+    if (target.closest(".ce-cell")) {
+      event.preventDefault();
+      return;
+    }
     const chip = target.closest<HTMLElement>(".ce-chip");
+    if (chip || target.closest(".ce-grip")) hideCells();
     if (chip) return dragChord(event, chip);
     const grip = target.closest<HTMLElement>(".ce-grip");
     if (grip) return dragSection(event, grip);
@@ -674,6 +725,11 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   });
   sectionsEl.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
+    const cell = target.closest<HTMLElement>(".ce-cell");
+    if (cell) {
+      openLineBubble(cell.closest<HTMLElement>(".ce-line")!.dataset.line!, Number(cell.dataset.pos));
+      return;
+    }
     const chip = target.closest<HTMLElement>(".ce-chip");
     // A pointer opens the bubble on release (dragChord); Enter or Space comes here.
     if (chip) {
@@ -681,7 +737,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       return;
     }
     const wrap = target.closest<HTMLElement>(".ce-line");
-    if (wrap && event.detail > 0) {
+    if (wrap && event.detail > 0 && pointerType !== "mouse") {
       const text = wrap.querySelector<HTMLElement>(".ce-text")!;
       // Selecting words (a drag or a double tap) is not a place for a chord.
       const selection = getSelection();
@@ -1222,7 +1278,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     return row ? { x: row.left, top: row.top, bottom: row.bottom } : null;
   }
   /** Opens the bubble at a place in the source; inside a `[chord]` it changes that chord. Not in directives or `#` lines. */
-  function openCodeBubble(index: number, typing = false): void {
+  function openCodeBubble(index: number, typing = false, onlyOnChord = false): void {
     const value = codeBox.value;
     const lineStart = value.lastIndexOf("\n", index - 1) + 1;
     const lineEnd = value.indexOf("\n", index) < 0 ? value.length : value.indexOf("\n", index);
@@ -1233,10 +1289,14 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const close = line.indexOf("]", open);
     if (open >= 0 && close > open && col > open && col <= close && !line.slice(open + 1, close).includes("[")) {
       openBubble({ kind: "code", start: lineStart + open, end: lineStart + close + 1, chord: line.slice(open + 1, close).trim() }, typing);
-    } else openBubble({ kind: "code", start: index, end: index }, typing);
+    } else if (onlyOnChord) closeBubble(false);
+    else openBubble({ kind: "code", start: index, end: index }, typing);
   }
+  let codePointer = "";
+  codeBox.addEventListener("pointerdown", (event) => { codePointer = event.pointerType; });
   codeBox.addEventListener("click", () => {
-    if (codeBox.selectionStart === codeBox.selectionEnd) openCodeBubble(codeBox.selectionStart);
+    // A mouse click opens the bubble only on a chord; Ctrl+K puts one at the cursor.
+    if (codeBox.selectionStart === codeBox.selectionEnd) openCodeBubble(codeBox.selectionStart, false, codePointer === "mouse");
   });
   codeBox.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
