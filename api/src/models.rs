@@ -266,6 +266,18 @@ pub struct SongQuery {
     pub sort: Option<SongSort>,
     /// `asc` (default) or `desc`.
     pub direction: Option<SortDirection>,
+    /// Only songs in these keys: tonics separated by commas, e.g. `G,D,Bb`.
+    /// Enharmonic spellings match each other (`C#` finds `Db`).
+    pub key: Option<String>,
+    /// With or without `key`: only `major` or only `minor` keys.
+    pub key_mode: Option<KeyMode>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum KeyMode {
+    Major,
+    Minor,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, ToSchema)]
@@ -276,6 +288,9 @@ pub enum SongSort {
     /// By the number's leading digits, numerically ("9" before "10"), then
     /// the rest of it. Songs without a number come last in both directions.
     Number,
+    /// By the key's tonic from C to B, major before minor. Songs without a
+    /// key come last in both directions.
+    Key,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, ToSchema)]
@@ -294,7 +309,18 @@ pub struct SongSummary {
     pub song_number: Option<String>,
     pub authors: String,
     pub language: Option<String>,
+    /// The key as the song writes it, e.g. `G`, `F#m` or `D / E`.
+    pub song_key: Option<String>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// How many songs are in one key.
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct SongKeyCount {
+    /// The tonic as a pitch class: C = 0, C#/Db = 1, … B = 11.
+    pub root: i16,
+    pub minor: bool,
+    pub songs: i64,
 }
 
 #[derive(Debug, Serialize, FromRow, ToSchema)]

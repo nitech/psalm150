@@ -14,7 +14,7 @@ import {
   songText,
   stepTranspose,
 } from "../song-render.ts";
-import type { SongSort, SongSummary, SortDirection } from "../types.ts";
+import type { KeyMode, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
 import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
@@ -39,7 +39,11 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>
     ${ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song" title="New song">${icon("plus")}</a>` : ""}
   </div>
-  <div class="list-sort" id="song-sort" role="group" aria-label="Sort songs" hidden></div>
+  <div class="list-sort" id="song-sort" hidden>
+    <div class="sort-columns" id="sort-columns" role="group" aria-label="Sort songs"></div>
+    <button type="button" class="filter-toggle" id="key-filter" aria-haspopup="dialog"></button>
+  </div>
+  <div class="filter-summary" id="filter-summary" hidden></div>
   <ul class="list" id="song-results" aria-label="Songs"><li><p class="muted pad">Loading…</p></li></ul>
   <div class="load-more" id="load-more" hidden><button class="button secondary" id="more-songs">Show more songs</button></div>`;
 
@@ -47,11 +51,15 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   const results = ctx.main.querySelector<HTMLElement>("#song-results")!;
   const more = ctx.main.querySelector<HTMLElement>("#load-more")!;
   const sortBar = ctx.main.querySelector<HTMLElement>("#song-sort")!;
+  const sortColumns = ctx.main.querySelector<HTMLElement>("#sort-columns")!;
+  const filterButton = ctx.main.querySelector<HTMLButtonElement>("#key-filter")!;
+  const filterSummary = ctx.main.querySelector<HTMLElement>("#filter-summary")!;
   let timer = 0;
   let request = 0;
   let loaded = 0;
   let loading = false;
   let sort = readSongSort();
+  let filter = readKeyFilter();
   /** Some song in the list has a number, so the number column is shown. */
   let numbered = false;
 
@@ -60,15 +68,24 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       const on = sort.column === column;
       const arrow = on ? `<span aria-hidden="true">${sort.direction === "asc" ? "↑" : "↓"}</span>` : "";
       const state = on ? `, ${sort.direction === "asc" ? "ascending" : "descending"}` : "";
-      return `<button type="button" class="sort-${column}${on ? " on" : ""}" data-sort="${column}" aria-pressed="${on}" aria-label="Sort by ${column === "number" ? "number" : "title"}${state}">${label}${arrow}</button>`;
+      return `<button type="button" class="sort-${column}${on ? " on" : ""}" data-sort="${column}" aria-pressed="${on}" aria-label="Sort by ${column}${state}">${label}${arrow}</button>`;
     };
     sortBar.classList.toggle("has-numbers", numbered);
-    sortBar.innerHTML = `${numbered ? button("number", "No") : ""}${button("title", "Song")}`;
+    sortColumns.innerHTML = `${numbered ? button("number", "No") : ""}${button("title", "Song")}${button("key", "Key")}`;
+    const active = filterActive(filter);
+    filterButton.classList.toggle("on", active);
+    filterButton.innerHTML = `${icon("filter")}Filter`;
+    filterButton.setAttribute("aria-label", active ? `Filter by key: ${filterText(filter)}` : "Filter by key");
+    filterSummary.hidden = !active;
+    filterSummary.innerHTML = active
+      ? `<button type="button" class="chip on" id="clear-filter" aria-label="Clear the key filter: ${escapeHtml(filterText(filter))}">${escapeHtml(filterText(filter))}${icon("close")}</button>`
+      : "";
   };
 
   const row = (song: SongSummary) => {
     const main = `<span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
-      <span class="row-main"><strong>${escapeHtml(song.title)}</strong></span>`;
+      <span class="row-main"><strong>${escapeHtml(song.title)}</strong></span>
+      ${song.song_key ? `<span class="row-key" aria-label="Key ${escapeHtml(song.song_key)}">${escapeHtml(song.song_key)}</span>` : ""}`;
     if (!ctx.canEdit) return `<li><a class="list-row" href="#/songs/${song.id}">${main}${icon("next")}</a></li>`;
     return `<li class="list-row song-row">
       <a class="row-link" href="#/songs/${song.id}">${main}</a>
@@ -82,23 +99,34 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     const offset = append ? loaded : 0;
     loading = true;
     try {
-      const songs = await ctx.api.listSongs(lastSearch, { limit: PAGE_SIZE, offset, sort: sort.column, direction: sort.direction });
+      const songs = await ctx.api.listSongs(lastSearch, {
+        limit: PAGE_SIZE,
+        offset,
+        sort: sort.column,
+        direction: sort.direction,
+        keys: filter.roots.map((root) => KEY_NAMES[root]),
+        keyMode: filter.mode === "all" ? undefined : filter.mode,
+      });
       if (mine !== request) return;
       // Sorted by number, numbered songs come first: the first page tells.
       numbered = (append && numbered) || songs.some((song) => song.song_number) || sort.column === "number";
       results.classList.toggle("has-numbers", numbered);
-      sortBar.hidden = !append && !songs.length;
+      // A filter that finds nothing keeps its button, to change or clear it.
+      sortBar.hidden = !append && !songs.length && !filterActive(filter);
       keepFocus(sortBar, renderSort);
       const html = songs.map(row).join("");
       if (append) results.insertAdjacentHTML("beforeend", html);
       else {
+        const filtered = filterActive(filter);
         results.innerHTML = songs.length
           ? html
           : `<li>${emptyState(
-              lastSearch ? "No songs found" : "No songs yet",
+              lastSearch || filtered ? "No songs found" : "No songs yet",
               lastSearch
-                ? "Try another title or a line from the lyrics."
-                : ctx.canEdit ? "Import ChordPro files under More, or add a song." : "Songs will appear here once they are added.",
+                ? `Try another title or a line from the lyrics${filtered ? ", or clear the key filter" : ""}.`
+                : filtered
+                  ? "No songs are in these keys. Try another key, or clear the filter."
+                  : ctx.canEdit ? "Import ChordPro files under More, or add a song." : "Songs will appear here once they are added.",
             )}</li>`;
       }
       if (typed) {
@@ -128,6 +156,19 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     if (button) toggleInCurrentSet(ctx, { id: button.dataset.add!, title: button.dataset.title! });
   });
   ctx.main.querySelector("#more-songs")?.addEventListener("click", () => void load(true));
+
+  const setFilter = (next: KeyFilter) => {
+    filter = next;
+    writePreference("song-key-filter", filterActive(filter) ? JSON.stringify(filter) : null);
+    keepFocus(sortBar, renderSort);
+    void load(false, true);
+  };
+  filterButton.addEventListener("click", () => void ctx.run(() => openKeyFilter(ctx, filter, setFilter), { exclusive: false }));
+  filterSummary.addEventListener("click", (event) => {
+    if (!(event.target as HTMLElement).closest("#clear-filter")) return;
+    setFilter({ roots: [], mode: "all" });
+    filterButton.focus();
+  });
   // Like the desktop: the sorted column again flips the direction; another
   // column starts ascending.
   sortBar.addEventListener("click", (event) => {
@@ -165,13 +206,122 @@ interface SongListSort {
 function readSongSort(): SongListSort {
   try {
     const stored = JSON.parse(readPreference("song-sort") ?? "null") as Partial<SongListSort> | null;
-    if ((stored?.column === "title" || stored?.column === "number") && (stored.direction === "asc" || stored.direction === "desc")) {
+    if ((stored?.column === "title" || stored?.column === "number" || stored?.column === "key") && (stored.direction === "asc" || stored.direction === "desc")) {
       return { column: stored.column, direction: stored.direction };
     }
   } catch {
     // A damaged preference falls back to the default.
   }
   return { column: "title", direction: "asc" };
+}
+
+/** The twelve tonics by pitch class, C = 0, spelled as most songs write them. */
+const KEY_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+
+/** Which keys the list shows: no tonics means every tonic. */
+interface KeyFilter {
+  roots: number[];
+  mode: "all" | KeyMode;
+}
+
+function filterActive(filter: KeyFilter): boolean {
+  return filter.roots.length > 0 || filter.mode !== "all";
+}
+
+/** "G, D · minor", "Minor keys", "G". */
+function filterText(filter: KeyFilter): string {
+  const keys = filter.roots.map((root) => KEY_NAMES[root]).join(", ");
+  if (!keys) return filter.mode === "all" ? "" : `${filter.mode === "major" ? "Major" : "Minor"} keys`;
+  return filter.mode === "all" ? keys : `${keys} · ${filter.mode}`;
+}
+
+/** The key filter, remembered on this device; none when unset. */
+function readKeyFilter(): KeyFilter {
+  try {
+    const stored = JSON.parse(readPreference("song-key-filter") ?? "null") as Partial<KeyFilter> | null;
+    const roots = Array.isArray(stored?.roots)
+      ? [...new Set(stored.roots.filter((root) => Number.isInteger(root) && root >= 0 && root < 12))].sort((a, b) => a - b)
+      : [];
+    const mode = stored?.mode === "major" || stored?.mode === "minor" ? stored.mode : "all";
+    return { roots, mode };
+  } catch {
+    // A damaged preference falls back to no filter.
+  }
+  return { roots: [], mode: "all" };
+}
+
+/**
+ * Sheet: pick keys (several at once) and major, minor or both. The list
+ * behind it follows each tap. Keys no song is in are shown but disabled.
+ */
+async function openKeyFilter(ctx: LibraryContext, start: KeyFilter, apply: (filter: KeyFilter) => void): Promise<void> {
+  let counts: SongKeyCount[] = [];
+  try {
+    counts = await ctx.api.listSongKeys();
+  } catch {
+    // Without counts every key stays available.
+  }
+  const known = counts.length > 0;
+  let filter = { roots: [...start.roots], mode: start.mode };
+  const songsIn = (root: number) => counts
+    .filter((count) => count.root === root && (filter.mode === "all" || count.minor === (filter.mode === "minor")))
+    .reduce((sum, count) => sum + count.songs, 0);
+  const modes: [KeyFilter["mode"], string][] = [["all", "All"], ["major", "Major"], ["minor", "Minor"]];
+
+  const sheet = openSheet(`<h2>Filter by key</h2>
+    <div class="segmented key-modes" role="group" aria-label="Major or minor">
+      ${modes.map(([mode, label]) => `<button type="button" data-mode="${mode}">${label}</button>`).join("")}
+    </div>
+    <div class="key-grid" role="group" aria-label="Keys">
+      ${KEY_NAMES.map((name, root) => `<button type="button" class="key-choice" data-root="${root}"><strong>${name}</strong><small></small></button>`).join("")}
+    </div>
+    <p class="hint">Pick one or more keys. C# also finds Db, and a song in “D / E” counts as D.</p>
+    <div class="form-actions">
+      <button type="button" class="button secondary" data-act="clear">Clear</button>
+      <button type="button" class="button primary" data-act="done">Done</button>
+    </div>`);
+
+  const sync = () => {
+    sheet.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => {
+      const on = button.dataset.mode === filter.mode;
+      button.classList.toggle("on", on);
+      button.setAttribute("aria-pressed", String(on));
+    });
+    sheet.querySelectorAll<HTMLButtonElement>("[data-root]").forEach((button) => {
+      const root = Number(button.dataset.root);
+      const on = filter.roots.includes(root);
+      const songs = songsIn(root);
+      button.classList.toggle("on", on);
+      button.setAttribute("aria-pressed", String(on));
+      // A chosen key stays tappable, so it can be taken off again.
+      button.disabled = known && !songs && !on;
+      button.querySelector("small")!.textContent = known ? String(songs) : "";
+      button.setAttribute("aria-label", `${KEY_NAMES[root]}${known ? `, ${songs} ${songs === 1 ? "song" : "songs"}` : ""}`);
+    });
+  };
+  const change = (next: KeyFilter) => {
+    filter = next;
+    sync();
+    apply(filter);
+  };
+
+  sheet.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const mode = target.closest<HTMLButtonElement>("[data-mode]")?.dataset.mode as KeyFilter["mode"] | undefined;
+    if (mode && mode !== filter.mode) return change({ ...filter, mode });
+    const root = target.closest<HTMLButtonElement>("[data-root]")?.dataset.root;
+    if (root !== undefined) {
+      const value = Number(root);
+      const roots = filter.roots.includes(value)
+        ? filter.roots.filter((other) => other !== value)
+        : [...filter.roots, value].sort((a, b) => a - b);
+      return change({ ...filter, roots });
+    }
+    const act = target.closest<HTMLButtonElement>("[data-act]")?.dataset.act;
+    if (act === "clear" && filterActive(filter)) change({ roots: [], mode: "all" });
+    if (act === "done") closeSheet(sheet);
+  });
+  sync();
 }
 
 /**

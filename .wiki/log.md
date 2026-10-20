@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-20
+* **Filter and sort songs by key**: migration `0012_song_keys.sql` stores each revision's `{key}` as `song_key` (filled for existing songs) with generated `key_root` (tonic as a pitch class) and `key_minor`. `SongSummary` gains `song_key`; `GET /songs` and `/public/songs` take `sort=key`, `key=G,D` and `key_mode=major|minor`; new `GET /songs/keys` and `/public/songs/keys` count songs per key. The web client shows each song's key, sorts by it and has a **Filter** sheet with the twelve tonics and All / Major / Minor. New `filter` icon in `shared/icons.ts`. Pages touched: api-contract, data-model, songs-and-revisions, web-client.
+
 ## 2026-10-18
 * **Desktops check the OpenAPI document before updating**: a desktop release lists the paths it calls, and a connected desktop takes it only when `/api/openapi.json` describes all of them. `DESKTOP_API` is now raised only for a behaviour change on an existing path. Pages touched: api-contract.
 * **Desktop API contract number**: `GET /info` now returns `desktop_api` (`DESKTOP_API` in `api.rs`, 1). Desktop releases record the contract they need and installed desktops connected to this server skip updates that need a higher number. Raise it only when a desktop release will depend on something new here, and never lower it. Pages touched: api-contract.

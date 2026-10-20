@@ -92,7 +92,8 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `GET` | `/api/v1/info` | Public ping: service name, version, `desktop_api`, `initialized`, `desktop_sign_in`, `public_library`, `public_library_name`, `rooms` |
 | `GET` | `/api/v1/church` | The signed-in church and its settings (`public_library`, `public_rooms`) |
 | `PUT` | `/api/v1/church` | Owner renames the church (`name`), opens the library to everyone, read only, or closes it (`public_library`), or opens or closes its rooms (`public_rooms`); fields left out stay |
-| `GET` | `/api/v1/public/songs?q=&limit=&offset=&sort=&direction=` | Search public libraries without signing in (same paging as `/songs`) |
+| `GET` | `/api/v1/public/songs?q=&limit=&offset=&sort=&direction=&key=&key_mode=` | Search public libraries without signing in (same paging and key filter as `/songs`) |
+| `GET` | `/api/v1/public/songs/keys` | The keys the public libraries' songs are in, with counts |
 | `GET` | `/api/v1/public/songs/{id}` | Read a song in a public library without signing in |
 | `GET` | `/api/v1/public/rooms/{room_name}` | What a desktop's room shows now, without signing in |
 | `GET` | `/api/v1/public/rooms/{room_name}/events` | The same as server-sent events, whenever it changes |
@@ -115,7 +116,8 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `PUT` | `/api/v1/device-tokens/{id}/room` | Leader renames a desktop's room (`{room_name}`; null picks a new flower) |
 | `POST` | `/api/v1/desktop-auth/codes` | Leader approves a desktop: one-time sign-in code for a PKCE challenge |
 | `POST` | `/api/v1/desktop-auth/token` | Desktop exchanges code and verifier for a desktop credential (no bearer) |
-| `GET` | `/api/v1/songs?q=&limit=&offset=&sort=&direction=` | List or search current song revisions; `sort` `title` (default) or `number` (numeric, songs without a number last), `direction` `asc` or `desc`; page with `limit` (1–200, default 100) and `offset` |
+| `GET` | `/api/v1/songs?q=&limit=&offset=&sort=&direction=&key=&key_mode=` | List or search current song revisions; `sort` `title` (default), `number` (numeric, songs without a number last) or `key` (C to B, major first, songs without a key last), `direction` `asc` or `desc`; `key=G,D` and `key_mode=major\|minor` keep only songs in those keys; page with `limit` (1–200, default 100) and `offset` |
+| `GET` | `/api/v1/songs/keys` | The keys the church's songs are in: `{root, minor, songs}` with `root` the tonic as a pitch class (C = 0) |
 | `POST` | `/api/v1/songs` | Create a song and its first revision |
 | `GET` | `/api/v1/songs/{id}` | Read the current ChordPro source and metadata |
 | `PUT` | `/api/v1/songs/{id}` | Create a revision from an expected base revision |

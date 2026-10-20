@@ -38,6 +38,7 @@ case-insensitive.
 | `title` | `title`, `t` | The first one wins. Blank or missing becomes `Untitled song` |
 | `song_number` | `number`, `song_number`, then the desktop's `{meta: song_num=N}` | The first `number`/`song_number` wins; `song_num` (key matched ignoring case) only when neither is present. Migration `0006_desktop_song_numbers.sql` filled it in for revisions stored before `song_num` was read |
 | `language` | `language`, `lang` | The first one wins |
+| `song_key` | `key`, then `{meta: key=X}` | The first `key` wins; the `meta` form only when there is none. Kept as written (`G`, `F#m`, `D / E`); the database reads its tonic and major/minor into `key_root` and `key_minor` (migration 0012) |
 | `authors` | `artist`, `composer`, `lyricist`, `author` | All distinct values, joined with `", "` |
 
 The server does not parse sections, chords or lyrics. That is the desktop's
@@ -106,10 +107,16 @@ database plans each separately. Results are unranked.
 `sort=title` (default) orders by `lower(title)`; `sort=number` by
 the number's leading digits as an integer ("9" before "10", "12a" with 12),
 then the number as text, with songs without a number last in both
+directions. `sort=key` orders by the key's tonic from C to B (C# and Db
+together), major before minor, songs without a readable key last in both
 directions. `direction=asc|desc` (default `asc`) flips the chosen column only;
 ties go by title A to Z, then newest, then song id, so the order is stable.
-An unknown `sort` or `direction` is a 400. `/public/songs` takes the same
-parameters. `limit` defaults to 100 and is clamped to 1–200; `offset` (default 0,
+An unknown `sort` or `direction` is a 400. `key=G,D` keeps songs whose
+tonic is one of those (read by the same `song_key_root` that fills the
+column, so `C#` finds `Db`), and `key_mode=major|minor` keeps one mode; both
+combine with `q` and any sort. `GET /songs/keys` counts the songs per tonic
+and mode, so a client can offer only keys that find songs. `/public/songs`
+(and `/public/songs/keys`) take the same parameters. `limit` defaults to 100 and is clamped to 1–200; `offset` (default 0,
 negative counts as 0) skips that many rows, so a client pages with
 `limit`/`offset`. The web client loads 100 at a time as you scroll
 ([web client](web-client.md)).

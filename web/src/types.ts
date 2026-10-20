@@ -52,12 +52,27 @@ export interface SongSummary {
   song_number: string | null;
   authors: string;
   language: string | null;
+  /** As the song writes it: `G`, `F#m`, `D / E`. */
+  song_key: string | null;
   updated_at: string;
 }
 
-/** `GET /songs?sort=`: by title (default) or by number, songs without one last. */
-export type SongSort = "title" | "number";
+/**
+ * `GET /songs?sort=`: by title (default), by number or by key (tonic C to B,
+ * major before minor); songs without a number or key last.
+ */
+export type SongSort = "title" | "number" | "key";
 export type SortDirection = "asc" | "desc";
+/** `GET /songs?key_mode=`: only major or only minor keys. */
+export type KeyMode = "major" | "minor";
+
+/** `GET /songs/keys`: how many songs are in one key. */
+export interface SongKeyCount {
+  /** The tonic as a pitch class: C = 0, C#/Db = 1, … B = 11. */
+  root: number;
+  minor: boolean;
+  songs: number;
+}
 
 export interface SongDetail extends SongSummary {
   parent_revision_id: string | null;

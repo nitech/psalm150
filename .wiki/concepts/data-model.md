@@ -57,7 +57,7 @@ exist yet ([gaps](gaps.md)).
 | `api_tokens` | `id` | A person's API tokens: `user_id`, `church_id`, `name`, `role` cap in `owner` / `leader` / `viewer`, unique `token_hash`, `created_at`, `expires_at` (null: until revoked), `last_used_at`, `revoked_at` |
 | `desktop_auth_codes` | `code_hash CHAR(64)` | One-time desktop sign-in codes: `church_id`, `user_id` (the approver), `device_name`, `code_challenge` (S256), `created_at`, `expires_at` (5 minutes), `used_at` |
 | `songs` | `id` | `church_id`, `current_revision_id`, `deleted_at`, `deleted_by`, `deleted_by_device` |
-| `song_revisions` | `id` | `song_id`, `parent_revision_id`, the extracted `title` / `song_number` / `authors` / `language`, the full `chordpro`, `content_hash CHAR(64)`, `created_by`, `created_by_device` |
+| `song_revisions` | `id` | `song_id`, `parent_revision_id`, the extracted `title` / `song_number` / `authors` / `language` / `song_key`, the generated `key_root SMALLINT` and `key_minor BOOLEAN`, the full `chordpro`, `content_hash CHAR(64)`, `created_by`, `created_by_device` |
 | `song_sets` | `id` (may be client-chosen) | `church_id`, `name` (not blank), `service_date DATE`, `version INTEGER` (starts at 1), `created_by` / `created_by_device`, `updated_by` / `updated_by_device`, `created_at`, `updated_at`, `deleted_at`, `share_key` (null unless shared; unique server-wide), `share_editable BOOLEAN` (default false), `shared_at` |
 | `song_set_items` | `id` | `set_id`, `position` (≥ 0, `UNIQUE (set_id, position)`), `kind` in `song` / `blank`, `song_id`, `transpose SMALLINT` (−11 to 11), `note` (at most 500 characters) |
 
@@ -73,6 +73,13 @@ from the desktop's `{meta: song_num=N}` where it was empty; it changes only
 the extracted column, never the ChordPro source
 ([songs and revisions](songs-and-revisions.md)). Migration `0007_api_tokens.sql`
 added `api_tokens` ([auth and roles](auth-and-roles.md#api-tokens)).
+Migration `0012_song_keys.sql` added `song_revisions.song_key`, filled it from
+`{key: X}` (else `{meta: key=X}`) for existing revisions, and added the
+immutable SQL functions `song_key_root(text)` (tonic as a pitch class, C = 0,
+H read as B, a compound "D / E" by its first key, NULL when the text does not
+start with a note) and `song_key_minor(text)` ("Am", "F#m7", "a-moll", "C
+minor"; not "Amaj7" or "A-dur"), which fill the stored generated columns
+`key_root` and `key_minor` ([songs and revisions](songs-and-revisions.md)).
 Migration `0008_reusable_usernames.sql` lets `users.username` be null, so a
 person removed from their last church keeps their account (disabled) while
 their username is freed ([auth and roles](auth-and-roles.md#members)).

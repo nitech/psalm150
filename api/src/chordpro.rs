@@ -6,6 +6,8 @@ pub struct SongMetadata {
     pub song_number: Option<String>,
     pub authors: String,
     pub language: Option<String>,
+    /// The `{key}` directive as written, e.g. `G`, `F#m` or `D / E`.
+    pub song_key: Option<String>,
 }
 
 pub fn metadata(source: &str) -> SongMetadata {
@@ -15,6 +17,9 @@ pub fn metadata(source: &str) -> SongMetadata {
     // `{number}` or `{song_number}` wins over it.
     let mut meta_song_number = None;
     let mut language = None;
+    let mut song_key = None;
+    // `{meta: key=G}`; an explicit `{key}` wins over it.
+    let mut meta_song_key = None;
     let mut authors = Vec::new();
 
     for line in source.lines().take(100) {
@@ -25,13 +30,17 @@ pub fn metadata(source: &str) -> SongMetadata {
         match name.as_str() {
             "title" | "t" if title.is_none() => title = Some(value),
             "number" | "song_number" if song_number.is_none() => song_number = Some(value),
-            "meta" if meta_song_number.is_none() => {
-                if let Some((key, number)) = value.split_once('=')
-                    && key.trim().eq_ignore_ascii_case("song_num")
-                {
-                    meta_song_number = Some(number.trim().to_string());
+            "meta" => {
+                if let Some((key, meta_value)) = value.split_once('=') {
+                    let key = key.trim();
+                    if key.eq_ignore_ascii_case("song_num") && meta_song_number.is_none() {
+                        meta_song_number = Some(meta_value.trim().to_string());
+                    } else if key.eq_ignore_ascii_case("key") && meta_song_key.is_none() {
+                        meta_song_key = Some(meta_value.trim().to_string());
+                    }
                 }
             }
+            "key" if song_key.is_none() => song_key = Some(value),
             "language" | "lang" if language.is_none() => language = Some(value),
             "artist" | "composer" | "lyricist" | "author"
                 if !value.is_empty() && !authors.iter().any(|existing| existing == &value) =>
@@ -51,6 +60,9 @@ pub fn metadata(source: &str) -> SongMetadata {
             .or(meta_song_number.filter(|value| !value.is_empty())),
         authors: authors.join(", "),
         language: language.filter(|value| !value.is_empty()),
+        song_key: song_key
+            .filter(|value| !value.is_empty())
+            .or(meta_song_key.filter(|value| !value.is_empty())),
     }
 }
 
@@ -107,6 +119,22 @@ mod tests {
         let parsed = metadata("{meta: song_num=1016}\n{number: 12a}\n");
         assert_eq!(parsed.song_number.as_deref(), Some("12a"));
         assert_eq!(metadata("{meta: song_num=}").song_number, None);
+    }
+
+    #[test]
+    fn reads_the_key() {
+        assert_eq!(metadata("{key: F#m}").song_key.as_deref(), Some("F#m"));
+        let parsed = metadata(
+            "{meta: key=D}
+{key: D / E}
+",
+        );
+        assert_eq!(parsed.song_key.as_deref(), Some("D / E"));
+        assert_eq!(
+            metadata("{meta: key = Bb }").song_key.as_deref(),
+            Some("Bb")
+        );
+        assert_eq!(metadata("{key: }").song_key, None);
     }
 
     #[test]

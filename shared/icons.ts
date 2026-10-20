@@ -38,6 +38,7 @@ export const ICON_PATHS = {
 
   // Actions
   search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  filter: '<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   minus: '<path d="M5 12h14"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',

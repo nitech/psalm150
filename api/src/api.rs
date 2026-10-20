@@ -42,13 +42,14 @@ use crate::{
         DeleteSongQuery, DeletedSet, DeletedSong, DesktopAuthCodeResponse, DesktopRoom,
         DesktopState, DesktopTokenRequest, DesktopTokenResponse, DeviceTokenResponse,
         DeviceTokenSummary, ExportManifestEntry, HealthResponse, ImportSongInput,
-        ImportSongsRequest, ImportSongsResponse, LeadSetRequest, LoginRequest, Member, PageQuery,
-        RemoteAction, RemoteCommand, RemoteCommandRequest, RemoteDesktop, RevisionDetail,
-        RevisionSummary, Role, RoomNameRequest, RoomSlide, RoomStatus, RoomView, ServerInfo,
-        SessionInfo, SessionResponse, SetDetail, SetItem, SetItemInput, SetItemKind, SetLive,
-        SetShare, SetSongRef, SetSummary, SetupRequest, SetupStatus, ShareSetRequest, SharedSet,
-        SharedSetLive, SongDetail, SongQuery, SongSort, SongSummary, SortDirection, TokenKind,
-        UpdateChurchRequest, UpdateMemberRequest, UpdateSetRequest, UpdateSongRequest,
+        ImportSongsRequest, ImportSongsResponse, KeyMode, LeadSetRequest, LoginRequest, Member,
+        PageQuery, RemoteAction, RemoteCommand, RemoteCommandRequest, RemoteDesktop,
+        RevisionDetail, RevisionSummary, Role, RoomNameRequest, RoomSlide, RoomStatus, RoomView,
+        ServerInfo, SessionInfo, SessionResponse, SetDetail, SetItem, SetItemInput, SetItemKind,
+        SetLive, SetShare, SetSongRef, SetSummary, SetupRequest, SetupStatus, ShareSetRequest,
+        SharedSet, SharedSetLive, SongDetail, SongKeyCount, SongQuery, SongSort, SongSummary,
+        SortDirection, TokenKind, UpdateChurchRequest, UpdateMemberRequest, UpdateSetRequest,
+        UpdateSongRequest,
     },
     throttle,
 };
@@ -100,7 +101,9 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         restore_song,
         list_revisions,
         get_revision,
+        list_song_keys,
         list_public_songs,
+        list_public_song_keys,
         get_public_song,
         import_songs,
         export_songs,
@@ -175,6 +178,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         ImportSongsResponse,
         SongSort,
         SortDirection,
+        KeyMode,
+        SongKeyCount,
         ExportManifestEntry,
         SetItemKind,
         SetItemInput,
@@ -358,6 +363,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/songs/export", get(export_songs))
         .route("/songs/deleted", get(list_deleted_songs))
+        .route("/songs/keys", get(list_song_keys))
         .route(
             "/songs/{song_id}",
             get(get_song).put(update_song).delete(delete_song),
@@ -369,6 +375,7 @@ pub fn router() -> Router<AppState> {
             get(get_revision),
         )
         .route("/public/songs", get(list_public_songs))
+        .route("/public/songs/keys", get(list_public_song_keys))
         .route("/public/songs/{song_id}", get(get_public_song))
         .merge(crate::access::router())
         .merge(crate::sets::router())
@@ -971,9 +978,10 @@ async fn revoke_device_token(
 
 /// Searches the church's songs.
 ///
-/// `q` matches the title, authors, song number and words. Results come a page
-/// at a time (`limit`, `offset`), by title or by number; a page shorter than
-/// `limit` is the last.
+/// `q` matches the title, authors, song number and words; `key` and
+/// `key_mode` keep only songs in those keys. Results come a page at a time
+/// (`limit`, `offset`), by title, number or key; a page shorter than `limit`
+/// is the last.
 #[utoipa::path(
     get,
     path = "/api/v1/songs",
@@ -983,7 +991,9 @@ async fn revoke_device_token(
         ("limit" = Option<i64>, Query),
         ("offset" = Option<i64>, Query),
         ("sort" = Option<SongSort>, Query),
-        ("direction" = Option<SortDirection>, Query)
+        ("direction" = Option<SortDirection>, Query),
+        ("key" = Option<String>, Query),
+        ("key_mode" = Option<KeyMode>, Query)
     ),
     responses((status = 200, body = [SongSummary]), (status = 401, body = ErrorBody))
 )]
@@ -1001,7 +1011,7 @@ async fn list_songs(
 /// Anyone: searches the public libraries.
 ///
 /// The songs of churches that opened their library to everyone. Searching,
-/// paging and sorting work as in `GET /songs`.
+/// filtering, paging and sorting work as in `GET /songs`.
 #[utoipa::path(
     get,
     path = "/api/v1/public/songs",
@@ -1010,7 +1020,9 @@ async fn list_songs(
         ("limit" = Option<i64>, Query),
         ("offset" = Option<i64>, Query),
         ("sort" = Option<SongSort>, Query),
-        ("direction" = Option<SortDirection>, Query)
+        ("direction" = Option<SortDirection>, Query),
+        ("key" = Option<String>, Query),
+        ("key_mode" = Option<KeyMode>, Query)
     ),
     responses((status = 200, body = [SongSummary]))
 )]
@@ -1038,6 +1050,55 @@ async fn get_public_song(
         .await?
         .ok_or_else(|| AppError::NotFound("song was not found".into()))?;
     Ok(Json(song))
+}
+
+/// The keys the church's songs are in, with how many songs each.
+///
+/// For offering only the keys a key filter would find songs in. Songs
+/// without a key, or whose key does not start with a note, are left out.
+#[utoipa::path(
+    get,
+    path = "/api/v1/songs/keys",
+    security(("bearer" = [])),
+    responses((status = 200, body = [SongKeyCount]), (status = 401, body = ErrorBody))
+)]
+async fn list_song_keys(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<SongKeyCount>>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    Ok(Json(
+        song_keys(&state.pool, Library::Church(auth.church_id)).await?,
+    ))
+}
+
+/// Anyone: the keys the public libraries' songs are in.
+///
+/// As `GET /songs/keys`, for the songs of `GET /public/songs`.
+#[utoipa::path(
+    get,
+    path = "/api/v1/public/songs/keys",
+    responses((status = 200, body = [SongKeyCount]))
+)]
+async fn list_public_song_keys(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<SongKeyCount>>, AppError> {
+    Ok(Json(song_keys(&state.pool, Library::Public).await?))
+}
+
+async fn song_keys(pool: &PgPool, library: Library) -> Result<Vec<SongKeyCount>, AppError> {
+    Ok(sqlx::query_as::<_, SongKeyCount>(&format!(
+        "SELECT r.key_root AS root, r.key_minor AS minor, count(*) AS songs
+         FROM songs s
+         JOIN churches c ON c.id = s.church_id
+         JOIN song_revisions r ON r.id = s.current_revision_id
+         WHERE {LIBRARY_FILTER} AND r.key_root IS NOT NULL
+         GROUP BY r.key_root, r.key_minor
+         ORDER BY r.key_root, r.key_minor"
+    ))
+    .bind(library.church_id())
+    .fetch_all(pool)
+    .await?)
 }
 
 /// Which songs a read may see.
@@ -1081,6 +1142,12 @@ fn song_order(sort: SongSort, direction: SortDirection) -> String {
              lower(r.song_number) {dir},
              lower(r.title) ASC, r.created_at DESC, s.id"
         ),
+        // Tonic C to B (C# and Db together), major before minor; songs
+        // without a key last in both directions.
+        SongSort::Key => format!(
+            "(r.key_root IS NULL) ASC, r.key_root {dir}, r.key_minor {dir},
+             lower(r.title) ASC, r.created_at DESC, s.id"
+        ),
     }
 }
 
@@ -1101,6 +1168,32 @@ pub(crate) async fn search_songs(
         query.sort.unwrap_or_default(),
         query.direction.unwrap_or_default(),
     );
+    let keys = query
+        .key
+        .as_deref()
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if keys.len() > 24 || keys.iter().any(|key| key.chars().count() > 12) {
+        return Err(AppError::BadRequest(
+            "key must be at most 24 keys, separated by commas".into(),
+        ));
+    }
+    // The tonics are read by the same function that fills `key_root`, so
+    // `C#` finds songs in `Db`. A name that is not a note matches nothing.
+    let key_filter = if keys.is_empty() {
+        ""
+    } else {
+        "AND r.key_root IN (SELECT song_key_root(k) FROM unnest($5::text[]) AS k)"
+    };
+    let mode_filter = match query.key_mode {
+        None => "",
+        Some(KeyMode::Major) => "AND r.key_minor = false",
+        Some(KeyMode::Minor) => "AND r.key_minor = true",
+    };
     // Each a separate statement, so the database plans each on its own: the
     // trigram indexes (migration 0010) answer a search with a word of three
     // letters or digits. Without one they cannot narrow anything down, so the
@@ -1117,11 +1210,11 @@ pub(crate) async fn search_songs(
 
     let sql = format!(
         "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors,
-                r.language, r.created_at AS updated_at
+                r.language, r.song_key, r.created_at AS updated_at
          FROM songs s
          JOIN churches c ON c.id = s.church_id
          JOIN song_revisions r ON r.id = s.current_revision_id
-         WHERE {LIBRARY_FILTER} {matches}
+         WHERE {LIBRARY_FILTER} {matches} {key_filter} {mode_filter}
          ORDER BY {order}
          LIMIT $2 OFFSET $3"
     );
@@ -1129,8 +1222,10 @@ pub(crate) async fn search_songs(
         .bind(library.church_id())
         .bind(limit)
         .bind(offset);
-    if !search.is_empty() {
-        songs = songs.bind(format!("%{}%", escape_like(&search)));
+    // `$4` is bound even without a search, so the keys are always `$5`.
+    songs = songs.bind(format!("%{}%", escape_like(&search)));
+    if !keys.is_empty() {
+        songs = songs.bind(keys);
     }
     Ok(songs.fetch_all(pool).await?)
 }
@@ -1651,6 +1746,7 @@ async fn insert_song_in_transaction(
         song_number: parsed.song_number,
         authors: parsed.authors,
         language: parsed.language,
+        song_key: parsed.song_key,
         updated_at: created_at,
     })
 }
@@ -1672,8 +1768,8 @@ async fn insert_revision(
     sqlx::query(
         "INSERT INTO song_revisions
          (id, song_id, parent_revision_id, title, song_number, authors, language,
-          chordpro, content_hash, created_by, created_by_device, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+          chordpro, content_hash, created_by, created_by_device, created_at, song_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
     )
     .bind(revision.revision_id)
     .bind(revision.song_id)
@@ -1687,6 +1783,7 @@ async fn insert_revision(
     .bind(revision.actor.user_id)
     .bind(revision.actor.device_id)
     .bind(revision.created_at)
+    .bind(&revision.parsed.song_key)
     .execute(&mut **transaction)
     .await?;
     Ok(())

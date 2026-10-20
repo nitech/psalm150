@@ -7,6 +7,7 @@ import type {
   DesktopTokenResponse,
   DeviceToken,
   DeviceTokenSummary,
+  KeyMode,
   Member,
   RemoteCommand,
   RemoteCommandRequest,
@@ -24,6 +25,7 @@ import type {
   SessionInfo,
   SetupStatus,
   SongDetail,
+  SongKeyCount,
   SongSort,
   SongSummary,
   SortDirection,
@@ -227,16 +229,31 @@ export class SongServerApi {
    */
   listSongs(
     search = "",
-    page: { limit?: number; offset?: number; sort?: SongSort; direction?: SortDirection } = {},
+    page: {
+      limit?: number;
+      offset?: number;
+      sort?: SongSort;
+      direction?: SortDirection;
+      /** Only songs in these keys, by tonic: `["G", "Bb"]`. */
+      keys?: string[];
+      keyMode?: KeyMode;
+    } = {},
   ): Promise<SongSummary[]> {
     const query = new URLSearchParams();
     if (search) query.set("q", search);
+    if (page.keys?.length) query.set("key", page.keys.join(","));
+    if (page.keyMode) query.set("key_mode", page.keyMode);
     if (page.limit) query.set("limit", String(page.limit));
     if (page.offset) query.set("offset", String(page.offset));
     if (page.sort && page.sort !== "title") query.set("sort", page.sort);
     if (page.direction === "desc") query.set("direction", "desc");
     const text = query.toString();
     return this.request(`${this.songsRoot()}${text ? `?${text}` : ""}`);
+  }
+
+  /** The keys the songs are in, with how many songs each. Signed out, of the public library. */
+  listSongKeys(): Promise<SongKeyCount[]> {
+    return this.request(`${this.songsRoot()}/keys`);
   }
 
   /** Signed out, this reads the public library. */

@@ -512,8 +512,103 @@ async fn songs_sort_by_number(pool: PgPool) {
     )
     .await;
     assert_eq!(titles(&by_title.1)[0], "Twelve a");
-    let bad = send(&app, "GET", "/api/v1/songs?sort=key", Some(&token), None).await;
+    let bad = send(&app, "GET", "/api/v1/songs?sort=tempo", Some(&token), None).await;
     assert_eq!(bad.0, StatusCode::BAD_REQUEST);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn songs_filter_and_sort_by_key(pool: PgPool) {
+    let app = test_app(pool);
+    let (token, _) = owner_and_desktop(&app).await;
+    for (title, key) in [
+        ("G song", "{key: G}"),
+        ("Gm song", "{key: Gm7}"),
+        ("Db song", "{meta: key=Db}"),
+        ("C# minor song", "{key: c#-moll}"),
+        ("Bb song", "{key: Bb}"),
+        ("Compound", "{key: D / E}"),
+        ("Major seventh", "{key: Amaj7}"),
+        ("Without key", ""),
+        ("Not a note", "{key: ?}"),
+    ] {
+        let created = send(
+            &app,
+            "POST",
+            "/api/v1/songs",
+            Some(&token),
+            Some(json!({ "chordpro": format!("{{title: {title}}}
+{key}
+
+Words") })),
+        )
+        .await;
+        assert_eq!(created.0, StatusCode::CREATED);
+    }
+    let titles = |page: &Value| -> Vec<String> {
+        page.as_array()
+            .expect("song page")
+            .iter()
+            .map(|song| song["title"].as_str().expect("title").to_string())
+            .collect()
+    };
+    let get = |uri: &'static str| send(&app, "GET", uri, Some(&token), None);
+
+    let by_key = get("/api/v1/songs?sort=key").await;
+    assert_eq!(
+        titles(&by_key.1),
+        [
+            "Db song",
+            "C# minor song",
+            "Compound",
+            "G song",
+            "Gm song",
+            "Major seventh",
+            "Bb song",
+            "Not a note",
+            "Without key"
+        ]
+    );
+    assert_eq!(by_key.1[0]["song_key"], "Db");
+    assert_eq!(by_key.1[8]["song_key"], Value::Null);
+    let descending = get("/api/v1/songs?sort=key&direction=desc&limit=2").await;
+    assert_eq!(titles(&descending.1), ["Bb song", "Major seventh"]);
+
+    // Enharmonic spellings find each other; a compound key counts as its first.
+    let sharp = get("/api/v1/songs?key=C%23&sort=title").await;
+    assert_eq!(titles(&sharp.1), ["C# minor song", "Db song"]);
+    let several = get("/api/v1/songs?key=G,%20D&sort=title").await;
+    assert_eq!(titles(&several.1), ["Compound", "G song", "Gm song"]);
+    let minor = get("/api/v1/songs?key=G,C%23&key_mode=minor&sort=title").await;
+    assert_eq!(titles(&minor.1), ["C# minor song", "Gm song"]);
+    let major = get("/api/v1/songs?key_mode=major&sort=key").await;
+    assert_eq!(
+        titles(&major.1),
+        ["Db song", "Compound", "G song", "Major seventh", "Bb song"]
+    );
+    let searched = get("/api/v1/songs?key=G&q=minor").await;
+    assert!(titles(&searched.1).is_empty());
+    let unknown = get("/api/v1/songs?key=X").await;
+    assert_eq!(unknown.0, StatusCode::OK);
+    assert!(titles(&unknown.1).is_empty());
+    let bad_mode = get("/api/v1/songs?key_mode=dorian").await;
+    assert_eq!(bad_mode.0, StatusCode::BAD_REQUEST);
+
+    let keys = get("/api/v1/songs/keys").await;
+    assert_eq!(keys.0, StatusCode::OK);
+    assert_eq!(
+        keys.1,
+        json!([
+            { "root": 1, "minor": false, "songs": 1 },
+            { "root": 1, "minor": true, "songs": 1 },
+            { "root": 2, "minor": false, "songs": 1 },
+            { "root": 7, "minor": false, "songs": 1 },
+            { "root": 7, "minor": true, "songs": 1 },
+            { "root": 9, "minor": false, "songs": 1 },
+            { "root": 10, "minor": false, "songs": 1 }
+        ])
+    );
+    let public_keys = send(&app, "GET", "/api/v1/public/songs/keys", None, None).await;
+    assert_eq!(public_keys.1, json!([]));
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -2822,6 +2917,7 @@ async fn openapi_describes_every_operation(pool: PgPool) {
         "POST /api/v1/setup",
         "POST /api/v1/session",
         "GET /api/v1/public/songs",
+        "GET /api/v1/public/songs/keys",
         "GET /api/v1/public/songs/{song_id}",
         "GET /api/v1/public/rooms/{room_name}",
         "GET /api/v1/public/rooms/{room_name}/events",

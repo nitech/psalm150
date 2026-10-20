@@ -315,6 +315,31 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 }
 .list-sort button.on { color: var(--psa-accent-text); }
 .list-sort .sort-number { min-width: var(--num-w); justify-content: flex-end; }
+/* Key sorts at the right edge, over the rows' keys; Filter after it. */
+.sort-columns { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; }
+.list-sort .sort-key { margin-left: auto; }
+.list-sort .filter-toggle { gap: 6px; padding-left: var(--psa-space-3); border-left: 1px solid var(--psa-border); border-radius: 0; }
+.list-sort .filter-toggle .icon { width: 14px; height: 14px; }
+.list-sort .filter-toggle.on { color: var(--psa-accent-text); }
+.filter-summary { display: flex; flex-wrap: wrap; gap: var(--psa-space-2); padding: 0 var(--psa-space-4) var(--psa-space-3); }
+.filter-summary[hidden] { display: none; }
+.filter-summary .chip { min-height: 32px; cursor: pointer; }
+.row-key { flex: none; max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
+.key-modes { margin-bottom: var(--psa-space-4); }
+.key-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--psa-space-2); margin-bottom: var(--psa-space-3); }
+@media (min-width: 640px) { .key-grid { grid-template-columns: repeat(6, 1fr); } }
+.key-choice {
+  display: grid; justify-items: center; gap: 2px; min-height: 56px; padding: 6px 4px;
+  border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface);
+  color: var(--psa-text); font: inherit; cursor: pointer;
+}
+.key-choice strong { font-size: 17px; font-weight: 700; }
+.key-choice small { min-height: 1em; color: var(--psa-text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.key-choice.on { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); color: var(--psa-accent-text); }
+.key-choice.on small { color: var(--psa-accent-text); }
+.key-choice:disabled { opacity: 0.4; cursor: default; }
+@media (hover: hover) { .key-choice:hover:not(:disabled):not(.on) { background: var(--psa-bg-elevated); } }
+.key-grid + .hint { margin-bottom: var(--psa-space-4); }
 #song-results { --num-w: 36px; }
 /* Phones: the song list runs edge to edge, its header with it. */
 @media (max-width: 899px) {

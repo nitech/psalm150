@@ -224,7 +224,15 @@ are not affected.
   desktop's column headers: tapping the sorted column flips the direction (↑
   or ↓), tapping the other starts ascending. Songs without a number come last.
   The choice is kept in `localStorage["psa150-song-sort"]`
-  (`{column: "title"|"number", direction}`).
+  (`{column: "title"|"number"|"key", direction}`). Each row shows the song's
+  key on the right; a **Key** header sorts by it (C to B, major before minor).
+- **Key filter**: **Filter** at the right of the sort header opens a sheet
+  (a bottom sheet on phones, a dialog on wide screens): All / Major / Minor
+  and the twelve tonics, several at once, each with its song count from
+  `GET /songs/keys`; keys no song is in are disabled. The list follows each
+  tap (`key=…&key_mode=…`), alongside the search and any sort. While a filter
+  is on, a chip under the header ("D, G · major ✕") shows it and clears it.
+  Kept in `localStorage["psa150-song-key-filter"]` (`{roots, mode}`).
 - **Reader**: the song with section labels and chords above the lyrics,
   parsed in the browser by `chordpro.ts` with the desktop's stanza rules
   (a blank line starts a new verse; unlabelled verses are numbered). The
