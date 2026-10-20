@@ -262,7 +262,9 @@ are not affected.
   boxes, one per letter (as wide as the letter); the one under the pointer
   shows, reaching down over its letter, and clicking it opens the chord
   bubble there, and clicking the words only edits them. On a touch
-  screen, tapping a place in the words (or `[` / Ctrl+K) opens a bubble
+  screen, pressing a line shows the same box at the letter under the
+  finger; sliding sideways moves it along the line (moving up or down
+  scrolls), and letting go (or `[` / Ctrl+K) opens a bubble
   just under that letter with the chords of the song's key, "…" for any
   other chord and, on an existing chord, a remove button; a dashed box shows
   where the chord goes, and tapping a chord puts it in and closes the

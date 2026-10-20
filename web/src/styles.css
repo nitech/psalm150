@@ -490,7 +490,8 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-label:focus { background: var(--psa-bg-canvas); }
 .ce-sec-body { display: grid; }
 
-.ce-line { position: relative; margin: 0 -8px; padding: 0 8px; border-radius: var(--psa-radius-xs); }
+/* Sideways moves are the editor's (sliding the chord box); up and down still scroll. */
+.ce-line { touch-action: pan-y; position: relative; margin: 0 -8px; padding: 0 8px; border-radius: var(--psa-radius-xs); }
 /* Tall rows leave room above every row of words for its chords, also when a long line wraps. */
 .ce-text { min-height: 46.8px; padding-top: 12px; font-family: var(--psa-font-lyrics); font-size: 18px; line-height: 2.6; white-space: pre-wrap; overflow-wrap: anywhere; caret-color: var(--psa-accent-text); outline: none; }
 .ce-text:focus-visible { box-shadow: none; }
@@ -512,6 +513,9 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-cell { position: absolute; height: 22px; cursor: pointer; pointer-events: auto; }
 .ce-cell::before { content: ""; position: absolute; inset: 0 -1px auto; height: calc(100% + var(--letter-h, 22px) + 2px); border: 1.5px solid transparent; border-radius: 5px; pointer-events: none; }
 .ce-cell:hover::before { border-color: var(--psa-accent-text); background: var(--psa-accent-medium); }
+/* On a touch screen: the same box, following the finger along the line. */
+.ce-slide { position: absolute; border: 1.5px solid var(--psa-accent-text); border-radius: 5px; background: var(--psa-accent-medium); pointer-events: none; }
+.ce-slide.end { border-style: dashed; background: transparent; }
 .ce-cell.end { display: grid; place-items: start center; width: 22px; padding-top: 2px; color: transparent; font-size: 14px; font-weight: 700; line-height: 1; }
 .ce-cell.end:hover { color: var(--psa-accent-text); }
 .ce-cell.end:hover::before { border-style: dashed; background: transparent; }

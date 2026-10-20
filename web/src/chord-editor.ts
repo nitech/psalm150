@@ -711,9 +711,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     else if (cellsLine) hideCells();
   });
   sectionsEl.addEventListener("pointerleave", hideCells);
-  let pointerType = "";
   sectionsEl.addEventListener("pointerdown", (event) => {
-    pointerType = event.pointerType;
     const target = event.target as HTMLElement;
     if (target.closest(".ce-cell")) {
       event.preventDefault();
@@ -726,7 +724,97 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     if (grip) return dragSection(event, grip);
     const wrap = target.closest<HTMLElement>(".ce-line");
     if (wrap && chordSpotAt(wrap.querySelector<HTMLElement>(".ce-text")!, event.clientX, event.clientY) >= 0) event.preventDefault();
+    if (wrap && event.pointerType !== "mouse") slideBox(event, wrap);
   });
+
+  /** The letter under a point (its index), or the line's length after its last letter. */
+  function letterAt(text: HTMLElement, x: number, y: number): number {
+    const node = textNode(text);
+    const length = node?.length ?? 0;
+    if (!node || !length) return 0;
+    const rowTop = charBox(text, offsetAt(text, x, y)).top;
+    const range = document.createRange();
+    let nearest = -1;
+    let nearestDistance = Infinity;
+    for (let i = 0; i < length; i += 1) {
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      const rect = range.getClientRects()[0];
+      if (!rect || Math.abs(rect.top - rowTop) > 4) continue;
+      if (x >= rect.left && x < rect.right) return i;
+      const distance = Math.min(Math.abs(x - rect.left), Math.abs(x - rect.right));
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = i;
+      }
+    }
+    // Past the end of the last row: the place after the line.
+    const end = charBox(text, length);
+    if (Math.abs(end.top - rowTop) <= 4 && x >= end.x) return length;
+    return Math.max(0, nearest);
+  }
+  /** Draws the box over a letter and the space above it (or the place after the line). */
+  function drawSlideBox(wrap: HTMLElement, pos: number): void {
+    const text = wrap.querySelector<HTMLElement>(".ce-text")!;
+    const node = textNode(text);
+    const length = node?.length ?? 0;
+    const origin = wrap.getBoundingClientRect();
+    const box = charBox(text, pos);
+    let width = 22;
+    let left = box.x - origin.left + (length && pos === length ? 6 : 0);
+    if (node && pos < length) {
+      const range = document.createRange();
+      range.setStart(node, pos);
+      range.setEnd(node, pos + 1);
+      const rect = range.getClientRects()[0];
+      width = rect?.width ?? width;
+      left = (rect?.left ?? box.x) - origin.left;
+    }
+    let el = wrap.querySelector<HTMLElement>(".ce-slide");
+    if (!el) {
+      el = document.createElement("span");
+      el.className = "ce-slide";
+      el.setAttribute("aria-hidden", "true");
+      wrap.querySelector(".ce-chips")!.prepend(el);
+    }
+    el.classList.toggle("end", pos === length);
+    el.style.cssText = `left:${left - 1}px;top:${box.top - origin.top - 24}px;width:${width + 2}px;height:${box.h + 26}px`;
+  }
+  /*
+   * On a touch screen: pressing a line shows the box at the letter under
+   * the finger, sliding sideways moves it along the line, and letting go
+   * opens the chord bubble there. Moving up or down scrolls the page as
+   * usual (the browser cancels the press) and the box goes away.
+   */
+  function slideBox(event: PointerEvent, wrap: HTMLElement): void {
+    const text = wrap.querySelector<HTMLElement>(".ce-text")!;
+    let pos = letterAt(text, event.clientX, event.clientY);
+    const row = event.clientY;
+    drawSlideBox(wrap, pos);
+    const move = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
+      // Stay on the row the press started on, wherever the finger drifts up or down.
+      const at = letterAt(text, next.clientX, row);
+      if (at === pos) return;
+      pos = at;
+      drawSlideBox(wrap, pos);
+    };
+    const end = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      wrap.querySelector(".ce-slide")?.remove();
+      if (next.type !== "pointerup") return;
+      // Selecting words (a long press) is not a place for a chord.
+      const selection = getSelection();
+      if (selection && !selection.isCollapsed && text.contains(selection.anchorNode)) return;
+      openLineBubble(text.dataset.line!, pos);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  }
   sectionsEl.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
     const cell = target.closest<HTMLElement>(".ce-cell");
@@ -738,15 +826,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     // A pointer opens the bubble on release (dragChord); Enter or Space comes here.
     if (chip) {
       if (event.detail === 0) openLineBubble(chip.closest<HTMLElement>(".ce-line")!.dataset.line!, 0, false, chip.dataset.chord);
-      return;
-    }
-    const wrap = target.closest<HTMLElement>(".ce-line");
-    if (wrap && event.detail > 0 && pointerType !== "mouse") {
-      const text = wrap.querySelector<HTMLElement>(".ce-text")!;
-      // Selecting words (a drag or a double tap) is not a place for a chord.
-      const selection = getSelection();
-      if (selection && !selection.isCollapsed && text.contains(selection.anchorNode)) return;
-      openLineBubble(text.dataset.line!, offsetAt(text, event.clientX, event.clientY));
       return;
     }
     const menuButton = target.closest<HTMLElement>(".ce-sec-menu");
