@@ -123,10 +123,14 @@ the ring out on each element. Desktops say "online"/"offline" in words; the
 dot is decorative. Chords differ from words by position and weight too.
 
 **Text and layout (1.3.4, 1.4.4, 1.4.10, 1.4.12)**: there is no in-app text
-size control; 1.4.4 is met by browser zoom and the browser's or phone's own text
-size, which the layout survives to 200 % (the `/join` room keeps its own
-size buttons as a reading tool for low vision). The viewport allows
-zoom, any orientation (`manifest.webmanifest`). At 320 CSS px every screen
+size control, and by the owner's choice the page cannot be zoomed: the
+viewport sets `maximum-scale=1, user-scalable=no` and `html` has
+`touch-action: manipulation` (no double-tap zoom). Bigger text comes only
+from the browser's or phone's own text size, which the layout survives to
+200 % (the `/join` room keeps its own size buttons as a reading tool for low
+vision). This is a known gap against 1.4.4 where the browser's text size
+does not reach the page; iOS Safari ignores `user-scalable=no` and still
+pinch-zooms. Any orientation (`manifest.webmanifest`). At 320 CSS px every screen
 fits without horizontal scrolling, chord lines included (chord and syllable
 pairs wrap together). Nothing clips with WCAG's text-spacing overrides.
 

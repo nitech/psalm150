@@ -17,6 +17,8 @@
    dock (and toasts) at the bottom (WCAG 2.4.11). --dock-h is set on html. */
 html {
   -webkit-text-size-adjust: 100%;
+  /* No double-tap zoom (the page does not zoom; see the viewport in index.html). */
+  touch-action: manipulation;
   scroll-padding-top: calc(env(safe-area-inset-top) + var(--bar-h) + 16px);
   scroll-padding-bottom: calc(var(--tabbar-h) + var(--dock-h) + 72px);
 }

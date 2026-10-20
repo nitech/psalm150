@@ -91,8 +91,8 @@ export function lyricsIn(fragment: DocumentFragment): string {
 
 /**
  * Chord and transpose controls. `transpose` is null to hide it. There is no
- * text size control: bigger words come from browser zoom or the browser's or
- * phone's text size, which is what WCAG 1.4.4 asks for.
+ * text size control and the page does not zoom: bigger words come from the
+ * browser's or phone's text size.
  */
 export function readerControls(song: DisplaySong, options: ReaderOptions, transpose: number | null): string {
   const chordToggle = hasChords(song)
