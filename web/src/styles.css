@@ -491,7 +491,6 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-sec-body { display: grid; }
 
 .ce-line { position: relative; margin: 0 -8px; padding: 0 8px; border-radius: var(--psa-radius-xs); }
-.ce-line:focus-within { background: var(--psa-bg-subtle); }
 /* Tall rows leave room above every row of words for its chords, also when a long line wraps. */
 .ce-text { min-height: 46.8px; padding-top: 12px; font-family: var(--psa-font-lyrics); font-size: 18px; line-height: 2.6; white-space: pre-wrap; overflow-wrap: anywhere; caret-color: var(--psa-accent-text); outline: none; }
 .ce-text:focus-visible { box-shadow: none; }
@@ -512,8 +511,6 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-cell:hover { background: var(--psa-accent); box-shadow: 0 0 0 1px var(--psa-accent-text); }
 .ce-cell.end { display: grid; place-items: center; width: 22px; border: 1.5px dashed var(--psa-accent-text); background: transparent; box-shadow: none; color: var(--psa-accent-text); font-size: 14px; font-weight: 700; line-height: 1; }
 .ce-cell.end:hover { border-style: solid; background: var(--psa-accent); color: var(--psa-on-accent); }
-.ce-line:focus-within .ce-cell:not(.end) { box-shadow: inset -1px 0 0 var(--psa-bg-subtle); }
-.ce-line:focus-within .ce-cell:not(.end):hover { box-shadow: 0 0 0 1px var(--psa-accent-text); }
 .ce-chip { z-index: 1; }
 .ce-chip.editing { border-color: var(--psa-accent-text); background: var(--psa-accent); color: var(--psa-on-accent); }
 .ce-ghost[hidden] { display: none; }
