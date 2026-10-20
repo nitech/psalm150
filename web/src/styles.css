@@ -497,15 +497,16 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-text:empty::before { content: "Type the words"; color: var(--psa-text-placeholder); }
 .ce-text.spot { cursor: copy; }
 .ce-chips { position: absolute; inset: 0; pointer-events: none; }
-.ce-chip { position: absolute; top: 0; left: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--psa-accent-soft); color: var(--psa-chord); font-size: 14px; font-weight: 700; line-height: 16px; white-space: nowrap; pointer-events: auto; touch-action: none; cursor: grab; transform: translateX(-3px); -webkit-user-select: none; user-select: none; }
+/* Shifted left by its border and padding, so the chord's first letter starts exactly over the letter it is played on. */
+.ce-chip { --ce-shift: -7px; position: absolute; top: 0; left: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--psa-accent-soft); color: var(--psa-chord); font-size: 14px; font-weight: 700; line-height: 16px; white-space: nowrap; pointer-events: auto; touch-action: none; cursor: grab; transform: translateX(var(--ce-shift)); -webkit-user-select: none; user-select: none; }
 /* A bigger target for fingers than the chord looks. */
 .ce-chip::before { content: ""; position: absolute; inset: -8px -5px; }
 @media (hover: hover) { .ce-chip:hover { border-color: var(--psa-accent-text); } }
 .ce-chip.dragging { z-index: 2; background: var(--psa-accent); color: var(--psa-on-accent); box-shadow: var(--psa-shadow-md); cursor: grabbing; }
 .ce-chip.fresh { animation: ce-pop 240ms var(--psa-ease-standard); }
-@keyframes ce-pop { from { transform: translateX(-3px) scale(0.6); } }
+@keyframes ce-pop { from { transform: translateX(var(--ce-shift)) scale(0.6); } }
 /* Where a new chord goes while the bubble is open. */
-.ce-ghost { position: absolute; width: 26px; height: 22px; border: 2px dashed var(--psa-accent-text); border-radius: 6px; background: var(--psa-accent-soft); transform: translateX(-3px); pointer-events: none; }
+.ce-ghost { position: absolute; width: 26px; height: 22px; border: 2px dashed var(--psa-accent-text); border-radius: 6px; background: var(--psa-accent-soft); transform: translateX(-7px); pointer-events: none; }
 /* With a mouse: a box per letter in the space above the line being pointed at. */
 .ce-cell { position: absolute; height: 22px; border-radius: 4px; background: var(--psa-accent-soft); box-shadow: inset -1px 0 0 var(--psa-bg-surface); cursor: pointer; pointer-events: auto; transition: background var(--psa-dur-fast); }
 .ce-cell:hover { background: var(--psa-accent); box-shadow: 0 0 0 1px var(--psa-accent-text); }

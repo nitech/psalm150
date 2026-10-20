@@ -369,7 +369,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       const x = Math.max(item.x, right + 4);
       item.chip.style.left = `${x}px`;
       item.chip.style.top = `${item.top - item.chip.offsetHeight - 1}px`;
-      right = x + item.chip.offsetWidth - 3;
+      right = x + item.chip.offsetWidth - 7;
     }
   }
   function layoutAll(): void {
@@ -785,7 +785,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const box = charBox(text, chord.pos);
     // Aim at the text under the chord, from the point where it was picked up.
     const dy = box.top + box.h / 2 - event.clientY;
-    const grabX = event.clientX - rect.left - 3;
+    const grabX = event.clientX - rect.left - 7;
     let moved = false;
     chip.setPointerCapture(event.pointerId);
     const move = (next: PointerEvent) => {
