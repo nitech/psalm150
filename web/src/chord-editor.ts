@@ -3,10 +3,11 @@
  * with a switch between them. Both edit one `SongDoc` (chord-doc.ts).
  *
  * Visual: song details as fields, sections as cards, and each line as
- * plain editable text with its chords as small buttons above it. A chord
- * is placed by tapping just above a word, by `[` or Ctrl+K while typing, or
- * from the chord bar, and moved by dragging it (or ←/→ when it has focus).
- * ChordPro: the source with colours, a list of problems and a preview.
+ * plain editable text with its chords as small buttons above it. Tapping a
+ * place in the words (or `[` / Ctrl+K while typing) opens a bubble of chords
+ * under that letter; a chord is moved by dragging it (or ←/→ when it has
+ * focus). ChordPro: the source with colours, a list of problems and a
+ * preview, and the same bubble when a place in it is tapped.
  */
 import {
   CHORD_PATTERN,
@@ -52,7 +53,10 @@ export interface ChordEditor {
 type Mode = "visual" | "code";
 interface Caret { id: string; off: number }
 interface Focus { id?: string; off?: number; sel?: string; scroll?: boolean }
-interface Picker { lineId: string; pos: number; chordId?: string; anchor: { left: number; top: number; bottom: number }; refocus?: "text" | "chip" }
+/** Where the chord bubble puts a chord: a place in a line, or a range of the ChordPro (an existing `[chord]`, or an empty range). */
+type Bubble =
+  | { kind: "line"; lineId: string; pos: number; chordId?: string }
+  | { kind: "code"; start: number; end: number; chord?: string };
 type MenuItem = { label: string; run: () => void; disabled?: boolean; danger?: boolean } | "rule";
 
 const coarse = matchMedia("(pointer: coarse)").matches;
@@ -64,7 +68,7 @@ const editable = (() => {
 /** Fields with their own control; other details show as read-only text. */
 const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "song_num", "copyright", "ccli", "tempo", "time"];
 
-export function mountChordEditor(root: HTMLElement, initial: string, parts: { modes: HTMLElement; palette: HTMLElement }): ChordEditor {
+export function mountChordEditor(root: HTMLElement, initial: string, parts: { modes: HTMLElement }): ChordEditor {
   let doc: SongDoc = parseDoc(initial).doc;
   let mode: Mode = "visual";
   let history: string[] = [];
@@ -72,7 +76,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   let historyTimer = 0;
   let pendingFocus: Focus | null = null;
   let lastCaret: Caret | null = null;
-  let picker: Picker | null = null;
+  let bubble: Bubble | null = null;
   let keyShift = 0;
   /** A chord just put where the caret is: what is typed next goes after it. */
   let typingAfter: { lineId: string; chordId: string } | null = null;
@@ -116,13 +120,13 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
         <button type="button" class="button secondary small" data-add="chorus">${icon("plus")}Chorus</button>
         <button type="button" class="button secondary small" data-add-more aria-haspopup="menu">${icon("plus")}Other</button>
       </div>
-      <p class="hint ce-hint">${coarse ? "Tap" : "Click"} just above a word to put a chord there, and drag a chord to move it. You can paste a song with chords over the words.</p>
+      <p class="hint ce-hint">${coarse ? "Tap" : "Click"} a place in the words to put a chord there, and drag a chord to move it. You can paste a song with chords over the words.</p>
     </div>
     <div class="ce-code" hidden>
       <div class="ce-code-main">
         <div class="ce-code-box"><pre class="ce-hl" aria-hidden="true"></pre><textarea class="ce-src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="ChordPro source"></textarea></div>
         <ul class="ce-issues" aria-live="polite"></ul>
-        <p class="hint">Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
+        <p class="hint">${coarse ? "Tap" : "Click"} a place to put a chord there. Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
       </div>
       <div class="ce-preview-col">
         <button type="button" class="button secondary small ce-preview-toggle" aria-expanded="false">Show preview</button>
@@ -140,31 +144,27 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   const highlightEl = q(".ce-hl");
   const preview = q(".ce-preview");
 
-  const pickerEl = document.createElement("div");
-  pickerEl.className = "ce-picker";
-  pickerEl.setAttribute("role", "dialog");
-  pickerEl.setAttribute("aria-label", "Chord");
-  pickerEl.hidden = true;
-  pickerEl.tabIndex = -1;
-  pickerEl.innerHTML = `
-    <div class="ce-picker-head">
-      <input class="ce-picker-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Chord, like D/F#" aria-label="Chord" enterkeyhint="done" />
-      <button type="button" class="button primary small ce-picker-ok">Add</button>
-    </div>
-    <p class="ce-picker-warn" hidden>That does not look like a chord, but it is saved as you wrote it.</p>
-    <div class="ce-picker-chords" data-group="key"></div>
-    <div class="ce-picker-chords" data-group="variants"></div>
-    <button type="button" class="button secondary small ce-picker-remove" hidden>${icon("trash")}Remove chord</button>`;
+  const bubbleEl = document.createElement("div");
+  bubbleEl.className = "ce-bubble";
+  bubbleEl.setAttribute("role", "dialog");
+  bubbleEl.hidden = true;
+  bubbleEl.innerHTML = `
+    <div class="ce-bubble-chords"></div>
+    <div class="ce-bubble-more" hidden>
+      <div class="ce-bubble-type">
+        <input class="ce-bubble-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Chord, like D/F#" aria-label="Chord" enterkeyhint="done" />
+        <button type="button" class="button primary small ce-bubble-ok">Put in</button>
+      </div>
+      <p class="ce-bubble-warn" hidden>That does not look like a chord, but it is saved as you wrote it.</p>
+      <div class="ce-bubble-variants"></div>
+    </div>`;
   const menuEl = document.createElement("div");
   menuEl.className = "ce-menu";
   menuEl.setAttribute("role", "menu");
   menuEl.hidden = true;
-  const scrim = document.createElement("div");
-  scrim.className = "ce-scrim";
-  scrim.hidden = true;
-  document.body.append(scrim, pickerEl, menuEl);
-  cleanups.push(() => { pickerEl.remove(); menuEl.remove(); scrim.remove(); });
-  const pickerInput = q<HTMLInputElement>(".ce-picker-input", pickerEl);
+  document.body.append(bubbleEl, menuEl);
+  cleanups.push(() => { bubbleEl.remove(); menuEl.remove(); });
+  const bubbleInput = q<HTMLInputElement>(".ce-bubble-input", bubbleEl);
 
   /* ── History ────────────────────────────────────────────────────────── */
 
@@ -298,7 +298,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   /* ── Visual editor ──────────────────────────────────────────────────── */
 
   function chipsHtml(line: LyricLine): string {
-    return `<span class="ce-ghost" hidden aria-hidden="true">+</span>${[...line.chords].sort((a, b) => a.pos - b.pos).map((chord) =>
+    return `<span class="ce-ghost" hidden aria-hidden="true"></span>${[...line.chords].sort((a, b) => a.pos - b.pos).map((chord) =>
       `<button type="button" class="ce-chip" data-chord="${chord.id}" aria-label="Chord ${escapeHtml(chord.name)}" aria-describedby="ce-chip-help">${escapeHtml(chord.name)}</button>`).join("")}`;
   }
   function lineHtml(line: Section["lines"][number]): string {
@@ -339,6 +339,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       }
       return "";
     }).join("") + `<p id="ce-chip-help" class="sr-only">Arrow keys move the chord, Delete removes it, Enter changes it.</p>`;
+    closeBubble(false);
     renderDetails();
     layoutAll();
     restoreFocus();
@@ -411,7 +412,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const extras = q(".ce-extras");
     extras.hidden = !others.length;
     extras.innerHTML = others.length ? `Also in the song: ${others.map((item) => `<code>${escapeHtml(metaSource(item as MetaItem))}</code>`).join(" ")}. Change these in ChordPro.` : "";
-    renderPalette();
   }
   root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-meta]").forEach((field) => {
     field.addEventListener(field.tagName === "SELECT" ? "change" : "input", () => {
@@ -424,7 +424,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const after = keySelect.value;
     setMeta(doc, "key", after);
     remember();
-    renderPalette();
     const steps = before && after ? keyDistance(before, after) : null;
     keyShift = steps ?? 0;
     keyPrompt.hidden = !keyShift || !hasAnyChord();
@@ -447,6 +446,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   /* ── Typing in lines ────────────────────────────────────────────────── */
 
   function onTextInput(el: HTMLElement): void {
+    closeBubble(false);
     const found = lyric(el.dataset.line!);
     if (!found) return;
     const text = el.textContent!.replace(/\n/g, " ");
@@ -578,7 +578,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       else moveVertically(el, 1);
     } else if (isText && event.inputType === "insertText" && event.data === "[") {
       event.preventDefault();
-      openPickerAtCaret(el);
+      openLineBubble(el.dataset.line!, caretOffset(el), true);
     } else if (event.inputType === "historyUndo") {
       event.preventDefault();
       undo();
@@ -614,7 +614,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       const collapsed = getSelection()?.isCollapsed ?? true;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        openPickerAtCaret(target);
+        openLineBubble(target.dataset.line!, off, true);
       } else if (event.key === "Backspace" && collapsed && off === 0) {
         event.preventDefault();
         joinWithPrevious(target);
@@ -660,8 +660,9 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     }
   });
 
-  /* Tap above a word to add a chord there; a mouse shows where it will go. */
-  let spotDown: { el: HTMLElement; off: number } | null = null;
+  /* Tapping a place in the words opens the chord bubble there. Tapping the
+     space above a row does too, without moving the caret (or opening a
+     phone's keyboard). */
   sectionsEl.addEventListener("pointerdown", (event) => {
     const target = event.target as HTMLElement;
     const chip = target.closest<HTMLElement>(".ce-chip");
@@ -669,64 +670,28 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const grip = target.closest<HTMLElement>(".ce-grip");
     if (grip) return dragSection(event, grip);
     const wrap = target.closest<HTMLElement>(".ce-line");
-    spotDown = null;
-    if (!wrap) return;
-    const text = wrap.querySelector<HTMLElement>(".ce-text")!;
-    const off = chordSpotAt(text, event.clientX, event.clientY);
-    if (off >= 0) {
-      event.preventDefault();
-      spotDown = { el: text, off };
-    }
+    if (wrap && chordSpotAt(wrap.querySelector<HTMLElement>(".ce-text")!, event.clientX, event.clientY) >= 0) event.preventDefault();
   });
   sectionsEl.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    if (spotDown && target.closest(".ce-line")?.querySelector(".ce-text") === spotDown.el) {
-      const { el, off } = spotDown;
-      spotDown = null;
-      const box = charBox(el, off);
-      if (coarse && document.activeElement === el) el.blur();
-      openPicker({ lineId: el.dataset.line!, pos: off, anchor: { left: box.x, top: box.top - 24, bottom: box.top } });
+    const chip = target.closest<HTMLElement>(".ce-chip");
+    // A pointer opens the bubble on release (dragChord); Enter or Space comes here.
+    if (chip) {
+      if (event.detail === 0) openLineBubble(chip.closest<HTMLElement>(".ce-line")!.dataset.line!, 0, false, chip.dataset.chord);
       return;
     }
-    spotDown = null;
-    const chip = target.closest<HTMLElement>(".ce-chip");
-    // A pointer opens the picker on release (dragChord); Enter or Space comes here.
-    if (chip && event.detail === 0) {
-      const lineId = chip.closest<HTMLElement>(".ce-line")!.dataset.line!;
-      openPicker({ lineId, pos: 0, chordId: chip.dataset.chord, anchor: chip.getBoundingClientRect(), refocus: "chip" });
+    const wrap = target.closest<HTMLElement>(".ce-line");
+    if (wrap && event.detail > 0) {
+      const text = wrap.querySelector<HTMLElement>(".ce-text")!;
+      // Selecting words (a drag or a double tap) is not a place for a chord.
+      const selection = getSelection();
+      if (selection && !selection.isCollapsed && text.contains(selection.anchorNode)) return;
+      openLineBubble(text.dataset.line!, offsetAt(text, event.clientX, event.clientY));
       return;
     }
     const menuButton = target.closest<HTMLElement>(".ce-sec-menu");
     if (menuButton) openMenu(menuButton, sectionMenu(menuButton.closest<HTMLElement>(".ce-sec")!.dataset.item!));
   });
-  sectionsEl.addEventListener("pointermove", (event) => {
-    if (event.pointerType !== "mouse") return;
-    const target = event.target as HTMLElement;
-    const wrap = target.closest<HTMLElement>(".ce-line");
-    sectionsEl.querySelectorAll<HTMLElement>(".ce-ghost:not([hidden])").forEach((ghost) => {
-      if (ghost.closest(".ce-line") !== wrap) hideGhost(ghost.closest<HTMLElement>(".ce-line")!);
-    });
-    if (!wrap) return;
-    if (target.closest(".ce-chip")) return hideGhost(wrap);
-    const text = wrap.querySelector<HTMLElement>(".ce-text")!;
-    const ghost = wrap.querySelector<HTMLElement>(".ce-ghost")!;
-    const off = chordSpotAt(text, event.clientX, event.clientY);
-    text.classList.toggle("spot", off >= 0);
-    if (off < 0) {
-      ghost.hidden = true;
-      return;
-    }
-    const box = charBox(text, off);
-    const origin = wrap.getBoundingClientRect();
-    ghost.hidden = false;
-    ghost.style.left = `${box.x - origin.left}px`;
-    ghost.style.top = `${box.top - origin.top - ghost.offsetHeight - 1}px`;
-  });
-  function hideGhost(wrap: HTMLElement): void {
-    wrap.querySelector<HTMLElement>(".ce-ghost")!.hidden = true;
-    wrap.querySelector(".ce-text")!.classList.remove("spot");
-  }
-  sectionsEl.addEventListener("pointerleave", () => sectionsEl.querySelectorAll<HTMLElement>(".ce-line").forEach(hideGhost));
   sectionsEl.addEventListener("paste", (event) => {
     const el = (event.target as HTMLElement).closest<HTMLElement>(".ce-text, .ce-comment-text");
     if (!el) return;
@@ -766,6 +731,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     chip.setPointerCapture(event.pointerId);
     const move = (next: PointerEvent) => {
       if (!moved && Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) < 5) return;
+      if (!moved) closeBubble(false);
       moved = true;
       chip.classList.add("dragging");
       const off = offsetAt(text, next.clientX - grabX, next.clientY + dy);
@@ -780,7 +746,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       chip.removeEventListener("pointercancel", end);
       chip.classList.remove("dragging");
       if (!moved) {
-        openPicker({ lineId: id, pos: chord.pos, chordId: chord.id, anchor: chip.getBoundingClientRect() });
+        openLineBubble(id, chord.pos, false, chord.id);
         return;
       }
       if (chord.pos !== start) {
@@ -929,63 +895,110 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       .map(([type, name]) => ({ label: name, run: () => addSection(type) })));
   });
 
-  /* ── Chord picker ───────────────────────────────────────────────────── */
+  /* ── The chord bubble ───────────────────────────────────────────────── */
 
-  function openPickerAtCaret(el: HTMLElement): void {
-    const off = caretOffset(el);
-    const box = charBox(el, off);
-    openPicker({ lineId: el.dataset.line!, pos: off, anchor: { left: box.x, top: box.top, bottom: box.top + box.h }, refocus: "text" });
-  }
-  function openPicker(next: Picker): void {
+  /**
+   * Tapping a place in the words (or in the ChordPro) opens a bubble just
+   * under that letter, so the word stays in view, with the chords of the
+   * key. Tapping one puts it there and closes the bubble. In the visual
+   * editor a dashed box shows where the chord goes.
+   */
+  function openBubble(next: Bubble, typing = false): void {
     closeMenu();
-    picker = next;
-    const found = lyric(next.lineId)!;
-    const chord = next.chordId ? found.line.chords.find((candidate) => candidate.id === next.chordId) : undefined;
-    if (chord) next.pos = chord.pos;
-    pickerInput.value = chord?.name ?? "";
-    q(".ce-picker-ok", pickerEl).textContent = chord ? "Change" : "Add";
-    q(".ce-picker-remove", pickerEl).hidden = !chord;
+    closeBubble(false);
+    bubble = next;
     const key = metaValue(doc, "key");
-    q("[data-group=key]", pickerEl).innerHTML = chordsInKey(key || "C").map(chordButton).join("");
-    fillVariants();
-    const narrow = innerWidth < 640;
-    pickerEl.classList.toggle("sheet", narrow);
-    scrim.hidden = !narrow;
-    pickerEl.hidden = false;
-    if (!narrow) {
-      const width = pickerEl.offsetWidth;
-      const height = pickerEl.offsetHeight;
-      let top = next.anchor.bottom + 10;
-      if (top + height > innerHeight - 100 && next.anchor.top - height - 10 > 60) top = next.anchor.top - height - 10;
-      pickerEl.style.left = `${Math.min(Math.max(16, next.anchor.left - 24), innerWidth - width - 16) + scrollX}px`;
-      pickerEl.style.top = `${top + scrollY}px`;
-    } else {
-      pickerEl.style.left = "";
-      pickerEl.style.top = "";
-    }
-    // On touch, the keyboard would cover the chords; tap the field to type.
-    if (!coarse) pickerInput.focus({ preventScroll: true });
-    else pickerEl.focus({ preventScroll: true });
+    const current = bubbleChord();
+    const chords = chordsInKey(key || "C");
+    q(".ce-bubble-chords", bubbleEl).innerHTML = chords.map((name) => chordButton(name, name === current)).join("")
+      + `<button type="button" class="ce-pick ce-bubble-more-toggle" aria-expanded="false" aria-label="Other chord">…</button>`
+      + (current ? `<button type="button" class="ce-pick ce-bubble-remove" aria-label="Remove ${escapeHtml(current)}">${icon("trash")}</button>` : "");
+    bubbleInput.value = current && !chords.includes(current) ? current : "";
+    bubbleEl.setAttribute("aria-label", current ? `Change ${current}` : "Add a chord");
+    showMore(typing || Boolean(bubbleInput.value));
+    if (next.kind === "line") markLine(true);
+    bubbleEl.hidden = false;
+    placeBubble();
+    if (typing) bubbleInput.focus({ preventScroll: true });
   }
-  const chordButton = (name: string) => `<button type="button" class="ce-pick" data-pick="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+  /** The chord the bubble would change, or "" when it adds one. */
+  function bubbleChord(): string {
+    const target = bubble;
+    if (!target) return "";
+    if (target.kind === "code") return target.chord ?? "";
+    return lyric(target.lineId)?.line.chords.find((chord) => chord.id === target.chordId)?.name ?? "";
+  }
+  function showMore(open: boolean): void {
+    q(".ce-bubble-more", bubbleEl).hidden = !open;
+    bubbleEl.querySelector(".ce-bubble-more-toggle")?.setAttribute("aria-expanded", String(open));
+    if (open) fillVariants();
+  }
+  /** The dashed box where a new chord goes, or the chord being changed. */
+  function markLine(on: boolean): void {
+    if (!bubble || bubble.kind !== "line") return;
+    const wrap = sectionsEl.querySelector<HTMLElement>(`.ce-line[data-line="${bubble.lineId}"]`);
+    if (!wrap) return;
+    wrap.querySelectorAll(".ce-chip.editing").forEach((chip) => chip.classList.remove("editing"));
+    const ghost = wrap.querySelector<HTMLElement>(".ce-ghost")!;
+    ghost.hidden = true;
+    if (!on) return;
+    if (bubble.chordId) {
+      wrap.querySelector(`.ce-chip[data-chord="${bubble.chordId}"]`)?.classList.add("editing");
+      return;
+    }
+    const box = charBox(wrap.querySelector<HTMLElement>(".ce-text")!, bubble.pos);
+    const origin = wrap.getBoundingClientRect();
+    ghost.hidden = false;
+    ghost.style.left = `${box.x - origin.left}px`;
+    ghost.style.top = `${box.top - origin.top - ghost.offsetHeight - 1}px`;
+  }
+  /** Where the bubble points: the bottom of the letter at the place. */
+  function bubbleAnchor(): { x: number; top: number; bottom: number } | null {
+    if (!bubble) return null;
+    if (bubble.kind === "code") return codeCaretBox(bubble.start);
+    const text = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${bubble.lineId}"]`);
+    if (!text) return null;
+    const box = charBox(text, bubble.pos);
+    return { x: box.x, top: box.top, bottom: box.top + box.h };
+  }
+  function placeBubble(): void {
+    const anchor = bubbleAnchor();
+    if (!anchor) return closeBubble(false);
+    const viewport = window.visualViewport;
+    const viewTop = viewport?.offsetTop ?? 0;
+    const viewBottom = viewTop + (viewport?.height ?? innerHeight);
+    const width = bubbleEl.offsetWidth;
+    const height = bubbleEl.offsetHeight;
+    const left = Math.min(Math.max(8, anchor.x - 28), innerWidth - width - 8);
+    // Under the letter; above the line only when there is no room below (a phone's keyboard).
+    const below = anchor.bottom + 10 + height <= viewBottom - 8 || anchor.top - 10 - height < viewTop + 8;
+    const top = below ? anchor.bottom + 10 : anchor.top - 10 - height;
+    bubbleEl.classList.toggle("above", !below);
+    bubbleEl.style.left = `${left + scrollX}px`;
+    bubbleEl.style.top = `${top + scrollY}px`;
+    bubbleEl.style.setProperty("--arrow", `${Math.min(Math.max(14, anchor.x - left), width - 14)}px`);
+  }
+  function closeBubble(refocus: boolean): void {
+    if (!bubble) return;
+    const was = bubble;
+    markLine(false);
+    bubble = null;
+    bubbleEl.hidden = true;
+    if (!refocus) return;
+    if (was.kind === "code") codeBox.focus({ preventScroll: true });
+    else {
+      const text = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${was.lineId}"]`);
+      if (text) setCaret(text, was.pos);
+    }
+  }
+  const chordButton = (name: string, on = false) => `<button type="button" class="ce-pick${on ? " on" : ""}" data-pick="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
   function fillVariants(): void {
-    const typed = parseChordName(pickerInput.value);
+    const typed = parseChordName(bubbleInput.value) ?? parseChordName(bubbleChord());
     const key = metaValue(doc, "key");
     const root = typed?.root ?? parseChordName(key)?.root ?? "C";
-    q("[data-group=variants]", pickerEl).innerHTML = chordVariants(root, key).map(chordButton).join("");
-    const value = pickerInput.value.trim();
-    q(".ce-picker-warn", pickerEl).hidden = !value || CHORD_PATTERN.test(value);
-  }
-  function closePicker(refocus: boolean): void {
-    const was = picker;
-    picker = null;
-    pickerEl.hidden = true;
-    scrim.hidden = true;
-    if (!was || !refocus) return;
-    const wrap = sectionsEl.querySelector<HTMLElement>(`.ce-line[data-line="${was.lineId}"]`);
-    if (!wrap) return;
-    if (was.refocus === "chip" && was.chordId) wrap.querySelector<HTMLElement>(`.ce-chip[data-chord="${was.chordId}"]`)?.focus();
-    else if (was.refocus === "text") setCaret(wrap.querySelector<HTMLElement>(".ce-text")!, was.pos);
+    q(".ce-bubble-variants", bubbleEl).innerHTML = chordVariants(root, key).map((name) => chordButton(name)).join("");
+    const value = bubbleInput.value.trim();
+    q(".ce-bubble-warn", bubbleEl).hidden = !value || CHORD_PATTERN.test(value);
   }
   function placeChord(lineId: string, pos: number, name: string, chordId?: string): string {
     const line = lyric(lineId)!.line;
@@ -999,43 +1012,88 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     sortChords(line);
     return id;
   }
+  /** Puts the chosen chord in, or takes the chord out when `name` is empty. */
   function choose(name: string): void {
-    const current = picker;
-    if (!current) return;
+    const target = bubble;
+    if (!target) return;
     const value = name.trim();
-    if (!value) return closePicker(true);
-    const id = placeChord(current.lineId, current.pos, value, current.chordId);
-    remember();
-    renderChips(current.lineId, undefined, id);
-    closePicker(true);
-    if (current.refocus === "text") typingAfter = { lineId: current.lineId, chordId: id };
-  }
-  pickerInput.addEventListener("input", fillVariants);
-  pickerInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      choose(pickerInput.value);
+    if (target.kind === "code") {
+      closeBubble(false);
+      if (!value && target.end === target.start) return;
+      codeBox.focus({ preventScroll: true });
+      codeBox.setSelectionRange(target.start, target.end);
+      const insert = value ? `[${value}]` : "";
+      if (!document.execCommand("insertText", false, insert)) codeBox.setRangeText(insert, target.start, target.end, "end");
+      refreshCode();
+      return;
     }
+    const text = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${target.lineId}"]`);
+    const typing = text !== null && document.activeElement === text;
+    closeBubble(false);
+    if (!value) {
+      const found = lyric(target.lineId);
+      const chord = found?.line.chords.find((candidate) => candidate.id === target.chordId);
+      if (found && chord) removeChord(found.line, chord);
+      return;
+    }
+    const id = placeChord(target.lineId, target.pos, value, target.chordId);
+    remember();
+    renderChips(target.lineId, undefined, id);
+    // Typing goes on after the new chord, at the place it was put.
+    if (typing && text && !target.chordId) {
+      setCaret(text, target.pos);
+      typingAfter = { lineId: target.lineId, chordId: id };
+    }
+  }
+  /** Opens the bubble at a place in a line; a chord already there is changed. */
+  function openLineBubble(lineId: string, pos: number, typing = false, chordId?: string): void {
+    const line = lyric(lineId)?.line;
+    if (!line) return;
+    const chord = chordId ? line.chords.find((candidate) => candidate.id === chordId) : line.chords.find((candidate) => candidate.pos === pos);
+    openBubble({ kind: "line", lineId, pos: chord?.pos ?? pos, chordId: chord?.id }, typing);
+  }
+  // Pressing a button in the bubble must not take focus from the words, or the caret (and a phone's keyboard) is lost.
+  bubbleEl.addEventListener("pointerdown", (event) => {
+    if ((event.target as HTMLElement).closest("button")) event.preventDefault();
   });
-  pickerEl.addEventListener("click", (event) => {
+  bubbleEl.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
     const pick = target.closest<HTMLElement>("[data-pick]");
     if (pick) choose(pick.dataset.pick!);
-    else if (target.closest(".ce-picker-ok")) choose(pickerInput.value);
-    else if (target.closest(".ce-picker-remove") && picker?.chordId) {
-      const found = lyric(picker.lineId)!;
-      const chord = found.line.chords.find((candidate) => candidate.id === picker!.chordId)!;
-      closePicker(false);
-      removeChord(found.line, chord);
+    else if (target.closest(".ce-bubble-ok")) choose(bubbleInput.value);
+    else if (target.closest(".ce-bubble-remove")) choose("");
+    else if (target.closest(".ce-bubble-more-toggle")) {
+      const open = q(".ce-bubble-more", bubbleEl).hidden;
+      showMore(open);
+      placeBubble();
+      if (open) bubbleInput.focus({ preventScroll: true });
     }
   });
-  scrim.addEventListener("click", () => closePicker(false));
+  bubbleInput.addEventListener("input", fillVariants);
+  bubbleInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const target = bubble;
+    choose(bubbleInput.value);
+    if (target?.kind === "line") {
+      const text = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${target.lineId}"]`);
+      if (text && document.activeElement !== text) setCaret(text, target.pos);
+    }
+  });
+  const reposition = () => { if (bubble) placeBubble(); };
+  window.visualViewport?.addEventListener("resize", reposition);
+  window.addEventListener("resize", reposition);
+  cleanups.push(() => {
+    window.visualViewport?.removeEventListener("resize", reposition);
+    window.removeEventListener("resize", reposition);
+  });
 
   /* ── Menus ──────────────────────────────────────────────────────────── */
 
   let menuItems: MenuItem[] = [];
   let menuOpener: HTMLElement | null = null;
   function openMenu(opener: HTMLElement, items: MenuItem[]): void {
+    closeBubble(false);
     menuItems = items;
     menuOpener = opener;
     menuEl.innerHTML = items.map((item, index) => item === "rule"
@@ -1075,14 +1133,15 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   listen(document, "pointerdown", (event) => {
     const target = event.target as HTMLElement;
     if (!menuEl.hidden && !menuEl.contains(target) && target.closest("[aria-haspopup]") !== menuOpener) closeMenu();
-    if (picker && !pickerEl.contains(target) && target !== scrim && !target.closest(".ce-chip, .ce-line")) closePicker(false);
+    // A tap elsewhere closes the bubble; a tap in the words opens it again there.
+    if (bubble && !bubbleEl.contains(target)) closeBubble(false);
   }, { capture: true });
   listen(document, "keydown", (event) => {
     if (event.key === "Escape") {
-      if (picker) {
+      if (bubble) {
         event.preventDefault();
         event.stopPropagation();
-        closePicker(true);
+        closeBubble(true);
       } else if (!menuEl.hidden) {
         event.preventDefault();
         closeMenu(true);
@@ -1090,7 +1149,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       return;
     }
     const mod = event.ctrlKey || event.metaKey;
-    if (mode !== "visual" || !mod || event.target === pickerInput) return;
+    if (mode !== "visual" || !mod || event.target === bubbleInput) return;
     const key = event.key.toLowerCase();
     if (key === "z") {
       event.preventDefault();
@@ -1100,49 +1159,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       event.preventDefault();
       redo();
     }
-  });
-
-  /* ── Chord bar ──────────────────────────────────────────────────────── */
-
-  function renderPalette(): void {
-    const key = metaValue(doc, "key");
-    parts.palette.innerHTML = `<span class="ce-palette-label">${key ? `Chords in ${escapeHtml(key)}` : "Chords"}</span><div class="ce-palette-chords" role="group" aria-label="Add a chord where the cursor is">${chordsInKey(key || "C").map((chord) => `<button type="button" class="ce-pick" data-chord="${escapeHtml(chord)}">${escapeHtml(chord)}</button>`).join("")}<button type="button" class="ce-pick other" data-other>Other…</button></div>`;
-  }
-  // Pressing a chord must not take focus from the text, or the caret is lost.
-  parts.palette.addEventListener("pointerdown", (event) => {
-    if ((event.target as HTMLElement).closest(".ce-pick")) event.preventDefault();
-  });
-  parts.palette.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLElement>(".ce-pick");
-    if (!button) return;
-    if (mode === "code") {
-      const chord = button.dataset.chord;
-      if (!chord) {
-        showToast("Type the chord in brackets, like [D/F#].");
-        codeBox.focus();
-        return;
-      }
-      if (document.activeElement === codeBox) document.execCommand("insertText", false, `[${chord}]`);
-      else codeBox.setRangeText(`[${chord}]`, codeBox.selectionStart, codeBox.selectionEnd, "end");
-      refreshCode();
-      return;
-    }
-    const caret = lastCaret;
-    const found = caret ? lyric(caret.id) : null;
-    const text = caret && sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${caret.id}"]`);
-    if (!caret || !found || !text) {
-      showToast("Put the cursor in a line where the chord goes.");
-      return;
-    }
-    if (button.dataset.other !== undefined) {
-      const box = charBox(text, caret.off);
-      openPicker({ lineId: caret.id, pos: caret.off, anchor: { left: box.x, top: box.top, bottom: box.top + box.h }, refocus: "text" });
-      return;
-    }
-    const id = placeChord(caret.id, caret.off, button.dataset.chord!);
-    remember();
-    renderChips(caret.id, undefined, id);
-    if (document.activeElement === text) typingAfter = { lineId: caret.id, chordId: id };
   });
 
   /* ── ChordPro source ────────────────────────────────────────────────── */
@@ -1170,7 +1186,64 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       if (!preview.hidden) preview.innerHTML = renderSongBody(prepareSong(codeBox.value, 0), { chords: true });
     }, 150);
   }
-  codeBox.addEventListener("input", refreshCode);
+  codeBox.addEventListener("input", () => {
+    closeBubble(false);
+    refreshCode();
+  });
+  /** The letter at `index` in the source, measured in the coloured copy under the textarea. */
+  function codeCaretBox(index: number): { x: number; top: number; bottom: number } | null {
+    const walker = document.createTreeWalker(highlightEl, NodeFilter.SHOW_TEXT);
+    let seen = 0;
+    let last: Text | null = null;
+    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+      if (index < seen + node.length) {
+        const off = index - seen;
+        const range = document.createRange();
+        if (node.data[off] !== "\n") {
+          range.setStart(node, off);
+          range.setEnd(node, off + 1);
+          const rect = range.getClientRects()[0];
+          if (rect) return { x: rect.left, top: rect.top, bottom: rect.bottom };
+        }
+        // At the end of a line: after its last letter, or at the start of an empty line.
+        if (off > 0 && node.data[off - 1] !== "\n") {
+          range.setStart(node, off - 1);
+          range.setEnd(node, off);
+          const rect = range.getClientRects()[0];
+          if (rect) return { x: rect.right, top: rect.top, bottom: rect.bottom };
+        }
+        break;
+      }
+      seen += node.length;
+      last = node;
+    }
+    const lineNumber = codeBox.value.slice(0, index).split("\n").length;
+    const row = highlightEl.querySelector(`[data-n="${lineNumber}"]`)?.getBoundingClientRect() ?? last?.parentElement?.getBoundingClientRect();
+    return row ? { x: row.left, top: row.top, bottom: row.bottom } : null;
+  }
+  /** Opens the bubble at a place in the source; inside a `[chord]` it changes that chord. Not in directives or `#` lines. */
+  function openCodeBubble(index: number, typing = false): void {
+    const value = codeBox.value;
+    const lineStart = value.lastIndexOf("\n", index - 1) + 1;
+    const lineEnd = value.indexOf("\n", index) < 0 ? value.length : value.indexOf("\n", index);
+    const line = value.slice(lineStart, lineEnd);
+    if (/^\s*[{#]/.test(line)) return closeBubble(false);
+    const col = index - lineStart;
+    const open = line.lastIndexOf("[", col);
+    const close = line.indexOf("]", open);
+    if (open >= 0 && close > open && col > open && col <= close && !line.slice(open + 1, close).includes("[")) {
+      openBubble({ kind: "code", start: lineStart + open, end: lineStart + close + 1, chord: line.slice(open + 1, close).trim() }, typing);
+    } else openBubble({ kind: "code", start: index, end: index }, typing);
+  }
+  codeBox.addEventListener("click", () => {
+    if (codeBox.selectionStart === codeBox.selectionEnd) openCodeBubble(codeBox.selectionStart);
+  });
+  codeBox.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      openCodeBubble(codeBox.selectionStart, true);
+    }
+  });
   q(".ce-issues").addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLElement>("[data-goto]");
     if (button) selectCodeLine(Number(button.dataset.goto), 0, true);
@@ -1201,7 +1274,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
 
   function setMode(next: Mode): void {
     if (next === mode) return;
-    closePicker(false);
+    closeBubble(false);
     closeMenu();
     if (next === "code") {
       if (historyTimer) remember();

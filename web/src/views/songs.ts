@@ -518,7 +518,6 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
     <div id="chord-editor"></div>
     <p class="form-message" role="status"></p>
     <div class="form-actions sticky ce-actions">
-      <div class="ce-palette"></div>
       <div class="ce-buttons">
         <a class="button secondary" href="${back}">Cancel</a>
         <button class="button primary" type="submit">${icon("check")}Save</button>
@@ -528,7 +527,6 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
 
   const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? NEW_SONG_TEMPLATE, {
     modes: ctx.main.querySelector<HTMLElement>(".ce-modes")!,
-    palette: ctx.main.querySelector<HTMLElement>(".ce-palette")!,
   });
   const form = ctx.main.querySelector<HTMLFormElement>("#editor-form")!;
   const message = form.querySelector<HTMLElement>(".form-message")!;

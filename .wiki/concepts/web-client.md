@@ -258,15 +258,19 @@ are not affected.
   read-only text) and each section as a card with its type, an optional
   name and a menu (move, duplicate, add a note, delete with Undo). Lines
   are plain editable text with their chords as buttons above the
-  characters: tap or click just above a word, type `[` or Ctrl+K, or use
-  the bar of chords in the song's key (at the bottom, above Cancel/Save) to
-  add one; drag a chord or use ←/→ to move it. Dragging a section's grip
+  characters. Tapping a place in the words (or `[` / Ctrl+K) opens a bubble
+  just under that letter with the chords of the song's key, "…" for any
+  other chord and, on an existing chord, a remove button; a dashed box shows
+  where the chord goes, and tapping a chord puts it in and closes the
+  bubble. Tapping the space above a row does the same without moving the
+  caret. Drag a chord or use ←/→ to move it. Dragging a section's grip
   folds every section to one row until it is dropped. Changing the key
   offers to move the chords too. Pasting chords written over the words
   turns them into ChordPro, and headings such as "Chorus" start sections.
   Unknown directives and `#` lines show as grey rows and are kept. The
   ChordPro side is the source with colours, a list of problems by line and
-  a preview (beside it on wide screens). The source round-trips: lines that
+  a preview (beside it on wide screens); tapping a place in it opens the
+  same bubble, which puts `[chord]` there or, inside a `[chord]`, changes it. The source round-trips: lines that
   were not edited are written back exactly, so saving an untouched song
   sends the same bytes (the import dedup hash is over the bytes). New songs
   start from a title/author/key/verse template. Saving an existing song
