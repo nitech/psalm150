@@ -685,14 +685,17 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const cells: string[] = [];
     for (let i = 0; i <= length; i += 1) {
       const box = charBox(text, i);
-      let width = 16;
-      if (node && i < length) {
-        range.setStart(node, i);
-        range.setEnd(node, i + 1);
-        width = range.getClientRects()[0]?.width ?? 0;
+      const top = box.top - origin.top - 23;
+      if (i === length) {
+        // A place after the last letter, for a chord that ends the line: set apart, so it does not read as a letter.
+        cells.push(`<span class="ce-cell end" data-pos="${i}" title="After the line" style="left:${box.x - origin.left + (length ? 6 : 0)}px;top:${top}px">+</span>`);
+        continue;
       }
+      range.setStart(node!, i);
+      range.setEnd(node!, i + 1);
+      const width = range.getClientRects()[0]?.width ?? 0;
       if (width < 1) continue;
-      cells.push(`<span class="ce-cell" data-pos="${i}" style="left:${box.x - origin.left}px;top:${box.top - origin.top - 23}px;width:${width}px"></span>`);
+      cells.push(`<span class="ce-cell" data-pos="${i}" style="left:${box.x - origin.left}px;top:${top}px;width:${width}px"></span>`);
     }
     wrap.querySelector(".ce-chips")!.insertAdjacentHTML("afterbegin", cells.join(""));
   }
