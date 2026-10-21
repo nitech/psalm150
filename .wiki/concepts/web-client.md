@@ -252,31 +252,40 @@ are not affected.
   no Clipboard API), then a prompt. When the library is private, the share
   toast says only people who can sign in can open the link.
 - **Editor** (`chord-editor.ts` on the model in `chord-doc.ts`): **Visual**
-  by default, with a **Visual / Chords / ChordPro** switch in the bar.
-  Visual shows the song details as fields (title, author, key, capo;
-  number, CCLI, tempo, time and copyright under *More details*; other
-  `{meta}` fields as read-only text) and each section as a card with its
-  type (a short grey tag such as V, C, PC or B that opens the full list),
-  an optional name and a menu (move, duplicate, add a note, delete
-  with Undo). Lines are plain editable text with their chords shown above
-  the characters; chords are not placed or moved there. Dragging a
-  section's grip folds every section to one row until it is dropped.
-  Changing the key offers to move the chords too. Pasting chords written
-  over the words turns them into ChordPro, and headings such as "Chorus"
-  start sections. **Chords** shows the key and capo (changing the key
-  offers to move the chords) and the same sections (names only, no other
-  details or section controls) with the words locked: they keep a caret
-  for the keyboard but take no typing, and a phone shows no keyboard. With
-  a mouse, the space above a line is split into unseen boxes, one per
-  letter (as wide as the letter); the one under the pointer shows,
-  reaching down over its letter, and clicking it opens the chord bubble
-  there. On a touch screen, pressing a line shows the same box at the
-  letter under the finger; sliding sideways moves it along the line
-  (moving up or down scrolls), and letting go (or Enter, `[` or Ctrl+K at
-  the caret) opens a bubble just under that letter with the chords of the
-  song's key, "…" for any other chord and, on an existing chord, a remove
-  button; a dashed box shows where the chord goes, and tapping a chord
-  puts it in and closes the bubble. Drag a chord or use ←/→ to move it.
+  by default, with a **Visual / Chords / ChordPro** switch in the bar. In
+  Visual and Chords the title is a large editable heading, with key and capo
+  under it (changing the key offers to move the chords too); author,
+  number, CCLI, tempo, time and copyright are under *More details* in
+  Visual, and other `{meta}` fields show there as read-only text. **Visual**
+  (`words-editor.ts`) is the whole song as one text, as it reads: each
+  section a paragraph with its name above it (verses numbered by order, or
+  the section's own name), no chords shown, but every chord stays on its
+  letter as the words change. Enter on an empty line starts a new section,
+  and Backspace at the start of a section joins it to the one before (Delete
+  at the end of one joins the next). A bar at the bottom, over a phone's
+  keyboard or above Save, sets the type of the section the caret is in (V,
+  C, PC, B, I, IL, O, T); its menu names the section, adds a note, moves,
+  duplicates and deletes it. Notes and unknown lines are fixed grey rows
+  (tapping a note changes it). Typing within a line is the browser's; any
+  change across lines (Enter, joins, a selection over several lines, cut,
+  paste) is made on the model (`replaceRange`, `splitSection`,
+  `joinSection`) and drawn again. Chords on text deleted across lines are
+  lost, with a toast and Undo. Copying puts the words on the clipboard, and
+  pasting the same text here puts the chords back too; other pasted text
+  with chords written over the words turns them into ChordPro, and
+  headings such as "Chorus" start sections. **Chords** shows the same
+  sections (names only) with the chords over the words and the words
+  locked: they keep a caret for the keyboard but take no typing, and a
+  phone shows no keyboard. With a mouse, the space above a line is split
+  into unseen boxes, one per letter (as wide as the letter); the one under
+  the pointer shows, reaching down over its letter, and clicking it opens
+  the chord bubble there. On a touch screen, pressing a line shows the same
+  box at the letter under the finger; sliding sideways moves it along the
+  line (moving up or down scrolls), and letting go (or Enter, `[` or Ctrl+K
+  at the caret) opens a bubble just under that letter with the chords of
+  the song's key, "…" for any other chord and, on an existing chord, a
+  remove button; a dashed box shows where the chord goes, and tapping a
+  chord puts it in and closes the bubble. Drag a chord or use ←/→ to move it.
   Unknown directives and `#` lines show as grey rows and are kept. The
   ChordPro side is the source with colours, a list of problems by line and
   a preview (beside it on wide screens). It is typed as it is, `[chord]`

@@ -3,6 +3,13 @@ import {
   applyEdit,
   chordsInKey,
   convertPlain,
+  copyPieces,
+  joinSection,
+  lyricLine,
+  piecesText,
+  replaceRange,
+  sectionsOf,
+  splitSection,
   diffText,
   keyDistance,
   lyricSource,
@@ -14,6 +21,7 @@ import {
   transposeDoc,
   type LyricLine,
   type Section,
+  type SongDoc,
 } from "../src/chord-doc.ts";
 
 const SONG = `{title: Amazing Grace}
@@ -155,5 +163,71 @@ describe("convertPlain", () => {
 describe("convertPlain headings", () => {
   it("marks sections started by a heading", () => {
     expect(convertPlain("Chorus\nHi\n\nThere").sections.map((section) => section.headed)).toEqual([true, false]);
+  });
+});
+
+describe("editing the song as one text", () => {
+  const TWO = "{title: X}\n\n{sov}\n[G]One line\nTwo [D]line\n{eov}\n\n{soc}\nThree [C]line\nFour\n{eoc}\n";
+  const setup = () => {
+    const { doc } = parseDoc(TWO);
+    const [verse, chorus] = sectionsOf(doc);
+    const id = (section: Section, index: number) => section.lines[index].id;
+    return { doc, verse, chorus, id };
+  };
+  const text = (doc: SongDoc) => serializeDoc(doc).text;
+
+  it("splits a line in two, keeping its chords on their letters", () => {
+    const { doc, verse, id } = setup();
+    const { caret } = replaceRange(doc, { line: id(verse, 1), off: 4 }, { line: id(verse, 1), off: 4 }, [{ lines: [lyricLine(), lyricLine()] }]);
+    expect(text(doc)).toContain("{sov}\n[G]One line\nTwo \n[D]line\n{eov}");
+    expect(caret.off).toBe(0);
+  });
+
+  it("joins a line to the one before", () => {
+    const { doc, verse, id } = setup();
+    const { caret, lost } = replaceRange(doc, { line: id(verse, 0), off: 8 }, { line: id(verse, 1), off: 0 }, []);
+    expect(text(doc)).toContain("{sov}\n[G]One lineTwo [D]line\n{eov}");
+    expect(caret).toEqual({ line: id(verse, 0), off: 8 });
+    expect(lost).toBe(0);
+  });
+
+  it("joins a section to the one before, and counts chords on removed text", () => {
+    const { doc, verse, chorus, id } = setup();
+    const { lost } = replaceRange(doc, { line: id(verse, 1), off: 3 }, { line: id(chorus, 0), off: 6 }, []);
+    expect(sectionsOf(doc)).toHaveLength(1);
+    expect(text(doc)).toBe("{title: X}\n\n{sov}\n[G]One line\nTwo[C]line\nFour\n{eov}\n");
+    expect(lost).toBe(1);
+  });
+
+  it("puts in pieces as new sections after the place", () => {
+    const { doc, verse, id } = setup();
+    replaceRange(doc, { line: id(verse, 0), off: 3 }, { line: id(verse, 0), off: 3 }, [{ lines: [lyricLine("!")] }, { type: "bridge", lines: [lyricLine("Mid")] }]);
+    expect(text(doc)).toContain("{sov}\n[G]One!\n{eov}\n\n{start_of_bridge}\nMid line\nTwo [D]line\n{end_of_bridge}");
+  });
+
+  it("starts a new section at an empty line", () => {
+    const { doc, verse, id } = setup();
+    replaceRange(doc, { line: id(verse, 0), off: 8 }, { line: id(verse, 0), off: 8 }, [{ lines: [lyricLine(), lyricLine()] }]);
+    const point = splitSection(doc, id(verse, 1))!;
+    expect(point.line).toBe(sectionsOf(doc)[1].lines[0].id);
+    expect(text(doc)).toContain("{sov}\n[G]One line\n{eov}\n\n{start_of_verse}\nTwo [D]line\n{end_of_verse}");
+    expect(splitSection(doc, id(verse, 0))).toBeNull();
+  });
+
+  it("joins a section to the one before, keeping its lines apart", () => {
+    const { doc, chorus } = setup();
+    expect(joinSection(doc, chorus.id)).toBe(true);
+    expect(text(doc)).toBe("{title: X}\n\n{sov}\n[G]One line\nTwo [D]line\nThree [C]line\nFour\n{eov}\n");
+    expect(joinSection(doc, sectionsOf(doc)[0].id)).toBe(false);
+  });
+
+  it("copies words with their chords, and as plain text", () => {
+    const { doc, verse, chorus, id } = setup();
+    const pieces = copyPieces(doc, { line: id(verse, 1), off: 4 }, { line: id(chorus, 0), off: 7 });
+    expect(piecesText(pieces)).toBe("line\n\nThree l");
+    const { doc: other } = parseDoc("{title: Y}\n\nHello\n");
+    const [only] = sectionsOf(other);
+    replaceRange(other, { line: only.lines[0].id, off: 5 }, { line: only.lines[0].id, off: 5 }, pieces);
+    expect(text(other)).toContain("Hello[D]line\n\n{start_of_chorus}\nThree [C]l\n{end_of_chorus}");
   });
 });

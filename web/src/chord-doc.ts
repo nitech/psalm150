@@ -379,6 +379,186 @@ export function sortChords(line: LyricLine): void {
   line.chords.sort((a, b) => a.pos - b.pos);
 }
 
+/* ── Editing the song as one text ─────────────────────────────────────── */
+
+/** A place in the words: a lyric line and a character boundary in it. */
+export interface Point {
+  line: string;
+  off: number;
+}
+
+/** Sections to put in: the first joins the text before the place, the last the text after it. */
+export interface Piece {
+  type?: string;
+  label?: string;
+  lines: Line[];
+}
+
+export const lyricLine = (text = ""): LyricLine => ({ id: newId(), kind: "lyric", text, chords: [] });
+
+export function findLine(doc: SongDoc, id: string): { section: Section; index: number } | null {
+  for (const item of doc.items) {
+    if (item.kind !== "section") continue;
+    const index = item.lines.findIndex((line) => line.id === id);
+    if (index >= 0) return { section: item, index };
+  }
+  return null;
+}
+
+/** The sections in order, without the song details. */
+export const sectionsOf = (doc: SongDoc) => doc.items.filter((item): item is Section => item.kind === "section");
+
+const chordCount = (lines: Line[]) => lines.reduce((sum, line) => sum + (line.kind === "lyric" ? line.chords.length : 0), 0);
+
+/** The type a new section gets after `section`: untagged songs stay untagged, others get a verse. */
+export const nextType = (section: Section | undefined) => (section?.type === "none" ? "none" : "verse");
+
+/**
+ * Replaces the words from `from` to `to` (which may be in different lines
+ * and sections) with `pieces`. Within one line, a chord on removed text
+ * moves to where the edit starts, as with `applyEdit`; across lines, chords
+ * on removed text are lost and counted. Returns the place after the new
+ * text, and the number of chords lost.
+ */
+export function replaceRange(doc: SongDoc, from: Point, to: Point, pieces: Piece[]): { caret: Point; lost: number } {
+  const a = findLine(doc, from.line)!;
+  const b = findLine(doc, to.line)!;
+  const head = a.section.lines[a.index] as LyricLine;
+  const last = b.section.lines[b.index] as LyricLine;
+  let lost = 0;
+  const tailText = last.text.slice(to.off);
+  const tailChords = last.chords.filter((chord) => chord.pos >= to.off).map((chord) => ({ ...chord, pos: chord.pos - to.off }));
+  let headChords: Chord[];
+  if (head === last) {
+    headChords = head.chords.filter((chord) => chord.pos < to.off).map((chord) => ({ ...chord, pos: Math.min(chord.pos, from.off) }));
+  } else {
+    // A chord after the end of the line is on no text, and stays.
+    headChords = head.chords.filter((chord) => chord.pos < from.off || (chord.pos === head.text.length && from.off === head.text.length));
+    lost += head.chords.length - headChords.length + last.chords.filter((chord) => chord.pos < to.off).length;
+  }
+  let after: Line[];
+  if (a.section === b.section) {
+    lost += chordCount(a.section.lines.slice(a.index + 1, b.index));
+    after = a.section.lines.slice(b.index + 1);
+  } else {
+    lost += chordCount(a.section.lines.slice(a.index + 1)) + chordCount(b.section.lines.slice(0, b.index));
+    after = b.section.lines.slice(b.index + 1);
+    // Sections (and unknown lines) between go; song details between stay.
+    const between = new Set<Item>(doc.items.slice(doc.items.indexOf(a.section) + 1, doc.items.indexOf(b.section) + 1).filter((item) => item.kind !== "meta"));
+    between.forEach((item) => { if (item.kind === "section" && item !== b.section) lost += chordCount(item.lines); });
+    doc.items = doc.items.filter((item) => !between.has(item));
+  }
+  const before = a.section.lines.slice(0, a.index);
+  const parts = (pieces.length ? pieces : [{ lines: [] }]).map((piece) => ({ ...piece, lines: [...piece.lines] }));
+  for (const part of parts) {
+    if (part.lines[0]?.kind !== "lyric") part.lines.unshift(lyricLine());
+    if (part.lines[part.lines.length - 1].kind !== "lyric") part.lines.push(lyricLine());
+  }
+  // The text before the place joins the first new line, which keeps its line's id.
+  const first = parts[0].lines[0] as LyricLine;
+  const headText = head.text.slice(0, from.off);
+  head.chords = [...headChords, ...first.chords.map((chord) => ({ ...chord, pos: chord.pos + headText.length }))];
+  head.text = headText + first.text;
+  parts[0].lines[0] = head;
+  const end = parts[parts.length - 1].lines;
+  const tail = end[end.length - 1] as LyricLine;
+  const caret = { line: tail.id, off: tail.text.length };
+  tail.chords = [...tail.chords, ...tailChords.map((chord) => ({ ...chord, pos: chord.pos + caret.off }))];
+  tail.text += tailText;
+  sortChords(head);
+  sortChords(tail);
+
+  if (parts.length === 1) {
+    a.section.lines = [...before, ...parts[0].lines, ...after];
+  } else {
+    if (!before.length && !headText && parts[0].type) {
+      a.section.type = parts[0].type;
+      a.section.label = parts[0].label ?? "";
+    }
+    a.section.lines = [...before, ...parts[0].lines];
+    const added = parts.slice(1).map((part, index): Section => ({
+      id: newId(),
+      kind: "section",
+      type: part.type ?? nextType(a.section),
+      label: part.label ?? "",
+      lines: index === parts.length - 2 ? [...part.lines, ...after] : part.lines,
+      blankBefore: 1,
+    }));
+    doc.items.splice(doc.items.indexOf(a.section) + 1, 0, ...added);
+  }
+  return { caret, lost };
+}
+
+/** Ends a section at an empty line: the line goes, and the lines after it start a new section. Null at a section's first line. */
+export function splitSection(doc: SongDoc, lineId: string): Point | null {
+  const found = findLine(doc, lineId);
+  if (!found || found.index === 0) return null;
+  const { section, index } = found;
+  const rest = section.lines.slice(index + 1);
+  section.lines = section.lines.slice(0, index);
+  if (rest[0]?.kind !== "lyric") rest.unshift(lyricLine());
+  const added: Section = { id: newId(), kind: "section", type: nextType(section), label: "", lines: rest, blankBefore: 1 };
+  doc.items.splice(doc.items.indexOf(section) + 1, 0, added);
+  return { line: rest[0].id, off: 0 };
+}
+
+/** Joins a section to the section just before it, its lines as they are. False when no section is just before. */
+export function joinSection(doc: SongDoc, sectionId: string): boolean {
+  const index = doc.items.findIndex((item) => item.id === sectionId);
+  let before = index - 1;
+  while (before >= 0 && doc.items[before].kind === "meta") before -= 1;
+  const section = doc.items[index];
+  const previous = doc.items[before];
+  if (section?.kind !== "section" || previous?.kind !== "section") return false;
+  previous.lines.push(...section.lines);
+  doc.items.splice(index, 1);
+  return true;
+}
+
+/** After sections move, keeps a blank line between a section and its neighbours. */
+export function spaceSections(doc: SongDoc): void {
+  let previous: Item | null = null;
+  for (const item of doc.items) {
+    if (previous && item.kind !== "meta" && (item.kind === "section" || previous.kind === "section")) item.blankBefore = Math.max(item.blankBefore ?? 1, 1);
+    previous = item;
+  }
+}
+
+/** A copy of lines with new ids, for putting them in again. */
+export function copyLines(lines: Line[]): Line[] {
+  return lines.map((line): Line => line.kind === "lyric"
+    ? { id: newId(), kind: "lyric", text: line.text, chords: line.chords.map((chord) => ({ ...chord, id: newId() })) }
+    : { ...line, id: newId(), src: undefined });
+}
+
+/** The words and chords from `from` to `to`, as pieces to put in again. */
+export function copyPieces(doc: SongDoc, from: Point, to: Point): Piece[] {
+  const sections = sectionsOf(doc);
+  const a = findLine(doc, from.line)!;
+  const b = findLine(doc, to.line)!;
+  const clip = (line: Line, lo: number, hi: number) => {
+    if (line.kind !== "lyric") return;
+    line.chords = line.chords.filter((chord) => chord.pos >= lo && chord.pos < hi).map((chord) => ({ ...chord, pos: chord.pos - lo }));
+    line.text = line.text.slice(lo, hi);
+  };
+  const pieces: Piece[] = [];
+  for (let s = sections.indexOf(a.section); s <= sections.indexOf(b.section); s += 1) {
+    const section = sections[s];
+    const start = section === a.section ? a.index : 0;
+    const end = section === b.section ? b.index : section.lines.length - 1;
+    const lines = copyLines(section.lines.slice(start, end + 1));
+    if (section === b.section) clip(lines[lines.length - 1], 0, to.off);
+    if (section === a.section) clip(lines[0], from.off, Infinity);
+    pieces.push({ type: section.type, label: section.label, lines });
+  }
+  return pieces;
+}
+
+/** Pieces as plain words: a line each, and a blank line between sections. */
+export function piecesText(pieces: Piece[]): string {
+  return pieces.map((piece) => piece.lines.filter((line) => line.kind === "lyric").map((line) => (line as LyricLine).text).join("\n")).join("\n\n");
+}
+
 /* ── Chords and keys ──────────────────────────────────────────────────── */
 
 const NOTE_INDEX: Record<string, number> = { C: 0, "B#": 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, Fb: 4, "E#": 5, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11, Cb: 11 };

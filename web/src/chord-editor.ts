@@ -3,26 +3,23 @@
  * default), Chords and the ChordPro source. All edit one `SongDoc`
  * (chord-doc.ts).
  *
- * Visual: song details as fields, sections as cards, and each line as
- * plain editable text with its chords shown above it. Chords: the same
- * lines, but the words cannot be changed; tapping a place in them (or
- * Enter, `[` or Ctrl+K at the caret) opens a bubble of chords under that
- * letter, and a chord is moved by dragging it (or ←/→ when it has focus).
- * ChordPro: the source with colours, a list of problems and a preview,
- * typed as it is; Ctrl+K opens the same bubble at the cursor.
+ * The title and key sit at the top in every mode but ChordPro. Visual: the
+ * whole song as one text, as it reads (words-editor.ts). Chords: the same
+ * sections with the chords over the words, which cannot be changed there;
+ * tapping a place in them (or Enter, `[` or Ctrl+K at the caret) opens a
+ * bubble of chords under that letter, and a chord is moved by dragging it
+ * (or ←/→ when it has focus). ChordPro: the source with colours, a list of
+ * problems and a preview, typed as it is; Ctrl+K opens the same bubble at
+ * the cursor.
  */
 import {
   CHORD_PATTERN,
   MAJOR_KEYS,
   MINOR_KEYS,
   NO_TITLE,
-  SECTION_TYPES,
-  applyEdit,
   autoLabel,
   chordVariants,
   chordsInKey,
-  convertPlain,
-  diffText,
   findMeta,
   keyDistance,
   metaSource,
@@ -34,7 +31,6 @@ import {
   setMeta,
   sortChords,
   transposeDoc,
-  typeName,
   type Chord,
   type Issue,
   type LyricLine,
@@ -45,6 +41,7 @@ import {
 import { icon } from "./icons.ts";
 import { prepareSong, renderSongBody } from "./song-render.ts";
 import { escapeHtml, showToast } from "./ui.ts";
+import { editable, mountWordsEditor, type MenuItem } from "./words-editor.ts";
 
 export interface ChordEditor {
   /** The ChordPro source as it is now. */
@@ -54,25 +51,16 @@ export interface ChordEditor {
 
 type Mode = "visual" | "chords" | "code";
 interface Caret { id: string; off: number }
-interface Focus { id?: string; off?: number; sel?: string; scroll?: boolean }
+interface Focus { id: string; off?: number; scroll?: boolean }
 /** Where the chord bubble puts a chord: a place in a line, or a range of the ChordPro (an existing `[chord]`, or an empty range). */
 type Bubble =
   | { kind: "line"; lineId: string; pos: number; chordId?: string }
   | { kind: "code"; start: number; end: number; chord?: string };
-type MenuItem = { label: string; run: () => void; disabled?: boolean; danger?: boolean } | "rule";
 
 const coarse = matchMedia("(pointer: coarse)").matches;
 /** A mouse: chords are placed from boxes above the letters, not by clicking the words. */
 const mouse = matchMedia("(hover: hover) and (pointer: fine)").matches;
-const editable = (() => {
-  const probe = document.createElement("div");
-  try { probe.contentEditable = "plaintext-only"; } catch { /* older browsers */ }
-  return probe.contentEditable === "plaintext-only" ? "plaintext-only" : "true";
-})();
 /** Fields with their own control; other details show as read-only text. */
-/** The letters a section's type shows as, when it is not being picked. */
-const TYPE_SHORT: Record<string, string> = { verse: "V", chorus: "C", chorus2: "C2", prechorus: "PC", pre_chorus: "PC", bridge: "B", intro: "I", interlude: "IL", outro: "O", tag: "T", none: "–" };
-const typeShort = (type: string) => TYPE_SHORT[type] ?? type.charAt(0).toUpperCase();
 const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "song_num", "copyright", "ccli", "tempo", "time"];
 
 export function mountChordEditor(root: HTMLElement, initial: string, parts: { modes: HTMLElement }): ChordEditor {
@@ -96,20 +84,20 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   root.innerHTML = `
     <div class="ce-visual">
       <section class="ce-meta" aria-label="Song details">
-        <label class="ce-span">Title<input class="ce-title" data-meta="title" autocomplete="off" placeholder="Song title" /></label>
-        <label>Author<input data-meta="author" autocomplete="off" /></label>
+        <input class="ce-title" data-meta="title" autocomplete="off" placeholder="Song title" aria-label="Title" />
         <div class="ce-pair">
-          <label>Key<select class="ce-key"></select></label>
-          <label>Capo<select data-meta="capo"><option value="">None</option>${Array.from({ length: 11 }, (_, i) => `<option>${i + 1}</option>`).join("")}</select></label>
+          <label class="ce-inline">Key<select class="ce-key"></select></label>
+          <label class="ce-inline">Capo<select data-meta="capo"><option value="">None</option>${Array.from({ length: 11 }, (_, i) => `<option>${i + 1}</option>`).join("")}</select></label>
         </div>
-        <div class="ce-key-prompt ce-span" hidden>
+        <div class="ce-key-prompt" hidden>
           <p></p>
           <button type="button" class="button primary small" data-key="yes">Move chords</button>
           <button type="button" class="button secondary small" data-key="no">Keep chords</button>
         </div>
-        <details class="ce-more ce-span">
+        <details class="ce-more">
           <summary>More details</summary>
           <div class="ce-more-grid">
+            <label class="ce-span">Author<input data-meta="author" autocomplete="off" /></label>
             <label>Number<input data-meta="number" autocomplete="off" inputmode="numeric" /></label>
             <label>CCLI<input data-meta="ccli" autocomplete="off" inputmode="numeric" /></label>
             <label>Tempo<input data-meta="tempo" autocomplete="off" inputmode="numeric" placeholder="BPM" /></label>
@@ -119,13 +107,9 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
           <p class="ce-extras" hidden></p>
         </details>
       </section>
+      <div class="ce-flow"></div>
       <div class="ce-sections"></div>
-      <div class="ce-add">
-        <button type="button" class="button secondary small" data-add="verse">${icon("plus")}Verse</button>
-        <button type="button" class="button secondary small" data-add="chorus">${icon("plus")}Chorus</button>
-        <button type="button" class="button secondary small" data-add-more aria-haspopup="menu">${icon("plus")}Other</button>
-      </div>
-      <p class="hint ce-hint ce-hint-visual">Switch to Chords to put chords over the words. You can paste a song with chords over the words.</p>
+      <p class="hint ce-hint ce-hint-visual">An empty line starts a new section; the bar at the bottom sets what it is. Chords are put in under Chords, and stay on their words here. You can paste a song with chords over the words.</p>
       <p class="hint ce-hint ce-hint-chords">${mouse ? "Point at a line and click a box above a letter" : "Tap a place in the words"} to put a chord there, and drag a chord to move it. The words are changed in Visual.</p>
     </div>
     <div class="ce-code" hidden>
@@ -144,6 +128,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
 
   const q = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = root) => scope.querySelector<T>(selector)!;
   const sectionsEl = q(".ce-sections");
+  const flowEl = q(".ce-flow");
   const keySelect = q<HTMLSelectElement>(".ce-key");
   const keyPrompt = q(".ce-key-prompt");
   const codeBox = q<HTMLTextAreaElement>(".ce-src");
@@ -198,20 +183,20 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   }
   function restore(): void {
     doc = JSON.parse(history[at]) as SongDoc;
-    if (lastCaret && locate(lastCaret.id)) pendingFocus = { ...lastCaret };
+    const caret = caretNow();
+    // In Visual, only when the words have the caret: on a phone, focusing them opens the keyboard.
+    if (caret && locate(caret.id) && (mode !== "visual" || words.focused())) pendingFocus = { ...caret };
     render();
   }
   function commit(): void {
     remember();
     render();
   }
-  /** After a reorder, keep a blank line between a section and its neighbours. */
-  function spaceSections(): void {
-    let previous: SongDoc["items"][number] | null = null;
-    for (const item of doc.items) {
-      if (previous && item.kind !== "meta" && (item.kind === "section" || previous.kind === "section")) item.blankBefore = Math.max(item.blankBefore ?? 1, 1);
-      previous = item;
-    }
+  /** Where the caret is in the words, in Visual or Chords. */
+  function caretNow(): Caret | null {
+    if (mode !== "visual") return lastCaret;
+    const point = words.caret();
+    return point ? { id: point.line, off: point.off } : null;
   }
 
   /* ── The document ───────────────────────────────────────────────────── */
@@ -228,8 +213,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const found = locate(id);
     return found && found.line.kind === "lyric" ? found as { section: Section; line: LyricLine; index: number } : null;
   }
-  const findSection = (id: string) => doc.items.find((item): item is Section => item.kind === "section" && item.id === id)!;
-  const emptyLine = (): LyricLine => ({ id: newId(), kind: "lyric", text: "", chords: [] });
   const hasAnyChord = () => doc.items.some((item) => item.kind === "section" && item.lines.some((line) => line.kind === "lyric" && line.chords.length));
   /** The detail a field edits: an existing one of its names, or the first name. */
   const fieldKey = (name: string) => name === "number"
@@ -301,51 +284,38 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     selection.addRange(range);
   }
 
-  /* ── Visual editor ──────────────────────────────────────────────────── */
+  /* ── Chords: the words with their chords over them ──────────────────── */
 
   function chipsHtml(line: LyricLine): string {
     return `<span class="ce-ghost" hidden aria-hidden="true"></span>${[...line.chords].sort((a, b) => a.pos - b.pos).map((chord) =>
-      mode === "chords"
-        ? `<button type="button" class="ce-chip" data-chord="${chord.id}" aria-label="Chord ${escapeHtml(chord.name)}" aria-describedby="ce-chip-help">${escapeHtml(chord.name)}</button>`
-        : `<span class="ce-chip" data-chord="${chord.id}">${escapeHtml(chord.name)}</span>`).join("")}`;
+      `<button type="button" class="ce-chip" data-chord="${chord.id}" aria-label="Chord ${escapeHtml(chord.name)}" aria-describedby="ce-chip-help">${escapeHtml(chord.name)}</button>`).join("")}`;
   }
   function lineHtml(line: Section["lines"][number]): string {
     if (line.kind === "lyric") {
-      // In Chords the words keep a caret (for the keyboard) but take no typing, and a phone shows no keyboard.
-      const words = mode === "chords" ? `contenteditable="${editable}" inputmode="none" aria-readonly="true"` : `contenteditable="${editable}"`;
-      return `<div class="ce-line" data-line="${line.id}"><div class="ce-text" data-line="${line.id}" ${words} role="textbox" aria-label="Line" spellcheck="false">${escapeHtml(line.text)}</div><div class="ce-chips">${chipsHtml(line)}</div></div>`;
+      // The words keep a caret (for the keyboard) but take no typing, and a phone shows no keyboard.
+      return `<div class="ce-line" data-line="${line.id}"><div class="ce-text" data-line="${line.id}" contenteditable="${editable}" inputmode="none" aria-readonly="true" role="textbox" aria-label="Line" spellcheck="false">${escapeHtml(line.text)}</div><div class="ce-chips">${chipsHtml(line)}</div></div>`;
     }
-    if (line.kind === "comment") {
-      return `<div class="ce-comment"><span class="ce-tag">Note</span><div class="ce-comment-text" data-line="${line.id}"${mode === "chords" ? "" : ` contenteditable="${editable}" role="textbox" aria-label="Note"`}>${escapeHtml(line.text)}</div></div>`;
-    }
-    return `<div class="ce-raw" title="Edit this line in ChordPro"><code>${escapeHtml(line.text)}</code></div>`;
-  }
-  function typeOptions(type: string): string {
-    const types = SECTION_TYPES.some(([value]) => value === type) ? SECTION_TYPES : [...SECTION_TYPES, [type, typeName(type)] as [string, string]];
-    return types.map(([value, name]) => `<option value="${value}"${value === type ? " selected" : ""}>${name}</option>`).join("");
+    if (line.kind === "comment") return `<div class="ce-comment"><span class="ce-tag">Note</span><div class="ce-comment-text">${escapeHtml(line.text)}</div></div>`;
+    return `<div class="ce-raw" title="Change this line in ChordPro"><code>${escapeHtml(line.text)}</code></div>`;
   }
   function sectionHtml(section: Section, verse: number): string {
-    const auto = autoLabel(section, verse);
-    const name = escapeHtml(section.label || auto);
-    const first = section.lines.find((line) => line.kind === "lyric" && line.text.trim()) as LyricLine | undefined;
-    if (mode === "chords") {
-      return `<section class="ce-sec" data-item="${section.id}" aria-label="${name}">
-      <div class="ce-sec-head"><h3 class="ce-sec-name">${name}</h3></div>
-      <div class="ce-sec-body">${section.lines.map(lineHtml).join("")}</div>
-    </section>`;
-    }
+    const name = escapeHtml(section.label || autoLabel(section, verse));
     return `<section class="ce-sec" data-item="${section.id}" aria-label="${name}">
-      <div class="ce-sec-head">
-        <button type="button" class="ce-grip" aria-label="Move ${name}" title="Drag to move">${icon("grip")}</button>
-        <span class="ce-type"><span class="ce-type-short" aria-hidden="true">${escapeHtml(typeShort(section.type))}</span><select aria-label="Section type" title="${escapeHtml(typeName(section.type))}">${typeOptions(section.type)}</select></span>
-        <input class="ce-label" value="${escapeHtml(section.label)}" placeholder="${escapeHtml(auto)}" aria-label="Section name" autocomplete="off" />
-        <span class="ce-peek" aria-hidden="true"><strong>${name}</strong> ${escapeHtml(first?.text.trim() ?? "")}</span>
-        <button type="button" class="icon-button ghost small ce-sec-menu" aria-label="More for ${name}" aria-haspopup="menu">${icon("more")}</button>
-      </div>
+      <h3 class="ce-sec-name">${name}</h3>
       <div class="ce-sec-body">${section.lines.map(lineHtml).join("")}</div>
     </section>`;
   }
   function render(): void {
+    closeBubble(false);
+    renderDetails();
+    if (mode === "visual") {
+      const focus = pendingFocus;
+      pendingFocus = null;
+      sectionsEl.innerHTML = "";
+      words.render(focus?.id ? { line: focus.id, off: focus.off ?? 0 } : null);
+      return;
+    }
+    flowEl.innerHTML = "";
     cellsLine = null;
     let verse = 0;
     sectionsEl.innerHTML = doc.items.filter((item) => item.kind !== "meta").map((item) => {
@@ -356,8 +326,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       }
       return "";
     }).join("") + `<p id="ce-chip-help" class="sr-only">Arrow keys move the chord, Delete removes it, Enter changes it.</p>`;
-    closeBubble(false);
-    renderDetails();
     layoutAll();
     restoreFocus();
   }
@@ -403,13 +371,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const focus = pendingFocus;
     pendingFocus = null;
     if (!focus) return;
-    if (focus.sel) {
-      const el = sectionsEl.querySelector<HTMLElement>(focus.sel);
-      el?.focus({ preventScroll: true });
-      if (focus.scroll) el?.scrollIntoView({ block: "center", behavior: "smooth" });
-      return;
-    }
-    const el = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${focus.id}"], .ce-comment-text[data-line="${focus.id}"]`);
+    const el = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${focus.id}"]`);
     if (!el) return;
     setCaret(el, focus.off ?? el.textContent!.length);
     if (focus.scroll) el.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -461,77 +423,8 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     if (event.key === "Enter" && (event.target as HTMLElement).matches("input")) event.preventDefault();
   });
 
-  /* ── Typing in lines ────────────────────────────────────────────────── */
+  /* ── Keys in the words of Chords ────────────────────────────────────── */
 
-  function onTextInput(el: HTMLElement): void {
-    closeBubble(false);
-    const found = lyric(el.dataset.line!);
-    if (!found) return;
-    if (mode === "chords") {
-      // Typing that could not be stopped (such as a phone's word suggestions) is undone.
-      el.textContent = found.line.text;
-      layoutChips(found.line.id);
-      return;
-    }
-    const text = el.textContent!.replace(/\n/g, " ");
-    // Keep one plain text node, so positions can be measured.
-    if (el.childNodes.length > 1 || (el.firstChild && el.firstChild.nodeType !== Node.TEXT_NODE) || text !== el.textContent) {
-      const off = caretOffset(el);
-      el.textContent = text;
-      setCaret(el, off);
-    }
-    if (text === found.line.text) return;
-    const edit = diffText(found.line.text, text);
-    applyEdit(found.line, edit.start, edit.end, edit.insert);
-    layoutChips(found.line.id);
-    rememberSoon();
-  }
-  function splitLine(el: HTMLElement): void {
-    const found = lyric(el.dataset.line!)!;
-    const a = caretOffset(el, true);
-    const b = caretOffset(el);
-    const at = Math.min(a, b);
-    applyEdit(found.line, at, Math.max(a, b), "");
-    const line = found.line;
-    const next: LyricLine = { id: newId(), kind: "lyric", text: line.text.slice(at), chords: line.chords.filter((chord) => chord.pos >= at).map((chord) => ({ ...chord, pos: chord.pos - at })) };
-    line.chords = line.chords.filter((chord) => chord.pos < at);
-    line.text = line.text.slice(0, at);
-    found.section.lines.splice(found.index + 1, 0, next);
-    pendingFocus = { id: next.id, off: 0 };
-    commit();
-  }
-  function joinWithPrevious(el: HTMLElement): void {
-    const found = locate(el.dataset.line!)!;
-    const line = found.line as LyricLine;
-    const empty = !line.text && !line.chords.length;
-    const previous = found.section.lines[found.index - 1];
-    if (!previous || previous.kind !== "lyric") {
-      if (empty && found.section.lines.length > 1) {
-        found.section.lines.splice(found.index, 1);
-        const target = previous ?? found.section.lines[0];
-        pendingFocus = { id: target.id, off: previous ? undefined : 0 };
-        commit();
-      }
-      return;
-    }
-    const off = previous.text.length;
-    previous.chords.push(...line.chords.map((chord) => ({ ...chord, pos: chord.pos + off })));
-    previous.text += line.text;
-    found.section.lines.splice(found.index, 1);
-    pendingFocus = { id: previous.id, off };
-    commit();
-  }
-  function joinNext(el: HTMLElement): void {
-    const found = lyric(el.dataset.line!)!;
-    const next = found.section.lines[found.index + 1];
-    if (!next || next.kind !== "lyric") return;
-    const off = found.line.text.length;
-    found.line.chords.push(...next.chords.map((chord) => ({ ...chord, pos: chord.pos + off })));
-    found.line.text += next.text;
-    found.section.lines.splice(found.index + 1, 1);
-    pendingFocus = { id: found.line.id, off };
-    commit();
-  }
   /** Up and Down cross from line to line; false when the caret stays in its line. */
   function moveVertically(el: HTMLElement, direction: -1 | 1): boolean {
     const length = textNode(el)?.length ?? 0;
@@ -541,100 +434,37 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       if (direction < 0 && box.top - charBox(el, 0).top > row / 2) return false;
       if (direction > 0 && charBox(el, length).top - box.top > row / 2) return false;
     }
-    const all = [...sectionsEl.querySelectorAll<HTMLElement>(mode === "chords" ? ".ce-text" : ".ce-text, .ce-comment-text")];
+    const all = [...sectionsEl.querySelectorAll<HTMLElement>(".ce-text")];
     const target = all[all.indexOf(el) + direction];
     if (!target) return false;
     const targetLength = textNode(target)?.length ?? 0;
     const y = (direction < 0 ? charBox(target, targetLength).top : charBox(target, 0).top) + 4;
     setCaret(target, offsetAt(target, box.x, y));
-    target.closest(".ce-line, .ce-comment")?.scrollIntoView({ block: "nearest" });
+    target.closest(".ce-line")?.scrollIntoView({ block: "nearest" });
     return true;
   }
-  function paste(el: HTMLElement, text: string): void {
-    const found = lyric(el.dataset.line!)!;
-    const line = found.line;
-    const a = Math.min(caretOffset(el, true), caretOffset(el));
-    const b = Math.max(caretOffset(el, true), caretOffset(el));
-    const rows = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "").split("\n");
-    if (rows.length === 1 && !text.includes("[")) {
-      applyEdit(line, a, b, rows[0]);
-      el.textContent = line.text;
-      setCaret(el, a + rows[0].length);
-      renderChips(line.id);
-      remember();
-      return;
-    }
-    const { sections, converted } = convertPlain(text);
-    applyEdit(line, a, b, "");
-    const replace = !line.text && !line.chords.length;
-    if (sections.length === 1 && sections[0].lines.length === 1 && !sections[0].headed) {
-      const pasted = sections[0].lines[0];
-      applyEdit(line, a, a, pasted.text);
-      line.chords.push(...pasted.chords.map((chord) => ({ ...chord, pos: chord.pos + a })));
-      sortChords(line);
-      pendingFocus = { id: line.id, off: a + pasted.text.length };
-    } else if (sections.length) {
-      // Text before the first heading goes where the caret is; each heading or blank line starts a new section after this one.
-      const inline = sections[0].headed ? [] : sections[0].lines;
-      found.section.lines.splice(found.index + (replace ? 0 : 1), replace ? 1 : 0, ...inline);
-      const added = sections.slice(sections[0].headed ? 0 : 1).map((part): Section => ({ id: newId(), kind: "section", type: part.type, label: "", lines: part.lines, blankBefore: 1 }));
-      // A section left with nothing in it gives way to the pasted ones.
-      const emptied = !found.section.lines.some((candidate) => candidate.kind !== "lyric" || candidate.text || candidate.chords.length);
-      doc.items.splice(doc.items.indexOf(found.section) + (emptied ? 0 : 1), emptied ? 1 : 0, ...added);
-      if (!emptied && !found.section.lines.length) found.section.lines.push(emptyLine());
-      const last = (added[added.length - 1]?.lines ?? sections[0].lines).at(-1)!;
-      pendingFocus = { id: last.id, scroll: true };
-    }
-    commit();
-    if (converted) showToast(`Placed the chords from ${converted} chord line${converted === 1 ? "" : "s"}.`);
-  }
 
+  // The words are changed in Visual; here `[` puts a chord at the caret.
   sectionsEl.addEventListener("beforeinput", (event) => {
-    const el = (event.target as HTMLElement).closest<HTMLElement>(".ce-text, .ce-comment-text");
+    const el = (event.target as HTMLElement).closest<HTMLElement>(".ce-text");
     if (!el) return;
-    const isText = el.classList.contains("ce-text");
-    if (event.inputType === "historyUndo") {
-      event.preventDefault();
-      undo();
-    } else if (event.inputType === "historyRedo") {
-      event.preventDefault();
-      redo();
-    } else if (mode === "chords") {
-      // The words are changed in Visual; here `[` puts a chord at the caret.
-      event.preventDefault();
-      if (isText && event.inputType === "insertText" && event.data === "[") openLineBubble(el.dataset.line!, caretOffset(el), true);
-    } else if (event.inputType === "insertParagraph" || event.inputType === "insertLineBreak") {
-      event.preventDefault();
-      if (isText) splitLine(el);
-      else moveVertically(el, 1);
-    } else if (isText && event.inputType === "insertText" && event.data === "[") {
-      // A bracket would read as a chord in the ChordPro.
-      event.preventDefault();
-    }
+    event.preventDefault();
+    if (event.inputType === "historyUndo") undo();
+    else if (event.inputType === "historyRedo") redo();
+    else if (event.inputType === "insertText" && event.data === "[") openLineBubble(el.dataset.line!, caretOffset(el), true);
   });
+  // Typing that could not be stopped (such as a phone's word suggestions) is undone.
   sectionsEl.addEventListener("input", (event) => {
-    const target = event.target as HTMLElement;
-    if (target.classList.contains("ce-text")) onTextInput(target);
-    else if (target.classList.contains("ce-comment-text")) {
-      const found = locate(target.dataset.line!);
-      if (found && found.line.kind === "comment") found.line.text = target.textContent!.replace(/\n/g, " ");
-      rememberSoon();
-    } else if (target.classList.contains("ce-label")) {
-      findSection(target.closest<HTMLElement>(".ce-sec")!.dataset.item!).label = (target as HTMLInputElement).value;
-      rememberSoon();
-    }
+    const el = (event.target as HTMLElement).closest<HTMLElement>(".ce-text");
+    const found = el && lyric(el.dataset.line!);
+    if (!el || !found) return;
+    el.textContent = found.line.text;
+    layoutChips(found.line.id);
   });
-  sectionsEl.addEventListener("change", (event) => {
-    const select = event.target as HTMLSelectElement;
-    if (!select.closest(".ce-type")) return;
-    const id = select.closest<HTMLElement>(".ce-sec")!.dataset.item!;
-    findSection(id).type = select.value;
-    pendingFocus = { sel: `.ce-sec[data-item="${id}"] .ce-type select` };
-    commit();
-  });
+  sectionsEl.addEventListener("paste", (event) => event.preventDefault());
   sectionsEl.addEventListener("keydown", (event) => {
     const target = event.target as HTMLElement;
-    if (target.classList.contains("ce-text") && mode === "chords") {
+    if (target.classList.contains("ce-text")) {
       if (event.key === "Enter" || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
         event.preventDefault();
         openLineBubble(target.dataset.line!, caretOffset(target), true);
@@ -643,31 +473,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       } else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && !event.shiftKey) {
         if (moveVertically(target, event.key === "ArrowUp" ? -1 : 1)) event.preventDefault();
       }
-    } else if (target.classList.contains("ce-text")) {
-      const off = caretOffset(target);
-      const collapsed = getSelection()?.isCollapsed ?? true;
-      if (event.key === "Backspace" && collapsed && off === 0) {
-        event.preventDefault();
-        joinWithPrevious(target);
-      } else if (event.key === "Delete" && collapsed && off === (textNode(target)?.length ?? 0)) {
-        event.preventDefault();
-        joinNext(target);
-      } else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && !event.shiftKey) {
-        if (moveVertically(target, event.key === "ArrowUp" ? -1 : 1)) event.preventDefault();
-      }
-    } else if (target.classList.contains("ce-comment-text")) {
-      if (event.key === "Backspace" && !target.textContent) {
-        event.preventDefault();
-        const found = locate(target.dataset.line!)!;
-        found.section.lines.splice(found.index, 1);
-        if (!found.section.lines.length) found.section.lines.push(emptyLine());
-        const near = found.section.lines[Math.max(0, found.index - 1)];
-        pendingFocus = { id: near.id };
-        commit();
-      } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-        if (moveVertically(target, event.key === "ArrowUp" ? -1 : 1)) event.preventDefault();
-      }
-    } else if (target.classList.contains("ce-chip") && mode === "chords") {
+    } else if (target.classList.contains("ce-chip")) {
       const wrap = target.closest<HTMLElement>(".ce-line")!;
       const found = lyric(wrap.dataset.line!)!;
       const chord = found.line.chords.find((candidate) => candidate.id === target.dataset.chord)!;
@@ -685,19 +491,14 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
         removeChord(found.line, chord);
         setCaret(wrap.querySelector<HTMLElement>(".ce-text")!, chord.pos);
       }
-    } else if (target.classList.contains("ce-grip") && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-      event.preventDefault();
-      moveSection(target.closest<HTMLElement>(".ce-sec")!.dataset.item!, event.key === "ArrowUp" ? -1 : 1, ".ce-grip");
     }
   });
 
   /* In Chords, with a mouse, the space above a line is split into an unseen box per
      letter (as wide as the letter); the one under the pointer shows,
      reaching down over its letter, and clicking it opens the chord bubble
-     there. Clicking the words only edits them. On a touch
-     screen, tapping a place in the words opens the bubble. Tapping the
-     space above a row does too, without moving the caret (or opening a
-     phone's keyboard). */
+     there. On a touch screen, tapping a place in the words opens the
+     bubble; tapping the space above a row does too. */
   let cellsLine: string | null = null;
   function showCells(wrap: HTMLElement): void {
     const id = wrap.dataset.line!;
@@ -731,7 +532,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     cellsLine = null;
   }
   sectionsEl.addEventListener("pointermove", (event) => {
-    if (mode !== "chords" || event.pointerType !== "mouse" || event.buttons) return;
+    if (event.pointerType !== "mouse" || event.buttons) return;
     const wrap = (event.target as HTMLElement).closest<HTMLElement>(".ce-line");
     if (wrap) showCells(wrap);
     else if (cellsLine) hideCells();
@@ -739,9 +540,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   sectionsEl.addEventListener("pointerleave", hideCells);
   sectionsEl.addEventListener("pointerdown", (event) => {
     const target = event.target as HTMLElement;
-    const grip = target.closest<HTMLElement>(".ce-grip");
-    if (grip) return dragSection(event, grip);
-    if (mode !== "chords") return;
     if (target.closest(".ce-cell")) {
       event.preventDefault();
       return;
@@ -853,21 +651,10 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     }
     const chip = target.closest<HTMLElement>(".ce-chip");
     // A pointer opens the bubble on release (dragChord); Enter or Space comes here.
-    if (chip && mode === "chords") {
+    if (chip) {
       if (event.detail === 0) openLineBubble(chip.closest<HTMLElement>(".ce-line")!.dataset.line!, 0, false, chip.dataset.chord);
       return;
     }
-    const menuButton = target.closest<HTMLElement>(".ce-sec-menu");
-    if (menuButton) openMenu(menuButton, sectionMenu(menuButton.closest<HTMLElement>(".ce-sec")!.dataset.item!));
-  });
-  sectionsEl.addEventListener("paste", (event) => {
-    const el = (event.target as HTMLElement).closest<HTMLElement>(".ce-text, .ce-comment-text");
-    if (!el) return;
-    event.preventDefault();
-    const text = event.clipboardData?.getData("text/plain") ?? "";
-    if (!text || mode === "chords") return;
-    if (el.classList.contains("ce-comment-text")) document.execCommand("insertText", false, text.replace(/\s*\n\s*/g, " "));
-    else paste(el, text);
   });
   listen(document, "selectionchange", () => {
     const selection = getSelection();
@@ -929,135 +716,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     renderChips(line.id);
     showToast(`Removed ${chord.name}.`, { action: { label: "Undo", run: undo } });
   }
-
-  /* ── Sections ───────────────────────────────────────────────────────── */
-
-  /** Moving a section: every section folds to one row while it is held. */
-  function dragSection(event: PointerEvent, grip: HTMLElement): void {
-    if (event.button > 0) return;
-    event.preventDefault();
-    const card = grip.closest<HTMLElement>(".ce-sec")!;
-    const before = [...sectionsEl.children].map((child) => (child as HTMLElement).dataset.item).join();
-    const startTop = grip.getBoundingClientRect().top;
-    (document.activeElement as HTMLElement | null)?.blur?.();
-    sectionsEl.classList.add("sorting");
-    card.classList.add("lifting");
-    // Keep the held section under the finger as the others fold.
-    window.scrollBy(0, grip.getBoundingClientRect().top - startTop);
-    // On the window, not the grip: moving the card in the page drops pointer capture.
-    const move = (next: PointerEvent) => {
-      if (next.pointerId !== event.pointerId) return;
-      const others = [...sectionsEl.children].filter((child) => child !== card && (child as HTMLElement).dataset.item);
-      let target: Element | null = null;
-      for (const other of others) {
-        const rect = other.getBoundingClientRect();
-        if (next.clientY < rect.top + rect.height / 2) {
-          target = other;
-          break;
-        }
-      }
-      target ??= sectionsEl.querySelector("#ce-chip-help");
-      if (target !== card.nextElementSibling && target !== card) sectionsEl.insertBefore(card, target);
-      if (next.clientY < 100) window.scrollBy(0, -12);
-      else if (next.clientY > innerHeight - 160) window.scrollBy(0, 12);
-    };
-    const end = (next: PointerEvent) => {
-      if (next.pointerId !== event.pointerId) return;
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
-      card.classList.remove("lifting");
-      const order = [...sectionsEl.children].map((child) => (child as HTMLElement).dataset.item).filter(Boolean) as string[];
-      const dropTop = card.getBoundingClientRect().top;
-      sectionsEl.classList.remove("sorting");
-      if (order.join() === before.split(",").filter(Boolean).join()) {
-        window.scrollBy(0, card.getBoundingClientRect().top - dropTop);
-        layoutAll();
-        return;
-      }
-      const moved = order.map((id) => doc.items.find((item) => item.id === id)!);
-      let slot = 0;
-      doc.items = doc.items.map((item) => (item.kind === "meta" ? item : moved[slot++]));
-      spaceSections();
-      commit();
-      // Unfolded again: keep the moved section where it was dropped.
-      const placed = sectionsEl.querySelector<HTMLElement>(`.ce-sec[data-item="${card.dataset.item}"]`);
-      if (placed) window.scrollBy(0, placed.getBoundingClientRect().top - dropTop);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
-  }
-  function moveSection(id: string, direction: -1 | 1, focus = ".ce-type select"): void {
-    const items = doc.items;
-    const from = items.findIndex((item) => item.id === id);
-    let to = from + direction;
-    while (to >= 0 && to < items.length && items[to].kind === "meta") to += direction;
-    if (to < 0 || to >= items.length) return;
-    [items[from], items[to]] = [items[to], items[from]];
-    spaceSections();
-    pendingFocus = { sel: `.ce-sec[data-item="${id}"] ${focus}`, scroll: true };
-    commit();
-  }
-  function sectionMenu(id: string): MenuItem[] {
-    const section = findSection(id);
-    const movable = doc.items.filter((item) => item.kind !== "meta");
-    const index = movable.indexOf(section);
-    return [
-      { label: "Move up", disabled: index === 0, run: () => moveSection(id, -1) },
-      { label: "Move down", disabled: index === movable.length - 1, run: () => moveSection(id, 1) },
-      {
-        label: "Duplicate",
-        run: () => {
-          const copy = JSON.parse(JSON.stringify(section)) as Section;
-          copy.id = newId();
-          copy.blankBefore = 1;
-          copy.lines.forEach((line) => {
-            line.id = newId();
-            if (line.kind === "lyric") line.chords.forEach((chord) => { chord.id = newId(); });
-          });
-          doc.items.splice(doc.items.indexOf(section) + 1, 0, copy);
-          pendingFocus = { sel: `.ce-sec[data-item="${copy.id}"] .ce-label`, scroll: true };
-          commit();
-        },
-      },
-      {
-        label: "Add a note",
-        run: () => {
-          const note = { id: newId(), kind: "comment" as const, tag: "c", text: "", orig: null };
-          section.lines.push(note);
-          pendingFocus = { id: note.id };
-          commit();
-        },
-      },
-      "rule",
-      {
-        label: "Delete section",
-        danger: true,
-        run: () => {
-          const name = section.label || typeName(section.type === "none" ? "verse" : section.type);
-          doc.items.splice(doc.items.indexOf(section), 1);
-          commit();
-          showToast(`Deleted ${name}.`, { action: { label: "Undo", run: undo } });
-        },
-      },
-    ];
-  }
-  function addSection(type: string): void {
-    if (historyTimer) remember();
-    const section: Section = { id: newId(), kind: "section", type, label: "", lines: [emptyLine()], blankBefore: 1 };
-    doc.items.push(section);
-    pendingFocus = { id: section.lines[0].id, scroll: true };
-    commit();
-  }
-  root.querySelectorAll<HTMLButtonElement>("[data-add]").forEach((button) => {
-    button.addEventListener("click", () => addSection(button.dataset.add!));
-  });
-  q("[data-add-more]").addEventListener("click", (event) => {
-    openMenu(event.currentTarget as HTMLElement, SECTION_TYPES
-      .filter(([type]) => !["verse", "chorus", "none"].includes(type))
-      .map(([type, name]) => ({ label: name, run: () => addSection(type) })));
-  });
 
   /* ── The chord bubble ───────────────────────────────────────────────── */
 
@@ -1310,7 +968,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       return;
     }
     const mod = event.ctrlKey || event.metaKey;
-    if (mode === "code" || !mod || event.target === bubbleInput) return;
+    if (mode === "code" || !mod || event.target === bubbleInput || (event.target as HTMLElement).closest?.(".ce-bar")) return;
     const key = event.key.toLowerCase();
     if (key === "z") {
       event.preventDefault();
@@ -1439,17 +1097,19 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       // Between Visual and Chords: the same lines, drawn for words or for chords.
       if (historyTimer) remember();
       const active = document.activeElement as HTMLElement | null;
-      if (active?.matches(".ce-text") && lastCaret && lyric(lastCaret.id)) pendingFocus = { ...lastCaret };
+      const caret = caretNow();
+      if ((words.focused() || active?.matches(".ce-text")) && caret && lyric(caret.id)) pendingFocus = { ...caret };
       mode = next;
     } else if (next === "code") {
       if (historyTimer) remember();
+      const caret = caretNow();
       const { text, lines } = serializeDoc(doc);
       codeBox.value = text;
       mode = "code";
+      flowEl.innerHTML = "";
       refreshCode();
       showPreview(wide.matches);
       // The cursor goes to the same place in the source.
-      const caret = lastCaret;
       const found = caret ? lyric(caret.id) : null;
       if (caret && found && lines[caret.id]) {
         const column = caret.off + found.line.chords.filter((chord) => chord.pos <= caret.off).reduce((sum, chord) => sum + chord.name.length + 2, 0);
@@ -1469,13 +1129,10 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
         if (item.kind !== "section") continue;
         for (const line of item.lines) if ((line.src ?? 0) <= lineNumber && (!nearest || (line.src ?? 0) > (nearest.src ?? 0))) nearest = line;
       }
-      if (hadFocus && nearest && nearest.kind !== "raw") {
-        let off: number | undefined;
-        if (nearest.kind === "lyric") {
-          off = nearest.src === lineNumber
-            ? Math.min(nearest.text.length, codeBox.value.split("\n")[lineNumber - 1].slice(0, column).replace(/\[[^\]]*\]?/g, "").length)
-            : nearest.text.length;
-        }
+      if (hadFocus && nearest && nearest.kind === "lyric") {
+        const off = nearest.src === lineNumber
+          ? Math.min(nearest.text.length, codeBox.value.split("\n")[lineNumber - 1].slice(0, column).replace(/\[[^\]]*\]?/g, "").length)
+          : nearest.text.length;
         pendingFocus = { id: nearest.id, off, scroll: true };
       }
       remember();
@@ -1498,6 +1155,16 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
 
   /* ── Start ──────────────────────────────────────────────────────────── */
 
+  const words = mountWordsEditor(flowEl, {
+    doc: () => doc,
+    flush: () => { if (historyTimer) remember(); },
+    remember,
+    rememberSoon: () => rememberSoon(),
+    undo,
+    openMenu,
+    dock: () => root.closest("form")?.querySelector<HTMLElement>(".ce-actions") ?? null,
+  });
+  cleanups.push(() => words.destroy());
   remember();
   render();
   // The screen is drawn before it is on the page; place chords once it has a size.
