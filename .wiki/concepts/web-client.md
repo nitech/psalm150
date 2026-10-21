@@ -257,7 +257,7 @@ are not affected.
   and Chords the song's title is the large editable heading at the top. A
   floating bar at the bottom, in all three modes (fixed by CSS; only a
   phone's keyboard lifts it), holds Save (a floppy-disk icon and "Save"); there is no Cancel, as Back
-  leaves without saving. In Visual and Chords it also has a cog that opens
+  leaves without saving. It also has a cog (in every mode) that opens
   a panel with key and capo (changing the key offers to move
   the chords too) and *More details* (author, number, CCLI, tempo, time,
   copyright; other `{meta}` fields as read-only text). **Visual**
@@ -292,7 +292,11 @@ are not affected.
   chord puts it in and closes the bubble. Drag a chord or use ←/→ to move it.
   Unknown directives and `#` lines show as grey rows and are kept. The
   ChordPro side is the source with colours, a list of problems by line and
-  a preview (beside it on wide screens). It is typed as it is, `[chord]`
+  a preview (on wide screens beside it, half each, the same height, each
+  scrolling in itself and both together by the same share of their length).
+  The bar's section button and cog work there too: the song is read from the
+  source on every change, and a change made in a panel is written back
+  (untouched lines exactly), with the cursor kept on its line. It is typed as it is, `[chord]`
   too; tapping or clicking opens no bubble, and only Ctrl+K opens the same
   bubble at the cursor, which puts `[chord]` there or, inside a `[chord]`,
   changes it. The source round-trips: lines that

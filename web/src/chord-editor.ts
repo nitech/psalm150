@@ -94,7 +94,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     </div>
     <div class="ce-code" hidden>
       <div class="ce-code-main">
-        <div class="ce-code-box"><pre class="ce-hl" aria-hidden="true"></pre><textarea class="ce-src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="ChordPro source"></textarea></div>
+        <div class="ce-code-box"><div class="ce-code-inner"><pre class="ce-hl" aria-hidden="true"></pre><textarea class="ce-src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="ChordPro source"></textarea></div></div>
         <ul class="ce-issues" aria-live="polite"></ul>
         <p class="hint">${mouse ? "Press Ctrl+K to pick a chord at the cursor. " : ""}Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
       </div>
@@ -398,14 +398,16 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   metaFields().forEach((field) => {
     field.addEventListener(field.tagName === "SELECT" ? "change" : "input", () => {
       setMeta(doc, fieldKey(field.dataset.meta!), field.value.trim());
-      rememberSoon();
+      if (mode === "code") writeCode();
+      else rememberSoon();
     });
   });
   keySelect.addEventListener("change", () => {
     const before = metaValue(doc, "key");
     const after = keySelect.value;
     setMeta(doc, "key", after);
-    remember();
+    if (mode === "code") writeCode();
+    else remember();
     const steps = before && after ? keyDistance(before, after) : null;
     keyShift = steps ?? 0;
     keyPrompt.hidden = !keyShift || !hasAnyChord();
@@ -417,6 +419,12 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     keyPrompt.hidden = true;
     if (choice !== "yes") return;
     transposeDoc(doc, keyShift, false);
+    if (mode === "code") {
+      // The source keeps its own undo (Ctrl+Z in it).
+      writeCode();
+      showToast(`Moved the chords to ${metaValue(doc, "key")}.`);
+      return;
+    }
     commit();
     showToast(`Moved the chords to ${metaValue(doc, "key")}.`, { action: { label: "Undo", run: undo } });
   });
@@ -954,8 +962,13 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     }).join("\n")} `;
   }
   let codeTimer = 0;
+  /** In ChordPro the song is read from the source on every change, for the bar and its panels. */
   function refreshCode(): void {
-    const { issues } = parseDoc(codeBox.value);
+    const parsed = parseDoc(codeBox.value);
+    const { issues } = parsed;
+    doc = parsed.doc;
+    renderDetails();
+    words.refresh();
     const real = issues.filter((issue) => issue.message !== NO_TITLE);
     highlightEl.innerHTML = highlight(codeBox.value, new Set(real.map((issue) => issue.line)));
     window.clearTimeout(codeTimer);
@@ -964,6 +977,36 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       if (!preview.hidden) preview.innerHTML = renderSongBody(prepareSong(codeBox.value, 0), { chords: true });
     }, 150);
   }
+  /** The song's line at a line of the source: the one there, or the one before it in its section, or the section's first. */
+  function lineAt(lineNumber: number): Section["lines"][number] | null {
+    let found: Section["lines"][number] | null = null;
+    for (const item of doc.items) {
+      if (item.kind !== "section" || (item.src ?? 0) > lineNumber) continue;
+      found = item.lines.filter((line) => (line.src ?? 0) <= lineNumber).at(-1) ?? item.lines[0] ?? found;
+    }
+    return found;
+  }
+  const cursorLine = () => codeBox.value.slice(0, codeBox.selectionStart).split("\n").length;
+  /** Writes the song back to the source after the bar's panels changed it, keeping the cursor on its line. */
+  function writeCode(): void {
+    const before = codeBox.value.slice(0, codeBox.selectionStart);
+    const column = before.length - before.lastIndexOf("\n") - 1;
+    const line = lineAt(before.split("\n").length);
+    const { text, lines } = serializeDoc(doc);
+    if (text === codeBox.value) return;
+    const hadFocus = document.activeElement === codeBox;
+    const target = (line && lines[line.id]) ?? before.split("\n").length;
+    codeBox.value = text;
+    const rows = text.split("\n");
+    let index = 0;
+    for (let i = 0; i < target - 1 && i < rows.length; i += 1) index += rows[i].length + 1;
+    codeBox.setSelectionRange(index + Math.min(column, (rows[target - 1] ?? "").length), index + Math.min(column, (rows[target - 1] ?? "").length));
+    if (hadFocus) codeBox.focus({ preventScroll: true });
+    refreshCode();
+  }
+  listen(document, "selectionchange", () => {
+    if (mode === "code" && document.activeElement === codeBox) words.refresh();
+  });
   codeBox.addEventListener("input", () => {
     closeBubble(false);
     refreshCode();
@@ -1026,6 +1069,20 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   });
   const previewToggle = q<HTMLButtonElement>(".ce-preview-toggle");
   const wide = matchMedia("(min-width: 1100px)");
+  // Side by side, the source and the preview scroll together, by the same share of their length.
+  const codeScroller = q(".ce-code-box");
+  let leader: HTMLElement | null = null;
+  let leaderTimer = 0;
+  const follow = (from: HTMLElement, to: HTMLElement) => () => {
+    if (!wide.matches || (leader && leader !== from)) return;
+    leader = from;
+    const range = from.scrollHeight - from.clientHeight;
+    to.scrollTop = range > 0 ? (from.scrollTop / range) * (to.scrollHeight - to.clientHeight) : 0;
+    window.clearTimeout(leaderTimer);
+    leaderTimer = window.setTimeout(() => { leader = null; }, 120);
+  };
+  codeScroller.addEventListener("scroll", follow(codeScroller, preview), { passive: true });
+  preview.addEventListener("scroll", follow(preview, codeScroller), { passive: true });
   function showPreview(open: boolean): void {
     preview.hidden = !open;
     previewToggle.setAttribute("aria-expanded", String(open));
@@ -1123,6 +1180,11 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     undo,
     settings: settingsEl,
     save: parts.save,
+    codePlace: () => {
+      const line = lineAt(cursorLine());
+      return line ? { line: line.id, off: 0 } : null;
+    },
+    codeChanged: writeCode,
   });
   cleanups.push(() => words.destroy());
   remember();

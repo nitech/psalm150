@@ -8,7 +8,8 @@
  * (over a phone's keyboard, or above Save) shows the type of the section
  * the caret is in; tapping it opens a panel to change the type, name,
  * move, copy or delete the section and add notes. Its cog opens the song's
- * key, capo and other details. Typing within a line is left to the browser and read back;
+ * key, capo and other details. The bar serves ChordPro too, through the
+ * host, which reads the song from the source and writes it back. Typing within a line is left to the browser and read back;
  * everything that crosses lines is done on the model and drawn again.
  */
 import {
@@ -49,8 +50,12 @@ export interface WordsHost {
   remember(): void;
   rememberSoon(): void;
   undo(): void;
-  /** Saves the song (the bar's ✓). */
+  /** Saves the song (the bar's Save). */
   save(): void;
+  /** In ChordPro: the line the cursor is in, from the source as it is now. */
+  codePlace(): Point | null;
+  /** In ChordPro: writes the song back to the source after the panel changed it. */
+  codeChanged(): void;
   /** The song's key, capo and other details, shown in the panel behind the cog. */
   settings: HTMLElement;
 }
@@ -61,8 +66,10 @@ export interface WordsEditor {
   /** Where the caret is, or was last. */
   caret(): Point | null;
   focused(): boolean;
-  /** The bar's section button shows in Visual, its cog in Visual and Chords, and Save in all. */
+  /** The bar's section button shows in Visual and ChordPro; its cog and Save in every mode. */
   setMode(mode: EditorMode): void;
+  /** Shows the section the cursor is in again (ChordPro's cursor moved). */
+  refresh(): void;
   destroy(): void;
 }
 
@@ -387,8 +394,13 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
 
   /* ── The bar and its panel ──────────────────────────────────────────── */
 
+  /** Where the caret (or ChordPro's cursor) is. */
+  const place = () => (mode === "code" ? host.codePlace() : last);
   /** The section the caret is in, or the first. */
-  const currentSection = (): Section | null => (last ? findLine(doc(), last.line)?.section : null) ?? sectionsOf(doc())[0] ?? null;
+  const currentSection = (): Section | null => {
+    const at = place();
+    return (at ? findLine(doc(), at.line)?.section : null) ?? sectionsOf(doc())[0] ?? null;
+  };
   const verseOf = (section: Section) => {
     const all = sectionsOf(doc());
     return all.slice(0, all.indexOf(section) + 1).filter((item) => item.type === "verse" || item.type === "none").length;
@@ -498,6 +510,12 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     }
   });
   const edit = (run: () => Point | null | void) => {
+    if (mode === "code") {
+      run();
+      host.codeChanged();
+      showBar();
+      return;
+    }
     host.flush();
     const caret = run();
     host.remember();
@@ -523,10 +541,11 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
         return openField("Section name", section.label, autoLabel(section, verseOf(section)), (value) => edit(() => { section.label = value; }));
       case "note": {
         const note: CommentLine = { id: newId(), kind: "comment", tag: "c", text: "", orig: null };
-        const at = last ? section.lines.findIndex((line) => line.id === last!.line) : -1;
+        const here = place();
+        const at = here ? section.lines.findIndex((line) => line.id === here.line) : -1;
         host.flush();
         section.lines.splice(at >= 0 ? at + 1 : section.lines.length, 0, note);
-        render(last);
+        if (mode !== "code") render(last);
         return editNote(note.id);
       }
       case "up": return edit(() => swap(all[index - 1]));
@@ -590,7 +609,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
       wellEl.classList.remove("open");
     }
     if (done) done(cancel ? fieldStart : fieldInput.value.trim());
-    if (refocus && last) setCaret(last);
+    if (refocus && last && mode === "visual") setCaret(last);
   }
   fieldInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
@@ -615,8 +634,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   function setMode(next: EditorMode): void {
     mode = next;
     closeWell();
-    sectionButton.hidden = mode !== "visual";
-    cogButton.hidden = mode === "code";
+    sectionButton.hidden = mode === "chords";
     showBar();
   }
 
@@ -645,6 +663,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     caret: () => last,
     focused: () => document.activeElement === flow,
     setMode,
+    refresh: showBar,
     destroy: () => cleanups.forEach((cleanup) => cleanup()),
   };
 }
