@@ -238,6 +238,17 @@ button.tab:not(.on) { background: none; }
   .page { padding-bottom: calc(var(--dock-h) + var(--psa-space-8)); }
   .page > :first-child:not(.app-bar, .play) { margin-top: var(--psa-space-8); }
 }
+/* Light theme on wide screens: the rail is the grey ground and the page is
+   white. `--rail-bg` keeps the root's grey after the body takes white. */
+:root { --rail-bg: var(--psa-bg-canvas); }
+@media (min-width: 900px) {
+  :root[data-theme="light"] body { --psa-bg-canvas: var(--psa-bg-surface); }
+  :root[data-theme="light"] .tabbar { background: var(--rail-bg); }
+}
+@media (min-width: 900px) and (prefers-color-scheme: light) {
+  :root:not([data-theme]) body { --psa-bg-canvas: var(--psa-bg-surface); }
+  :root:not([data-theme]) .tabbar { background: var(--rail-bg); }
+}
 
 /* ── Page header ────────────────────────────────────────────────────────── */
 
