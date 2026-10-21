@@ -32,6 +32,7 @@ import {
   setMeta,
   sortChords,
   transposeDoc,
+  trimSections,
   type Chord,
   type Issue,
   type LyricLine,
@@ -66,6 +67,7 @@ const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "
 
 export function mountChordEditor(root: HTMLElement, initial: string, parts: { modes: HTMLElement; save: () => void }): ChordEditor {
   let doc: SongDoc = parseDoc(initial).doc;
+  trimSections(doc);
   let mode: Mode = "visual";
   let history: string[] = [];
   let at = -1;
@@ -1079,6 +1081,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       const hadFocus = document.activeElement === codeBox;
       const { doc: parsed, issues } = parseDoc(codeBox.value);
       doc = parsed;
+      trimSections(doc);
       mode = next;
       let nearest: Section["lines"][number] | null = null;
       for (const item of doc.items) {

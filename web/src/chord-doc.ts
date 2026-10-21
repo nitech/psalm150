@@ -502,6 +502,18 @@ export function splitSection(doc: SongDoc, lineId: string): Point | null {
   return { line: rest[0].id, off: 0 };
 }
 
+/**
+ * Drops empty lines at the start and end of sections: the space between
+ * sections is drawn, so they would only show as a second gap. A section
+ * keeps one line.
+ */
+export function trimSections(doc: SongDoc): void {
+  for (const section of sectionsOf(doc)) {
+    while (section.lines.length > 1 && isEmptyLyric(section.lines[section.lines.length - 1])) section.lines.pop();
+    while (section.lines.length > 1 && isEmptyLyric(section.lines[0])) section.lines.shift();
+  }
+}
+
 /** Joins a section to the section just before it, its lines as they are. False when no section is just before. */
 export function joinSection(doc: SongDoc, sectionId: string): boolean {
   const index = doc.items.findIndex((item) => item.id === sectionId);

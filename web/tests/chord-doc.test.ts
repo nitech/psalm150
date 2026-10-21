@@ -10,6 +10,7 @@ import {
   replaceRange,
   sectionsOf,
   splitSection,
+  trimSections,
   diffText,
   keyDistance,
   lyricSource,
@@ -212,6 +213,12 @@ describe("editing the song as one text", () => {
     expect(point.line).toBe(sectionsOf(doc)[1].lines[0].id);
     expect(text(doc)).toContain("{sov}\n[G]One line\n{eov}\n\n{start_of_verse}\nTwo [D]line\n{end_of_verse}");
     expect(splitSection(doc, id(verse, 0))).toBeNull();
+  });
+
+  it("drops empty lines at the ends of sections", () => {
+    const { doc } = parseDoc("{title: X}\n\n{sov}\n\nOne\n\n{eov}\n\n{soc}\n\n{eoc}\n");
+    trimSections(doc);
+    expect(text(doc)).toBe("{title: X}\n\n{sov}\nOne\n{eov}\n\n{soc}\n\n{eoc}\n");
   });
 
   it("joins a section to the one before, keeping its lines apart", () => {
