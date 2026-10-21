@@ -468,8 +468,18 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 
 /* ── Song editor (chord-editor.ts) ──────────────────────────────────────── */
 
-.ce-modes { width: min(300px, 100%); }
-.ce-modes button { min-height: 34px; }
+/* The mode switch looks like the bar at the bottom: a frosted pill, the mode in use sunk into it. */
+.segmented.ce-modes { width: min(300px, 100%); gap: 2px; padding: 4px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); background: color-mix(in srgb, var(--psa-bg-elevated) 90%, transparent); box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.35); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+.segmented.ce-modes button { min-height: 40px; border: 0; color: var(--psa-text-secondary); font-size: 15px; font-weight: 600; }
+.segmented.ce-modes button.on { background: var(--psa-bg-sunken); color: var(--psa-text); box-shadow: none; }
+@media (hover: hover) { .segmented.ce-modes button:not(.on):hover { background: var(--psa-bg-sunken); color: var(--psa-text); } }
+/* Wide screens: the switch sits in the middle of the bar, whatever is beside it. */
+@media (min-width: 900px) {
+  .app-bar-row:has(.ce-modes) { position: relative; }
+  .page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
+  /* The bar at the bottom and its panel line up with it: the middle of the page beside the 220px rail. */
+  body > .ce-bar, body > .ce-well { left: calc(50% + 110px); }
+}
 /* The song's title is the page's heading. */
 .ce-title { display: block; width: 100%; min-height: 0; margin: 0 0 var(--psa-space-5); padding: 4px 0; border: 0; border-bottom: 1px solid transparent; border-radius: 0; background: transparent; font-family: var(--psa-font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
 .ce-title::placeholder { color: var(--psa-text-placeholder); }
@@ -537,6 +547,8 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-well-row.danger { color: var(--psa-danger); }
 .ce-well-check { display: grid; flex: none; width: 20px; place-items: center; color: var(--psa-accent-text); }
 .ce-well-check .icon { width: 18px; height: 18px; }
+.ce-well-row.action .ce-well-check { color: var(--psa-text-secondary); }
+.ce-well-row.danger .ce-well-check { color: inherit; }
 .ce-well-rule { height: 1px; margin: 6px 18px; background: var(--psa-border); }
 .ce-well-field { display: flex; align-items: center; gap: var(--psa-space-2); padding: 0 12px 4px 18px; }
 .ce-well-field input { flex: 1; min-width: 0; }

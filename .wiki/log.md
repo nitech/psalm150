@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-21
+* **Mode switch centred, panel symbols**: the song editor's Visual / Chords / ChordPro switch has the bar's frosted pill look and, on wide screens, sits in the middle of the page column, lined up with the bar at the bottom. The section panel's actions have symbols (new `note`, `arrowUp`, `arrowDown` in `shared/icons.ts`). Pages touched: none (style only).
 * **No double gap between sections**: the song editor drops empty lines at the start and end of each section when it opens a song (or comes back from ChordPro), with new `trimSections` in `chord-doc.ts`; they only showed as a second gap, and saving writes the song without them. Pages touched: none (editor detail).
 * **Save in the editor bar**: the Cancel/Save row under the song editor is gone; the floating bar shows in all three modes with a ✓ Save button (Back cancels). The bar is placed by CSS at the bottom and only moved by JavaScript for a phone keyboard, so it no longer jitters while scrolling. Pages touched: web-client.
 * **Song editor bar and panel**: the bar at the bottom is a pill with the section type ("Verse ⌄") and a cog; each opens a rounded panel over the words (types with a check, section actions; or key, capo and More details). The "Edit song" heading and repeated song title above the editor are gone (kept for screen readers via `pageHead({ quietTitle })`). Pages touched: web-client.

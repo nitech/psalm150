@@ -37,7 +37,7 @@ import {
   type Section,
   type SongDoc,
 } from "./chord-doc.ts";
-import { icon } from "./icons.ts";
+import { icon, type IconName } from "./icons.ts";
 import { escapeHtml, showToast } from "./ui.ts";
 
 export type MenuItem = { label: string; run: () => void; disabled?: boolean; danger?: boolean } | "rule";
@@ -443,8 +443,9 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     document.documentElement.style.scrollPaddingBottom = "";
   });
 
-  const row = (attrs: string, label: string, on = false, extra = "") =>
-    `<button type="button" class="ce-well-row${extra}" ${attrs}><span class="ce-well-check" aria-hidden="true">${on ? icon("check") : ""}</span>${escapeHtml(label)}</button>`;
+  /** A row in the panel: a check by the type in use, or the action's symbol. */
+  const row = (attrs: string, label: string, mark: IconName | null = null, extra = "") =>
+    `<button type="button" class="ce-well-row${extra}" ${attrs}><span class="ce-well-check" aria-hidden="true">${mark ? icon(mark) : ""}</span>${escapeHtml(label)}</button>`;
   function fillSection(): void {
     const section = currentSection();
     if (!section) return;
@@ -452,15 +453,15 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     const index = all.indexOf(section);
     sectionWell.innerHTML = `
       <p class="ce-well-title">${escapeHtml(section.label || autoLabel(section, verseOf(section)))}</p>
-      <div class="ce-well-grid">${TYPES.map((type) => row(`data-type="${type}" role="menuitemradio" aria-checked="${section.type === type}"`, typeName(type), section.type === type)).join("")}</div>
+      <div class="ce-well-grid">${TYPES.map((type) => row(`data-type="${type}" role="menuitemradio" aria-checked="${section.type === type}"`, typeName(type), section.type === type ? "check" : null)).join("")}</div>
       <div class="ce-well-rule"></div>
       <div class="ce-well-grid">
-        ${row('data-act="name"', section.label ? "Rename…" : "Name…")}
-        ${row('data-act="note"', "Add a note")}
-        ${row(`data-act="up"${index === 0 ? " disabled" : ""}`, "Move up")}
-        ${row(`data-act="down"${index === all.length - 1 ? " disabled" : ""}`, "Move down")}
-        ${row('data-act="copy"', "Duplicate")}
-        ${row('data-act="delete"', "Delete", false, " danger")}
+        ${row('data-act="name"', section.label ? "Rename…" : "Name…", "edit", " action")}
+        ${row('data-act="note"', "Add a note", "note", " action")}
+        ${row(`data-act="up"${index === 0 ? " disabled" : ""}`, "Move up", "arrowUp", " action")}
+        ${row(`data-act="down"${index === all.length - 1 ? " disabled" : ""}`, "Move down", "arrowDown", " action")}
+        ${row('data-act="copy"', "Duplicate", "copy", " action")}
+        ${row('data-act="delete"', "Delete", "trash", " action danger")}
       </div>`;
   }
   function openWell(kind: "section" | "settings" | "field"): void {
