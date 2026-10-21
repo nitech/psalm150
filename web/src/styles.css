@@ -457,7 +457,7 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 
 /* ── Song editor (chord-editor.ts) ──────────────────────────────────────── */
 
-.ce-modes { width: 200px; }
+.ce-modes { width: min(300px, 100%); }
 .ce-modes button { min-height: 34px; }
 .ce-meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--psa-space-3) var(--psa-space-4); margin-bottom: var(--psa-space-4); padding: var(--psa-space-4); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); }
 .ce-meta label { min-width: 0; }
@@ -492,8 +492,7 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-label:focus { background: var(--psa-bg-canvas); }
 .ce-sec-body { display: grid; }
 
-/* Sideways moves are the editor's (sliding the chord box); up and down still scroll. */
-.ce-line { touch-action: pan-y; position: relative; margin: 0 -8px; padding: 0 8px; border-radius: var(--psa-radius-xs); }
+.ce-line { position: relative; margin: 0 -8px; padding: 0 8px; border-radius: var(--psa-radius-xs); }
 /* Tall rows leave room above every row of words for its chords, also when a long line wraps. */
 .ce-text { min-height: 46.8px; padding-top: 12px; font-family: var(--psa-font-lyrics); font-size: 18px; line-height: 2.6; white-space: pre-wrap; overflow-wrap: anywhere; caret-color: var(--psa-accent-text); outline: none; }
 .ce-text:focus-visible { box-shadow: none; }
@@ -535,6 +534,16 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-add { display: flex; flex-wrap: wrap; gap: var(--psa-space-2); margin-top: var(--psa-space-4); }
 .ce-add .icon { width: 16px; height: 16px; }
 .ce-hint { margin-top: var(--psa-space-3); }
+
+/* Visual edits the words, and its chords only show; Chords places them, and the words and details stay as they are. */
+.ce[data-mode="visual"] .ce-chip { pointer-events: none; cursor: default; }
+.ce[data-mode="visual"] .ce-hint-chords,
+.ce[data-mode="chords"] :is(.ce-meta, .ce-add, .ce-hint-visual) { display: none; }
+/* Sideways moves are the editor's (sliding the chord box); up and down still scroll. */
+.ce[data-mode="chords"] .ce-line { touch-action: pan-y; }
+.ce[data-mode="chords"] .ce-text { cursor: default; }
+.ce[data-mode="chords"] .ce-text:empty::before { content: none; }
+.ce-sec-name { margin: 0; padding: 8px 0 4px 10px; color: var(--psa-accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* Moving a section: every section folds to one row. */
 .ce-peek { display: none; flex: 1; min-width: 0; overflow: hidden; color: var(--psa-text-secondary); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }

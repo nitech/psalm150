@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-21
+* **Chords mode in the song editor**: placing and moving chords moved out of Visual into a third mode, **Chords** (Visual / Chords / ChordPro). Visual edits the words, details and sections and only shows the chords; Chords locks the words (no phone keyboard) and hides the details, and there tapping or clicking a place, Enter / `[` / Ctrl+K at the caret, dragging and ←/→ work as before. Pages touched: web-client.
+
 ## 2026-10-20
 * **No zooming**: the viewport now sets `maximum-scale=1, user-scalable=no` and the page has `touch-action: manipulation`, so it cannot be pinch- or double-tap-zoomed on phones (iOS Safari still allows pinch zoom); desktop browser zoom is unchanged. Pages touched: accessibility.
 * **Chord boxes for a mouse**: with a mouse, clicking the words no longer opens the chord bubble; pointing at a line shows a box per letter above it, and clicking one opens the bubble there. In the ChordPro, a click opens it only on a chord (Ctrl+K at the cursor). Touch screens keep tap-to-open. The side rail now stays in place while the page scrolls. Pages touched: web-client.
