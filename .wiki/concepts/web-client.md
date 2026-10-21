@@ -203,8 +203,10 @@ are not affected.
   current set; a ✓ shows it is already there, and tapping ✓ removes its last
   entry. Both show a toast with **Undo**. Without a current set the tap opens
   the add-to-set sheet.
-- **Song page**: **Add to <set>** (with the reader's transpose), which turns
-  into **In <set>** (tap to remove, with Undo), and a button for any other set.
+- **Song page**: in the bar at the top, + adds the song to the current set
+  (with the reader's transpose) and turns into ✓ when it is in it (tap to
+  remove, with Undo), and the sets icon opens **Add to a set** for any set
+  (the only one when there is no current set).
 - Edits run one at a time. Each reads the set fresh (`cache: "no-store"`),
   changes the items and saves with `base_version`; a 409 is retried once from
   the new version, so quick taps and other people's edits are not lost.

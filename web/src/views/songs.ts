@@ -385,14 +385,14 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const options = readReaderOptions();
   let transpose = 0;
 
+  /** In the bar at the top: + (or ✓) for the current set, when there is one, and the sets icon for any set. */
   const setActions = () => {
     const set = ctx.currentSet.value;
-    if (!set) return `<button type="button" class="button secondary" data-set-act="other">${icon("sets")}Add to a set</button>`;
+    if (!set) return `<button type="button" class="icon-button ghost" data-set-act="other" aria-label="Add to a set" title="Add to a set">${icon("sets")}</button>`;
     const inSet = ctx.currentSet.count(song.id) > 0;
-    return `<button type="button" class="button ${inSet ? "secondary in-set" : "primary"} grow" data-set-act="toggle"
-        aria-label="${escapeHtml(inSet ? `In ${set.name}. Tap to remove it.` : `Add to ${set.name}`)}">
-        ${icon(inSet ? "check" : "plus")}<span class="ellipsis">${escapeHtml(inSet ? `In ${set.name}` : `Add to ${set.name}`)}</span></button>
-      <button type="button" class="icon-button" data-set-act="other" aria-label="Add to another set" title="Add to another set">${icon("sets")}</button>`;
+    const label = inSet ? `In ${set.name}. Tap to remove it.` : `Add to ${set.name}`;
+    return `<button type="button" class="icon-button ghost${inSet ? " in-set" : ""}" data-set-act="toggle" aria-pressed="${inSet}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(inSet ? "check" : "plus")}</button>
+      <button type="button" class="icon-button ghost" data-set-act="other" aria-label="Add to another set" title="Add to another set">${icon("sets")}</button>`;
   };
 
   const render = () => {
@@ -403,11 +403,10 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       title: song.title,
       back: "#/songs",
       autohide: true,
-      actions: `<button type="button" class="icon-button ghost" id="copy-lyrics" aria-label="Copy the words" title="Copy the words">${icon("copy")}</button><button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(display, options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
+      actions: `${ctx.canEdit ? `<span class="bar-set-actions" id="set-actions">${setActions()}</span>` : ""}<button type="button" class="icon-button ghost" id="copy-lyrics" aria-label="Copy the words" title="Copy the words">${icon("copy")}</button><button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(display, options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
       panel: readerPanel(display, options, transpose),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
-    ${ctx.canEdit ? `<div class="set-actions" id="set-actions">${setActions()}</div>` : ""}
     ${renderSongBody(display, options)}
     <p class="fine-print">Revision ${song.revision_id.slice(0, 8)} · Transposing here only changes what you see${ctx.canEdit ? " and what you add to a set" : ""}.</p>`;
     bindReaderControls(ctx.main, options, (step) => {

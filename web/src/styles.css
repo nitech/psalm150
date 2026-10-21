@@ -99,7 +99,6 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 .button.grow { flex: 1; min-width: 0; }
 /* Accent text on an accent tint is a little darker (lighter in the dark
    theme) than plain accent text, to keep 4.5:1. */
-.button.in-set { border-color: var(--psa-accent-text); color: var(--psa-accent-text); background: var(--psa-accent-soft); }
 .button.danger { color: var(--psa-danger); }
 .link-button { padding: 0; border: 0; background: none; color: var(--psa-accent-text); text-decoration: underline; }
 
@@ -277,6 +276,8 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .page-titles { min-width: 0; margin: var(--psa-space-2) 0 var(--psa-space-4); }
 .page-titles h1 { margin: 0; font-family: var(--psa-font-display); font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .page-actions { display: flex; gap: var(--psa-space-1); margin-left: auto; }
+.bar-set-actions { display: contents; }
+.icon-button.in-set { color: var(--psa-accent-text); }
 /* Phones: no church name over the tab screens, and compact screens (the song
    list) keep their title in the bar instead of a large title. */
 @media (max-width: 899px) {
@@ -395,7 +396,6 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 /* ── Sets ───────────────────────────────────────────────────────────────── */
 
 .numbered { counter-reset: none; }
-.set-actions { display: flex; gap: var(--psa-space-2); margin: 0 0 var(--psa-space-5); }
 .current-note { display: flex; gap: var(--psa-space-2); align-items: flex-start; margin: 0 0 var(--psa-space-4); color: var(--psa-accent-text); font-size: 14px; font-weight: 600; }
 .current-note .icon { width: 18px; height: 18px; margin-top: 1px; }
 .current-note .link-button { font-weight: 500; }
