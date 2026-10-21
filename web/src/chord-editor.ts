@@ -89,7 +89,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       <input class="ce-title" data-meta="title" autocomplete="off" placeholder="Song title" aria-label="Title" />
       <div class="ce-flow"></div>
       <div class="ce-sections"></div>
-      <p class="hint ce-hint ce-hint-visual">An empty line starts a new section; the bar at the bottom sets what it is. Chords are put in under Chords, and stay on their words here. You can paste a song with chords over the words.</p>
       <p class="hint ce-hint ce-hint-chords">${mouse ? "Point at a line and click a box above a letter" : "Tap a place in the words"} to put a chord there, and drag a chord to move it. The words are changed in Visual.</p>
     </div>
     <div class="ce-code" hidden>

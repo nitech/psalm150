@@ -595,7 +595,6 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-hint { margin-top: var(--psa-space-3); }
 .ce:not([data-mode="visual"]) .ce-flow,
 .ce[data-mode="visual"] :is(.ce-hint-chords, .ce-sections),
-.ce[data-mode="chords"] .ce-hint-visual { display: none; }
 
 /* Chord picker and menus, on top of the page. */
 .ce-pick { flex: none; min-width: 44px; min-height: 40px; padding: 0 10px; border: 1px solid var(--psa-border-strong); border-radius: 10px; background: var(--psa-bg-surface); color: var(--psa-chord); font-size: 15px; font-weight: 700; }
