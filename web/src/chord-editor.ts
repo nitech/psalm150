@@ -3,7 +3,8 @@
  * default), Chords and the ChordPro source. All edit one `SongDoc`
  * (chord-doc.ts).
  *
- * The title and key sit at the top in every mode but ChordPro. Visual: the
+ * The title is at the top in every mode but ChordPro; key, capo and the
+ * other details are behind the cog in the bar at the bottom. Visual: the
  * whole song as one text, as it reads (words-editor.ts). Chords: the same
  * sections with the chords over the words, which cannot be changed there;
  * tapping a place in them (or Enter, `[` or Ctrl+K at the caret) opens a
@@ -41,7 +42,7 @@ import {
 import { icon } from "./icons.ts";
 import { prepareSong, renderSongBody } from "./song-render.ts";
 import { escapeHtml, showToast } from "./ui.ts";
-import { editable, mountWordsEditor, type MenuItem } from "./words-editor.ts";
+import { editable, mountWordsEditor } from "./words-editor.ts";
 
 export interface ChordEditor {
   /** The ChordPro source as it is now. */
@@ -83,30 +84,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   root.dataset.mode = "visual";
   root.innerHTML = `
     <div class="ce-visual">
-      <section class="ce-meta" aria-label="Song details">
-        <input class="ce-title" data-meta="title" autocomplete="off" placeholder="Song title" aria-label="Title" />
-        <div class="ce-pair">
-          <label class="ce-inline">Key<select class="ce-key"></select></label>
-          <label class="ce-inline">Capo<select data-meta="capo"><option value="">None</option>${Array.from({ length: 11 }, (_, i) => `<option>${i + 1}</option>`).join("")}</select></label>
-        </div>
-        <div class="ce-key-prompt" hidden>
-          <p></p>
-          <button type="button" class="button primary small" data-key="yes">Move chords</button>
-          <button type="button" class="button secondary small" data-key="no">Keep chords</button>
-        </div>
-        <details class="ce-more">
-          <summary>More details</summary>
-          <div class="ce-more-grid">
-            <label class="ce-span">Author<input data-meta="author" autocomplete="off" /></label>
-            <label>Number<input data-meta="number" autocomplete="off" inputmode="numeric" /></label>
-            <label>CCLI<input data-meta="ccli" autocomplete="off" inputmode="numeric" /></label>
-            <label>Tempo<input data-meta="tempo" autocomplete="off" inputmode="numeric" placeholder="BPM" /></label>
-            <label>Time<input data-meta="time" autocomplete="off" placeholder="4/4" /></label>
-            <label class="ce-span">Copyright<input data-meta="copyright" autocomplete="off" /></label>
-          </div>
-          <p class="ce-extras" hidden></p>
-        </details>
-      </section>
+      <input class="ce-title" data-meta="title" autocomplete="off" placeholder="Song title" aria-label="Title" />
       <div class="ce-flow"></div>
       <div class="ce-sections"></div>
       <p class="hint ce-hint ce-hint-visual">An empty line starts a new section; the bar at the bottom sets what it is. Chords are put in under Chords, and stay on their words here. You can paste a song with chords over the words.</p>
@@ -129,8 +107,34 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   const q = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = root) => scope.querySelector<T>(selector)!;
   const sectionsEl = q(".ce-sections");
   const flowEl = q(".ce-flow");
-  const keySelect = q<HTMLSelectElement>(".ce-key");
-  const keyPrompt = q(".ce-key-prompt");
+  // Key, capo and the other details: shown in the panel behind the bar's cog.
+  const settingsEl = document.createElement("div");
+  settingsEl.className = "ce-settings";
+  settingsEl.innerHTML = `
+    <div class="ce-pair">
+      <label>Key<select class="ce-key"></select></label>
+      <label>Capo<select data-meta="capo"><option value="">None</option>${Array.from({ length: 11 }, (_, i) => `<option>${i + 1}</option>`).join("")}</select></label>
+    </div>
+    <div class="ce-key-prompt" hidden>
+      <p></p>
+      <button type="button" class="button primary small" data-key="yes">Move chords</button>
+      <button type="button" class="button secondary small" data-key="no">Keep chords</button>
+    </div>
+    <details class="ce-more">
+      <summary>More details</summary>
+      <div class="ce-more-grid">
+        <label class="ce-span">Author<input data-meta="author" autocomplete="off" /></label>
+        <label>Number<input data-meta="number" autocomplete="off" inputmode="numeric" /></label>
+        <label>CCLI<input data-meta="ccli" autocomplete="off" inputmode="numeric" /></label>
+        <label>Tempo<input data-meta="tempo" autocomplete="off" inputmode="numeric" placeholder="BPM" /></label>
+        <label>Time<input data-meta="time" autocomplete="off" placeholder="4/4" /></label>
+        <label class="ce-span">Copyright<input data-meta="copyright" autocomplete="off" /></label>
+      </div>
+      <p class="ce-extras" hidden></p>
+    </details>`;
+  const keySelect = q<HTMLSelectElement>(".ce-key", settingsEl);
+  const keyPrompt = q(".ce-key-prompt", settingsEl);
+  const metaFields = () => [root, settingsEl].flatMap((scope) => [...scope.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-meta]")]);
   const codeBox = q<HTMLTextAreaElement>(".ce-src");
   const highlightEl = q(".ce-hl");
   const preview = q(".ce-preview");
@@ -149,12 +153,8 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       <p class="ce-bubble-warn" hidden>That does not look like a chord, but it is saved as you wrote it.</p>
       <div class="ce-bubble-variants"></div>
     </div>`;
-  const menuEl = document.createElement("div");
-  menuEl.className = "ce-menu";
-  menuEl.setAttribute("role", "menu");
-  menuEl.hidden = true;
-  document.body.append(bubbleEl, menuEl);
-  cleanups.push(() => { bubbleEl.remove(); menuEl.remove(); });
+  document.body.append(bubbleEl);
+  cleanups.push(() => bubbleEl.remove());
   const bubbleInput = q<HTMLInputElement>(".ce-bubble-input", bubbleEl);
 
   /* ── History ────────────────────────────────────────────────────────── */
@@ -380,7 +380,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   /* ── Song details ───────────────────────────────────────────────────── */
 
   function renderDetails(): void {
-    root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-meta]").forEach((field) => {
+    metaFields().forEach((field) => {
       if (document.activeElement !== field) field.value = metaValue(doc, fieldKey(field.dataset.meta!));
     });
     const key = metaValue(doc, "key");
@@ -389,11 +389,11 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     keySelect.innerHTML = `<option value="">Not set</option>${key && !keys.includes(key) ? option(key) : ""}<optgroup label="Major">${MAJOR_KEYS.map(option).join("")}</optgroup><optgroup label="Minor">${MINOR_KEYS.map(option).join("")}</optgroup>`;
     const fieldKeys = new Set(FIELD_KEYS);
     const others = doc.items.filter((item) => item.kind === "meta" && !fieldKeys.has(item.key));
-    const extras = q(".ce-extras");
+    const extras = q(".ce-extras", settingsEl);
     extras.hidden = !others.length;
     extras.innerHTML = others.length ? `Also in the song: ${others.map((item) => `<code>${escapeHtml(metaSource(item as MetaItem))}</code>`).join(" ")}. Change these in ChordPro.` : "";
   }
-  root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-meta]").forEach((field) => {
+  metaFields().forEach((field) => {
     field.addEventListener(field.tagName === "SELECT" ? "change" : "input", () => {
       setMeta(doc, fieldKey(field.dataset.meta!), field.value.trim());
       rememberSoon();
@@ -419,9 +419,11 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     showToast(`Moved the chords to ${metaValue(doc, "key")}.`, { action: { label: "Undo", run: undo } });
   });
   // Enter in a field must not save the form.
-  root.addEventListener("keydown", (event) => {
+  const noSubmit = (event: KeyboardEvent) => {
     if (event.key === "Enter" && (event.target as HTMLElement).matches("input")) event.preventDefault();
-  });
+  };
+  root.addEventListener("keydown", noSubmit);
+  settingsEl.addEventListener("keydown", noSubmit);
 
   /* ── Keys in the words of Chords ────────────────────────────────────── */
 
@@ -726,7 +728,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
    * editor a dashed box shows where the chord goes.
    */
   function openBubble(next: Bubble, typing = false): void {
-    closeMenu();
     closeBubble(false);
     bubble = next;
     const key = metaValue(doc, "key");
@@ -907,51 +908,10 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     window.removeEventListener("resize", reposition);
   });
 
-  /* ── Menus ──────────────────────────────────────────────────────────── */
+  /* ── Closing the bubble, and undo ───────────────────────────────────── */
 
-  let menuItems: MenuItem[] = [];
-  let menuOpener: HTMLElement | null = null;
-  function openMenu(opener: HTMLElement, items: MenuItem[]): void {
-    closeBubble(false);
-    menuItems = items;
-    menuOpener = opener;
-    menuEl.innerHTML = items.map((item, index) => item === "rule"
-      ? "<hr />"
-      : `<button type="button" role="menuitem" data-index="${index}"${item.disabled ? " disabled" : ""}${item.danger ? ' class="danger"' : ""}>${escapeHtml(item.label)}</button>`).join("");
-    menuEl.hidden = false;
-    const rect = opener.getBoundingClientRect();
-    const width = menuEl.offsetWidth;
-    const height = menuEl.offsetHeight;
-    const top = rect.bottom + 6 + height > innerHeight - 90 ? rect.top - height - 6 : rect.bottom + 6;
-    menuEl.style.left = `${Math.min(Math.max(16, rect.right - width), innerWidth - width - 16) + scrollX}px`;
-    menuEl.style.top = `${top + scrollY}px`;
-    opener.setAttribute("aria-expanded", "true");
-    menuEl.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
-  }
-  function closeMenu(refocus = false): void {
-    if (menuEl.hidden) return;
-    menuEl.hidden = true;
-    menuOpener?.setAttribute("aria-expanded", "false");
-    if (refocus) menuOpener?.focus();
-  }
-  menuEl.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLElement>("button[data-index]");
-    if (!button) return;
-    const item = menuItems[Number(button.dataset.index)];
-    closeMenu();
-    if (item !== "rule") item.run();
-  });
-  menuEl.addEventListener("keydown", (event) => {
-    const buttons = [...menuEl.querySelectorAll<HTMLElement>("button:not(:disabled)")];
-    const index = buttons.indexOf(document.activeElement as HTMLElement);
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus();
-    } else if (event.key === "Tab") closeMenu();
-  });
   listen(document, "pointerdown", (event) => {
     const target = event.target as HTMLElement;
-    if (!menuEl.hidden && !menuEl.contains(target) && target.closest("[aria-haspopup]") !== menuOpener) closeMenu();
     // A tap elsewhere closes the bubble; a tap in the words opens it again there.
     if (bubble && !bubbleEl.contains(target)) closeBubble(false);
   }, { capture: true });
@@ -961,14 +921,11 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
         event.preventDefault();
         event.stopPropagation();
         closeBubble(true);
-      } else if (!menuEl.hidden) {
-        event.preventDefault();
-        closeMenu(true);
       }
       return;
     }
     const mod = event.ctrlKey || event.metaKey;
-    if (mode === "code" || !mod || event.target === bubbleInput || (event.target as HTMLElement).closest?.(".ce-bar")) return;
+    if (mode === "code" || !mod || event.target === bubbleInput || (event.target as HTMLElement).closest?.(".ce-well")) return;
     const key = event.key.toLowerCase();
     if (key === "z") {
       event.preventDefault();
@@ -1092,7 +1049,6 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
   function setMode(next: Mode): void {
     if (next === mode) return;
     closeBubble(false);
-    closeMenu();
     if (next !== "code" && mode !== "code") {
       // Between Visual and Chords: the same lines, drawn for words or for chords.
       if (historyTimer) remember();
@@ -1146,6 +1102,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       button.classList.toggle("on", on);
       button.setAttribute("aria-pressed", String(on));
     });
+    words.setMode(mode);
     if (mode !== "code") render();
   }
   parts.modes.addEventListener("click", (event) => {
@@ -1161,7 +1118,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     remember,
     rememberSoon: () => rememberSoon(),
     undo,
-    openMenu,
+    settings: settingsEl,
     dock: () => root.closest("form")?.querySelector<HTMLElement>(".ce-actions") ?? null,
   });
   cleanups.push(() => words.destroy());

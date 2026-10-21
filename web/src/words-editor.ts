@@ -5,9 +5,10 @@
  * reads; chords are not shown, but stay on their letters as the words
  * change. Enter on an empty line starts a new section, and Backspace at
  * the start of one joins it to the section before. A bar at the bottom
- * (over a phone's keyboard) changes the type of the section the caret is
- * in, and its menu names, moves, copies and deletes the section and adds
- * notes. Typing within a line is left to the browser and read back;
+ * (over a phone's keyboard, or above Save) shows the type of the section
+ * the caret is in; tapping it opens a panel to change the type, name,
+ * move, copy or delete the section and add notes. Its cog opens the song's
+ * key, capo and other details. Typing within a line is left to the browser and read back;
  * everything that crosses lines is done on the model and drawn again.
  */
 import {
@@ -39,6 +40,7 @@ import { icon } from "./icons.ts";
 import { escapeHtml, showToast } from "./ui.ts";
 
 export type MenuItem = { label: string; run: () => void; disabled?: boolean; danger?: boolean } | "rule";
+export type EditorMode = "visual" | "chords" | "code";
 
 export interface WordsHost {
   doc(): SongDoc;
@@ -47,9 +49,10 @@ export interface WordsHost {
   remember(): void;
   rememberSoon(): void;
   undo(): void;
-  openMenu(opener: HTMLElement, items: MenuItem[]): void;
   /** The bar with Save, which the section bar stays above when there is no keyboard. */
   dock(): HTMLElement | null;
+  /** The song's key, capo and other details, shown in the panel behind the cog. */
+  settings: HTMLElement;
 }
 
 export interface WordsEditor {
@@ -58,6 +61,8 @@ export interface WordsEditor {
   /** Where the caret is, or was last. */
   caret(): Point | null;
   focused(): boolean;
+  /** The bar shows in Visual (with the section button) and Chords (the cog only). */
+  setMode(mode: EditorMode): void;
   destroy(): void;
 }
 
@@ -68,10 +73,8 @@ export const editable = (() => {
   return probe.contentEditable === "plaintext-only" ? "plaintext-only" : "true";
 })();
 
-/** The section types the bar offers, with the tag each shows as. */
-export const TYPE_TAGS: Array<[string, string]> = [
-  ["verse", "V"], ["chorus", "C"], ["prechorus", "PC"], ["bridge", "B"], ["intro", "I"], ["interlude", "IL"], ["outro", "O"], ["tag", "T"],
-];
+/** The section types the panel offers. */
+const TYPES = ["verse", "chorus", "prechorus", "bridge", "intro", "interlude", "outro", "tag"];
 
 export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEditor {
   let last: Point | null = null;
@@ -79,6 +82,8 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   let clip: { text: string; pieces: Piece[] } | null = null;
   let fieldDone: ((value: string) => void) | null = null;
   let fieldStart = "";
+  let well: "section" | "settings" | "field" | null = null;
+  let mode: EditorMode = "visual";
   const cleanups: Array<() => void> = [];
 
   flow.classList.add("ce-flow");
@@ -90,22 +95,34 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
 
   const bar = document.createElement("div");
   bar.className = "ce-bar";
-  bar.hidden = true;
   bar.innerHTML = `
-    <div class="ce-bar-main">
-      <div class="ce-bar-types" role="group" aria-label="Section type">${TYPE_TAGS.map(([type, tag]) =>
-        `<button type="button" data-type="${type}" aria-pressed="false" aria-label="${typeName(type)}" title="${typeName(type)}">${tag}</button>`).join("")}</div>
-      <button type="button" class="ce-bar-more" aria-label="More for this section" aria-haspopup="menu">${icon("more")}</button>
-    </div>
-    <div class="ce-bar-field" hidden>
-      <input autocomplete="off" enterkeyhint="done" />
-      <button type="button" class="button primary small">Done</button>
+    <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
+    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="Key, capo and details" title="Key, capo and details">${icon("settings")}</button>`;
+  const wellEl = document.createElement("div");
+  wellEl.className = "ce-well";
+  wellEl.setAttribute("role", "dialog");
+  wellEl.hidden = true;
+  wellEl.innerHTML = `
+    <div class="ce-well-section" role="group" aria-label="Section"></div>
+    <div class="ce-well-settings"><p class="ce-well-title">Song</p></div>
+    <div class="ce-well-name">
+      <p class="ce-well-title"></p>
+      <div class="ce-well-field">
+        <input autocomplete="off" enterkeyhint="done" />
+        <button type="button" class="button primary small">Done</button>
+      </div>
     </div>`;
-  document.body.append(bar);
-  cleanups.push(() => bar.remove());
-  const fieldEl = bar.querySelector<HTMLElement>(".ce-bar-field")!;
-  const fieldInput = fieldEl.querySelector("input")!;
-  const mainEl = bar.querySelector<HTMLElement>(".ce-bar-main")!;
+  document.body.append(wellEl, bar);
+  cleanups.push(() => { bar.remove(); wellEl.remove(); });
+  const sectionButton = bar.querySelector<HTMLButtonElement>(".ce-bar-section")!;
+  const cogButton = bar.querySelector<HTMLButtonElement>(".ce-bar-cog")!;
+  const sectionWell = wellEl.querySelector<HTMLElement>(".ce-well-section")!;
+  const settingsWell = wellEl.querySelector<HTMLElement>(".ce-well-settings")!;
+  const nameWell = wellEl.querySelector<HTMLElement>(".ce-well-name")!;
+  const fieldInput = nameWell.querySelector("input")!;
+  settingsWell.append(host.settings);
+  // Opening More details makes the panel taller: it grows upwards from the bar.
+  wellEl.addEventListener("toggle", () => placeBar(), true);
 
   const doc = () => host.doc();
   const lyric = (id: string) => {
@@ -367,187 +384,231 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     if (converted) showToast(`Placed the chords from ${converted} chord line${converted === 1 ? "" : "s"}.`);
   });
 
-  /* ── The section bar ────────────────────────────────────────────────── */
+  /* ── The bar and its panel ──────────────────────────────────────────── */
 
-  const currentSection = (): Section | null => (last ? findLine(doc(), last.line)?.section ?? null : null);
+  /** The section the caret is in, or the first. */
+  const currentSection = (): Section | null => (last ? findLine(doc(), last.line)?.section : null) ?? sectionsOf(doc())[0] ?? null;
+  const verseOf = (section: Section) => {
+    const all = sectionsOf(doc());
+    return all.slice(0, all.indexOf(section) + 1).filter((item) => item.type === "verse" || item.type === "none").length;
+  };
   function showBar(): void {
     const section = currentSection();
-    bar.querySelectorAll<HTMLButtonElement>("[data-type]").forEach((button) => {
-      const on = button.dataset.type === section?.type;
-      button.classList.toggle("on", on);
-      button.setAttribute("aria-pressed", String(on));
-    });
+    sectionButton.querySelector("span")!.textContent = section ? typeName(section.type === "none" ? "verse" : section.type) : "";
+    if (well === "section") fillSection();
     placeBar();
   }
   function placeBar(): void {
     if (bar.hidden) return;
     const viewport = window.visualViewport;
     const height = viewport?.height ?? innerHeight;
-    let bottom = (viewport?.offsetTop ?? 0) + height;
+    const top = viewport?.offsetTop ?? 0;
+    let bottom = top + height;
     // No keyboard: stay above Save.
     const dock = host.dock();
     if (innerHeight - height < 80 && dock) bottom = Math.min(bottom, dock.getBoundingClientRect().top);
-    bar.style.top = `${bottom - bar.offsetHeight - 8}px`;
-    document.documentElement.style.scrollPaddingBottom = `${bar.offsetHeight + 24}px`;
-  }
-  function setBar(open: boolean): void {
-    if (bar.hidden !== open) return;
-    bar.hidden = !open;
-    if (open) showBar();
-    else document.documentElement.style.scrollPaddingBottom = "";
+    const barTop = bottom - bar.offsetHeight - 10;
+    bar.style.top = `${barTop}px`;
+    document.documentElement.style.scrollPaddingBottom = `${innerHeight - barTop + 16}px`;
+    if (!well) return;
+    wellEl.style.maxHeight = `${barTop - top - 18}px`;
+    wellEl.style.top = `${barTop - 8 - wellEl.offsetHeight}px`;
   }
   const viewport = window.visualViewport;
   viewport?.addEventListener("resize", placeBar);
   viewport?.addEventListener("scroll", placeBar);
   window.addEventListener("scroll", placeBar, { passive: true });
+  window.addEventListener("resize", placeBar);
   cleanups.push(() => {
     viewport?.removeEventListener("resize", placeBar);
     viewport?.removeEventListener("scroll", placeBar);
     window.removeEventListener("scroll", placeBar);
+    window.removeEventListener("resize", placeBar);
     document.documentElement.style.scrollPaddingBottom = "";
   });
-  flow.addEventListener("focus", () => setBar(true));
-  const blurred = (event: FocusEvent) => {
-    const next = event.relatedTarget as Node | null;
-    if (next && (bar.contains(next) || flow.contains(next))) return;
-    if (!fieldEl.hidden) finishField();
-    setBar(false);
-  };
-  flow.addEventListener("blur", blurred);
-  fieldInput.addEventListener("blur", blurred);
 
-  // Buttons in the bar must not take focus from the words, or the caret (and a phone's keyboard) goes.
-  bar.addEventListener("pointerdown", (event) => {
+  const row = (attrs: string, label: string, on = false, extra = "") =>
+    `<button type="button" class="ce-well-row${extra}" ${attrs}><span class="ce-well-check" aria-hidden="true">${on ? icon("check") : ""}</span>${escapeHtml(label)}</button>`;
+  function fillSection(): void {
+    const section = currentSection();
+    if (!section) return;
+    const all = sectionsOf(doc());
+    const index = all.indexOf(section);
+    sectionWell.innerHTML = `
+      <p class="ce-well-title">${escapeHtml(section.label || autoLabel(section, verseOf(section)))}</p>
+      <div class="ce-well-grid">${TYPES.map((type) => row(`data-type="${type}" role="menuitemradio" aria-checked="${section.type === type}"`, typeName(type), section.type === type)).join("")}</div>
+      <div class="ce-well-rule"></div>
+      <div class="ce-well-grid">
+        ${row('data-act="name"', section.label ? "Rename…" : "Name…")}
+        ${row('data-act="note"', "Add a note")}
+        ${row(`data-act="up"${index === 0 ? " disabled" : ""}`, "Move up")}
+        ${row(`data-act="down"${index === all.length - 1 ? " disabled" : ""}`, "Move down")}
+        ${row('data-act="copy"', "Duplicate")}
+        ${row('data-act="delete"', "Delete", false, " danger")}
+      </div>`;
+  }
+  function openWell(kind: "section" | "settings" | "field"): void {
+    well = kind;
+    if (kind === "section") fillSection();
+    sectionWell.hidden = kind !== "section";
+    settingsWell.hidden = kind !== "settings";
+    nameWell.hidden = kind !== "field";
+    sectionButton.setAttribute("aria-expanded", String(kind === "section"));
+    cogButton.setAttribute("aria-expanded", String(kind === "settings"));
+    wellEl.setAttribute("aria-label", kind === "settings" ? "Key, capo and details" : "Section");
+    wellEl.hidden = false;
+    wellEl.classList.remove("open");
+    placeBar();
+    requestAnimationFrame(() => wellEl.classList.add("open"));
+  }
+  function closeWell(): void {
+    if (!well) return;
+    if (well === "field") finishField();
+    well = null;
+    wellEl.hidden = true;
+    wellEl.classList.remove("open");
+    sectionButton.setAttribute("aria-expanded", "false");
+    cogButton.setAttribute("aria-expanded", "false");
+  }
+
+  // Buttons in the bar and panel must not take focus from the words, or the caret (and a phone's keyboard) goes.
+  const keepFocus = (event: PointerEvent) => {
     if ((event.target as HTMLElement).closest("button")) event.preventDefault();
-  });
+  };
+  bar.addEventListener("pointerdown", keepFocus);
+  wellEl.addEventListener("pointerdown", keepFocus);
   bar.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    const typeButton = target.closest<HTMLElement>("[data-type]");
+    const kind = target.closest(".ce-bar-section") ? "section" : target.closest(".ce-bar-cog") ? "settings" : null;
+    if (!kind) return;
+    if (well === kind) closeWell();
+    else {
+      if (well) closeWell();
+      openWell(kind);
+    }
+  });
+  const edit = (run: () => Point | null | void) => {
+    host.flush();
+    const caret = run();
+    host.remember();
+    render(caret === undefined ? last : caret);
+  };
+  sectionWell.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
     const section = currentSection();
-    if (typeButton && section) {
-      host.flush();
-      section.type = typeButton.dataset.type!;
-      host.remember();
-      render(last);
-    } else if (target.closest(".ce-bar-more") && section) host.openMenu(target.closest<HTMLElement>(".ce-bar-more")!, sectionMenu(section));
-    else if (target.closest(".ce-bar-field button")) finishField();
+    if (!button || !section) return;
+    const song = doc();
+    const all = sectionsOf(song);
+    const index = all.indexOf(section);
+    const swap = (other: Section) => {
+      const a = song.items.indexOf(section);
+      const b = song.items.indexOf(other);
+      [song.items[a], song.items[b]] = [song.items[b], song.items[a]];
+      spaceSections(song);
+    };
+    closeWell();
+    if (button.dataset.type) return edit(() => { section.type = button.dataset.type!; });
+    switch (button.dataset.act) {
+      case "name":
+        return openField("Section name", section.label, autoLabel(section, verseOf(section)), (value) => edit(() => { section.label = value; }));
+      case "note": {
+        const note: CommentLine = { id: newId(), kind: "comment", tag: "c", text: "", orig: null };
+        const at = last ? section.lines.findIndex((line) => line.id === last!.line) : -1;
+        host.flush();
+        section.lines.splice(at >= 0 ? at + 1 : section.lines.length, 0, note);
+        render(last);
+        return editNote(note.id);
+      }
+      case "up": return edit(() => swap(all[index - 1]));
+      case "down": return edit(() => swap(all[index + 1]));
+      case "copy":
+        return edit(() => {
+          const copy: Section = { id: newId(), kind: "section", type: section.type, label: section.label, lines: copyLines(section.lines), blankBefore: 1 };
+          song.items.splice(song.items.indexOf(section) + 1, 0, copy);
+          const first = copy.lines.find((line) => line.kind === "lyric");
+          return first ? { line: first.id, off: 0 } : null;
+        });
+      case "delete": {
+        const name = section.label || autoLabel(section, verseOf(section));
+        const first = (all[index + 1] ?? all[index - 1])?.lines.find((line) => line.kind === "lyric");
+        edit(() => {
+          song.items.splice(song.items.indexOf(section), 1);
+          return first ? { line: first.id, off: 0 } : null;
+        });
+        showToast(`Deleted ${name}.`, { action: { label: "Undo", run: host.undo } });
+      }
+    }
+  });
+  nameWell.addEventListener("click", (event) => {
+    if ((event.target as HTMLElement).closest("button")) finishField(true);
+  });
+  const outside = (event: PointerEvent) => {
+    const target = event.target as Node;
+    if (well && !wellEl.contains(target) && !bar.contains(target)) closeWell();
+  };
+  document.addEventListener("pointerdown", outside, true);
+  const escape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || !well) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (well === "field") finishField(true, true);
+    else closeWell();
+  };
+  document.addEventListener("keydown", escape, true);
+  cleanups.push(() => {
+    document.removeEventListener("pointerdown", outside, true);
+    document.removeEventListener("keydown", escape, true);
   });
 
   function openField(label: string, value: string, placeholder: string, done: (value: string) => void): void {
     fieldDone = done;
     fieldStart = value;
-    mainEl.hidden = true;
-    fieldEl.hidden = false;
+    nameWell.querySelector(".ce-well-title")!.textContent = label;
     fieldInput.value = value;
     fieldInput.placeholder = placeholder;
     fieldInput.setAttribute("aria-label", label);
-    setBar(true);
+    openWell("field");
     fieldInput.focus({ preventScroll: true });
   }
   /** Closes the field; Escape (`cancel`) gives back what it held before. */
   function finishField(refocus = false, cancel = false): void {
     const done = fieldDone;
     fieldDone = null;
-    mainEl.hidden = false;
-    fieldEl.hidden = true;
+    if (well === "field") {
+      well = null;
+      wellEl.hidden = true;
+      wellEl.classList.remove("open");
+    }
     if (done) done(cancel ? fieldStart : fieldInput.value.trim());
     if (refocus && last) setCaret(last);
   }
   fieldInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      finishField(true);
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      finishField(true, true);
-    }
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    finishField(true);
   });
 
   function editNote(id: string): void {
     const found = findLine(doc(), id);
     const note = found?.section.lines[found.index] as CommentLine | undefined;
     if (!found || !note) return;
-    openField("Note", note.text, "Write a note", (value) => {
-      host.flush();
+    openField("Note", note.text, "Write a note", (value) => edit(() => {
       if (value) note.text = value;
       else found.section.lines.splice(found.section.lines.indexOf(note), 1);
-      host.remember();
-      render(last);
-    });
+    }));
   }
   flow.addEventListener("click", (event) => {
     const note = (event.target as HTMLElement).closest<HTMLElement>(".ce-note");
     if (note) editNote(note.dataset.note!);
   });
 
-  function sectionMenu(section: Section): MenuItem[] {
-    const song = doc();
-    const all = sectionsOf(song);
-    const index = all.indexOf(section);
-    const verse = all.slice(0, index + 1).filter((item) => item.type === "verse" || item.type === "none").length;
-    const edit = (run: () => Point | null | void) => () => {
-      host.flush();
-      const caret = run();
-      host.remember();
-      render(caret === undefined ? last : caret);
-    };
-    const move = (direction: -1 | 1) => edit(() => {
-      const other = all[index + direction];
-      const a = song.items.indexOf(section);
-      const b = song.items.indexOf(other);
-      [song.items[a], song.items[b]] = [song.items[b], song.items[a]];
-      spaceSections(song);
-    });
-    return [
-      {
-        label: section.label ? `Rename “${section.label}”…` : "Name the section…",
-        run: () => openField("Section name", section.label, autoLabel(section, verse), (value) => {
-          host.flush();
-          section.label = value;
-          host.remember();
-          render(last);
-        }),
-      },
-      {
-        label: "Add a note",
-        run: () => {
-          const note: CommentLine = { id: newId(), kind: "comment", tag: "c", text: "", orig: null };
-          const at = last ? section.lines.findIndex((line) => line.id === last!.line) : -1;
-          host.flush();
-          section.lines.splice(at >= 0 ? at + 1 : section.lines.length, 0, note);
-          render(last);
-          editNote(note.id);
-        },
-      },
-      "rule",
-      { label: "Move up", disabled: index === 0, run: move(-1) },
-      { label: "Move down", disabled: index === all.length - 1, run: move(1) },
-      {
-        label: "Duplicate",
-        run: edit(() => {
-          const copy: Section = { id: newId(), kind: "section", type: section.type, label: section.label, lines: copyLines(section.lines), blankBefore: 1 };
-          song.items.splice(song.items.indexOf(section) + 1, 0, copy);
-          const first = copy.lines.find((line) => line.kind === "lyric");
-          return first ? { line: first.id, off: 0 } : null;
-        }),
-      },
-      "rule",
-      {
-        label: "Delete section",
-        danger: true,
-        run: () => {
-          const name = section.label || autoLabel(section, verse);
-          const neighbour = all[index + 1] ?? all[index - 1];
-          const first = neighbour?.lines.find((line) => line.kind === "lyric");
-          edit(() => {
-            song.items.splice(song.items.indexOf(section), 1);
-            return first ? { line: first.id, off: 0 } : null;
-          })();
-          showToast(`Deleted ${name}.`, { action: { label: "Undo", run: host.undo } });
-        },
-      },
-    ];
+  function setMode(next: EditorMode): void {
+    mode = next;
+    closeWell();
+    bar.hidden = mode === "code";
+    sectionButton.hidden = mode !== "visual";
+    if (bar.hidden) document.documentElement.style.scrollPaddingBottom = "";
+    else showBar();
   }
 
   /* ── Where the caret is ─────────────────────────────────────────────── */
@@ -574,6 +635,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     render,
     caret: () => last,
     focused: () => document.activeElement === flow,
+    setMode,
     destroy: () => cleanups.forEach((cleanup) => cleanup()),
   };
 }

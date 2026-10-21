@@ -73,13 +73,15 @@ export function pageHead(options: {
   wideOnly?: boolean;
   /** A section's top screen: ☰ opens the sections drawer on phones (in place of Back). */
   menu?: boolean;
+  /** The screen shows its own title (the song editor): the heading stays for screen readers only. */
+  quietTitle?: boolean;
 }): string {
   const eyebrow = options.subtitle
     ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>`
     : options.church ? `<p class="eyebrow wide-only">${escapeHtml(options.church)}</p>` : "";
   // The h1 takes focus after a route change (main.ts). On phones a compact
   // or wide-only title is hidden visually but stays for screen readers.
-  const titles = `<div class="page-titles${options.compact ? " compact" : ""}${options.wideOnly ? " wide-only" : ""}">
+  const titles = `<div class="page-titles${options.compact ? " compact" : ""}${options.wideOnly ? " wide-only" : ""}${options.quietTitle ? " quiet" : ""}">
       ${eyebrow}
       <h1 tabindex="-1">${escapeHtml(options.title)}</h1>
     </div>`;

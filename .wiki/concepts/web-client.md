@@ -252,20 +252,22 @@ are not affected.
   no Clipboard API), then a prompt. When the library is private, the share
   toast says only people who can sign in can open the link.
 - **Editor** (`chord-editor.ts` on the model in `chord-doc.ts`): **Visual**
-  by default, with a **Visual / Chords / ChordPro** switch in the bar. In
-  Visual and Chords the title is a large editable heading, with key and capo
-  under it (changing the key offers to move the chords too); author,
-  number, CCLI, tempo, time and copyright are under *More details* in
-  Visual, and other `{meta}` fields show there as read-only text. **Visual**
+  by default, with a **Visual / Chords / ChordPro** switch in the bar (the
+  screen's own "Edit song" heading is for screen readers only). In Visual
+  and Chords the song's title is the large editable heading at the top. A
+  floating bar at the bottom (over a phone's keyboard, or above Save) has a
+  cog that opens a panel with key and capo (changing the key offers to move
+  the chords too) and *More details* (author, number, CCLI, tempo, time,
+  copyright; other `{meta}` fields as read-only text). **Visual**
   (`words-editor.ts`) is the whole song as one text, as it reads: each
   section a paragraph with its name above it (verses numbered by order, or
   the section's own name), no chords shown, but every chord stays on its
   letter as the words change. Enter on an empty line starts a new section,
   and Backspace at the start of a section joins it to the one before (Delete
-  at the end of one joins the next). A bar at the bottom, over a phone's
-  keyboard or above Save, sets the type of the section the caret is in (V,
-  C, PC, B, I, IL, O, T); its menu names the section, adds a note, moves,
-  duplicates and deletes it. Notes and unknown lines are fixed grey rows
+  at the end of one joins the next). In Visual the bar also has a button
+  with the type of the section the caret is in ("Verse"); it opens a panel
+  (rounded, with a check by the type in use) to change the type, name the
+  section, add a note, move, duplicate or delete it. Notes and unknown lines are fixed grey rows
   (tapping a note changes it). Typing within a line is the browser's; any
   change across lines (Enter, joins, a selection over several lines, cut,
   paste) is made on the model (`replaceRange`, `splitSection`,

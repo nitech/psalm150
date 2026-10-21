@@ -513,7 +513,7 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
   }
   const back = song ? `#/songs/${song.id}` : "#/songs";
   setTitle(song ? `Edit ${song.title}` : "New song", "Songs");
-  ctx.main.innerHTML = `${pageHead({ title: song ? "Edit song" : "New song", subtitle: song?.title, back, actions: `<div class="segmented ce-modes" role="group" aria-label="Edit as"></div>` })}
+  ctx.main.innerHTML = `${pageHead({ title: song ? "Edit song" : "New song", quietTitle: true, back, actions: `<div class="segmented ce-modes" role="group" aria-label="Edit as"></div>` })}
   <form class="editor" id="editor-form">
     <div id="chord-editor"></div>
     <p class="form-message" role="status"></p>
