@@ -475,6 +475,8 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 @media (hover: hover) { .segmented.ce-modes button:not(.on):hover { background: var(--psa-bg-sunken); color: var(--psa-text); } }
 /* The switch sits in the middle of the bar, whatever is beside it; on a phone narrow enough to clear Back. */
 .app-bar-row:has(.ce-modes) { position: relative; }
+/* No title in the bar here: the switch has its place, and the song's title starts the page. */
+.app-bar-row:has(.ce-modes) .bar-title { display: none; }
 .page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
 @media (max-width: 899px) { .segmented.ce-modes { width: min(264px, calc(100vw - 2 * var(--page-pad) - 96px)); } }
 @media (min-width: 900px) {
