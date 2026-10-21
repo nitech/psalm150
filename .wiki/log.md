@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-21
+* **ChordPro is typed as it is**: tapping or clicking in the ChordPro source no longer opens the chord bubble, so `[chord]` can be typed by hand; Ctrl+K still opens it at the cursor. Pages touched: web-client.
 * **Chords mode in the song editor**: placing and moving chords moved out of Visual into a third mode, **Chords** (Visual / Chords / ChordPro). Visual edits the words, details and sections and only shows the chords; Chords locks the words (no phone keyboard) and hides the details, and there tapping or clicking a place, Enter / `[` / Ctrl+K at the caret, dragging and ←/→ work as before. Pages touched: web-client.
 
 ## 2026-10-20

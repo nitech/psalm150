@@ -8,8 +8,8 @@
  * lines, but the words cannot be changed; tapping a place in them (or
  * Enter, `[` or Ctrl+K at the caret) opens a bubble of chords under that
  * letter, and a chord is moved by dragging it (or ←/→ when it has focus).
- * ChordPro: the source with colours, a list of problems and a preview, and
- * the same bubble when a place in it is tapped.
+ * ChordPro: the source with colours, a list of problems and a preview,
+ * typed as it is; Ctrl+K opens the same bubble at the cursor.
  */
 import {
   CHORD_PATTERN,
@@ -129,7 +129,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
       <div class="ce-code-main">
         <div class="ce-code-box"><pre class="ce-hl" aria-hidden="true"></pre><textarea class="ce-src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="ChordPro source"></textarea></div>
         <ul class="ce-issues" aria-live="polite"></ul>
-        <p class="hint">${mouse ? "Press Ctrl+K to put a chord at the cursor, or click a chord to change it." : "Tap a place to put a chord there."} Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
+        <p class="hint">${mouse ? "Press Ctrl+K to pick a chord at the cursor. " : ""}Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
       </div>
       <div class="ce-preview-col">
         <button type="button" class="button secondary small ce-preview-toggle" aria-expanded="false">Show preview</button>
@@ -1380,7 +1380,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     return row ? { x: row.left, top: row.top, bottom: row.bottom } : null;
   }
   /** Opens the bubble at a place in the source; inside a `[chord]` it changes that chord. Not in directives or `#` lines. */
-  function openCodeBubble(index: number, typing = false, onlyOnChord = false): void {
+  function openCodeBubble(index: number, typing = false): void {
     const value = codeBox.value;
     const lineStart = value.lastIndexOf("\n", index - 1) + 1;
     const lineEnd = value.indexOf("\n", index) < 0 ? value.length : value.indexOf("\n", index);
@@ -1391,15 +1391,9 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     const close = line.indexOf("]", open);
     if (open >= 0 && close > open && col > open && col <= close && !line.slice(open + 1, close).includes("[")) {
       openBubble({ kind: "code", start: lineStart + open, end: lineStart + close + 1, chord: line.slice(open + 1, close).trim() }, typing);
-    } else if (onlyOnChord) closeBubble(false);
-    else openBubble({ kind: "code", start: index, end: index }, typing);
+    } else openBubble({ kind: "code", start: index, end: index }, typing);
   }
-  let codePointer = "";
-  codeBox.addEventListener("pointerdown", (event) => { codePointer = event.pointerType; });
-  codeBox.addEventListener("click", () => {
-    // A mouse click opens the bubble only on a chord; Ctrl+K puts one at the cursor.
-    if (codeBox.selectionStart === codeBox.selectionEnd) openCodeBubble(codeBox.selectionStart, false, codePointer === "mouse");
-  });
+  // The source is typed as it is, `[chord]` too; only Ctrl+K opens the bubble (chords are placed by tapping in Chords).
   codeBox.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
