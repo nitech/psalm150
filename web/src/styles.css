@@ -474,14 +474,13 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .segmented.ce-modes button.on { background: var(--psa-bg-sunken); color: var(--psa-text); box-shadow: none; }
 @media (hover: hover) { .segmented.ce-modes button:not(.on):hover { background: var(--psa-bg-sunken); color: var(--psa-text); } }
 /* Wide screens: the switch sits in the middle of the bar, whatever is beside it.
-   Phones: on a row of its own under Back, across the page, like iOS's segmented controls. */
+   Phones: a low switch filling the bar beside Back, like iOS's segmented controls. */
 .app-bar-row:has(.ce-modes) { position: relative; }
 /* No title in the bar here: the switch has its place, and the song's title starts the page. */
 .app-bar-row:has(.ce-modes) .bar-title { display: none; }
 @media (max-width: 899px) {
-  .app-bar-row:has(.ce-modes) { flex-wrap: wrap; height: auto; min-height: var(--bar-h); }
-  .page-actions:has(> .ce-modes) { flex-basis: 100%; justify-content: center; margin: 0 0 var(--psa-space-4); }
-  .segmented.ce-modes { width: min(100%, 440px); padding: 3px; }
+  .page-actions:has(> .ce-modes) { flex: 1; min-width: 0; margin-left: var(--psa-space-1); }
+  .segmented.ce-modes { width: 100%; padding: 3px; }
   .segmented.ce-modes button { min-height: 32px; font-size: 14px; }
 }
 @media (min-width: 900px) {
