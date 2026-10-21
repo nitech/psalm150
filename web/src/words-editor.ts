@@ -98,7 +98,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   bar.innerHTML = `
     <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
     <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="Key, capo and details" title="Key, capo and details">${icon("settings")}</button>
-    <button type="button" class="ce-bar-save" aria-label="Save" title="Save">${icon("check")}</button>`;
+    <button type="button" class="ce-bar-save">${icon("save")}Save</button>`;
   const wellEl = document.createElement("div");
   wellEl.className = "ce-well";
   wellEl.setAttribute("role", "dialog");

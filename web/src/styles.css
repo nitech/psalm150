@@ -506,8 +506,8 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-bar-section:not([hidden]) + .ce-bar-cog { border-left: 1px solid var(--psa-border); border-radius: 0 var(--psa-radius-full) var(--psa-radius-full) 0; }
 .ce-bar-cog .icon { width: 19px; height: 19px; }
 /* Save: the one filled button. */
-.ce-bar button.ce-bar-save { width: 40px; margin-left: 4px; background: var(--psa-accent); color: var(--psa-on-accent); }
-.ce-bar button.ce-bar-save .icon { width: 20px; height: 20px; }
+.ce-bar button.ce-bar-save { margin-left: 4px; padding: 0 16px 0 13px; background: var(--psa-accent); color: var(--psa-on-accent); }
+.ce-bar button.ce-bar-save .icon { width: 18px; height: 18px; }
 @media (hover: hover) { .ce-bar button.ce-bar-save:hover { background: var(--psa-accent); filter: brightness(1.08); } }
 body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-bar button[aria-expanded="true"], .ce-bar button:active { background: var(--psa-bg-sunken); }
