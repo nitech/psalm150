@@ -482,10 +482,13 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-sec-head { display: flex; align-items: center; gap: 6px; margin: 0 -8px 0 -10px; }
 .ce-grip { display: grid; place-items: center; width: 32px; height: 40px; flex: none; padding: 0; border: 0; border-radius: var(--psa-radius-xs); background: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
 .ce-grip .icon { width: 18px; height: 18px; }
-.ce-type { position: relative; flex: none; color: var(--psa-accent-text); }
-.ce-type::after { content: ""; position: absolute; top: 50%; right: 12px; width: 6px; height: 6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
-.ce-type select { field-sizing: content; width: auto; min-width: 92px; min-height: 34px; padding: 0 30px 0 12px; border: 1px solid transparent; border-radius: var(--psa-radius-full); background: var(--psa-accent-soft); color: var(--psa-accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; appearance: none; -webkit-appearance: none; cursor: pointer; }
-.ce-type option { background: var(--psa-bg-elevated); color: var(--psa-text); text-transform: none; letter-spacing: 0; }
+/* The section's type shows as a short grey tag (V, C, B…); the unseen select over it opens the full names. */
+.ce-type { position: relative; flex: none; }
+.ce-type-short { display: grid; place-items: center; min-width: 34px; height: 30px; padding: 0 8px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); color: var(--psa-text-secondary); font-size: 13px; font-weight: 700; }
+.ce-type select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.ce-type:has(select:focus-visible) .ce-type-short { outline: 2px solid var(--psa-accent-text); outline-offset: 2px; }
+@media (hover: hover) { .ce-type:hover .ce-type-short { color: var(--psa-text); } }
+.ce-type option { background: var(--psa-bg-elevated); color: var(--psa-text); }
 .ce-label { flex: 1; min-width: 0; min-height: 36px; padding: 0 8px; border-color: transparent; border-radius: var(--psa-radius-xs); background: transparent; font-size: 15px; font-weight: 600; }
 .ce-label::placeholder { color: var(--psa-text-tertiary); font-weight: 500; }
 @media (hover: hover) { .ce-label:hover { border-color: var(--psa-border); } }
@@ -538,12 +541,15 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 /* Visual edits the words, and its chords only show; Chords places them, and the words and details stay as they are. */
 .ce[data-mode="visual"] .ce-chip { pointer-events: none; cursor: default; }
 .ce[data-mode="visual"] .ce-hint-chords,
-.ce[data-mode="chords"] :is(.ce-meta, .ce-add, .ce-hint-visual) { display: none; }
+.ce[data-mode="chords"] :is(.ce-add, .ce-hint-visual) { display: none; }
+/* Chords keeps only the key and capo of the details. */
+.ce[data-mode="chords"] .ce-meta { grid-template-columns: minmax(0, 1fr); }
+.ce[data-mode="chords"] .ce-meta > :not(.ce-pair, .ce-key-prompt) { display: none; }
 /* Sideways moves are the editor's (sliding the chord box); up and down still scroll. */
 .ce[data-mode="chords"] .ce-line { touch-action: pan-y; }
 .ce[data-mode="chords"] .ce-text { cursor: default; }
 .ce[data-mode="chords"] .ce-text:empty::before { content: none; }
-.ce-sec-name { margin: 0; padding: 8px 0 4px 10px; color: var(--psa-accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.ce-sec-name { margin: 0; padding: 8px 0 4px 10px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* Moving a section: every section folds to one row. */
 .ce-peek { display: none; flex: 1; min-width: 0; overflow: hidden; color: var(--psa-text-secondary); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }

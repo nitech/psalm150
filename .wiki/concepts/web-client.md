@@ -256,13 +256,15 @@ are not affected.
   Visual shows the song details as fields (title, author, key, capo;
   number, CCLI, tempo, time and copyright under *More details*; other
   `{meta}` fields as read-only text) and each section as a card with its
-  type, an optional name and a menu (move, duplicate, add a note, delete
+  type (a short grey tag such as V, C, PC or B that opens the full list),
+  an optional name and a menu (move, duplicate, add a note, delete
   with Undo). Lines are plain editable text with their chords shown above
   the characters; chords are not placed or moved there. Dragging a
   section's grip folds every section to one row until it is dropped.
   Changing the key offers to move the chords too. Pasting chords written
   over the words turns them into ChordPro, and headings such as "Chorus"
-  start sections. **Chords** shows the same sections (names only, no
+  start sections. **Chords** shows the key and capo (changing the key
+  offers to move the chords) and the same sections (names only, no other
   details or section controls) with the words locked: they keep a caret
   for the keyboard but take no typing, and a phone shows no keyboard. With
   a mouse, the space above a line is split into unseen boxes, one per

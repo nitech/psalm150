@@ -70,6 +70,9 @@ const editable = (() => {
   return probe.contentEditable === "plaintext-only" ? "plaintext-only" : "true";
 })();
 /** Fields with their own control; other details show as read-only text. */
+/** The letters a section's type shows as, when it is not being picked. */
+const TYPE_SHORT: Record<string, string> = { verse: "V", chorus: "C", chorus2: "C2", prechorus: "PC", pre_chorus: "PC", bridge: "B", intro: "I", interlude: "IL", outro: "O", tag: "T", none: "–" };
+const typeShort = (type: string) => TYPE_SHORT[type] ?? type.charAt(0).toUpperCase();
 const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "song_num", "copyright", "ccli", "tempo", "time"];
 
 export function mountChordEditor(root: HTMLElement, initial: string, parts: { modes: HTMLElement }): ChordEditor {
@@ -334,7 +337,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     return `<section class="ce-sec" data-item="${section.id}" aria-label="${name}">
       <div class="ce-sec-head">
         <button type="button" class="ce-grip" aria-label="Move ${name}" title="Drag to move">${icon("grip")}</button>
-        <span class="ce-type"><select aria-label="Section type">${typeOptions(section.type)}</select></span>
+        <span class="ce-type"><span class="ce-type-short" aria-hidden="true">${escapeHtml(typeShort(section.type))}</span><select aria-label="Section type" title="${escapeHtml(typeName(section.type))}">${typeOptions(section.type)}</select></span>
         <input class="ce-label" value="${escapeHtml(section.label)}" placeholder="${escapeHtml(auto)}" aria-label="Section name" autocomplete="off" />
         <span class="ce-peek" aria-hidden="true"><strong>${name}</strong> ${escapeHtml(first?.text.trim() ?? "")}</span>
         <button type="button" class="icon-button ghost small ce-sec-menu" aria-label="More for ${name}" aria-haspopup="menu">${icon("more")}</button>
