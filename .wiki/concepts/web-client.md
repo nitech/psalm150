@@ -255,8 +255,10 @@ are not affected.
   by default, with a **Visual / Chords / ChordPro** switch in the bar (the
   screen's own "Edit song" heading is for screen readers only). In Visual
   and Chords the song's title is the large editable heading at the top. A
-  floating bar at the bottom (over a phone's keyboard, or above Save) has a
-  cog that opens a panel with key and capo (changing the key offers to move
+  floating bar at the bottom, in all three modes (fixed by CSS; only a
+  phone's keyboard lifts it), holds Save (✓); there is no Cancel, as Back
+  leaves without saving. In Visual and Chords it also has a cog that opens
+  a panel with key and capo (changing the key offers to move
   the chords too) and *More details* (author, number, CCLI, tempo, time,
   copyright; other `{meta}` fields as read-only text). **Visual**
   (`words-editor.ts`) is the whole song as one text, as it reads: each

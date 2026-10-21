@@ -464,7 +464,7 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-title::placeholder { color: var(--psa-text-placeholder); }
 .ce-title:focus { border-bottom-color: var(--psa-accent-text); box-shadow: none; }
 /* Room under the song for the bar. */
-.ce-visual { padding-bottom: 76px; }
+.ce { padding-bottom: 76px; }
 .ce[data-mode="chords"] .ce-title { margin-bottom: var(--psa-space-4); }
 .page-titles.quiet { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -496,7 +496,7 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-atom.ce-raw { font-style: normal; }
 
 /* The bar: over a phone's keyboard, or above Save. The section's type, and a cog. */
-.ce-bar { position: fixed; z-index: 60; left: 50%; display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); background: color-mix(in srgb, var(--psa-bg-elevated) 90%, transparent); box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.35); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); transform: translateX(-50%); }
+.ce-bar { position: fixed; z-index: 60; left: 50%; bottom: calc(var(--tabbar-h) + var(--dock-h) + 12px); display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); background: color-mix(in srgb, var(--psa-bg-elevated) 90%, transparent); box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.35); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); transform: translateX(-50%); }
 .ce-bar[hidden], .ce-bar [hidden], .ce-well[hidden], .ce-well [hidden] { display: none; }
 .ce-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; border: 0; border-radius: var(--psa-radius-full); background: none; color: var(--psa-text); font-size: 15px; font-weight: 600; }
 .ce-bar-section { min-width: 96px; padding: 0 12px 0 16px; }
@@ -505,6 +505,11 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-bar-cog { width: 40px; color: var(--psa-text-secondary) !important; }
 .ce-bar-section:not([hidden]) + .ce-bar-cog { border-left: 1px solid var(--psa-border); border-radius: 0 var(--psa-radius-full) var(--psa-radius-full) 0; }
 .ce-bar-cog .icon { width: 19px; height: 19px; }
+/* Save: the one filled button. */
+.ce-bar button.ce-bar-save { width: 40px; margin-left: 4px; background: var(--psa-accent); color: var(--psa-on-accent); }
+.ce-bar button.ce-bar-save .icon { width: 20px; height: 20px; }
+@media (hover: hover) { .ce-bar button.ce-bar-save:hover { background: var(--psa-accent); filter: brightness(1.08); } }
+body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-bar button[aria-expanded="true"], .ce-bar button:active { background: var(--psa-bg-sunken); }
 @media (hover: hover) { .ce-bar button:hover { background: var(--psa-bg-sunken); } }
 
@@ -588,15 +593,6 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 .ce-bubble-type input { flex: 1; min-width: 0; min-height: 40px; color: var(--psa-chord); font-family: var(--psa-font-mono); font-weight: 600; }
 .ce-bubble-type .button { min-height: 40px; }
 .ce-bubble-warn { margin: 0; color: var(--psa-warning); font-size: 13px; }
-
-/* The bar at the bottom: Cancel and Save. */
-.form-actions.sticky.ce-actions { bottom: 0; margin-inline: calc(-1 * var(--page-pad)); padding: var(--psa-space-2) var(--page-pad) calc(var(--psa-space-3) + env(safe-area-inset-bottom)); border-top: 1px solid var(--psa-border); background: var(--psa-bg-canvas); }
-.ce-buttons { display: flex; flex: 1; gap: var(--psa-space-3); }
-.ce-buttons > .button { flex: 1; }
-@media (min-width: 640px) {
-  .ce-buttons { justify-content: flex-end; }
-  .ce-buttons > .button { flex: none; min-width: 120px; }
-}
 
 /* ChordPro: coloured text under a transparent textarea, in the same font and size. */
 .ce-code { display: grid; gap: var(--psa-space-4); }

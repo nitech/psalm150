@@ -517,21 +517,18 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
   <form class="editor" id="editor-form">
     <div id="chord-editor"></div>
     <p class="form-message" role="status"></p>
-    <div class="form-actions sticky ce-actions">
-      <div class="ce-buttons">
-        <a class="button secondary" href="${back}">Cancel</a>
-        <button class="button primary" type="submit">${icon("check")}Save</button>
-      </div>
-    </div>
   </form>`;
 
+  // Save is the ✓ in the editor's bar; Back leaves without saving.
+  const form = ctx.main.querySelector<HTMLFormElement>("#editor-form")!;
   const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? NEW_SONG_TEMPLATE, {
     modes: ctx.main.querySelector<HTMLElement>(".ce-modes")!,
+    save: () => form.requestSubmit(),
   });
-  const form = ctx.main.querySelector<HTMLFormElement>("#editor-form")!;
   const message = form.querySelector<HTMLElement>(".form-message")!;
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (form.classList.contains("busy")) return;
     const source = editor.source();
     setFormBusy(form, true);
     try {

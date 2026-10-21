@@ -49,8 +49,8 @@ export interface WordsHost {
   remember(): void;
   rememberSoon(): void;
   undo(): void;
-  /** The bar with Save, which the section bar stays above when there is no keyboard. */
-  dock(): HTMLElement | null;
+  /** Saves the song (the bar's ✓). */
+  save(): void;
   /** The song's key, capo and other details, shown in the panel behind the cog. */
   settings: HTMLElement;
 }
@@ -61,7 +61,7 @@ export interface WordsEditor {
   /** Where the caret is, or was last. */
   caret(): Point | null;
   focused(): boolean;
-  /** The bar shows in Visual (with the section button) and Chords (the cog only). */
+  /** The bar's section button shows in Visual, its cog in Visual and Chords, and Save in all. */
   setMode(mode: EditorMode): void;
   destroy(): void;
 }
@@ -97,7 +97,8 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   bar.className = "ce-bar";
   bar.innerHTML = `
     <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
-    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="Key, capo and details" title="Key, capo and details">${icon("settings")}</button>`;
+    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="Key, capo and details" title="Key, capo and details">${icon("settings")}</button>
+    <button type="button" class="ce-bar-save" aria-label="Save" title="Save">${icon("check")}</button>`;
   const wellEl = document.createElement("div");
   wellEl.className = "ce-well";
   wellEl.setAttribute("role", "dialog");
@@ -398,32 +399,35 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     if (well === "section") fillSection();
     placeBar();
   }
+  /**
+   * The bar keeps its place at the bottom with CSS, so scrolling does not
+   * move it. Only a phone's keyboard lifts it, by the keyboard's height.
+   */
   function placeBar(): void {
     if (bar.hidden) return;
     const viewport = window.visualViewport;
-    const height = viewport?.height ?? innerHeight;
-    const top = viewport?.offsetTop ?? 0;
-    let bottom = top + height;
-    // No keyboard: stay above Save.
-    const dock = host.dock();
-    if (innerHeight - height < 80 && dock) bottom = Math.min(bottom, dock.getBoundingClientRect().top);
-    const barTop = bottom - bar.offsetHeight - 10;
-    bar.style.top = `${barTop}px`;
-    document.documentElement.style.scrollPaddingBottom = `${innerHeight - barTop + 16}px`;
+    const keyboard = viewport ? innerHeight - viewport.height - viewport.offsetTop : 0;
+    bar.style.bottom = keyboard > 80 ? `${keyboard + 8}px` : "";
+    const rect = bar.getBoundingClientRect();
+    document.documentElement.style.scrollPaddingBottom = `${innerHeight - rect.top + 16}px`;
     if (!well) return;
-    wellEl.style.maxHeight = `${barTop - top - 18}px`;
-    wellEl.style.top = `${barTop - 8 - wellEl.offsetHeight}px`;
+    wellEl.style.bottom = `${innerHeight - rect.top + 8}px`;
+    wellEl.style.maxHeight = `${rect.top - (viewport?.offsetTop ?? 0) - 18}px`;
   }
+  let frame = 0;
+  const placeSoon = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(placeBar);
+  };
   const viewport = window.visualViewport;
-  viewport?.addEventListener("resize", placeBar);
-  viewport?.addEventListener("scroll", placeBar);
-  window.addEventListener("scroll", placeBar, { passive: true });
-  window.addEventListener("resize", placeBar);
+  viewport?.addEventListener("resize", placeSoon);
+  viewport?.addEventListener("scroll", placeSoon);
+  window.addEventListener("resize", placeSoon);
   cleanups.push(() => {
-    viewport?.removeEventListener("resize", placeBar);
-    viewport?.removeEventListener("scroll", placeBar);
-    window.removeEventListener("scroll", placeBar);
-    window.removeEventListener("resize", placeBar);
+    cancelAnimationFrame(frame);
+    viewport?.removeEventListener("resize", placeSoon);
+    viewport?.removeEventListener("scroll", placeSoon);
+    window.removeEventListener("resize", placeSoon);
     document.documentElement.style.scrollPaddingBottom = "";
   });
 
@@ -479,6 +483,12 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   wellEl.addEventListener("pointerdown", keepFocus);
   bar.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
+    if (target.closest(".ce-bar-save")) {
+      closeWell();
+      host.flush();
+      host.save();
+      return;
+    }
     const kind = target.closest(".ce-bar-section") ? "section" : target.closest(".ce-bar-cog") ? "settings" : null;
     if (!kind) return;
     if (well === kind) closeWell();
@@ -605,10 +615,9 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   function setMode(next: EditorMode): void {
     mode = next;
     closeWell();
-    bar.hidden = mode === "code";
     sectionButton.hidden = mode !== "visual";
-    if (bar.hidden) document.documentElement.style.scrollPaddingBottom = "";
-    else showBar();
+    cogButton.hidden = mode === "code";
+    showBar();
   }
 
   /* ── Where the caret is ─────────────────────────────────────────────── */

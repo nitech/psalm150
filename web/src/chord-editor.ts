@@ -64,7 +64,7 @@ const mouse = matchMedia("(hover: hover) and (pointer: fine)").matches;
 /** Fields with their own control; other details show as read-only text. */
 const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "song_num", "copyright", "ccli", "tempo", "time"];
 
-export function mountChordEditor(root: HTMLElement, initial: string, parts: { modes: HTMLElement }): ChordEditor {
+export function mountChordEditor(root: HTMLElement, initial: string, parts: { modes: HTMLElement; save: () => void }): ChordEditor {
   let doc: SongDoc = parseDoc(initial).doc;
   let mode: Mode = "visual";
   let history: string[] = [];
@@ -1119,7 +1119,7 @@ export function mountChordEditor(root: HTMLElement, initial: string, parts: { mo
     rememberSoon: () => rememberSoon(),
     undo,
     settings: settingsEl,
-    dock: () => root.closest("form")?.querySelector<HTMLElement>(".ce-actions") ?? null,
+    save: parts.save,
   });
   cleanups.push(() => words.destroy());
   remember();
