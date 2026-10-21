@@ -469,14 +469,15 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
 /* ── Song editor (chord-editor.ts) ──────────────────────────────────────── */
 
 /* The mode switch looks like the bar at the bottom: a frosted pill, the mode in use sunk into it. */
-.segmented.ce-modes { width: min(300px, 100%); gap: 2px; padding: 4px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); background: color-mix(in srgb, var(--psa-bg-elevated) 90%, transparent); box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.35); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+.segmented.ce-modes { width: 300px; gap: 2px; padding: 4px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); background: color-mix(in srgb, var(--psa-bg-elevated) 90%, transparent); box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.35); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
 .segmented.ce-modes button { min-height: 40px; border: 0; color: var(--psa-text-secondary); font-size: 15px; font-weight: 600; }
 .segmented.ce-modes button.on { background: var(--psa-bg-sunken); color: var(--psa-text); box-shadow: none; }
 @media (hover: hover) { .segmented.ce-modes button:not(.on):hover { background: var(--psa-bg-sunken); color: var(--psa-text); } }
-/* Wide screens: the switch sits in the middle of the bar, whatever is beside it. */
+/* The switch sits in the middle of the bar, whatever is beside it; on a phone narrow enough to clear Back. */
+.app-bar-row:has(.ce-modes) { position: relative; }
+.page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
+@media (max-width: 899px) { .segmented.ce-modes { width: min(264px, calc(100vw - 2 * var(--page-pad) - 96px)); } }
 @media (min-width: 900px) {
-  .app-bar-row:has(.ce-modes) { position: relative; }
-  .page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
   /* The bar at the bottom and its panel line up with it: the middle of the page beside the 220px rail. */
   body > .ce-bar, body > .ce-well { left: calc(50% + 110px); }
 }
