@@ -45,6 +45,9 @@ pub fn read(url: &str, html: &str) -> Option<Page> {
     }
 
     let (title, artist) = page_title(&document);
+    let song_data = json_ld_song(&document);
+    let title = song_data.as_ref().and_then(|s| s.title.clone()).or(title);
+    let artist = song_data.as_ref().and_then(|s| s.artist.clone()).or(artist);
     let mut blocks = Vec::new();
     let mut push = |block: Block| {
         if block.text.trim().len() >= 60 && !blocks.contains(&block) && blocks.len() < MAX_BLOCKS {
@@ -52,6 +55,12 @@ pub fn read(url: &str, html: &str) -> Option<Page> {
         }
     };
 
+    if let Some(lyrics) = song_data.and_then(|s| s.lyrics) {
+        push(Block {
+            text: tidy(&lyrics),
+            preformatted: false,
+        });
+    }
     // Genius splits the lyrics over several containers; join them.
     let genius = select(&document, "[data-lyrics-container='true']")
         .map(|e| block_text(e, false))
@@ -125,6 +134,89 @@ fn ultimate_guitar(document: &Html, url: &str, host: &str, trust: f64) -> Option
             preformatted: true,
         }],
     })
+}
+
+/// What a page tells search engines about its song (schema.org JSON-LD:
+/// `MusicComposition`, `MusicRecording`, `CreativeWork` and the like).
+#[derive(Debug, Default, PartialEq)]
+pub struct SongData {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub lyrics: Option<String>,
+}
+
+fn json_ld_song(document: &Html) -> Option<SongData> {
+    select(document, "script[type='application/ld+json']")
+        .filter_map(|script| {
+            serde_json::from_str::<serde_json::Value>(&script.text().collect::<String>()).ok()
+        })
+        .find_map(|value| find_song(&value))
+}
+
+fn find_song(value: &serde_json::Value) -> Option<SongData> {
+    use serde_json::Value;
+    match value {
+        Value::Array(items) => items.iter().find_map(find_song),
+        Value::Object(map) => {
+            if let Some(graph) = map.get("@graph") {
+                if let Some(song) = find_song(graph) {
+                    return Some(song);
+                }
+            }
+            let kind = map
+                .get("@type")
+                .map(|t| t.to_string().to_lowercase())
+                .unwrap_or_default();
+            if !kind.contains("music") && !kind.contains("lyric") && map.get("lyrics").is_none() {
+                return None;
+            }
+            let text = |v: Option<&Value>| -> Option<String> {
+                match v? {
+                    Value::String(s) => Some(s.trim().to_string()).filter(|s| !s.is_empty()),
+                    Value::Object(o) => o
+                        .get("name")
+                        .or_else(|| o.get("text"))
+                        .and_then(|n| n.as_str())
+                        .map(|s| s.trim().to_string()),
+                    Value::Array(a) => a.first().and_then(|first| match first {
+                        Value::String(s) => Some(s.trim().to_string()),
+                        Value::Object(o) => o
+                            .get("name")
+                            .and_then(|n| n.as_str())
+                            .map(|s| s.trim().to_string()),
+                        _ => None,
+                    }),
+                    _ => None,
+                }
+            };
+            let lyrics = match map.get("lyrics") {
+                Some(Value::Object(o)) => o.get("text").and_then(|t| t.as_str()).map(String::from),
+                Some(Value::String(s)) => Some(s.clone()),
+                _ => None,
+            }
+            // Lyrics in JSON-LD are often HTML with <br>.
+            .map(|l| {
+                l.replace("<br>", "\n")
+                    .replace("<br/>", "\n")
+                    .replace("<br />", "\n")
+            })
+            .map(|l| {
+                Html::parse_fragment(&l)
+                    .root_element()
+                    .text()
+                    .collect::<String>()
+            });
+            let song = SongData {
+                title: text(map.get("name")).map(|t| clean_title(&t).0.unwrap_or(t)),
+                artist: text(map.get("byArtist"))
+                    .or_else(|| text(map.get("composer")))
+                    .or_else(|| text(map.get("author"))),
+                lyrics,
+            };
+            (song.title.is_some() || song.lyrics.is_some()).then_some(song)
+        }
+        _ => None,
+    }
 }
 
 /// Elements whose text is never part of a song.
@@ -336,7 +428,7 @@ pub fn clean_title(raw: &str) -> (Option<String>, Option<String>) {
         .unwrap()
     });
     let noise = NOISE.get_or_init(|| {
-        Regex::new(r"(?i)\s*[\(\[]?\b(?:official\s+)?(?:guitar\s+|ukulele\s+|piano\s+)?(?:chords?(?:\s+chart)?|lyrics?|tabs?|tablature|ver(?:sion)?\.?\s*\d+|sheet\s+music|live|lyric\s+video)\b[\)\]]?\s*(?:(?:&|and|\+|/)\s*)?").unwrap()
+        Regex::new(r"(?i)\s*[\(\[]?\b(?:official\s+)?(?:guitar\s+|ukulele\s+|piano\s+)?(?:chords?(?:\s+chart)?|lyrics?|tabs?|tablature|transpose|ver(?:sion)?\.?\s*\d+|sheet\s+music|live|lyric\s+video)\b[\)\]]?\s*(?:(?:&|and|\+|/)\s*)?").unwrap()
     });
     let text = raw
         .split(" | ")
@@ -448,6 +540,22 @@ mod tests {
             .next()
             .unwrap();
         assert_eq!(block_text(div, false), "[G]Amazing [C]grace");
+    }
+
+    #[test]
+    fn reads_song_data_for_search_engines() {
+        let html = r#"<html><head><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","name":"x"},{"@type":"MusicComposition","name":"Way Maker Lyrics","composer":{"@type":"Person","name":"Sinach"},"lyrics":{"@type":"CreativeWork","text":"You are here, moving in our midst<br>I worship You, I worship You<br><br>Way maker, miracle worker<br>Promise keeper"}}]}</script></head><body></body></html>"#;
+        let page = read("https://example.com/way-maker", html).unwrap();
+        assert_eq!(page.title.as_deref(), Some("Way Maker"));
+        assert_eq!(page.artist.as_deref(), Some("Sinach"));
+        assert_eq!(
+            page.blocks[0].text,
+            "You are here, moving in our midst
+I worship You, I worship You
+
+Way maker, miracle worker
+Promise keeper"
+        );
     }
 
     #[test]
