@@ -71,7 +71,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+generated: { by: agent, at: 2026-10-23T10:40:00Z }
 ---
 
 # Web client
@@ -242,6 +242,17 @@ are not affected.
   tap (`key=…&key_mode=…`), alongside the search and any sort. While a filter
   is on, a chip under the header ("D, G · major ✕") shows it and clears it.
   Kept in `localStorage["psa150-song-key-filter"]` (`{roots, mode}`).
+- **Song bar**: few icons. Fixed: Back, the current set's **+**/**✓**
+  (leaders, when a set is current) and **Chords and key** (songs with
+  chords). Everything else is in **⋮** with icon and text: Add to a (another)
+  set, Show chords (a checkbox item), Copy the words, Share song, Edit song.
+  A ⋮ action used often lately also comes into the bar as an icon, after a
+  thin divider and with a small dot under it (title "… (often used)"), at
+  most 2: it comes at 3 uses and goes when its uses fade (half every 14
+  days) below 1.5. Uses are counted per screen in
+  `localStorage["psa150-bar-usage-song"]`, from the menu and from the
+  promoted icon (`bar-menu.ts`, tested). The menu closes on Escape (focus
+  back on ⋮), a tap outside or Tab, and moves with the arrow keys.
 - **Reader**: the song with section labels and chords above the lyrics,
   parsed in the browser by `chordpro.ts` with the desktop's stanza rules
   (a blank line starts a new verse; unlabelled verses are numbered). The
@@ -249,7 +260,7 @@ are not affected.
   chords on or off and transpose (view only, never saved). There is no text
   size control (see [accessibility](accessibility.md)). Chords are remembered. The key (with
   any transpose) shows under the title. Shows the first 8 characters of the
-  revision id, and sets the tab title to the song's. **Share** in the bar
+  revision id, and sets the tab title to the song's. **Share** (in ⋮)
   copies the song's permalink, `<origin>/songs/{id}` (a real path, so the
   server can add link-preview tags; on load the app replaces it with
   `#/songs/{id}`). **Copy the words** copies the lyrics alone: no section

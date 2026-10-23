@@ -278,6 +278,23 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .page-actions { display: flex; gap: var(--psa-space-1); margin-left: auto; }
 .bar-set-actions { display: contents; }
 .icon-button.in-set { color: var(--psa-accent-text); }
+/* Bar actions (bar-menu.ts): fixed icons, a thin divider, the often used ones
+   (with a small dot, as they come and go), then ⋮ and its menu. */
+.bar-actions { position: relative; display: flex; align-items: center; gap: var(--psa-space-1); }
+.bar-frequent { display: flex; gap: var(--psa-space-1); }
+.bar-divider { width: 1px; height: 22px; margin: 0 2px; background: var(--psa-border-strong); }
+.icon-button.frequent { position: relative; }
+.icon-button.frequent::after { content: ""; position: absolute; bottom: 5px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--psa-accent-text); }
+.bar-more .icon { transform: rotate(90deg); }
+.bar-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 230px; padding: 6px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); box-shadow: 0 10px 24px rgb(0 0 0 / 0.19), 0 18px 40px -24px rgb(0 0 0 / 0.6); }
+.bar-menu[hidden] { display: none; }
+.bar-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--psa-touch-target); padding: 0 12px; border: 0; border-radius: calc(var(--psa-radius-md) - 4px); background: none; color: var(--psa-text); font: inherit; font-size: 16px; text-align: left; text-decoration: none; white-space: nowrap; }
+.bar-menu-item > span:first-of-type { flex: 1; }
+.bar-menu-item .icon { width: 20px; height: 20px; flex: none; color: var(--psa-text-secondary); }
+.bar-menu-check { display: inline-flex; width: 20px; color: var(--psa-accent-text); }
+.bar-menu-check .icon { color: inherit; }
+@media (hover: hover) { .bar-menu-item:hover { background: var(--psa-bg-surface); } }
+.bar-menu-item:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
 /* Phones: no church name over the tab screens, and compact screens (the song
    list) keep their title in the bar instead of a large title. */
 @media (max-width: 899px) {

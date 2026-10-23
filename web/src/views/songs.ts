@@ -2,7 +2,9 @@ import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets } from "../current-set.ts";
+import { barActions, bindBarActions, type BarAction } from "../bar-menu.ts";
 import { mountChordEditor } from "../chord-editor.ts";
+import { hasChords, type DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
 import {
   bindReaderControls,
@@ -12,6 +14,7 @@ import {
   readerPanel,
   readerToggle,
   renderSongBody,
+  saveReaderOptions,
   songText,
   stepTranspose,
 } from "../song-render.ts";
@@ -485,14 +488,28 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const options = readReaderOptions();
   let transpose = 0;
 
-  /** In the bar at the top: + (or ✓) for the current set, when there is one, and the sets icon for any set. */
-  const setActions = () => {
+  /** Fixed in the bar: + (or ✓) for the current set, when there is one. */
+  const setToggle = () => {
     const set = ctx.currentSet.value;
-    if (!set) return `<button type="button" class="icon-button ghost" data-set-act="other" aria-label="Add to a set" title="Add to a set">${icon("sets")}</button>`;
+    if (!ctx.canEdit || !set) return "";
     const inSet = ctx.currentSet.count(song.id) > 0;
     const label = inSet ? `In ${set.name}. Tap to remove it.` : `Add to ${set.name}`;
-    return `<button type="button" class="icon-button ghost${inSet ? " in-set" : ""}" data-set-act="toggle" aria-pressed="${inSet}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(inSet ? "check" : "plus")}</button>
-      <button type="button" class="icon-button ghost" data-set-act="other" aria-label="Add to another set" title="Add to another set">${icon("sets")}</button>`;
+    return `<button type="button" class="icon-button ghost${inSet ? " in-set" : ""}" data-set-act="toggle" aria-pressed="${inSet}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(inSet ? "check" : "plus")}</button>`;
+  };
+
+  /**
+   * The bar: fixed, the current set's +/✓ and "Chords and key" (the reader's
+   * own controls); everything else in ⋮, where often used ones also come
+   * into the bar ([bar-menu.ts](../bar-menu.ts)).
+   */
+  const actions = (display: DisplaySong) => {
+    const menu: BarAction[] = [];
+    if (ctx.canEdit) menu.push({ id: "add-to-set", label: ctx.currentSet.value ? "Add to another set" : "Add to a set", icon: "sets" });
+    if (hasChords(display)) menu.push({ id: "chords", label: "Show chords", icon: "chords", checked: options.chords });
+    menu.push({ id: "copy", label: "Copy the words", icon: "copy" });
+    menu.push({ id: "share", label: "Share song", icon: "share" });
+    if (ctx.canEdit) menu.push({ id: "edit", label: "Edit song", icon: "edit", href: `#/songs/${song.id}/edit` });
+    return `<span class="bar-set-actions" id="set-actions">${setToggle()}</span>${readerToggle(display, options)}${barActions("song", menu)}`;
   };
 
   const render = () => {
@@ -503,7 +520,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       title: song.title,
       back: "#/songs",
       autohide: true,
-      actions: `${ctx.canEdit ? `<span class="bar-set-actions" id="set-actions">${setActions()}</span>` : ""}<button type="button" class="icon-button ghost" id="copy-lyrics" aria-label="Copy the words" title="Copy the words">${icon("copy")}</button><button type="button" class="icon-button ghost" id="share-song" aria-label="Share song" title="Copy a link to this song">${icon("share")}</button>${readerToggle(display, options)}${ctx.canEdit ? `<a class="icon-button ghost" href="#/songs/${song.id}/edit" aria-label="Edit song">${icon("edit")}</a>` : ""}`,
+      actions: actions(display),
       panel: readerPanel(display, options, transpose),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
@@ -515,31 +532,43 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     });
   };
 
+  const unbindBar = bindBarActions(ctx.main);
   ctx.main.addEventListener("click", onSetAction);
   function onSetAction(event: Event): void {
-    if ((event.target as HTMLElement).closest("#share-song")) {
-      void shareSong(ctx, song);
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-set-act='toggle']")) {
+      toggleInCurrentSet(ctx, song, transpose);
       return;
     }
-    if ((event.target as HTMLElement).closest("#copy-lyrics")) {
-      void copyLyrics(song.title, songText(prepareSong(song.chordpro, 0)));
-      return;
+    switch (target.closest<HTMLElement>("[data-action]")?.dataset.action) {
+      case "add-to-set":
+        void ctx.run(() => openAddToSet(ctx, song, transpose));
+        break;
+      case "copy":
+        void copyLyrics(song.title, songText(prepareSong(song.chordpro, 0)));
+        break;
+      case "share":
+        void shareSong(ctx, song);
+        break;
+      case "chords":
+        options.chords = !options.chords;
+        saveReaderOptions(options);
+        render();
+        announce(options.chords ? "Chords shown" : "Chords hidden");
+        break;
     }
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-set-act]");
-    if (!button) return;
-    if (button.dataset.setAct === "toggle") toggleInCurrentSet(ctx, song, transpose);
-    else void ctx.run(() => openAddToSet(ctx, song, transpose));
   }
 
   // Only the buttons change when the current set does, so the reader keeps its place.
   const unsubscribe = ctx.currentSet.subscribe(() => {
-    const actions = ctx.main.querySelector<HTMLElement>("#set-actions");
-    if (actions) keepFocus(actions, () => { actions.innerHTML = setActions(); });
+    const holder = ctx.main.querySelector<HTMLElement>("#set-actions");
+    if (holder) keepFocus(holder, () => { holder.innerHTML = setToggle(); });
   });
   setTitle(song.title, "Songs");
   render();
   return () => {
     ctx.main.removeEventListener("click", onSetAction);
+    unbindBar();
     unsubscribe();
   };
 }
