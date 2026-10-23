@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-23
+* **New songs get a number**: `POST /songs` gives a song without a number the next one (the church's highest plus one, deleted songs included), written into its ChordPro as `{meta: song_num=N}` under the church's row lock; imports are unchanged. Tested (`new_songs_get_the_next_number`). Pages touched: songs-and-revisions.
 * **Shared set page like the song page**: the T panel is gone there too. A shared set's song has the chords switch and the "− key +" transpose pill always in the bar (no ⋮, as there is nothing else). The line under the title shows the same key as the pill ("Key Ab +1"), guessed from the chords when the song has no `{key}`. The old panel code (`readerToggle`, `readerPanel`, `bindReaderControls`) is removed; both pages use `readerBarActions` and `onReaderAction`. Pages touched: web-client, shared-sets, accessibility.
 * **Transpose icon**: "C → D" (new `transpose` in `shared/icons.ts`) for Transpose in the song menu. Pages touched: web-client.
 * **Chords switch and transpose**: the song bar's T (Chords and key panel) is gone. A chord diagram icon (new `chordChart` in `shared/icons.ts`) turns chords on and off; **Transpose** is its own action, − key + in the ⋮ menu (stays open while stepping) and as a "− G +" pill when it comes into the bar from use. The key is `{key}` or a guess from the chords (`guessKey` in `song-render.ts`, tested). Pages touched: web-client.

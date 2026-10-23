@@ -470,12 +470,13 @@ async fn songs_sort_by_number(pool: PgPool) {
         ("Twelve a", "{number: 12a}"),
         ("Hundred", "{meta: song_num=100}"),
     ] {
+        // Imported, so a song without a number stays without one.
         let created = send(
             &app,
             "POST",
-            "/api/v1/songs",
+            "/api/v1/songs/import",
             Some(&token),
-            Some(json!({ "chordpro": format!("{{title: {title}}}\n{number}\n\nWords") })),
+            Some(json!({ "songs": [{ "filename": format!("{title}.pro"), "chordpro": format!("{{title: {title}}}\n{number}\n\nWords") }] })),
         )
         .await;
         assert_eq!(created.0, StatusCode::CREATED);
@@ -2647,7 +2648,11 @@ async fn deleted_songs_and_sets_come_back(pool: PgPool) {
     assert_eq!(old.0, StatusCode::OK);
     assert_eq!(old.1["id"], first);
     assert_eq!(old.1["song_id"], song);
-    assert_eq!(old.1["chordpro"], "{title: Amazing Grace}\n\n[G]Words");
+    // Created without a number, so it got the first one.
+    assert_eq!(
+        old.1["chordpro"],
+        "{title: Amazing Grace}\n{meta: song_num=1}\n\n[G]Words"
+    );
     assert_eq!(old.1["parent_revision_id"], Value::Null);
     for uri in [
         format!("/api/v1/songs/{song}/revisions/{}", uuid::Uuid::new_v4()),
@@ -3183,4 +3188,61 @@ async fn online_search_is_for_song_editors(pool: PgPool) {
     assert_eq!(viewing.0, StatusCode::FORBIDDEN);
     let short = send(&app, "GET", "/api/v1/songs/online?q=ab", Some(&owner), None).await;
     assert_eq!(short.0, StatusCode::BAD_REQUEST);
+}
+
+/// A song created without a number gets the next one after the highest in
+/// the library; one with a number keeps it; imports are left as they are.
+#[sqlx::test(migrations = "./migrations")]
+async fn new_songs_get_the_next_number(pool: PgPool) {
+    let app = test_app(pool);
+    let (token, _) = owner_and_desktop(&app).await;
+    let create = |chordpro: &'static str| {
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            let created = send(
+                &app,
+                "POST",
+                "/api/v1/songs",
+                Some(&token),
+                Some(json!({ "chordpro": chordpro })),
+            )
+            .await;
+            assert_eq!(created.0, StatusCode::CREATED);
+            created.1
+        }
+    };
+    let first = create("{title: First}\n\nWords").await;
+    assert_eq!(first["song_number"], "1");
+    let kept = create("{title: Numbered}\n{meta: song_num=41}\n\nWords").await;
+    assert_eq!(kept["song_number"], "41");
+    let next = create("{title: Next}\n\nWords").await;
+    assert_eq!(next["song_number"], "42");
+    let song = send(
+        &app,
+        "GET",
+        &format!("/api/v1/songs/{}", next["id"].as_str().unwrap()),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(
+        song.1["chordpro"],
+        "{title: Next}\n{meta: song_num=42}\n\nWords"
+    );
+
+    let imported = send(
+        &app,
+        "POST",
+        "/api/v1/songs/import",
+        Some(&token),
+        Some(json!({ "songs": [{ "filename": "x.pro", "chordpro": "{title: Imported}\n\nOther words" }] })),
+    )
+    .await;
+    assert_eq!(imported.0, StatusCode::CREATED, "{}", imported.1);
+    assert!(
+        imported.1["songs"][0]["song_number"].is_null(),
+        "{}",
+        imported.1
+    );
 }

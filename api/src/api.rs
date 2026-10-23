@@ -1260,7 +1260,9 @@ fn escape_like(search: &str) -> String {
 /// Adds a song from its ChordPro text.
 ///
 /// The title, authors, song number and other details are read from the ChordPro
-/// directives.
+/// directives. A song without a number gets the next free one, the highest in
+/// the library plus one, added to its text as `{meta: song_num=N}`.
+/// (`POST /songs/import` keeps songs as they are.)
 #[utoipa::path(
     post,
     path = "/api/v1/songs",
@@ -1693,6 +1695,10 @@ async fn export_songs(
     Ok(response)
 }
 
+/// A new song (`POST /songs`). One without a number gets the next free one:
+/// the highest number in the church's library (deleted songs too, so a
+/// restored song keeps its own) plus one, written into the ChordPro as
+/// `{meta: song_num=N}` like the desktop does. Imports keep what they have.
 async fn insert_song(
     pool: &PgPool,
     church_id: Uuid,
@@ -1700,6 +1706,25 @@ async fn insert_song(
     source: String,
 ) -> Result<SongSummary, AppError> {
     let mut transaction = pool.begin().await?;
+    let source = if chordpro::metadata(&source).song_number.is_none() {
+        // One new number at a time per church, so two songs never get the same.
+        sqlx::query_scalar::<_, Uuid>("SELECT id FROM churches WHERE id = $1 FOR UPDATE")
+            .bind(church_id)
+            .fetch_one(&mut *transaction)
+            .await?;
+        let next = sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(MAX(substring(r.song_number FROM '^\\d{1,18}')::bigint), 0) + 1
+             FROM songs s
+             JOIN song_revisions r ON r.id = s.current_revision_id
+             WHERE s.church_id = $1",
+        )
+        .bind(church_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        chordpro::with_song_number(&source, next)
+    } else {
+        source
+    };
     let song = insert_song_in_transaction(&mut transaction, church_id, actor, source).await?;
     transaction.commit().await?;
     Ok(song)

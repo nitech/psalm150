@@ -66,6 +66,30 @@ pub fn metadata(source: &str) -> SongMetadata {
     }
 }
 
+/// The song with `{meta: song_num=N}` added under its `{title}` line (or at
+/// the top when it has none), the way the desktop writes a number.
+pub fn with_song_number(source: &str, number: i64) -> String {
+    let line = format!("{{meta: song_num={number}}}");
+    let newline = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut lines: Vec<&str> = source.split_inclusive('\n').collect();
+    let at = lines
+        .iter()
+        .take(100)
+        .position(|l| matches!(directive(l), Some((name, _)) if name == "title" || name == "t"))
+        .map_or(0, |i| i + 1);
+    let inserted = format!("{line}{newline}");
+    if at > 0 && !lines[at - 1].ends_with('\n') {
+        // The title is the last line and has no line break of its own.
+        return format!("{source}{newline}{line}");
+    }
+    lines.insert(at, &inserted);
+    lines.concat()
+}
+
 pub fn content_hash(source: &str) -> String {
     hex::encode(Sha256::digest(source.as_bytes()))
 }
@@ -109,6 +133,28 @@ mod tests {
         assert_eq!(parsed.title, "Great Is Thy Faithfulness");
         assert_eq!(parsed.authors, "Thomas Chisholm");
         assert_eq!(parsed.language.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn adds_a_song_number_under_the_title() {
+        assert_eq!(
+            with_song_number("{title: Way Maker}\n{key: E}\n\nWords\n", 12),
+            "{title: Way Maker}\n{meta: song_num=12}\n{key: E}\n\nWords\n"
+        );
+        assert_eq!(
+            with_song_number("Words\r\n", 3),
+            "{meta: song_num=3}\r\nWords\r\n"
+        );
+        assert_eq!(
+            with_song_number("{title: Last}", 4),
+            "{title: Last}\n{meta: song_num=4}"
+        );
+        assert_eq!(
+            metadata(&with_song_number("{title: X}\nY", 7))
+                .song_number
+                .as_deref(),
+            Some("7")
+        );
     }
 
     #[test]

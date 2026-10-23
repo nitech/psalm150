@@ -17,7 +17,7 @@ sources:
   - id: arch
     resource: /docs/architecture.md
     title: Revision history vs provenance (design)
-generated: { by: agent, at: 2026-10-05T10:00:00Z }
+generated: { by: agent, at: 2026-10-23T12:10:00Z }
 ---
 
 # Songs and revisions
@@ -36,7 +36,7 @@ case-insensitive.
 | Field | Directives | Rule |
 | --- | --- | --- |
 | `title` | `title`, `t` | The first one wins. Blank or missing becomes `Untitled song` |
-| `song_number` | `number`, `song_number`, then the desktop's `{meta: song_num=N}` | The first `number`/`song_number` wins; `song_num` (key matched ignoring case) only when neither is present. Migration `0006_desktop_song_numbers.sql` filled it in for revisions stored before `song_num` was read |
+| `song_number` | `number`, `song_number`, then the desktop's `{meta: song_num=N}` | The first `number`/`song_number` wins; `song_num` (key matched ignoring case) only when neither is present. Migration `0006_desktop_song_numbers.sql` filled it in for revisions stored before `song_num` was read. **A song created without one** (`POST /songs`) gets the church's highest number (leading digits, deleted songs included so a restored one keeps its own) plus one, added under `{title}` as `{meta: song_num=N}` (`chordpro::with_song_number`), under the church's row lock so two new songs never share it. Imports (`POST /songs/import`) are stored as they come |
 | `language` | `language`, `lang` | The first one wins |
 | `song_key` | `key`, then `{meta: key=X}` | The first `key` wins; the `meta` form only when there is none. Kept as written (`G`, `F#m`, `D / E`); the database reads its tonic and major/minor into `key_root` and `key_minor` (migration 0012) |
 | `authors` | `artist`, `composer`, `lyricist`, `author` | All distinct values, joined with `", "` |
