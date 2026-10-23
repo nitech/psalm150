@@ -50,6 +50,10 @@ pub struct VsbSyncReport {
     pub linked: usize,
     pub blocked: Vec<String>,
     pub errors: Vec<String>,
+    /// Songs whose number another VSB song already had: Psalm150 gave them
+    /// the next free number before writing them to VSB ("Way Maker: 12 → 1041").
+    #[serde(default)]
+    pub renumbered: Vec<String>,
     pub backup: Option<String>,
     pub finished_at: String,
 }
@@ -80,6 +84,12 @@ impl VsbSyncReport {
             parts.push(format!(
                 "{} edited on both sides (Psalm150 version kept)",
                 self.conflicts
+            ));
+        }
+        if !self.renumbered.is_empty() {
+            parts.push(format!(
+                "{} given a new number (theirs was taken in VSB)",
+                self.renumbered.len()
             ));
         }
         if !self.blocked.is_empty() {
@@ -291,6 +301,10 @@ pub fn run(sync: SyncRun<'_>, links: &[Link]) -> Result<SyncOutcome, String> {
     let previous_by_file: HashMap<&str, &Link> =
         links.iter().map(|l| (l.filename.as_str(), l)).collect();
 
+    // Song numbers in use: a song is never written to VSB under a number
+    // another VSB song has (that fails); it gets the next free one instead.
+    let mut numbers = Numbers::new(&rows, &songs);
+
     let mut exec = Executor {
         sync: &sync,
         categories: &categories,
@@ -384,7 +398,8 @@ pub fn run(sync: SyncRun<'_>, links: &[Link]) -> Result<SyncOutcome, String> {
                 filename,
                 conflict,
             } => {
-                let song = songs_by_name[filename.as_str()];
+                let renumbered = exec.free_number(songs_by_name[filename.as_str()], Some(song_id), &mut numbers);
+                let song = renumbered.as_ref().unwrap_or(songs_by_name[filename.as_str()]);
                 let fallback_category = rows_by_id.get(&song_id).map_or(0, |r| r.category_id);
                 match exec.with_writer(|writer, categories| {
                     writer.update(
@@ -408,11 +423,13 @@ pub fn run(sync: SyncRun<'_>, links: &[Link]) -> Result<SyncOutcome, String> {
                 }
             }
             Action::InsertRow { filename } => {
-                let song = songs_by_name[filename.as_str()];
+                let renumbered = exec.free_number(songs_by_name[filename.as_str()], None, &mut numbers);
+                let song = renumbered.as_ref().unwrap_or(songs_by_name[filename.as_str()]);
                 match exec.with_writer(|writer, categories| {
                     writer.insert(&fields_from_song(song, categories, 0))
                 }) {
                     Ok(Some(song_id)) => {
+                        numbers.take(song.meta.song_num, song_id);
                         exec.report.rows_inserted += 1;
                         exec.rehash_rows
                             .insert(song_id, (filename.clone(), content_hash(&song.raw)));
@@ -478,7 +495,135 @@ struct Executor<'r, 'a> {
     rehash_rows: HashMap<i64, (String, String)>,
 }
 
+/// Which VSB song has which number, and the next number nobody has.
+struct Numbers {
+    in_vsb: HashMap<i64, i64>,
+    next: i64,
+}
+
+impl Numbers {
+    fn new(rows: &[VsbSongRow], songs: &[ParsedSong]) -> Self {
+        let in_vsb = rows
+            .iter()
+            .filter(|row| row.song_num > 0)
+            .map(|row| (row.song_num, row.song_id))
+            .collect::<HashMap<_, _>>();
+        let highest = rows
+            .iter()
+            .map(|row| row.song_num)
+            .chain(songs.iter().filter_map(|song| song.meta.song_num))
+            .max()
+            .unwrap_or(0);
+        Self { in_vsb, next: highest + 1 }
+    }
+
+    /// `number` is held by a VSB song other than `song_id` (any, for a new row).
+    fn clashes(&self, number: Option<i64>, song_id: Option<i64>) -> bool {
+        number
+            .and_then(|n| self.in_vsb.get(&n))
+            .is_some_and(|holder| Some(*holder) != song_id)
+    }
+
+    fn fresh(&mut self) -> i64 {
+        let number = self.next;
+        self.next += 1;
+        number
+    }
+
+    fn take(&mut self, number: Option<i64>, song_id: i64) {
+        if let Some(number) = number {
+            self.in_vsb.insert(number, song_id);
+        }
+    }
+}
+
+/// The song's ChordPro with `{meta: song_num=N}` set: the old number line
+/// replaced, or a new one under `{title}`. Everything else stays as written.
+pub(crate) fn with_song_num(raw: &str, number: i64) -> String {
+    let directive = format!("{{meta: song_num={number}}}");
+    let newline = if raw.contains("\r\n") { "\r\n" } else { "\n" };
+    let is_number = |line: &str| {
+        let line = line.trim().to_ascii_lowercase();
+        line.starts_with("{meta:") && line.contains("song_num=")
+    };
+    let mut lines: Vec<String> = raw.lines().map(str::to_string).collect();
+    if let Some(at) = lines.iter().position(|l| is_number(l)) {
+        lines[at] = directive;
+    } else {
+        let title = lines.iter().position(|l| {
+            let l = l.trim().to_ascii_lowercase();
+            l.starts_with("{title:") || l.starts_with("{t:")
+        });
+        lines.insert(title.map_or(0, |i| i + 1), directive);
+    }
+    let mut out = lines.join(newline);
+    if raw.ends_with('\n') {
+        out.push_str(newline);
+    }
+    out
+}
+
 impl<'r, 'a> Executor<'r, 'a> {
+    /// When the song's number belongs to another VSB song, give it the next
+    /// free number in Psalm150 first (the file, or the server song), and
+    /// return the renumbered song to write to VSB. `None`: the number is
+    /// free, or the song has none (VSB then picks or keeps one).
+    fn free_number(
+        &mut self,
+        song: &ParsedSong,
+        song_id: Option<i64>,
+        numbers: &mut Numbers,
+    ) -> Option<ParsedSong> {
+        if !numbers.clashes(song.meta.song_num, song_id) {
+            return None;
+        }
+        let old = song.meta.song_num.unwrap_or_default();
+        let number = numbers.fresh();
+        let content = with_song_num(&song.raw, number);
+        let what = format!("\"{}\" needs a new number", song.meta.title);
+        let saved = if matches!(self.sync.target, LibraryTarget::Server { .. }) {
+            match self.server_song(&song.meta.filename, &what) {
+                Some(server) => {
+                    self.server_ops.push(ServerOp::Update {
+                        song_id: server.id,
+                        base_revision_id: server.revision_id,
+                        title: song.meta.title.clone(),
+                        chordpro: content.clone(),
+                    });
+                    self.report.sent_to_server += 1;
+                    true
+                }
+                None => false,
+            }
+        } else {
+            match self.local(&what) {
+                Some((app, folder_hash)) => replace_song(
+                    app,
+                    folder_hash,
+                    self.sync.songs_folder,
+                    &song.meta.filename,
+                    &content,
+                    &content_hash(&song.raw),
+                )
+                .map_err(|error| self.report.errors.push(format!("{}: {error}", song.meta.filename)))
+                .is_ok(),
+                None => false,
+            }
+        };
+        let mut renumbered = parse_chordpro(&content, &song.meta.filename);
+        if !saved {
+            // Psalm150 keeps its number for now; VSB gets the song without
+            // one, so it picks a free number (or keeps the row's).
+            renumbered = song.clone();
+            renumbered.meta.song_num = None;
+            return Some(renumbered);
+        }
+        self.report
+            .renumbered
+            .push(format!("{}: {old} → {number}", song.meta.title));
+        Some(renumbered)
+    }
+
     /// Runs `f` with an open writer, backing the database up first. `None`
     /// means writing is unavailable on this PC and the change waits.
     fn with_writer<T>(
@@ -669,4 +814,51 @@ fn backup_database(mdb_path: &Path, backup_dir: &Path) -> Result<PathBuf, String
         let _ = fs::remove_file(backups.remove(0));
     }
     Ok(destination)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(song_id: i64, song_num: i64) -> VsbSongRow {
+        VsbSongRow {
+            song_id,
+            song_num,
+            title: format!("Song {song_id}"),
+            body: String::new(),
+            key: None,
+            author: None,
+            copyright: None,
+            category_id: 0,
+        }
+    }
+
+    #[test]
+    fn sets_the_number_line_or_adds_one_under_the_title() {
+        assert_eq!(
+            with_song_num("{title: A}\n{meta: song_num=12}\n\n[G]Words\n", 41),
+            "{title: A}\n{meta: song_num=41}\n\n[G]Words\n"
+        );
+        assert_eq!(
+            with_song_num("{title: A}\r\n\r\nWords", 7),
+            "{title: A}\r\n{meta: song_num=7}\r\n\r\nWords"
+        );
+        assert_eq!(parse_chordpro(&with_song_num("{title: A}\nWords\n", 9), "a.pro").meta.song_num, Some(9));
+    }
+
+    #[test]
+    fn a_number_another_vsb_song_has_is_a_clash() {
+        let songs = vec![parse_chordpro("{title: Mine}\n{meta: song_num=40}\nWords", "0040-mine.pro")];
+        let mut numbers = Numbers::new(&[row(1, 12), row(2, 30)], &songs);
+        assert!(numbers.clashes(Some(12), None), "a new row may not take 12");
+        assert!(numbers.clashes(Some(12), Some(2)), "nor may another row");
+        assert!(!numbers.clashes(Some(12), Some(1)), "its own row keeps it");
+        assert!(!numbers.clashes(Some(13), None));
+        assert!(!numbers.clashes(None, None));
+        // Above everything in VSB and in Psalm150.
+        assert_eq!(numbers.fresh(), 41);
+        assert_eq!(numbers.fresh(), 42);
+        numbers.take(Some(41), 3);
+        assert!(numbers.clashes(Some(41), None));
+    }
 }
