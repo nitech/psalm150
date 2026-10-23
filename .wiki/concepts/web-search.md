@@ -96,8 +96,11 @@ for the audience.
 - **Save to library** calls `save_web_song` after a confirmation. It
   serialises to the normal `{song_num:04}-{title-slug}.pro` name and uses
   exclusive creation with `-1`, `-2`, … suffixes, so it never overwrites an
-  existing song. This is refused ("Library is read-only") when the library is
-  read-only, including a server library ([gaps](gaps.md)).
+  existing song. Refused ("Library is read-only") only for a read-only local
+  folder. In a **server library** it goes to the song server like an edit:
+  `server_library::add_song` posts it (`POST /api/v1/songs`) with the device
+  token, so the desktop has the rights of the leader who connected it, then
+  writes it into the offline copy and the manifest so it can be edited at once.
 
 ## Related
 

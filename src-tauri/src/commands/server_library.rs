@@ -698,6 +698,57 @@ pub(crate) async fn save_song(
     Ok(())
 }
 
+/// Add a new song to a server library (a song found online): create it on
+/// the song server with the device token, then write it into the offline
+/// copy and the manifest, so it shows at once and can be edited like any
+/// server song. Returns the file name in the offline copy.
+pub(crate) async fn add_song(
+    app: &AppHandle,
+    server_url: &str,
+    folder: &Path,
+    preferred: &str,
+    content: &str,
+) -> Result<String, String> {
+    #[derive(Deserialize)]
+    struct Created {
+        id: String,
+        revision_id: String,
+    }
+    let token = read_token(app)?;
+    let endpoint = url::Url::parse(server_url)
+        .and_then(|base| base.join("api/v1/songs"))
+        .map_err(|error| error.to_string())?;
+    let response = song_client()?
+        .post(endpoint)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .header(CONTENT_TYPE, "application/json")
+        .body(serde_json::json!({ "chordpro": content }).to_string())
+        .send()
+        .await
+        .map_err(|error| format!("Not saved: could not reach the song server: {error}"))?;
+    if !response.status().is_success() {
+        return Err(match song_response(response).await {
+            Err(error) => format!("Not saved: {error}"),
+            Ok(()) => "Not saved".into(),
+        });
+    }
+    let body = response.text().await.unwrap_or_default();
+    let created: Created = serde_json::from_str(&body)
+        .map_err(|error| format!("The song server returned an invalid song: {error}"))?;
+    let filename = crate::library::files::create_song_unique(folder, preferred, content)?;
+    let mut manifest = read_manifest(app, server_url);
+    manifest.insert(
+        filename.clone(),
+        crate::vsb_sync::ServerSongRef {
+            filename: filename.clone(),
+            id: created.id,
+            revision_id: created.revision_id,
+        },
+    );
+    write_manifest(app, server_url, &manifest)?;
+    Ok(filename)
+}
+
 /// Delete a server song unless it changed since `base_revision_id`.
 pub(crate) async fn delete_song(
     server_url: &str,

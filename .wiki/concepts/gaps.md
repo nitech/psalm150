@@ -43,7 +43,7 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
   - A 5xx or other unexpected answer for one set stops the run before the remaining sets and the download.
   - `sync_server_sets` has no button; the 60 s timer and edits are the only triggers besides a full Synchronize.
 - **Remote control**: the LAN page can only step slides and blank, and its PIN travels in clear over HTTP. The song server remote can project songs and set items and is on by default, but only works in a server library. Room sharing is also on by default, so a newly connected PC shows its words to anyone who knows its (guessable, flower) room name until the operator or the church's owner turns it off ([remote control](remote-control.md#room)).
-- **Online search**: a found song cannot be saved into a server library (it is read-only on the desktop); the web client can add it there instead ([online song search](web-search.md)). Chord positions are only as good as the site's chart.
+- **Online search**: chord positions are only as good as the site's chart ([online song search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
 - **Stanza view** highlight is off by one for songs with `Intro`/`Interlude` sections ([performance sections](performance-sections.md)).
 - **Search** ignores the FTS table and returns unranked `LIKE` matches ([library index](library-index.md)).
