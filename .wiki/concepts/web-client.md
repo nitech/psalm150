@@ -246,7 +246,7 @@ are not affected.
   (leaders, when a set is current) and, for songs with chords, a
   **chords on/off** switch (a chord diagram icon, `chordChart`; lit when on,
   remembered). Everything else is in **⋮** with icon and text:
-  **Transpose** (a row with − and + to tap and the key between them; the
+  **Transpose** (icon "C → D", `transpose`; a row with − and + to tap and the key between them; the
   menu stays open while stepping), Add to a (another) set, Copy the words,
   Share song, Edit song. Transpose in the bar is one pill, "− G +". The key
   is the song's `{key}`, else a guess from its chords (`guessKey`: the key

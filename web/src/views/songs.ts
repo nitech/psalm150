@@ -516,7 +516,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       bar.push({
         id: "transpose",
         label: "Transpose",
-        icon: "key",
+        icon: "transpose",
         stepper: {
           value: key ?? (transpose ? transposeLabel(transpose) : "±0"),
           spoken: key ? `key ${key}${transpose ? `, ${transposeLabel(transpose)}` : ""}` : transpose ? transposeLabel(transpose) : "not transposed",
