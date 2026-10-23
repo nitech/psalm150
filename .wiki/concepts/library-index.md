@@ -14,14 +14,20 @@ sources:
   - id: search
     resource: /src-tauri/src/search.rs
     title: Word matching, spelling tolerance and match ranks (unit tested)
-generated: { by: agent, at: 2026-09-24T21:10:00Z }
+generated: { by: agent, at: 2026-10-23T12:10:00Z }
 ---
 
 # Library index
 
 `index.sqlite` under the library's app-data root. Rebuilt from a full folder
 scan (`rebuild_from_songs`: delete all, insert all, refill FTS) and patched by
-`upsert_song` / `delete_song` after in-app edits.
+`upsert_song` / `delete_song` after in-app edits. `song_search` takes its
+text from `songs` (external content), so one song leaves it through the FTS5
+`'delete'` command with the old values, run before `songs` changes
+(`forget_search_entry`). A plain `DELETE` on it, as before 2026-10-23,
+reported "database disk image is malformed" for a song it had never indexed,
+so saving a new song could fail to update the index. `next_song_num` is the
+highest `song_num` plus one, the number a new song gets.
 
 ## Schema
 
