@@ -293,7 +293,20 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .bar-menu-item .icon { width: 20px; height: 20px; flex: none; color: var(--psa-text-secondary); }
 .bar-menu-check { display: inline-flex; width: 20px; color: var(--psa-accent-text); }
 .bar-menu-check .icon { color: inherit; }
-@media (hover: hover) { .bar-menu-item:hover { background: var(--psa-bg-surface); } }
+/* Transpose: − key +, in the bar as one pill and in the menu as one row
+   with two places to tap. */
+.bar-stepper { position: relative; display: inline-flex; align-items: center; height: 40px; padding: 0 2px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); }
+.bar-step { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--psa-text); }
+.bar-step .icon { width: 18px; height: 18px; }
+@media (hover: hover) { .bar-step:hover { background: var(--psa-bg-surface); } }
+.bar-step:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+.bar-stepper-value { min-width: 2.4em; text-align: center; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.bar-stepper.frequent::after { content: ""; position: absolute; bottom: -7px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--psa-accent-text); }
+.bar-menu-stepper { gap: 8px; cursor: default; }
+.bar-menu-stepper > span:first-of-type { flex: 1; }
+.bar-menu-stepper .bar-step { width: 40px; height: 40px; border: 1px solid var(--psa-border-strong); }
+.bar-menu-stepper .bar-stepper-value { min-width: 2.6em; }
+@media (hover: hover) { .bar-menu-item:not(.bar-menu-stepper):hover { background: var(--psa-bg-surface); } }
 .bar-menu-item:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
 /* Phones: no church name over the tab screens, and compact screens (the song
    list) keep their title in the bar instead of a large title. */

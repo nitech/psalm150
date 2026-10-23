@@ -71,7 +71,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-23T10:40:00Z }
+generated: { by: agent, at: 2026-10-23T11:20:00Z }
 ---
 
 # Web client
@@ -243,9 +243,17 @@ are not affected.
   is on, a chip under the header ("D, G · major ✕") shows it and clears it.
   Kept in `localStorage["psa150-song-key-filter"]` (`{roots, mode}`).
 - **Song bar**: few icons. Fixed: Back, the current set's **+**/**✓**
-  (leaders, when a set is current) and **Chords and key** (songs with
-  chords). Everything else is in **⋮** with icon and text: Add to a (another)
-  set, Show chords (a checkbox item), Copy the words, Share song, Edit song.
+  (leaders, when a set is current) and, for songs with chords, a
+  **chords on/off** switch (a chord diagram icon, `chordChart`; lit when on,
+  remembered). Everything else is in **⋮** with icon and text:
+  **Transpose** (a row with − and + to tap and the key between them; the
+  menu stays open while stepping), Add to a (another) set, Copy the words,
+  Share song, Edit song. Transpose in the bar is one pill, "− G +". The key
+  is the song's `{key}`, else a guess from its chords (`guessKey`: the key
+  whose scale fits most chords, the last chord being home counting most,
+  major over its relative minor on a tie), moved with the transpose; with no
+  chords at all it shows the steps ("+2"). Transposing only changes what you
+  see (and what you add to a set).
   A ⋮ action used often lately also comes into the bar as an icon, after a
   thin divider and with a small dot under it (title "… (often used)"), at
   most 2: it comes at 3 uses and goes when its uses fade (half every 14

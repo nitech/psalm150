@@ -21,9 +21,16 @@ export interface BarAction {
   href?: string;
   /** An on/off action: the menu shows it as a checkbox item. */
   checked?: boolean;
-  /** Extra attributes for the bar button (aria-pressed, classes in `className`). */
+  /** Extra classes and attributes for the bar button. */
   className?: string;
   attributes?: string;
+  /**
+   * A − value + control instead of a button (transpose): `value` sits
+   * between the two (the key), `spoken` names it for screen readers. The
+   * steps are the actions `<id>-down` and `<id>-up`; a step in the menu
+   * leaves the menu open.
+   */
+  stepper?: { value: string; spoken: string };
 }
 
 /** Uses that count fade by half over this many days. */
@@ -90,7 +97,21 @@ function writeUsage(screen: string, usage: UsageMap): void {
   writePreference(`bar-usage-${screen}`, JSON.stringify(usage));
 }
 
+function stepButtons(action: BarAction, inMenu: boolean): [string, string] {
+  const step = (way: "down" | "up") => {
+    const label = `${action.label} ${way}`;
+    const menuAttrs = inMenu ? ` role="menuitem" tabindex="-1"` : "";
+    return `<button type="button" class="bar-step" data-action="${action.id}-${way}" data-usage="${action.id}" data-keep-open aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${menuAttrs}>${icon(way === "down" ? "minus" : "plus")}</button>`;
+  };
+  return [step("down"), step("up")];
+}
+
 function barButton(action: BarAction, frequentOne: boolean): string {
+  if (action.stepper) {
+    const [down, up] = stepButtons(action, false);
+    const label = `${action.label}, ${action.stepper.spoken}`;
+    return `<span class="bar-stepper${frequentOne ? " frequent" : ""}" role="group" aria-label="${escapeHtml(label)}" title="${escapeHtml(frequentOne ? `${action.label} (often used)` : action.label)}">${down}<span class="bar-stepper-value" aria-hidden="true">${escapeHtml(action.stepper.value)}</span>${up}</span>`;
+  }
   const title = frequentOne ? `${action.label} (often used)` : action.label;
   const classes = `icon-button ghost${frequentOne ? " frequent" : ""}${action.className ? ` ${action.className}` : ""}`;
   const pressed = action.checked === undefined ? "" : ` aria-pressed="${action.checked}"`;
@@ -101,6 +122,11 @@ function barButton(action: BarAction, frequentOne: boolean): string {
 }
 
 function menuItem(action: BarAction): string {
+  if (action.stepper) {
+    // Two places to tap: − and +, the key between them.
+    const [down, up] = stepButtons(action, true);
+    return `<div class="bar-menu-item bar-menu-stepper" role="group" aria-label="${escapeHtml(`${action.label}, ${action.stepper.spoken}`)}">${icon(action.icon)}<span>${escapeHtml(action.label)}</span>${down}<span class="bar-stepper-value" aria-hidden="true">${escapeHtml(action.stepper.value)}</span>${up}</div>`;
+  }
   const role = action.checked === undefined ? `role="menuitem"` : `role="menuitemcheckbox" aria-checked="${action.checked}"`;
   const check = action.checked === undefined ? "" : `<span class="bar-menu-check" aria-hidden="true">${action.checked ? icon("check") : ""}</span>`;
   const inner = `${icon(action.icon)}<span>${escapeHtml(action.label)}</span>${check}`;
@@ -131,6 +157,18 @@ export function barActions(screen: string, actions: BarAction[]): string {
 }
 
 /**
+ * Opens the menu again after the screen redrew its bar (a transpose step in
+ * the menu), with focus back on the control that was pressed.
+ */
+export function reopenMenu(root: HTMLElement, actionId: string): void {
+  const list = root.querySelector<HTMLElement>(".bar-menu");
+  if (!list) return;
+  list.hidden = false;
+  root.querySelector(".bar-more")?.setAttribute("aria-expanded", "true");
+  list.querySelector<HTMLElement>(`[data-action="${actionId}"]`)?.focus();
+}
+
+/**
  * Opens and closes the menu (click, Escape, arrows, a click outside) and
  * counts the uses of menu actions, wherever they were picked. Returns a
  * cleanup for the screen's own cleanup.
@@ -138,7 +176,7 @@ export function barActions(screen: string, actions: BarAction[]): string {
 export function bindBarActions(root: HTMLElement): () => void {
   const menu = () => root.querySelector<HTMLElement>(".bar-menu");
   const more = () => root.querySelector<HTMLButtonElement>(".bar-more");
-  const items = () => [...(menu()?.querySelectorAll<HTMLElement>(".bar-menu-item") ?? [])];
+  const items = () => [...(menu()?.querySelectorAll<HTMLElement>(".bar-menu-item:not(.bar-menu-stepper), .bar-menu .bar-step") ?? [])];
   const close = (refocus: boolean) => {
     const list = menu();
     if (!list || list.hidden) return;
@@ -165,9 +203,11 @@ export function bindBarActions(root: HTMLElement): () => void {
     const bar = action?.closest<HTMLElement>("[data-bar-screen]");
     if (action && bar) {
       const screen = bar.dataset.barScreen!;
-      const isMenuAction = action.classList.contains("bar-menu-item") || action.classList.contains("frequent");
-      if (isMenuAction) writeUsage(screen, recordUse(readUsage(screen), action.dataset.action!, Date.now()));
-      close(false);
+      const inMenu = Boolean(action.closest(".bar-menu"));
+      const isMenuAction = inMenu || Boolean(action.closest(".frequent"));
+      const id = action.dataset.usage ?? action.dataset.action!;
+      if (isMenuAction) writeUsage(screen, recordUse(readUsage(screen), id, Date.now()));
+      if (!(inMenu && action.hasAttribute("data-keep-open"))) close(false);
       return;
     }
     if (!target.closest(".bar-menu")) close(false);
