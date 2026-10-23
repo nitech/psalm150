@@ -11,6 +11,7 @@
 
 pub mod chart;
 mod discover;
+mod lrclib;
 pub mod page;
 
 use std::time::Duration;
@@ -65,20 +66,34 @@ pub async fn search(client: &reqwest::Client, query: &str) -> Result<Vec<Candida
     if query.chars().count() < 3 {
         return Ok(vec![]);
     }
-    let urls = discover::urls(client, query).await?;
-    let pages = join_all(urls.into_iter().take(MAX_PAGES).map(|url| async move {
-        let html = fetch(client, &url).await.ok()?;
-        Some((url, html))
-    }))
-    .await;
-
+    // Chord and lyric sites through the search engine, and the LRCLIB
+    // lyrics database (words only) at the same time.
+    let charts = async {
+        let urls = discover::urls(client, query).await?;
+        let pages = join_all(urls.into_iter().take(MAX_PAGES).map(|url| async move {
+            let html = fetch(client, &url).await.ok()?;
+            Some((url, html))
+        }))
+        .await;
+        Ok::<_, String>(
+            pages
+                .into_iter()
+                .flatten()
+                .filter_map(|(url, html)| page::read(&url, &html))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let (charts, lyrics) = futures_util::future::join(charts, lrclib::pages(client, query)).await;
+    // Only when neither answered is it an error.
+    let mut pages = lyrics;
+    match charts {
+        Ok(found) => pages.extend(found),
+        Err(error) if pages.is_empty() => return Err(error),
+        Err(_) => {}
+    }
     let found = pages
         .into_iter()
-        .flatten()
-        .filter_map(|(url, html)| {
-            let page = page::read(&url, &html)?;
-            chart::parse(&page, query).map(|song| (page, song))
-        })
+        .filter_map(|page| chart::parse(&page, query).map(|song| (page, song)))
         .collect::<Vec<_>>();
     Ok(pick(found, query))
 }
