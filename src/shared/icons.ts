@@ -25,6 +25,8 @@ export const ICON_PATHS = {
   history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
   favorites: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
   chords: '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
+  // "C → D": moving a song to another key.
+  transpose: '<path d="M8.3 9.2a4 4 0 1 0 0 5.6"/><path d="M10 12h4.2"/><path d="m12.6 10.3 1.7 1.7-1.7 1.7"/><path d="M16.5 7.5v9h1a4.5 4.5 0 0 0 0-9z"/>',
   // A guitar chord diagram (nut, strings, frets, fingers): chords on or off.
   chordChart: '<path d="M5 3.5h14" stroke-width="3"/><path d="M5 4v17"/><path d="M19 4v17"/><path d="M9.67 4v17"/><path d="M14.33 4v17"/><path d="M5 9.5h14"/><path d="M5 15h14"/><path d="M5 21h14"/><circle cx="14.33" cy="6.75" r="1.7" fill="currentColor"/><circle cx="9.67" cy="12.25" r="1.7" fill="currentColor"/>',
   text: '<path d="m3 15 4-8 4 8"/><path d="M4 13h6"/><circle cx="18" cy="12" r="3"/><path d="M21 9v6"/>',
