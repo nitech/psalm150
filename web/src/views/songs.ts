@@ -2,22 +2,23 @@ import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets } from "../current-set.ts";
-import { barActions, bindBarActions, reopenMenu, type BarAction } from "../bar-menu.ts";
+import { barActions, bindBarActions, type BarAction } from "../bar-menu.ts";
 import { mountChordEditor } from "../chord-editor.ts";
-import { hasChords, type DisplaySong } from "../chordpro.ts";
+import type { DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
 import {
   keyLabel,
+  onReaderAction,
   prepareSong,
   readReaderOptions,
+  readerBarActions,
   renderSongBody,
-  saveReaderOptions,
   songKey,
   songText,
   stepTranspose,
 } from "../song-render.ts";
 import type { KeyMode, OnlineSong, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
-import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showFormError, showToast, today, transposeLabel, writePreference } from "../ui.ts";
+import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
 let lastSearch = "";
@@ -501,28 +502,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
    * into the bar ([bar-menu.ts](../bar-menu.ts)).
    */
   const actions = (display: DisplaySong) => {
-    const chords = hasChords(display);
-    const bar: BarAction[] = [];
-    if (chords) {
-      bar.push({
-        id: "chords",
-        label: options.chords ? "Hide chords" : "Show chords",
-        icon: "chordChart",
-        fixed: true,
-        checked: options.chords,
-        className: options.chords ? "on" : "",
-      });
-      const key = songKey(display);
-      bar.push({
-        id: "transpose",
-        label: "Transpose",
-        icon: "transpose",
-        stepper: {
-          value: key ?? (transpose ? transposeLabel(transpose) : "±0"),
-          spoken: key ? `key ${key}${transpose ? `, ${transposeLabel(transpose)}` : ""}` : transpose ? transposeLabel(transpose) : "not transposed",
-        },
-      });
-    }
+    const bar: BarAction[] = readerBarActions(display, options, transpose);
     if (ctx.canEdit) bar.push({ id: "add-to-set", label: ctx.currentSet.value ? "Add to another set" : "Add to a set", icon: "sets" });
     bar.push({ id: "copy", label: "Copy the words", icon: "copy" });
     bar.push({ id: "share", label: "Share song", icon: "share" });
@@ -553,6 +533,13 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       toggleInCurrentSet(ctx, song, transpose);
       return;
     }
+    const reader = onReaderAction(ctx.main, target, options, {
+      step: (by) => { transpose = stepTranspose(transpose, by); },
+      redraw: render,
+      key: () => songKey(prepareSong(song.chordpro, transpose)),
+      transpose: () => transpose,
+    });
+    if (reader) return;
     switch (target.closest<HTMLElement>("[data-action]")?.dataset.action) {
       case "add-to-set":
         void ctx.run(() => openAddToSet(ctx, song, transpose));
@@ -563,25 +550,6 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       case "share":
         void shareSong(ctx, song);
         break;
-      case "chords":
-        options.chords = !options.chords;
-        saveReaderOptions(options);
-        render();
-        ctx.main.querySelector<HTMLElement>("[data-action='chords']")?.focus();
-        announce(options.chords ? "Chords shown" : "Chords hidden");
-        break;
-      case "transpose-down":
-      case "transpose-up": {
-        const action = target.closest<HTMLElement>("[data-action]")!.dataset.action!;
-        const fromMenu = Boolean(target.closest(".bar-menu"));
-        transpose = stepTranspose(transpose, action.endsWith("up") ? 1 : -1);
-        render();
-        if (fromMenu) reopenMenu(ctx.main, action);
-        else ctx.main.querySelector<HTMLElement>(`.bar-stepper [data-action="${action}"]`)?.focus();
-        const key = songKey(prepareSong(song.chordpro, transpose));
-        announce(key ? `Key ${key}` : transpose ? `Transposed ${transposeLabel(transpose)}` : "Not transposed");
-        break;
-      }
     }
   }
 

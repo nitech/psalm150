@@ -1,6 +1,6 @@
 [package]
 name = "psa150-server"
-version = "0.1.40"
+version = "0.1.41"
 edition = "2024"
 description = "Self-hostable, API-first song library for PSA150"
 publish = false

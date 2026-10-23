@@ -927,8 +927,9 @@ function updateScrollState(): void {
   const title = document.querySelector<HTMLElement>("#page .page-titles h1");
   body.classList.toggle("title-away", Boolean(bar && title && title.getBoundingClientRect().bottom < bar.offsetHeight));
   const delta = y - lastScrollY;
-  const panelOpen = Boolean(document.querySelector("#reader-panel:not([hidden])"));
-  if (y < 160 || panelOpen) {
+  // An open ⋮ menu keeps the bar in place.
+  const menuOpen = Boolean(document.querySelector(".bar-menu:not([hidden])"));
+  if (y < 160 || menuOpen) {
     body.classList.remove("bar-away");
     lastScrollY = y;
   } else if (Math.abs(delta) >= 12) {

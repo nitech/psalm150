@@ -1,13 +1,11 @@
 import { hasChords, parseChordPro, transposeSong, type DisplaySong } from "./chordpro.ts";
-import { announce, refocus } from "./a11y.ts";
-import { icon } from "./icons.ts";
+import { announce } from "./a11y.ts";
+import { reopenMenu, type BarAction } from "./bar-menu.ts";
 import { escapeHtml, readPreference, transposeLabel, writePreference } from "./ui.ts";
 
 /** Reader settings shared by the song page and the service view. */
 export interface ReaderOptions {
   chords: boolean;
-  /** Whether the settings panel under the bar is open; not saved. */
-  panelOpen?: boolean;
 }
 
 export function readReaderOptions(): ReaderOptions {
@@ -89,84 +87,11 @@ export function lyricsIn(fragment: DocumentFragment): string {
     .join("\n\n");
 }
 
-/**
- * Chord and transpose controls. `transpose` is null to hide it. There is no
- * text size control and the page does not zoom: bigger words come from the
- * browser's or phone's text size.
- */
-export function readerControls(song: DisplaySong, options: ReaderOptions, transpose: number | null): string {
-  const chordToggle = hasChords(song)
-    ? `<button class="chip${options.chords ? " on" : ""}" data-reader="chords" aria-pressed="${options.chords}">${icon("chords")}Chords</button>`
-    : "";
-  const transposer = transpose === null || !hasChords(song) ? "" : `<div class="stepper" role="group" aria-label="Transpose">
-      <button class="icon-button small" data-reader="down" aria-label="Transpose down">${icon("minus")}</button>
-      <span data-reader-key>${song.key ? `Key ${escapeHtml(song.key)}` : "Key"}${transpose ? ` <small>${transposeLabel(transpose)}</small>` : ""}</span>
-      <button class="icon-button small" data-reader="up" aria-label="Transpose up">${icon("plus")}</button>
-    </div>`;
-  return `<div class="reader-controls">
-    ${chordToggle}
-    ${transposer}
-  </div>`;
-}
-
-/** The bar button that opens the reader settings panel; none for a song without chords. */
-export function readerToggle(song: DisplaySong, options: ReaderOptions): string {
-  if (!hasChords(song)) return "";
-  return `<button class="icon-button ghost${options.panelOpen ? " on" : ""}" data-reader="panel" aria-controls="reader-panel" aria-expanded="${Boolean(options.panelOpen)}" aria-label="Chords and key" title="Chords and key">${icon("chords")}</button>`;
-}
-
-/** The reader settings, dropping down from the sticky bar; none for a song without chords. */
-export function readerPanel(song: DisplaySong, options: ReaderOptions, transpose: number | null): string {
-  if (!hasChords(song)) return "";
-  return `<div class="reader-panel" id="reader-panel"${options.panelOpen ? "" : " hidden"}>${readerControls(song, options, transpose)}</div>`;
-}
-
-/** "Key G +2", or "" when the song has no key and is not transposed. */
+/** "Key G +2", or "" when no key is known or guessed and it is not transposed. */
 export function keyLabel(song: DisplaySong, transpose: number): string {
-  if (!song.key && !transpose) return "";
-  return `${song.key ? `Key ${song.key}` : "Transposed"}${transpose ? ` ${transposeLabel(transpose)}` : ""}`;
-}
-
-/**
- * Wires the controls rendered by `readerControls`. `onChange` re-renders;
- * transpose changes are reported as a step so the caller keeps its own value.
- * The button pressed keeps focus through the re-render, and a screen reader
- * hears the new key.
- */
-export function bindReaderControls(
-  root: HTMLElement,
-  options: ReaderOptions,
-  onChange: (transposeStep: number) => void,
-): void {
-  root.querySelectorAll<HTMLButtonElement>("[data-reader]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const control = button.dataset.reader;
-      const after = (said: () => string) => {
-        if (!button.isConnected) refocus(root, `[data-reader="${control}"]`);
-        announce(said());
-      };
-      switch (control) {
-        case "panel": {
-          options.panelOpen = !options.panelOpen;
-          root.querySelector("#reader-panel")?.toggleAttribute("hidden", !options.panelOpen);
-          button.classList.toggle("on", options.panelOpen);
-          button.setAttribute("aria-expanded", String(options.panelOpen));
-          return;
-        }
-        case "chords":
-          options.chords = !options.chords;
-          break;
-        case "up":
-        case "down":
-          onChange(control === "up" ? 1 : -1);
-          after(() => root.querySelector("[data-reader-key]")?.textContent?.replace(/\s+/g, " ").trim() ?? "");
-          return;
-      }
-      saveReaderOptions(options);
-      onChange(0);
-      after(() => "");
-    });
-  });
+  const key = songKey(song);
+  if (!key && !transpose) return "";
+  return `${key ? `Key ${key}` : "Transposed"}${transpose ? ` ${transposeLabel(transpose)}` : ""}`;
 }
 
 /** Keeps a transpose value in -11..11 after a step. */
@@ -226,4 +151,75 @@ export function guessKey(chords: string[]): string | null {
     }
   }
   return best ? `${NOTES[best.tonic]}${best.minor ? "m" : ""}` : null;
+}
+
+/**
+ * The reader's own bar actions, for a song with chords: the chords on/off
+ * switch (fixed) and Transpose (− key +), in the ⋮ menu unless
+ * `transposeFixed`. Handle them with `onReaderAction`.
+ */
+export function readerBarActions(
+  song: DisplaySong,
+  options: ReaderOptions,
+  transpose: number,
+  transposeFixed = false,
+): BarAction[] {
+  if (!hasChords(song)) return [];
+  const key = songKey(song);
+  const steps = transpose ? transposeLabel(transpose) : "";
+  return [
+    {
+      id: "chords",
+      label: options.chords ? "Hide chords" : "Show chords",
+      icon: "chordChart",
+      fixed: true,
+      checked: options.chords,
+      className: options.chords ? "on" : "",
+    },
+    {
+      id: "transpose",
+      label: "Transpose",
+      icon: "transpose",
+      fixed: transposeFixed,
+      stepper: {
+        value: key ?? (steps || "±0"),
+        spoken: key ? `key ${key}${steps ? `, ${steps}` : ""}` : steps || "not transposed",
+      },
+    },
+  ];
+}
+
+/**
+ * A click on one of `readerBarActions`: switches chords (and saves that) or
+ * steps the transpose through `step`, redraws with `redraw`, then puts
+ * focus back where it was (the menu stays open for a step taken in it).
+ * False for any other click.
+ */
+export function onReaderAction(
+  root: HTMLElement,
+  target: HTMLElement,
+  options: ReaderOptions,
+  hooks: { step: (by: number) => void; redraw: () => void; key: () => string | null; transpose: () => number },
+): boolean {
+  const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
+  if (action === "chords") {
+    options.chords = !options.chords;
+    saveReaderOptions(options);
+    hooks.redraw();
+    root.querySelector<HTMLElement>("[data-action='chords']")?.focus();
+    announce(options.chords ? "Chords shown" : "Chords hidden");
+    return true;
+  }
+  if (action === "transpose-down" || action === "transpose-up") {
+    const fromMenu = Boolean(target.closest(".bar-menu"));
+    hooks.step(action === "transpose-up" ? 1 : -1);
+    hooks.redraw();
+    if (fromMenu) reopenMenu(root, action);
+    else root.querySelector<HTMLElement>(`.bar-stepper [data-action="${action}"]`)?.focus();
+    const key = hooks.key();
+    const transpose = hooks.transpose();
+    announce(key ? `Key ${key}` : transpose ? `Transposed ${transposeLabel(transpose)}` : "Not transposed");
+    return true;
+  }
+  return false;
 }

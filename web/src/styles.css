@@ -124,8 +124,6 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 .chip .icon { width: 16px; height: 16px; }
 .chip.on { background: var(--psa-accent-soft); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
 
-.stepper { display: inline-flex; align-items: center; gap: var(--psa-space-2); font-size: 14px; font-weight: 600; }
-.stepper small { color: var(--psa-accent-text); }
 
 label { display: grid; gap: 6px; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
 input, textarea, select {
@@ -321,8 +319,6 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 }
 .eyebrow { margin: 0 0 2px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .page-meta { margin: calc(-1 * var(--psa-space-3)) 0 var(--psa-space-4); color: var(--psa-text-secondary); font-size: 14px; }
-.reader-panel { padding: var(--psa-space-2) 6px var(--psa-space-3); border-top: 1px solid var(--psa-border-subtle); }
-.reader-panel .reader-controls { margin: 0; }
 
 /* ── Lists ──────────────────────────────────────────────────────────────── */
 
@@ -416,7 +412,6 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 
 /* ── Song reader ────────────────────────────────────────────────────────── */
 
-.reader-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-4); margin-bottom: var(--psa-space-5); }
 /* Selecting a song selects only the words (see installLyricsCopy). */
 .song-section > h2, .song-body .ch, .song-comment { -webkit-user-select: none; user-select: none; }
 .song-body { font-family: var(--psa-font-lyrics); font-size: 18px; line-height: 1.5; }

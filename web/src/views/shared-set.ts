@@ -2,14 +2,15 @@ import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError, type SongServerApi } from "../api.ts";
 import { emptyState, pageHead } from "../context.ts";
 import { icon } from "../icons.ts";
+import { barActions, bindBarActions } from "../bar-menu.ts";
 import {
-  bindReaderControls,
   keyLabel,
+  onReaderAction,
   prepareSong,
   readReaderOptions,
-  readerPanel,
-  readerToggle,
+  readerBarActions,
   renderSongBody,
+  songKey,
   stepTranspose,
 } from "../song-render.ts";
 import type { SetItem, SharedSet, SharedSetLive, SongDetail } from "../types.ts";
@@ -233,23 +234,29 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
           title: itemTitle(item),
           subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
           back: "#/",
-          actions: display ? readerToggle(display, options) : "",
-          panel: display ? readerPanel(display, options, transpose) : "",
+          // Reading from a link: chords and transpose are all the bar has,
+          // so transpose sits in it rather than in a menu of one.
+          actions: display ? barActions("shared-song", readerBarActions(display, options, transpose, true)) : "",
         })}
         ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
         ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
         ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : emptyState("This song was deleted", "It is no longer in the library.")}
         ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
       </div>`;
-      if (display) {
-        bindReaderControls(main, options, (step) => {
-          extraTranspose = stepTranspose(extraTranspose, step);
-          draw();
-        });
-      }
       main.querySelector("#play-prev")?.addEventListener("click", () => go(index - 1));
       main.querySelector("#play-next")?.addEventListener("click", () => go(index + 1));
     };
+
+    const unbindBar = bindBarActions(main);
+    const onBar = (event: Event) => {
+      onReaderAction(main, event.target as HTMLElement, options, {
+        step: (by) => { extraTranspose = stepTranspose(extraTranspose, by); },
+        redraw: draw,
+        key: () => (song ? songKey(prepareSong(song.chordpro, stepTranspose(item.transpose, extraTranspose))) : null),
+        transpose: () => stepTranspose(item.transpose, extraTranspose),
+      });
+    };
+    main.addEventListener("click", onBar);
 
     // Swipe sideways (the item follows the finger), or the arrow keys.
     const unbindSwipe = bindItemSwipe(main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step));
@@ -276,6 +283,8 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     lockScreen();
     present(draw);
     return () => {
+      unbindBar();
+      main.removeEventListener("click", onBar);
       unbindSwipe();
       document.removeEventListener("keydown", keys);
       document.removeEventListener("visibilitychange", visibility);

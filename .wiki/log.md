@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-23
+* **Shared set page like the song page**: the T panel is gone there too. A shared set's song has the chords switch and the "− key +" transpose pill always in the bar (no ⋮, as there is nothing else). The line under the title shows the same key as the pill ("Key Ab +1"), guessed from the chords when the song has no `{key}`. The old panel code (`readerToggle`, `readerPanel`, `bindReaderControls`) is removed; both pages use `readerBarActions` and `onReaderAction`. Pages touched: web-client, shared-sets, accessibility.
 * **Transpose icon**: "C → D" (new `transpose` in `shared/icons.ts`) for Transpose in the song menu. Pages touched: web-client.
 * **Chords switch and transpose**: the song bar's T (Chords and key panel) is gone. A chord diagram icon (new `chordChart` in `shared/icons.ts`) turns chords on and off; **Transpose** is its own action, − key + in the ⋮ menu (stays open while stepping) and as a "− G +" pill when it comes into the bar from use. The key is `{key}` or a guess from the chords (`guessKey` in `song-render.ts`, tested). Pages touched: web-client.
 * **Song bar with ⋮**: the song page's bar keeps Back, the current set's +/✓ and Chords and key; Add to a set, Show chords (new on/off item), Copy the words, Share and Edit moved into a ⋮ menu with text. Often used menu actions come into the bar by themselves (after a divider, with a dot) and go when no longer used (`web/src/bar-menu.ts`). The online lookup reads chord rows with bar lines (`|Em D|G |C |`) as chords. Pages touched: web-client.

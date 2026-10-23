@@ -41,7 +41,7 @@ sources:
   - id: tests
     resource: /web/tests/a11y.test.ts
     title: Titles, radio keys, focus selectors, toast timing
-generated: { by: agent, at: 2026-10-05T20:30:00Z }
+generated: { by: agent, at: 2026-10-23T11:45:00Z }
 ---
 
 # Accessibility
@@ -75,7 +75,7 @@ ring for 3:1.
   because the date is in words beside it.
 - Sheets are modal `<dialog>`s named by their heading (`aria-labelledby`).
 - Toggles say their state: `aria-pressed` (Chords, Follow, Blank, room
-  settings), `aria-expanded`/`aria-controls` (☰, the reader panel),
+  settings), `aria-expanded` (☰, the ⋮ menu; Transpose is a labelled group of − and +),
   `aria-current` (the section, the slide on screen in the remote and room).
   Buttons whose label already says the state ("Remove … from Sunday
   morning") are not also pressed toggles.

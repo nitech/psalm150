@@ -71,7 +71,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-23T11:20:00Z }
+generated: { by: agent, at: 2026-10-23T11:45:00Z }
 ---
 
 # Web client
@@ -263,11 +263,12 @@ are not affected.
   back on ⋮), a tap outside or Tab, and moves with the arrow keys.
 - **Reader**: the song with section labels and chords above the lyrics,
   parsed in the browser by `chordpro.ts` with the desktop's stanza rules
-  (a blank line starts a new verse; unlabelled verses are numbered). The
-  **Chords and key** button in the bar (only for a song with chords) opens a panel under it:
-  chords on or off and transpose (view only, never saved). There is no text
-  size control (see [accessibility](accessibility.md)). Chords are remembered. The key (with
-  any transpose) shows under the title. Shows the first 8 characters of the
+  (a blank line starts a new verse; unlabelled verses are numbered). Chords
+  on or off and Transpose (view only, never saved) are bar actions, see
+  **Song bar** (`readerBarActions` and `onReaderAction` in `song-render.ts`).
+  There is no text size control (see [accessibility](accessibility.md)).
+  Chords are remembered. The key (with any transpose, the same key the
+  transposer shows) is under the title: "Key A +2". Shows the first 8 characters of the
   revision id, and sets the tab title to the song's. **Share** (in ⋮)
   copies the song's permalink, `<origin>/songs/{id}` (a real path, so the
   server can add link-preview tags; on load the app replaces it with
@@ -444,7 +445,9 @@ reduced motion is asked for:
 `/shared/{key}` (`views/shared-set.ts`) is for anyone with a set's share
 link, signed in or not, and stands outside the shell like the room reader:
 the set, **Go through the songs**, and one item at a time at
-`#/item/{itemId}` with words, chords and the reader panel, but no Follow or
+`#/item/{itemId}` with words and chords. Its bar has the chords switch and
+the transpose pill ("− G +") always in it, as there is nothing else (no ⋮).
+There is no Follow or
 Project. The tab title has the set's day. Moving between the set and its
 items slides like the app ([movement](#movement-on-phones)). When a leader leads the set, the page moves to the item they show
 and says "Following <name>" above it. An editable link adds remove buttons
