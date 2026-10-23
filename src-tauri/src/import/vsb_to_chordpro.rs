@@ -226,39 +226,12 @@ fn parse_vsb_chord_pair(chord_line: &str, lyric_line: &str) -> crate::library::c
     }
 }
 
-pub(crate) fn parse_scraped_chord_pair(
-    chord_line: &str,
-    lyric_line: &str,
-) -> crate::library::chordpro::LyricLine {
-    let chord_token = chord_token_re();
-    let mut chords = Vec::new();
-    for mat in chord_token.find_iter(chord_line) {
-        let pos = lyric_line
-            .chars()
-            .take(mat.start().min(lyric_line.len()))
-            .count();
-        chords.push(crate::library::chordpro::ChordPlacement {
-            chord: mat.as_str().to_string(),
-            position: pos,
-        });
-    }
-    crate::library::chordpro::LyricLine {
-        text: lyric_line.trim().to_string(),
-        chords,
-        source_line: None,
-    }
-}
-
 fn chord_token_re() -> &'static Regex {
     static CHORD_TOKEN: OnceLock<Regex> = OnceLock::new();
     CHORD_TOKEN.get_or_init(|| Regex::new(r"[A-G](#|b)?[^ \t]*").unwrap())
 }
 
 fn classify_section(label: &str) -> SectionKind {
-    classify_section_for_scrape(label)
-}
-
-pub(crate) fn classify_section_for_scrape(label: &str) -> SectionKind {
     let lower = label.to_lowercase();
     if lower.starts_with("chorus 2") || lower.starts_with("chorus2") {
         SectionKind::Chorus2
@@ -281,7 +254,7 @@ fn capitalize_label(label: &str) -> String {
     }
 }
 
-pub(crate) fn is_single_stanza_section_kind(kind: &SectionKind) -> bool {
+fn is_single_stanza_section_kind(kind: &SectionKind) -> bool {
     matches!(
         kind,
         SectionKind::Verse
@@ -292,14 +265,14 @@ pub(crate) fn is_single_stanza_section_kind(kind: &SectionKind) -> bool {
     )
 }
 
-pub(crate) fn section_kind_after_stanza_break(kind: &SectionKind) -> SectionKind {
+fn section_kind_after_stanza_break(kind: &SectionKind) -> SectionKind {
     match kind {
         SectionKind::Chorus | SectionKind::Chorus2 | SectionKind::Bridge => SectionKind::Verse,
         other => other.clone(),
     }
 }
 
-pub(crate) fn next_non_empty_line<'a>(lines: &[&'a str], start: usize) -> Option<&'a str> {
+fn next_non_empty_line<'a>(lines: &[&'a str], start: usize) -> Option<&'a str> {
     lines
         .iter()
         .skip(start)

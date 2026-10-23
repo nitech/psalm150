@@ -877,6 +877,44 @@ body.workspace-resizing {
   border-color: transparent;
 }
 
+.empty-list-icon {
+  opacity: 0.4;
+  margin-bottom: 12px;
+}
+
+/* Nothing in the library: the offer to search online and its progress. */
+.song-list li.online-search {
+  gap: 8px;
+  padding: 32px 20px;
+}
+
+.online-search .empty-list-title {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.online-search p {
+  margin: 0 0 4px;
+  max-width: 28ch;
+  line-height: 1.45;
+}
+
+.online-search-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.online-search-spinner {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 8px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--accent-lime);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
 .web-results-header {
   padding: 12px 16px 6px;
   display: flex;

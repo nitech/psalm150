@@ -3,12 +3,15 @@ import { Psa150Element } from "./base";
 import type { SongRow, WebSearchCandidate } from "../api";
 import type { SongSort, SongSortColumn } from "../song-sort";
 import { webResultId } from "./song-list-ids";
+import { NO_ONLINE_SEARCH, type OnlineSearch } from "../online-search";
 
 export { WEB_RESULT_PREFIX, isWebResultId, webResultId } from "./song-list-ids";
 
 /**
  * Library song list. Presentational: it renders rows and emits `psa150-select`
  * (single click / focus) and `psa150-project` (Enter on a focused row) events.
+ * When the library finds nothing it offers an online search and emits
+ * `psa150-search-online` (and `psa150-stop-online` to cancel it).
  *
  * The column header sits above the scrolling body, so the scrollbar starts
  * below it. The body is one grid with subgrid rows; after each layout the
@@ -19,7 +22,7 @@ export class Psa150SongList extends Psa150Element {
   static properties = {
     songs: { attribute: false },
     webResults: { attribute: false },
-    webSearchLoading: { type: Boolean },
+    onlineSearch: { attribute: false },
     currentFile: {},
     projecting: { type: Boolean },
     showNumbers: { type: Boolean },
@@ -29,7 +32,7 @@ export class Psa150SongList extends Psa150Element {
 
   declare songs: SongRow[];
   declare webResults: WebSearchCandidate[];
-  declare webSearchLoading: boolean;
+  declare onlineSearch: OnlineSearch;
   declare currentFile: string | null;
   declare projecting: boolean;
   declare showNumbers: boolean;
@@ -45,7 +48,7 @@ export class Psa150SongList extends Psa150Element {
     super();
     this.songs = [];
     this.webResults = [];
-    this.webSearchLoading = false;
+    this.onlineSearch = NO_ONLINE_SEARCH;
     this.currentFile = null;
     this.projecting = false;
     this.showNumbers = true;
@@ -103,6 +106,10 @@ export class Psa150SongList extends Psa150Element {
 
   private emit(name: "psa150-select" | "psa150-project", file: string) {
     this.dispatchEvent(new CustomEvent(name, { detail: file, bubbles: true, composed: true }));
+  }
+
+  private emitOnline(name: "psa150-search-online" | "psa150-stop-online") {
+    this.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true }));
   }
 
   private allSelectableFiles(): string[] {
@@ -231,19 +238,10 @@ export class Psa150SongList extends Psa150Element {
   }
 
   private renderWebResults(tabStop: string | undefined) {
-    if (this.webSearchLoading) {
-      return html`
-        <li class="web-results-header" role="presentation">
-          <span class="web-results-label">Web results</span>
-          <span class="web-results-loading">Searching…</span>
-        </li>
-      `;
-    }
     if (this.webResults.length === 0) return nothing;
-
     return html`
       <li class="web-results-header" role="presentation">
-        <span class="web-results-label">Web results</span>
+        <span class="web-results-label">Found online</span>
       </li>
       ${this.webResults.map((result, index) => {
         const id = webResultId(index);
@@ -252,29 +250,67 @@ export class Psa150SongList extends Psa150Element {
     `;
   }
 
-  private renderRows() {
-    const hasLocal = this.songs.length > 0;
-    const hasWeb = this.webSearchLoading || this.webResults.length > 0;
-    if (!hasLocal && !hasWeb) {
+  /** The message when nothing is listed: an offer to search online, its progress, or its outcome. */
+  private renderEmpty() {
+    const online = this.onlineSearch;
+    const icon = html`<svg
+      aria-hidden="true"
+      width="40"
+      height="40"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      class="empty-list-icon"
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>`;
+    if (online.status === "none") {
+      return html`<li class="empty-list" role="presentation">${icon}<div>No songs found</div></li>`;
+    }
+    const query = html`<q>${online.query}</q>`;
+    if (online.status === "searching") {
       return html`
-        <li class="empty-list" role="presentation">
-          <svg
-            aria-hidden="true"
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            style="opacity: 0.4; margin-bottom: 12px;"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <div>No songs found</div>
+        <li class="empty-list online-search" role="presentation">
+          <span class="online-search-spinner" aria-hidden="true"></span>
+          <div class="empty-list-title">Searching online for ${query}…</div>
+          <p>Looking through chord and lyric sites. This takes a few seconds.</p>
+          <button type="button" class="secondary compact" @click=${() => this.emitOnline("psa150-stop-online")}>
+            Cancel
+          </button>
         </li>
       `;
     }
+    if (online.status === "found") {
+      return html`
+        <li class="empty-list online-search" role="presentation">
+          ${icon}
+          <div class="empty-list-title">Nothing found online for ${query}</div>
+          <p>Try the full title, or a line from the lyrics.</p>
+        </li>
+      `;
+    }
+    const failed = online.status === "failed";
+    return html`
+      <li class="empty-list online-search" role="presentation">
+        ${icon}
+        <div class="empty-list-title">No songs match ${query}</div>
+        <p>${failed
+          ? online.message
+          : "It is not in your library. Search online for chords and lyrics? You can look before you save it."}</p>
+        <button type="button" class="primary compact" @click=${() => this.emitOnline("psa150-search-online")}>
+          ${failed ? "Try again" : "Search online"}
+        </button>
+        <span class="online-search-hint">or press Enter</span>
+      </li>
+    `;
+  }
+
+  private renderRows() {
+    const hasLocal = this.songs.length > 0;
+    const hasWeb = this.webResults.length > 0;
+    if (!hasLocal && !hasWeb) return this.renderEmpty();
     // One row is in the Tab order (roving tabindex): the selected song, else
     // the first; the arrow keys move between rows.
     const files = this.allSelectableFiles();
@@ -298,13 +334,19 @@ export class Psa150SongList extends Psa150Element {
 
   /** Result count for screen readers (WCAG 4.1.3), announced without moving focus. */
   private statusText(): string {
-    if (this.webSearchLoading) return "Searching the web…";
+    const online = this.onlineSearch;
+    if (online.status === "searching") return `Searching online for ${online.query}`;
     const songs = this.songs.length;
     const web = this.webResults.length;
-    if (songs === 0 && web === 0) return "No songs found";
+    if (songs === 0 && web === 0) {
+      if (online.status === "offer") return "No songs found. Press Enter to search online.";
+      if (online.status === "found") return "Nothing found online";
+      if (online.status === "failed") return online.message;
+      return "No songs found";
+    }
     const parts: string[] = [];
     if (songs > 0) parts.push(`${songs} ${songs === 1 ? "song" : "songs"}`);
-    if (web > 0) parts.push(`${web} web ${web === 1 ? "result" : "results"}`);
+    if (web > 0) parts.push(`${web} found online`);
     return parts.join(", ");
   }
 

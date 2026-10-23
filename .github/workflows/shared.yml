@@ -1,6 +1,7 @@
-name: Shared UI
+name: Shared files
 
-# Fails when src/shared/ drifts from the song server's shared/ folder.
+# Fails when src/shared/ or src-tauri/crates/psa150-lyrics/ drifts from the
+# song server's shared/ folder.
 # The server repo is private, so this needs a PSA150_SERVER_DEPLOY_KEY secret:
 # the private half of a read-only deploy key on nitech/PSA150-server.
 # Without the secret the check is skipped with a warning.
@@ -19,7 +20,7 @@ jobs:
 
       - name: Skip without a server key
         if: env.SERVER_KEY == ''
-        run: echo "::warning::PSA150_SERVER_DEPLOY_KEY is not set; shared UI check skipped."
+        run: echo "::warning::PSA150_SERVER_DEPLOY_KEY is not set; shared files check skipped."
 
       - uses: actions/checkout@v4
         if: env.SERVER_KEY != ''
@@ -29,6 +30,6 @@ jobs:
           path: server
           sparse-checkout: shared
 
-      - name: Compare src/shared/ with the server
+      - name: Compare the mirrors with the server
         if: env.SERVER_KEY != ''
         run: PSA150_SERVER_DIR=server node scripts/sync-shared.mjs --check

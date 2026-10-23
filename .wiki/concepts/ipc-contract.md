@@ -14,7 +14,7 @@ sources:
   - id: client
     resource: /src/projection-client.ts
     title: Wrappers used by the audience page
-generated: { by: agent, at: 2026-10-05T18:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # IPC contract
@@ -59,7 +59,7 @@ commands are real and tested but reachable only over IPC.
 | `list_duplicate_groups` | `includeReviewed` → exact-match groups with reasons, metadata, hashes and raw text | yes |
 | `mark_duplicate_keep_both` | `leftHash, rightHash` | yes |
 | `list_recovery_items`, `restore_recovery_item` | → recoverable copies / restored filename | yes |
-| `search_web_songs` | `query` → `Vec<WebSearchCandidate>` | yes |
+| `search_web_songs` | async; `query` → `Vec<psa150_lyrics::Candidate>` (`title, artist, source_name, source_url, chordpro_content`); only when the operator asks | yes |
 
 ## Song server
 

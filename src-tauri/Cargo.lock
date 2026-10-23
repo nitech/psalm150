@@ -3712,6 +3712,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "psa150-lyrics"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "regex",
+ "reqwest 0.12.28",
+ "scraper",
+ "serde",
+ "serde_json",
+ "url",
+ "urlencoding",
+]
+
+[[package]]
 name = "psalm150"
 version = "0.1.0"
 dependencies = [
@@ -3721,6 +3735,7 @@ dependencies = [
  "notify",
  "odbc-api",
  "parking_lot",
+ "psa150-lyrics",
  "regex",
  "reqwest 0.12.28",
  "rusqlite",
