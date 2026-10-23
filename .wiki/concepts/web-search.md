@@ -23,7 +23,7 @@ sources:
   - id: ids
     resource: /src/components/song-list-ids.ts
     title: __web__N row ids
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+generated: { by: agent, at: 2026-10-23T12:10:00Z }
 ---
 
 # Online song search
@@ -93,8 +93,10 @@ for the audience.
   under the title reads "artist · site · Found online".
 - Project calls `project_song(content=...)`. This starts an in-memory active
   session with navigation and transpose, but no file.
-- **Save to library** calls `save_web_song` after a confirmation. It
-  serialises to the normal `{song_num:04}-{title-slug}.pro` name and uses
+- **Save to library** calls `save_web_song` after a confirmation. A song
+  without a number gets the next free one (the index's highest plus one,
+  `next_song_num`), written as `{meta: song_num=N}`. It serialises to the
+  normal `{song_num:04}-{title-slug}.pro` name and uses
   exclusive creation with `-1`, `-2`, … suffixes, so it never overwrites an
   existing song. Refused ("Library is read-only") only for a read-only local
   folder. In a **server library** it goes to the song server like an edit:

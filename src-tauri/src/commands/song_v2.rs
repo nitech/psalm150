@@ -365,7 +365,18 @@ pub async fn save_web_song(
             target,
         ))
     })?;
-    let parsed = parse_chordpro(&content, "web.pro");
+    let mut parsed = parse_chordpro(&content, "web.pro");
+    // A new song gets the next free number, written into it like any other.
+    if parsed.meta.song_num.is_none() {
+        let next = with_state(&state, |runtime| {
+            runtime
+                .db
+                .as_ref()
+                .map(|db| db.next_song_num())
+                .transpose()
+        })?;
+        parsed.meta.song_num = next;
+    }
     let slug = slugify(&parsed.meta.title);
     let stem = if slug.is_empty() {
         "web-song".to_string()

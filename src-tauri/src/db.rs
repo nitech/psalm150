@@ -138,6 +138,9 @@ impl Database {
         self.search_cache.replace(None);
         let body_plain = plain_body(song);
         let title_sort = song.meta.title.to_uppercase();
+        // The search index copies `songs` (external content), so its old
+        // entry must go while `songs` still holds the old text.
+        self.forget_search_entry(&song.meta.filename)?;
         self.conn
             .execute(
                 "INSERT INTO songs (filename, title, title_sort, song_num, key, category, tags, ccli, body_plain, modified_at)
@@ -166,17 +169,28 @@ impl Database {
                 ],
             )
             .map_err(|e| e.to_string())?;
-        self.rebuild_fts_for_filename(&song.meta.filename)?;
+        self.index_search_entry(&song.meta.filename)?;
         Ok(())
     }
 
-    fn rebuild_fts_for_filename(&self, filename: &str) -> Result<(), String> {
+    /// Takes a song out of the search index. An external-content FTS5 index
+    /// cannot be deleted from with `DELETE`: it reads the current `songs`
+    /// row to know what to remove, and a row it never indexed (a new song)
+    /// or one already changed corrupts it ("database disk image is
+    /// malformed"). The `'delete'` command with the indexed values is the
+    /// way, so it runs before `songs` changes.
+    fn forget_search_entry(&self, filename: &str) -> Result<(), String> {
         self.conn
             .execute(
-                "DELETE FROM song_search WHERE filename = ?1",
+                "INSERT INTO song_search(song_search, rowid, filename, title, body_plain, tags)
+                 SELECT 'delete', id, filename, title, body_plain, COALESCE(tags, '') FROM songs WHERE filename = ?1",
                 params![filename],
             )
             .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn index_search_entry(&self, filename: &str) -> Result<(), String> {
         self.conn
             .execute(
                 "INSERT INTO song_search(rowid, filename, title, body_plain, tags)
@@ -189,14 +203,9 @@ impl Database {
 
     pub fn delete_song(&self, filename: &str) -> Result<(), String> {
         self.search_cache.replace(None);
+        self.forget_search_entry(filename)?;
         self.conn
             .execute("DELETE FROM songs WHERE filename = ?1", params![filename])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "DELETE FROM song_search WHERE filename = ?1",
-                params![filename],
-            )
             .map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -278,6 +287,13 @@ impl Database {
             .query_map([], map_song_row)
             .map_err(|e| e.to_string())?;
         collect_rows(rows)
+    }
+
+    /// The number a new song gets: one more than the highest in the library.
+    pub fn next_song_num(&self) -> Result<i64, String> {
+        self.conn
+            .query_row("SELECT COALESCE(MAX(song_num), 0) + 1 FROM songs", [], |row| row.get(0))
+            .map_err(|e| e.to_string())
     }
 
     pub fn list_by_key(&self, key: &str) -> Result<Vec<SongRow>, String> {
@@ -470,4 +486,43 @@ fn plain_body(song: &ParsedSong) -> String {
         .flat_map(|s| s.lines.iter().map(|l| l.text.clone()))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::library::chordpro::parse_chordpro;
+
+    #[test]
+    fn new_songs_take_the_number_after_the_highest() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open(dir.path().join("index.db")).unwrap();
+        assert_eq!(db.next_song_num().unwrap(), 1);
+        db.upsert_song(&parse_chordpro("{title: A}\n{meta: song_num=41}\nWords", "0041-a.pro")).unwrap();
+        db.upsert_song(&parse_chordpro("{title: B}\nWords", "b.pro")).unwrap();
+        db.upsert_song(&parse_chordpro("{title: C}\n{meta: song_num=7}\nWords", "0007-c.pro")).unwrap();
+        assert_eq!(db.next_song_num().unwrap(), 42);
+    }
+
+    /// Adding, changing and deleting songs one at a time keeps the search
+    /// index whole and finding the current words only.
+    #[test]
+    fn single_song_changes_keep_the_search_index_whole() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open(dir.path().join("index.db")).unwrap();
+        db.upsert_song(&parse_chordpro("{title: Way Maker}
+You are here moving", "way.pro")).unwrap();
+        db.upsert_song(&parse_chordpro("{title: Way Maker}
+Miracle worker promise keeper", "way.pro")).unwrap();
+        db.upsert_song(&parse_chordpro("{title: Other}
+Something else", "other.pro")).unwrap();
+        let found = |q: &str| db.search(q, false).unwrap().into_iter().map(|r| r.filename).collect::<Vec<_>>();
+        assert_eq!(found("miracle"), vec!["way.pro"]);
+        assert!(found("moving").is_empty(), "old words are gone");
+        db.delete_song("way.pro").unwrap();
+        assert!(found("miracle").is_empty());
+        let check: String = db.conn.query_row("SELECT 'ok' FROM song_search WHERE song_search MATCH 'something'", [], |r| r.get(0)).unwrap();
+        assert_eq!(check, "ok");
+        db.conn.execute("INSERT INTO song_search(song_search) VALUES('integrity-check')", []).unwrap();
+    }
 }
