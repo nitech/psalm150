@@ -172,6 +172,22 @@ fn render_line(line: &Line) -> String {
     out
 }
 
+fn interjections() -> &'static Regex {
+    static INTERJECTIONS: OnceLock<Regex> = OnceLock::new();
+    INTERJECTIONS.get_or_init(|| {
+        Regex::new(r"(?i)\s*\((?:\s*(?:oh+|o+h|hey|yeah|yea|whoa+|woah|ooh+|ah+|hallelujah|come on|sing)[\s,!.]*)+\)").unwrap()
+    })
+}
+
+/// How much of a search is in `text`: the share of the query's words found.
+pub fn query_match(query: &str, text: &str) -> f64 {
+    let query = words(query);
+    if query.is_empty() {
+        return 0.0;
+    }
+    query.intersection(&words(text)).count() as f64 / query.len() as f64
+}
+
 fn words(text: &str) -> HashSet<String> {
     text.split(|c: char| !c.is_alphanumeric() && c != '\'')
         .filter(|w| w.chars().count() > 1)
@@ -392,7 +408,33 @@ pub fn parse_text(text: &str, known: &[&str]) -> Body {
     }
     flush(&mut body.sections, &mut current, explicit);
     drop_preamble(&mut body.sections);
+    name_repeated_stanzas(&mut body.sections);
     body
+}
+
+/// Lyrics without any headers (a lyrics database, many lyric sites): a
+/// stanza sung more than once is the chorus, the others are verses.
+fn name_repeated_stanzas(sections: &mut [Section]) {
+    if sections
+        .iter()
+        .any(|s| s.kind != Kind::Verse || s.label != "Verse")
+    {
+        return;
+    }
+    let texts: Vec<Vec<String>> = sections.iter().map(lyrics_of).collect();
+    let repeated: Vec<bool> = texts
+        .iter()
+        .map(|text| text.len() >= 2 && texts.iter().filter(|other| *other == text).count() > 1)
+        .collect();
+    if !repeated.iter().any(|r| *r) {
+        return;
+    }
+    for (section, repeated) in sections.iter_mut().zip(repeated) {
+        if repeated {
+            section.kind = Kind::Chorus;
+            section.label = "Chorus".into();
+        }
+    }
 }
 
 /// Text above the first header of a chart is the page talking (credits,
@@ -548,13 +590,35 @@ fn pair(chord_line: &str, lyric_raw: &str, lyric: &str) -> Line {
             token.push(c);
         }
     }
+    let letters: Vec<char> = lyric.chars().collect();
     let chords = chords
         .into_iter()
-        .map(|(col, chord): (usize, String)| (col.saturating_sub(indent).min(len), chord))
+        .map(|(col, chord): (usize, String)| {
+            (
+                snap_to_word(&letters, col.saturating_sub(indent).min(len)),
+                chord,
+            )
+        })
         .collect();
     Line {
         text: lyric.to_string(),
         chords,
+    }
+}
+
+/// A chord one letter into a word ("s[G]plendor") is a chart drawn a column
+/// off: it belongs on the word ("[G]splendor"). Further in, it marks a
+/// syllable and stays.
+fn snap_to_word(letters: &[char], pos: usize) -> usize {
+    let at = |i: usize| letters.get(i).copied().unwrap_or(' ');
+    if pos >= 1
+        && at(pos).is_alphabetic()
+        && at(pos - 1).is_alphabetic()
+        && (pos == 1 || at(pos - 2).is_whitespace())
+    {
+        pos - 1
+    } else {
+        pos
     }
 }
 
@@ -636,7 +700,7 @@ fn header(line: &str) -> Option<Row> {
     static REPEAT: OnceLock<Regex> = OnceLock::new();
     const ORDINAL: &str =
         r"(?:(?P<ord>first|second|third|fourth|fifth|last|final|1st|2nd|3rd|4th|5th)\s+)?";
-    const NAME: &str = r"(?P<name>pre[\s-]?chorus|post[\s-]?chorus|chorus|refrain|refreng|ref|verse|vers|bridge|bro|tag|ending|outro|intro|interlude|instrumental|mellomspill|forspill|etterspill|vamp|turnaround|coda|solo|hook|slutt)";
+    const NAME: &str = r"(?P<name>pre[\s-]?chorus|post[\s-]?chorus|chorus|refrain|refreng|ref|verse|vers|part|bridge|bro|tag|ending|outro|intro|interlude|instrumental|mellomspill|forspill|etterspill|vamp|turnaround|coda|solo|hook|slutt)";
     const REPEAT_MARK: &str = r"(?:\(?\s*(?:x\s*\d+|\d+\s*x|repeat|rep\.?)\s*\)?)";
     let bracketed = BRACKETED.get_or_init(|| {
         Regex::new(&format!(r"(?i)^[\[\(\{{]\s*{ORDINAL}{NAME}\.?\s*(?P<num>\d+[a-z]?)?(?:[^\p{{L}}\]\)\}}][^\]\)\}}]*)?[\]\)\}}]\s*:?\s*{REPEAT_MARK}?\s*$")).unwrap()
@@ -673,7 +737,7 @@ fn header(line: &str) -> Option<Row> {
 fn section_name(name: &str, number: Option<&str>, ordinal: Option<&str>) -> (Kind, String) {
     let name = name.to_lowercase().replace([' ', '-'], "");
     let (kind, base) = match name.as_str() {
-        "verse" | "vers" => (Kind::Verse, "Verse"),
+        "verse" | "vers" | "part" => (Kind::Verse, "Verse"),
         "chorus" | "refrain" | "refreng" | "ref" => (Kind::Chorus, "Chorus"),
         "prechorus" => (Kind::PreChorus, "Pre-Chorus"),
         "bridge" | "bro" => (Kind::Bridge, "Bridge"),
@@ -796,6 +860,9 @@ fn classify(line: &str) -> Row {
         Regex::new(r"(?i)\s*[\(\[]?\s*(?:x\s*\d|\d\s*x|repeat)\s*[\)\]]?\s*$").unwrap()
     });
     let text = repeat_tail.replace(trimmed, "").trim().to_string();
+    // Shouts transcribed from recordings ("Here in Your love (hey)") are not
+    // sung by a congregation; echoes such as "(I surrender)" stay.
+    let text = interjections().replace_all(&text, "").trim().to_string();
     if text.is_empty() {
         return Row::Clutter;
     }
@@ -820,7 +887,7 @@ mod tests {
     fn pairs_chord_lines_with_lyrics_at_their_columns() {
         let chart = "Verse 1\nG        C          G\nAmazing grace how sweet the sound\n    D\nThat saved a wretch like me\n";
         let out = song(&format!("{chart}I once was lost\nBut now am found"), true);
-        assert!(out.contains("{start_of_verse: Verse 1}\n[G]Amazing g[C]race how sw[G]eet the sound\nThat[D] saved a wretch like me\n"), "{out}");
+        assert!(out.contains("{start_of_verse: Verse 1}\n[G]Amazing [C]grace how sw[G]eet the sound\nThat[D] saved a wretch like me\n"), "{out}");
     }
 
     #[test]
@@ -932,6 +999,48 @@ mod tests {
             &[]
         )
         .is_none());
+    }
+
+    #[test]
+    fn ultimate_guitar_fixture_from_chordsheetjs() {
+        // ChordSheetJS's test/fixtures/ultimate_guitar_chordsheet.txt (the
+        // reference library for chord sheets) and its expected ChordPro,
+        // less the leading space it keeps on " Tortor".
+        let text = "[Verse 1]\nC     G               Am\nLorem ipsum dolor sit amet,\nC           G          F\nconsectetur adipiscing elit.\n\n\n[Chorus]\n        Am      C     F                        C\n Tortor posuere ac ut consequat semper viverra nam.\nC            G                  F\nNon nisi est sit amet facilisis magna etiam tempor orci.\n\n\n[Instrumental]\nF  C Dm\n\n\n[Solo]\nC  G  Am\n\n\n[Chorus]\n\n[Outro]\nF C Dm";
+        let out = song(text, true);
+        assert!(out.contains("{start_of_verse: Verse 1}\n[C]Lorem [G]ipsum dolor sit [Am]amet,\n[C]consectetur [G]adipiscing [F]elit.\n{end_of_verse}"), "{out}");
+        assert!(out.contains("{start_of_chorus}\nTortor [Am]posuere [C]ac ut [F]consequat semper viverra [C]nam.\n[C]Non nisi est [G]sit amet facilisis [F]magna etiam tempor orci.\n{end_of_chorus}"), "{out}");
+        assert_eq!(out.matches("Tortor").count(), 2, "{out}");
+        assert!(
+            !out.contains("Instrumental") && !out.contains("Solo") && !out.contains("Outro"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn chords_one_letter_into_a_word_move_to_its_start() {
+        let out = song("Verse 1\n     G                   Em7\nThe splendor of a King, clothed in majesty,\nLine two\nLine three\nLine four", true);
+        assert!(
+            out.contains("The [G]splendor of a King, [Em7]clothed"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn repeated_stanzas_without_headers_are_the_chorus() {
+        let out = song("Verse one a\nVerse one b\n\nChorus a\nChorus b\n\nVerse two a\nVerse two b\n\nChorus a\nChorus b", false);
+        assert_eq!(out.matches("{start_of_chorus}").count(), 2, "{out}");
+        assert_eq!(out.matches("{start_of_verse}").count(), 2, "{out}");
+    }
+
+    #[test]
+    fn part_headers_and_shouts() {
+        let out = song("[Part 1]\nMy Jesus my Savior\nLord there is none like You\nHere in Your love (hey)\nNow I surrender (I surrender)", false);
+        assert!(out.contains("{start_of_verse: Verse 1}\nMy Jesus"), "{out}");
+        assert!(
+            out.contains("Here in Your love\nNow I surrender (I surrender)\n"),
+            "{out}"
+        );
     }
 
     #[test]

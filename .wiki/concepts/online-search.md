@@ -14,6 +14,9 @@ sources:
   - id: page
     resource: /shared/lyrics/src/page.rs
     title: Page text blocks, Ultimate Guitar store, title and artist
+  - id: lrclib
+    resource: /shared/lyrics/src/lrclib.rs
+    title: LRCLIB lyrics database (words only)
   - id: chart
     resource: /shared/lyrics/src/chart.rs
     title: Text to sections, chords and ChordPro; scoring and duplicates
@@ -53,11 +56,18 @@ desktop.
    e-chords, genius); video, social, shops, stores and paywalled or
    script-only chart sites are dropped (`SKIPPED`). A failed or blocked
    search engine is an error ("The search engine did not answer…").
+   At the same time the **LRCLIB** lyrics database (`lrclib.net`, open, no
+   key) is asked: words only, no chords or sections, so a chart of the same
+   song ranks above it. Its loose matches are filtered: the track's title
+   (without "(…)") must be the search, or its lyrics must contain a searched
+   line of 4+ words. A search fails only when both sources fail.
 2. **Fetch** the first 6 at once. Each request has 6 s (`REQUEST_TIMEOUT`),
    so a search takes at most about 12 s; in practice 1–2 s. Pages over 2 MB
    are cut off.
 3. **Read each page** (`page::read`): Ultimate Guitar's chart from the JSON
-   in `div.js-store`; otherwise every `<pre>` (spacing kept, so chords stay
+   in `div.js-store`; the song data a page gives search engines (schema.org
+   JSON-LD `MusicComposition`/`MusicRecording`: name, artist or composer,
+   lyrics), which wins for title and artist; otherwise every `<pre>` (spacing kept, so chords stay
    over their words) and every likely container (`[class*=lyric]`,
    `[class*=chord]`, Genius's `data-lyrics-container`, `article`, …) as a
    text block. `<br>` and block elements break lines, `<p>` ends a stanza,
@@ -69,13 +79,18 @@ desktop.
    page's best. Headers in many styles become sections (`[Verse 1]`,
    `Chorus:`, `Pre Chorus`, `Vers 2`, `Refreng`, `Bro`, `Tag`, …); intros,
    interludes and solos without words are dropped; a chord line over a lyric
-   line becomes inline chords at their columns; "Repeat chorus" and an empty
+   line becomes inline chords at their columns (a chord one letter into a
+   word moves to its start: charts drawn a column off); "Repeat chorus" and an empty
    `Chorus` header write the chorus out again; key, CCLI number and
    copyright are kept; site clutter, player notes (capo, tuning) and credit
    lines are dropped; the title and artist repeated above the song are
    dropped; text above the first header without chords goes when the rest
-   has chords. Fewer than 4 lyric lines, or prose (long lines), is not a
-   song.
+   has chords. Shouts from recordings ("(hey)", "(oh)") are dropped, echoes
+   like "(I surrender)" kept. Lyrics with no headers at all get their
+   repeated stanza named Chorus. Fewer than 4 lyric lines, or prose (long
+   lines), is not a song. The chord-over-words conversion is checked against
+   the Ultimate Guitar fixture of ChordSheetJS, the reference library for
+   chord sheets.
 5. **Rank and dedupe**: score by how well the title or lyrics match the
    query, labelled sections, chords and length, plus the site's trust; a
    song with most of the same words as a better one is left out. At most 3
@@ -84,6 +99,12 @@ desktop.
 The ChordPro it writes is the desktop's dialect: `{title}`, `{artist}`,
 `{key}`, `{copyright}`, `{meta: ccli=…}`, then `{start_of_verse: Verse 1}` …
 `{end_of_verse}` per section with no blank lines inside one.
+
+**Tried on 10 random worship songs (2026-10-23)**: the right song came
+first every time, in 1.1–2.5 s. Remaining faults come from the sites'
+charts: chords a few letters off ("ocea[A]ns"), syllable hyphens ("wel -
+come"), a second verse labelled "Verse 1", and a title shared by different
+songs (both are offered).
 
 No model is involved. A local language model was considered (the server
 aims to run on a Raspberry Pi 5); it would add minutes per song there, so the
