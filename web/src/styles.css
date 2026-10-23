@@ -530,8 +530,12 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
    switch beside Back and the floating bar at the bottom. */
 @media (min-width: 1100px) {
   .page:has(> .app-bar .ce-modes) { width: 100%; }
-  .page:has(> .app-bar .ce-modes) > :not(.app-bar) { width: min(100%, 712px); margin-inline: auto; }
-  .app-bar:has(.ce-modes) { padding-inline: var(--psa-space-4); border-bottom-color: var(--psa-border); }
+  /* More room to edit than to read: the words a little wider, and ChordPro
+     with its preview beside it as wide as the screen allows. */
+  .page:has(> .app-bar .ce-modes) > :not(.app-bar) { width: min(100%, 880px); margin-inline: auto; }
+  .page:has(> .app-bar .ce-modes):has(.ce[data-mode="code"]) > :not(.app-bar) { width: min(100%, 1480px); }
+  /* Not white on white in the light theme: the header takes the rail's grey. */
+  .app-bar:has(.ce-modes) { padding-inline: var(--psa-space-4); border-bottom-color: var(--psa-border); background: var(--rail-bg); }
   .app-bar:has(.ce-modes) .app-bar-row { height: 64px; }
   .app-bar:has(.ce-modes) .bar-back { display: inline-flex; align-items: center; width: auto; gap: 4px; padding: 0 14px 0 8px; border-radius: var(--psa-radius-full); font-weight: 600; text-decoration: none; color: var(--psa-text); }
   .app-bar:has(.ce-modes) .bar-back-text { display: inline; }

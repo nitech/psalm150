@@ -71,7 +71,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-23T12:40:00Z }
+generated: { by: agent, at: 2026-10-23T13:20:00Z }
 ---
 
 # Web client
@@ -247,7 +247,9 @@ are not affected.
   the left, the Visual / Chords / ChordPro switch in the middle, and the
   section type, the details cog and **Save** on the right (the bar that
   floats at the bottom elsewhere moves into it; its panels drop down from
-  it). The song below keeps its reading width. Narrower windows get the
+  it). The header has the rail's grey (`--rail-bg`), so it is not white on
+  white in the light theme. The song is up to 880 px wide, and ChordPro with
+  its preview beside it up to 1480 px. Narrower windows get the
   phone layout: the switch beside Back and the floating bar.
 - **Song bar**: few icons. Fixed: Back, the current set's **+**/**✓**
   (leaders, when a set is current), for songs with chords a **chords

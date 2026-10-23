@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-23
+* **Wider desktop editor, grey header**: on wide screens the song editor uses more width (880 px for the words, 1480 px for ChordPro and its preview) and its header has the rail's grey instead of white in the light theme. Pages touched: web-client.
 * **Fixed Share and Edit; editor header on desktop**: Share and Edit are always in the song bar. On wide screens (1100 px and up) the song editor's header spans the page with ‹ Back (with its word), the mode switch and the section / details / Save bar that otherwise floats at the bottom; narrower windows keep the phone layout. Pages touched: web-client.
 * **New songs get a number**: `POST /songs` gives a song without a number the next one (the church's highest plus one, deleted songs included), written into its ChordPro as `{meta: song_num=N}` under the church's row lock; imports are unchanged. Tested (`new_songs_get_the_next_number`). Pages touched: songs-and-revisions.
 * **Shared set page like the song page**: the T panel is gone there too. A shared set's song has the chords switch and the "− key +" transpose pill always in the bar (no ⋮, as there is nothing else). The line under the title shows the same key as the pill ("Key Ab +1"), guessed from the chords when the song has no `{key}`. The old panel code (`readerToggle`, `readerPanel`, `bindReaderControls`) is removed; both pages use `readerBarActions` and `onReaderAction`. Pages touched: web-client, shared-sets, accessibility.
