@@ -71,7 +71,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-23T11:45:00Z }
+generated: { by: agent, at: 2026-10-23T12:40:00Z }
 ---
 
 # Web client
@@ -242,13 +242,21 @@ are not affected.
   tap (`key=…&key_mode=…`), alongside the search and any sort. While a filter
   is on, a chip under the header ("D, G · major ✕") shows it and clears it.
   Kept in `localStorage["psa150-song-key-filter"]` (`{roots, mode}`).
+- **Editor header on wide screens** (1100 px and up, `DOCKED` in
+  `words-editor.ts`): one bar across the page, ‹ **Back** with its word on
+  the left, the Visual / Chords / ChordPro switch in the middle, and the
+  section type, the details cog and **Save** on the right (the bar that
+  floats at the bottom elsewhere moves into it; its panels drop down from
+  it). The song below keeps its reading width. Narrower windows get the
+  phone layout: the switch beside Back and the floating bar.
 - **Song bar**: few icons. Fixed: Back, the current set's **+**/**✓**
-  (leaders, when a set is current) and, for songs with chords, a
-  **chords on/off** switch (a chord diagram icon, `chordChart`; lit when on,
-  remembered). Everything else is in **⋮** with icon and text:
-  **Transpose** (icon "C → D", `transpose`; a row with − and + to tap and the key between them; the
-  menu stays open while stepping), Add to a (another) set, Copy the words,
-  Share song, Edit song. Transpose in the bar is one pill, "− G +". The key
+  (leaders, when a set is current), for songs with chords a **chords
+  on/off** switch (a chord diagram icon, `chordChart`; lit when on,
+  remembered), **Share** and (leaders) **Edit**. With a leader's five fixed
+  icons only one used-often icon comes into the bar (`barActions`'
+  `maxFrequent`), two otherwise. Everything else is in **⋮** with icon and
+  text: **Transpose** (icon "C → D", `transpose`; a row with − and + to tap and the key between them; the
+  menu stays open while stepping), Add to a (another) set, Copy the words. Transpose in the bar is one pill, "− G +". The key
   is the song's `{key}`, else a guess from its chords (`guessKey`: the key
   whose scale fits most chords, the last chord being home counting most,
   major over its relative minor on a tie), moved with the transpose; with no

@@ -40,10 +40,15 @@ import {
 import { icon, type IconName } from "./icons.ts";
 import { escapeHtml, showToast } from "./ui.ts";
 
+/** Where the editor's bar moves into the header: wide enough for Back, the mode switch and the bar. */
+export const DOCKED = "(min-width: 1100px)";
+
 export type MenuItem = { label: string; run: () => void; disabled?: boolean; danger?: boolean } | "rule";
 export type EditorMode = "visual" | "chords" | "code";
 
 export interface WordsHost {
+  /** Wide screens (`DOCKED`): the bar sits here, in the page's header, instead of floating at the bottom. */
+  dock?: HTMLElement;
   doc(): SongDoc;
   /** Saves typing not yet in the history, before a change of its own. */
   flush(): void;
@@ -122,6 +127,20 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     </div>`;
   document.body.append(wellEl, bar);
   cleanups.push(() => { bar.remove(); wellEl.remove(); });
+  // Wide screens: the bar is part of the header (with the mode switch), not
+  // a floating pill; narrower ones keep it at the bottom.
+  const docked = matchMedia(DOCKED);
+  const dock = () => {
+    const inHeader = Boolean(host.dock && docked.matches);
+    if (inHeader) host.dock!.append(bar);
+    else document.body.append(bar);
+    bar.classList.toggle("docked", inHeader);
+    wellEl.classList.toggle("docked", inHeader);
+    bar.style.bottom = "";
+    placeBar();
+  };
+  docked.addEventListener("change", dock);
+  cleanups.push(() => docked.removeEventListener("change", dock));
   const sectionButton = bar.querySelector<HTMLButtonElement>(".ce-bar-section")!;
   const cogButton = bar.querySelector<HTMLButtonElement>(".ce-bar-cog")!;
   const sectionWell = wellEl.querySelector<HTMLElement>(".ce-well-section")!;
@@ -417,6 +436,19 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
    */
   function placeBar(): void {
     if (bar.hidden) return;
+    if (bar.classList.contains("docked")) {
+      // In the header: the panel drops down from it, at its right edge.
+      document.documentElement.style.scrollPaddingBottom = "";
+      if (!well) return;
+      const rect = bar.getBoundingClientRect();
+      wellEl.style.bottom = "auto";
+      wellEl.style.top = `${rect.bottom + 8}px`;
+      wellEl.style.right = `${Math.max(12, document.documentElement.clientWidth - rect.right)}px`;
+      wellEl.style.maxHeight = `${innerHeight - rect.bottom - 24}px`;
+      return;
+    }
+    wellEl.style.top = "";
+    wellEl.style.right = "";
     const viewport = window.visualViewport;
     const keyboard = viewport ? innerHeight - viewport.height - viewport.offsetTop : 0;
     bar.style.bottom = keyboard > 80 ? `${keyboard + 8}px` : "";
@@ -426,6 +458,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     wellEl.style.bottom = `${innerHeight - rect.top + 8}px`;
     wellEl.style.maxHeight = `${rect.top - (viewport?.offsetTop ?? 0) - 18}px`;
   }
+  dock();
   let frame = 0;
   const placeSoon = () => {
     cancelAnimationFrame(frame);

@@ -521,6 +521,28 @@ body[data-route="/sets/id"] .dock:not(:has(> .offline-bar:not([hidden]))) { padd
   /* The bar at the bottom and its panel line up with it: the middle of the page beside the 220px rail. */
   body > .ce-bar, body > .ce-well { left: calc(50% + 110px); }
 }
+/* Back says "Back" where a header has room for it (the wide editor below). */
+.bar-back-text { display: none; }
+/* Wide screens (DOCKED in words-editor.ts): the editor's header is one bar
+   across the whole page — Back with its word on the left, the mode switch in
+   the middle, the section, details and Save on the right — and the song
+   below keeps its reading width. Narrower, it is the phone layout: the
+   switch beside Back and the floating bar at the bottom. */
+@media (min-width: 1100px) {
+  .page:has(> .app-bar .ce-modes) { width: 100%; }
+  .page:has(> .app-bar .ce-modes) > :not(.app-bar) { width: min(100%, 712px); margin-inline: auto; }
+  .app-bar:has(.ce-modes) { padding-inline: var(--psa-space-4); border-bottom-color: var(--psa-border); }
+  .app-bar:has(.ce-modes) .app-bar-row { height: 64px; }
+  .app-bar:has(.ce-modes) .bar-back { display: inline-flex; align-items: center; width: auto; gap: 4px; padding: 0 14px 0 8px; border-radius: var(--psa-radius-full); font-weight: 600; text-decoration: none; color: var(--psa-text); }
+  .app-bar:has(.ce-modes) .bar-back-text { display: inline; }
+  .app-bar .segmented.ce-modes { box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--psa-bg-surface); }
+  .ce-bar.docked { position: static; margin-left: auto; padding: 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; transform: none; }
+  .ce-bar.docked .ce-bar-section { border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full) 0 0 var(--psa-radius-full); }
+  .ce-bar.docked .ce-bar-section:not([hidden]) + .ce-bar-cog { border: 1px solid var(--psa-border-strong); border-left: 0; }
+  .ce-well.docked { left: auto; transform: translateY(-6px) scale(0.98); transform-origin: 100% 0; }
+  .ce-well.docked.open { transform: none; }
+  body:has(.ce-bar.docked) .ce { padding-bottom: var(--psa-space-6); }
+}
 /* The song's title is the page's heading. */
 .ce-title { display: block; width: 100%; min-height: 0; margin: 0 0 var(--psa-space-5); padding: 4px 0; border: 0; border-bottom: 1px solid transparent; border-radius: 0; background: transparent; font-family: var(--psa-font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
 .ce-title::placeholder { color: var(--psa-text-placeholder); }

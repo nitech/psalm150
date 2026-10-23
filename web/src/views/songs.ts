@@ -505,9 +505,10 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     const bar: BarAction[] = readerBarActions(display, options, transpose);
     if (ctx.canEdit) bar.push({ id: "add-to-set", label: ctx.currentSet.value ? "Add to another set" : "Add to a set", icon: "sets" });
     bar.push({ id: "copy", label: "Copy the words", icon: "copy" });
-    bar.push({ id: "share", label: "Share song", icon: "share" });
-    if (ctx.canEdit) bar.push({ id: "edit", label: "Edit song", icon: "edit", href: `#/songs/${song.id}/edit` });
-    return `<span class="bar-set-actions" id="set-actions">${setToggle()}</span>${barActions("song", bar)}`;
+    bar.push({ id: "share", label: "Share song", icon: "share", fixed: true });
+    if (ctx.canEdit) bar.push({ id: "edit", label: "Edit song", icon: "edit", href: `#/songs/${song.id}/edit`, fixed: true });
+    // Phones have room for one used-often icon beside a leader's five fixed ones.
+    return `<span class="bar-set-actions" id="set-actions">${setToggle()}</span>${barActions("song", bar, ctx.canEdit ? 1 : 2)}`;
   };
 
   const render = () => {
@@ -650,6 +651,7 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
   const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? draft?.chordpro ?? NEW_SONG_TEMPLATE, {
     modes: ctx.main.querySelector<HTMLElement>(".ce-modes")!,
     save: () => form.requestSubmit(),
+    dock: ctx.main.querySelector<HTMLElement>(".app-bar-row") ?? undefined,
   });
   const message = form.querySelector<HTMLElement>(".form-message")!;
   form.addEventListener("submit", async (event) => {

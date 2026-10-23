@@ -70,13 +70,13 @@ export function recordUse(usage: UsageMap, id: string, now: number): UsageMap {
  * `PROMOTE_AT` (or still above `DEMOTE_AT` once shown), at most
  * `MAX_FREQUENT`. Updates each action's `shown`.
  */
-export function frequent(usage: UsageMap, ids: string[], now: number): string[] {
+export function frequent(usage: UsageMap, ids: string[], now: number, max = MAX_FREQUENT): string[] {
   const ranked = ids
     .map((id) => ({ id, usage: usage[id], score: usage[id] ? faded(usage[id], now) : 0 }))
     // A little slack: uses a moment apart have already faded a hair.
     .filter(({ usage: u, score }) => u && score >= (u.shown ? DEMOTE_AT : PROMOTE_AT) - 0.01)
     .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_FREQUENT)
+    .slice(0, max)
     .map(({ id }) => id);
   for (const id of ids) {
     if (usage[id]) usage[id].shown = ranked.includes(id);
@@ -139,10 +139,11 @@ function menuItem(action: BarAction): string {
  * The bar's actions as HTML: the fixed icons, a divider and the frequent
  * icons, and ⋮ with the menu. `screen` keeps each screen's usage apart.
  */
-export function barActions(screen: string, actions: BarAction[]): string {
+/** `maxFrequent`: fewer frequent icons for a bar that already has many fixed ones. */
+export function barActions(screen: string, actions: BarAction[], maxFrequent = MAX_FREQUENT): string {
   const inMenu = actions.filter((action) => !action.fixed);
   const usage = readUsage(screen);
-  const shown = frequent(usage, inMenu.map((action) => action.id), Date.now());
+  const shown = frequent(usage, inMenu.map((action) => action.id), Date.now(), maxFrequent);
   writeUsage(screen, usage);
   const often = inMenu.filter((action) => shown.includes(action.id));
   const fixed = actions.filter((action) => action.fixed);

@@ -87,7 +87,7 @@ export function pageHead(options: {
     </div>`;
   if (!options.back && !options.actions && !options.panel && !options.compact && !options.menu) return titles;
   const back = options.back
-    ? `<a class="icon-button ghost" href="${options.back}" aria-label="Back">${icon("back")}</a>`
+    ? `<a class="icon-button ghost bar-back" href="${options.back}" aria-label="Back">${icon("back")}<span class="bar-back-text" aria-hidden="true">Back</span></a>`
     : options.menu ? menuButton() : "";
   // On wide screens the rail replaces ☰, so a bar with nothing else goes.
   const menuOnly = options.menu && !options.back && !options.actions && !options.panel;
