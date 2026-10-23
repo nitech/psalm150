@@ -142,8 +142,10 @@ export interface SongDetail {
   content_hash: string;
 }
 
+/** A song found online (`psa150-lyrics` `Candidate`). */
 export interface WebSearchCandidate {
   title: string;
+  artist: string | null;
   source_name: string;
   source_url: string;
   chordpro_content: string;

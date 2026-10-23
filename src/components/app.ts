@@ -85,6 +85,7 @@ import "./select";
 import "./modal";
 import "./song-list";
 import { isWebResultId, webResultId, webResultIndex } from "./song-list-ids";
+import { NO_ONLINE_SEARCH, ONLINE_SEARCH_MIN_CHARS, onlineSearchAfter, type OnlineSearch } from "../online-search";
 
 /** What the browse pane lists: search results, or one of the toolbar views. */
 type BrowseMode = "search" | "history" | "favorites" | "setlist";
@@ -115,7 +116,7 @@ const SETTINGS_SECTIONS: ReadonlyArray<{
   { id: "server", label: "Church server", icon: "↗", keywords: "server url token sync download offline cache church room name flower join share remote control phone" },
   { id: "vsb", label: "Visual Song Book", icon: "⇄", keywords: "vsb visual song book mdb access database sync synchronize two-way backup" },
   { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display chords read only editing" },
-  { id: "search", label: "Search", icon: "⌕", keywords: "web internet local songs match" },
+  { id: "search", label: "Search", icon: "⌕", keywords: "web internet online local songs match" },
   { id: "remote", label: "Phone remote", icon: "◌", keywords: "phone remote wifi network tailscale pin slides" },
   { id: "reports", label: "Reports", icon: "▤", keywords: "print songbook ccli csv export" },
   { id: "shortcuts", label: "Keyboard shortcuts", icon: "⌘", keywords: "keys keyboard hotkeys shortcuts alt ctrl enter arrows stanzas blank projection setlist favourite search" },
@@ -133,7 +134,6 @@ const BROWSE_PANE_MAX = 720;
 const BROWSE_PANE_DEFAULT = 340;
 /** Wait after typing in the server URL field before checking it. */
 const SERVER_PROBE_DELAY_MS = 450;
-const WEB_SEARCH_DEBOUNCE_MS = 650;
 const SONG_SORT_KEY = "psa150-song-sort";
 const CURRENT_SETLIST_KEY = "psa150-current-setlist";
 /** "off" turns the 1–9 stanza keys off (WCAG 2.1.4: single-key shortcuts can be turned off). */
@@ -211,7 +211,7 @@ export class Psa150App extends Psa150Element {
     projecting: { state: true },
     browsePaneWidth: { state: true },
     webResults: { state: true },
-    webSearchLoading: { state: true },
+    onlineSearch: { state: true },
     adhocEditingBlockKey: { state: true },
     adhocPendingEdits: { state: true },
     showSongNumbers: { state: true },
@@ -296,7 +296,7 @@ export class Psa150App extends Psa150Element {
   declare projecting: boolean;
   declare browsePaneWidth: number;
   declare webResults: WebSearchCandidate[];
-  declare webSearchLoading: boolean;
+  declare onlineSearch: OnlineSearch;
   declare adhocEditingBlockKey: string | null;
   declare adhocPendingEdits: PendingEdits;
   declare showSongNumbers: boolean;
@@ -315,7 +315,6 @@ export class Psa150App extends Psa150Element {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   /** The pointer or focus is on the toast: keep it up. */
   private toastHeld = false;
-  private webSearchTimer: ReturnType<typeof setTimeout> | null = null;
   private webSearchGeneration = 0;
   private unlistenImport: UnlistenFn | null = null;
   private unlistenServerSync: UnlistenFn | null = null;
@@ -414,7 +413,7 @@ export class Psa150App extends Psa150Element {
     this.browsePaneWidth =
       Number.isFinite(parsed) && parsed >= BROWSE_PANE_MIN ? parsed : BROWSE_PANE_DEFAULT;
     this.webResults = [];
-    this.webSearchLoading = false;
+    this.onlineSearch = NO_ONLINE_SEARCH;
     this.adhocEditingBlockKey = null;
     this.adhocPendingEdits = new Map();
     this.showSongNumbers = true;
@@ -711,20 +710,13 @@ export class Psa150App extends Psa150Element {
       }
       if (generation !== this.songsRefreshGeneration) return;
       this.songs = songs;
-      if (this.browseMode === "search") {
-        void this.selectOnlyHit();
-        void this.maybeSearchWeb(generation);
-      } else {
-        this.webResults = [];
-        this.webSearchLoading = false;
-      }
+      if (this.browseMode === "search") void this.selectOnlyHit();
+      this.updateOnlineSearch();
     } catch {
       // Library may not be open yet (no songs folder selected, or still loading).
       if (generation !== this.songsRefreshGeneration) return;
       this.songs = [];
-      if (this.browseMode === "search") {
-        void this.maybeSearchWeb(generation);
-      }
+      this.updateOnlineSearch();
     }
   }
 
@@ -750,79 +742,66 @@ export class Psa150App extends Psa150Element {
     );
   }
 
+  /** Stop a running online search and drop its results. */
   private cancelWebSearch() {
-    if (this.webSearchTimer) {
-      clearTimeout(this.webSearchTimer);
-      this.webSearchTimer = null;
-    }
     this.webSearchGeneration += 1;
     this.webResults = [];
-    this.webSearchLoading = false;
+    this.onlineSearch = NO_ONLINE_SEARCH;
+    this.clearWebSelection();
+  }
+
+  private clearWebSelection() {
     if (this.currentFilename && isWebResultId(this.currentFilename)) {
       this.currentFilename = null;
       this.currentSong = null;
     }
   }
 
-  private maybeSearchWeb(songsGeneration: number) {
-    if (!this.webSearchEnabled) {
-      this.cancelWebSearch();
-      return;
-    }
-    if (this.webSearchTimer) {
-      clearTimeout(this.webSearchTimer);
-      this.webSearchTimer = null;
-    }
+  /** The library search for the current query finished: offer, keep or drop the online search. */
+  private updateOnlineSearch() {
+    const { key, text } = parseSearch(this.query, this.keys);
+    const eligible =
+      this.webSearchEnabled &&
+      this.browseMode === "search" &&
+      !key &&
+      text.length >= ONLINE_SEARCH_MIN_CHARS &&
+      this.songs.length === 0;
+    const next = onlineSearchAfter(this.onlineSearch, text, eligible);
+    if (next === this.onlineSearch) return;
+    // Another query, or none: results and a running search belong to the old one.
     this.webSearchGeneration += 1;
-    const searchGeneration = this.webSearchGeneration;
-
-    const { key, text: q } = parseSearch(this.query, this.keys);
-    if (key || q.length < 3 || this.songs.length > 0) {
-      this.webResults = [];
-      this.webSearchLoading = false;
-      if (this.currentFilename && isWebResultId(this.currentFilename)) {
-        this.currentFilename = null;
-        this.currentSong = null;
-      }
-      return;
-    }
-
-    this.webSearchLoading = false;
-    this.webSearchTimer = setTimeout(() => {
-      this.webSearchTimer = null;
-      void this.runWebSearch(searchGeneration, songsGeneration);
-    }, WEB_SEARCH_DEBOUNCE_MS);
+    this.webResults = [];
+    this.clearWebSelection();
+    this.onlineSearch = next;
   }
 
-  private async runWebSearch(searchGeneration: number, songsGeneration: number) {
-    if (searchGeneration !== this.webSearchGeneration) return;
-    if (songsGeneration !== this.songsRefreshGeneration) return;
-
-    const { key, text: q } = parseSearch(this.query, this.keys);
-    if (key || q.length < 3 || this.songs.length > 0) return;
-
-    this.webSearchLoading = true;
+  /** Look online for the offered query; the operator asked for it. */
+  private async searchOnline() {
+    const current = this.onlineSearch;
+    if (current.status === "none" || current.status === "searching") return;
+    const query = current.query;
+    const generation = ++this.webSearchGeneration;
+    this.webResults = [];
+    this.clearWebSelection();
+    this.onlineSearch = { status: "searching", query };
     try {
-      const results = await api.searchWebSongs(q);
-      if (searchGeneration !== this.webSearchGeneration) return;
-      if (songsGeneration !== this.songsRefreshGeneration) return;
+      const results = await api.searchWebSongs(query);
+      if (generation !== this.webSearchGeneration) return;
       this.webResults = results;
-      if (results.length > 0) {
-        await this.selectSong(webResultId(0));
-      } else if (this.currentFilename && isWebResultId(this.currentFilename)) {
-        this.currentFilename = null;
-        this.currentSong = null;
-      }
-    } catch {
-      if (searchGeneration !== this.webSearchGeneration) return;
-      if (songsGeneration !== this.songsRefreshGeneration) return;
-      this.webResults = [];
-      this.showToast("Web search failed", "error");
-    } finally {
-      if (searchGeneration === this.webSearchGeneration) {
-        this.webSearchLoading = false;
-      }
+      this.onlineSearch = { status: "found", query };
+      if (results.length > 0) await this.selectSong(webResultId(0));
+    } catch (err) {
+      if (generation !== this.webSearchGeneration) return;
+      const message = err instanceof Error ? err.message : String(err);
+      this.onlineSearch = { status: "failed", query, message: message || "The online search failed." };
     }
+  }
+
+  /** Cancel: back to the offer; a late answer is ignored. */
+  private stopOnlineSearch() {
+    if (this.onlineSearch.status !== "searching") return;
+    this.webSearchGeneration += 1;
+    this.onlineSearch = { status: "offer", query: this.onlineSearch.query };
   }
 
   private async saveWebResult() {
@@ -1684,8 +1663,8 @@ export class Psa150App extends Psa150Element {
     await api.setWebSearchEnabled(checked);
     if (!checked) {
       this.cancelWebSearch();
-    } else if (this.browseMode === "search" && this.songs.length === 0) {
-      void this.maybeSearchWeb(this.songsRefreshGeneration);
+    } else {
+      this.updateOnlineSearch();
     }
   }
 
@@ -2593,7 +2572,16 @@ export class Psa150App extends Psa150Element {
     }
     if (event.key === "Enter") {
       const first = this.visibleSongs[0];
-      if (!first) return;
+      if (!first) {
+        // Nothing in the library: Enter asks online, as the list offers.
+        const status = this.onlineSearch.status;
+        if (status === "offer" || status === "failed") {
+          event.preventDefault();
+          event.stopPropagation();
+          void this.searchOnline();
+        }
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       if (this.currentFilename !== first.filename) {
@@ -2899,7 +2887,9 @@ export class Psa150App extends Psa150Element {
           .sort=${this.isSortableView() ? this.songSort : null}
           @psa150-sort=${(e: CustomEvent<SongSortColumn>) => this.setSongSort(e.detail)}
           .webResults=${this.webResults}
-          .webSearchLoading=${this.webSearchLoading}
+          .onlineSearch=${this.onlineSearch}
+          @psa150-search-online=${() => this.searchOnline()}
+          @psa150-stop-online=${() => this.stopOnlineSearch()}
           .currentFile=${this.currentFilename}
           .projecting=${this.projecting}
           @psa150-select=${(e: CustomEvent<string>) => this.selectSong(e.detail)}
@@ -3484,7 +3474,7 @@ export class Psa150App extends Psa150Element {
     if (this.currentFilename && isWebResultId(this.currentFilename)) {
       const candidate = this.webResults[webResultIndex(this.currentFilename)];
       if (!candidate) return nothing;
-      return html`<div class="song-meta-bar">${candidate.source_name} · Web result</div>`;
+      return html`<div class="song-meta-bar">${candidate.artist ? `${candidate.artist} · ` : ""}${candidate.source_name} · Found online</div>`;
     }
     const meta = this.currentSong.parsed.meta;
     const parts: string[] = [];
@@ -3800,7 +3790,7 @@ export class Psa150App extends Psa150Element {
           <label class="settings-check"><input type="checkbox" .checked=${this.readOnly} ?disabled=${Boolean(this.serverLibrary)} @change=${(e: Event) => this.onReadOnlyChange((e.target as HTMLInputElement).checked)} /><span>Read-only library (prevent edits and deletes)</span></label>`;
         break;
       case "search":
-        content = html`<label class="settings-check"><input type="checkbox" .checked=${this.webSearchEnabled} @change=${(e: Event) => this.onWebSearchEnabledChange((e.target as HTMLInputElement).checked)} /><span>Search the web when no local songs match</span></label>`;
+        content = html`<label class="settings-check"><input type="checkbox" .checked=${this.webSearchEnabled} @change=${(e: Event) => this.onWebSearchEnabledChange((e.target as HTMLInputElement).checked)} /><span>Offer to search online when no songs match</span></label>`;
         break;
       case "remote":
         content = html`

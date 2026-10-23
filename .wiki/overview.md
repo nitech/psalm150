@@ -17,7 +17,7 @@ sources:
   - id: app
     resource: /src/components/app.ts
     title: Operator console component
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Psalm150
@@ -56,8 +56,11 @@ the slide payload under the lock and **emit after the lock is released**
    stanza matches the projected slide and lyrics can be corrected live
    ([ad hoc editing](concepts/adhoc-editing.md)).
 
-Songs missing from the library can be fetched from the web and projected or
-saved ([web search](concepts/web-search.md)). Legacy libraries arrive through
+Songs missing from the library can be looked up online, when the operator
+asks, then previewed, projected or saved ([online song search](concepts/web-search.md)).
+The app works **without a song server**; a server library is an option, and
+code shared with the server is mirrored here, never called on the server
+([works without a server](concepts/standalone.md)). Legacy libraries arrive through
 [MDB import](concepts/mdb-import.md). Possible duplicate songs are never merged
 automatically; they go through [manual duplicate review](concepts/duplicate-review.md).
 

@@ -17,7 +17,7 @@ sources:
   - id: api
     resource: /src/api.ts
     title: AppConfig TypeScript shape
-generated: { by: agent, at: 2026-10-05T18:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Config and theme
@@ -31,7 +31,7 @@ fields marked `#[serde(default)]` may be absent in old files.
 | `last_songs_folder` | none | `activate_songs_folder(persist)` | startup restore |
 | `read_only` | false | Settings | save / delete / renumber / quick save |
 | `project_to_stage` | false | Settings | console opens the stage window on Project |
-| `web_search_enabled` | true | Settings | console trigger and `search_web_songs` |
+| `web_search_enabled` | true | Settings ("Offer to search online when no songs match") | the console's online search offer and `search_web_songs` |
 | `show_song_numbers` | true | Settings (Library) | song list number column |
 | `server_library` | none | each server library synchronize (connect, sign-in, Synchronize); cleared on disconnect or when a local folder is chosen | `{ url, last_synced_at, song_count }`; its presence makes the library a [server library](server-library.md) (saves, sets sync, song server remote) |
 | `vsb_sync` | none | Settings (Visual Song Book) via `set_vsb_database`; `last_synced_at`, `last_summary`, `last_error` by each run | [VSB sync](vsb-sync.md) |

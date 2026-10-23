@@ -15,7 +15,7 @@ sources:
   - id: lib
     resource: /src-tauri/src/lib.rs
     title: Registered commands
-generated: { by: agent, at: 2026-10-05T18:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Gaps and backlog
@@ -30,7 +30,7 @@ generated: { by: agent, at: 2026-10-05T18:00:00Z }
 | Show 1/7, 2/7… with up/down arrows bottom-right | Done: stanza counter |
 | Chords in text must not reach the congregation | Done and tested |
 | Bottom-left: song name, key, song number | Done: overlay pill |
-| Search the web when a song is missing; offer alternatives; project or save | Done: [web search](web-search.md), with the save-name limitation below |
+| Search the web when a song is missing; offer alternatives; project or save | Done: [online song search](web-search.md), offered and run only when asked |
 | Switch the package manager to bun and remove npm traces | Mostly done: `bun.lock`, scripts; `src-tauri/2` is a leftover npm log |
 
 ## Behaviour gaps seen in the code
@@ -43,7 +43,7 @@ generated: { by: agent, at: 2026-10-05T18:00:00Z }
   - A 5xx or other unexpected answer for one set stops the run before the remaining sets and the download.
   - `sync_server_sets` has no button; the 60 s timer and edits are the only triggers besides a full Synchronize.
 - **Remote control**: the LAN page can only step slides and blank, and its PIN travels in clear over HTTP. The song server remote can project songs and set items and is on by default, but only works in a server library. Room sharing is also on by default, so a newly connected PC shows its words to anyone who knows its (guessable, flower) room name until the operator or the church's owner turns it off ([remote control](remote-control.md#room)).
-- **Web search**: the title is the first scraped line, often a lyric ([web search](web-search.md)).
+- **Online search**: a found song cannot be saved into a server library (it is read-only on the desktop); the web client can add it there instead ([online song search](web-search.md)). Chord positions are only as good as the site's chart.
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
 - **Stanza view** highlight is off by one for songs with `Intro`/`Interlude` sections ([performance sections](performance-sections.md)).
 - **Search** ignores the FTS table and returns unranked `LIKE` matches ([library index](library-index.md)).

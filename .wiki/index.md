@@ -17,7 +17,7 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 * [MDB import](concepts/mdb-import.md) - Visual Song Book `.mdb` to ChordPro, theme from PageSetup, progress and cancel
 * [Server library](concepts/server-library.md) - Song server as the library: address check, browser sign-in over a loopback redirect (PKCE), offline copy and manifest, saving edits to the server, sets sync with conflict copies and fetching missing songs, remote and room on by default once connected, revoking the token on disconnect
 * [VSB sync](concepts/vsb-sync.md) - Two-way sync with a linked VSB database: hashes and links, Psalm150-wins conflicts, Access ODBC writer, backups, write-back to a song server
-* [Web search](concepts/web-search.md) - DuckDuckGo discovery, site scrapers, chord-chart conversion, preview vs save
+* [Online song search](concepts/web-search.md) - Offered when the library has no match and run only when asked (button or Enter, Cancel); the shared `psa150-lyrics` crate mirrored from the song server and run in-process, async; preview, project or save
 * [Duplicate review](concepts/duplicate-review.md) - Exact candidate grouping, side-by-side human review, pair decisions, recoverable delete and restore
 
 # Operator console
@@ -36,4 +36,5 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 * [Remote control](concepts/remote-control.md) - LAN remote for next/prev/blank (random PIN, lockout after wrong PINs, Host check); the song server remote (on by default) that also projects songs and set items; the PC's room on the song server (flower name, rename, sharing the projected words, `server-room`)
 * [Reports](concepts/reports.md) - CCLI usage log and CSV export, printable songbook HTML
 * [Build and release](concepts/build-and-release.md) - Bun + Vite multi-entry, the Tauri CLI shim, test suites, release on every push to main, background updates
+* [Works without a server](concepts/standalone.md) - The app must work stand-alone; code shared with the song server is mirrored from its `shared/` (`bun run sync:shared`), never called on the server
 * [Gaps and backlog](concepts/gaps.md) - Known limitations, the Todo list with status, unwired commands

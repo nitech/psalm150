@@ -1,0 +1,22 @@
+[package]
+name = "psa150-lyrics"
+version = "0.1.0"
+edition = "2021"
+description = "Finds a song online and turns its page into ChordPro (shared by the Psalm150 desktop app and song server)"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
+scraper = "0.20"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+urlencoding = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

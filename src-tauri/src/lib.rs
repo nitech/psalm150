@@ -14,7 +14,6 @@ pub mod setlist;
 pub mod stage;
 pub mod updater;
 pub mod vsb_sync;
-pub mod web_search;
 
 use std::path::PathBuf;
 use std::sync::mpsc::Receiver;

@@ -29,6 +29,11 @@ bun x tsc --noEmit -p .
 - Never build a webview from a synchronous Tauri command on Windows; the
   projection windows are created hidden at startup and only shown/hidden.
 - Never `emit` or `eval` while holding the `AppState` mutex.
+- The app must work stand-alone, without a song server
+  ([.wiki/concepts/standalone.md](.wiki/concepts/standalone.md)). Never make
+  a feature depend on the server; share code with it instead.
+- `src/shared/` and `src-tauri/crates/psa150-lyrics/` are mirrors of the
+  song server's `shared/`; edit there and run `bun run sync:shared`.
 - Only ChordPro files are written to the songs folder.
 - The chorus2 alternation and blank-line stanza rule exist in both Rust
   (`projection/mod.rs`, `library/chordpro.rs`) and TypeScript

@@ -14,7 +14,7 @@ sources:
   - id: golden
     resource: /tests/golden/fall-til-ro-snippet.pro
     title: Golden chord-line snippet
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # ChordPro dialect
@@ -74,4 +74,4 @@ lines inside the raw text through the parser's `source_line` mapping).
 ## Related
 
 - [Songs folder](songs-folder.md), [Library index](library-index.md)
-- [MDB import](mdb-import.md) and [web search](web-search.md) both produce this dialect
+- [MDB import](mdb-import.md) and [online song search](web-search.md) both produce this dialect
