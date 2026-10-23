@@ -339,6 +339,8 @@ export interface VsbSyncReport {
   linked: number;
   blocked: string[];
   errors: string[];
+  /** Songs given a new number because theirs was taken in VSB: "Title: 12 → 1041". */
+  renumbered?: string[];
   backup?: string | null;
   finished_at: string;
 }

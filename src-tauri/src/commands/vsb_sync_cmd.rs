@@ -193,6 +193,7 @@ async fn run_passes(
         report.rows_inserted += second.rows_inserted;
         report.rows_deleted += second.rows_deleted;
         report.errors.extend(second.errors);
+        report.renumbered.extend(second.renumbered);
     }
 
     if report.changed_library() {

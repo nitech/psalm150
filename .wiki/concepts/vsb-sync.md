@@ -23,7 +23,7 @@ sources:
   - id: test
     resource: /src-tauri/tests/vsb_sync.rs
     title: ODBC round trip on a copy of the sample database
-generated: { by: agent, at: 2026-09-23T19:00:00Z }
+generated: { by: agent, at: 2026-10-23T13:20:00Z }
 ---
 
 # VSB sync
@@ -47,6 +47,19 @@ Driver quirks the writer handles: optional text columns are written as `""`
 value"). `Modified = Now()` on every write; `Search` is rebuilt the way VSB
 fills it (upper-cased title plus the first line of each stanza). A new row
 takes `SongNum` from the song, or `MAX(SongNum) + 1`.
+
+**Number clashes**: a song is never written to VSB under a number another
+VSB song has. Before a row is written or added, `Executor::free_number`
+checks the number (`Numbers`: the VSB rows' numbers, and the next number
+above everything in VSB and Psalm150). On a clash Psalm150 gives the song
+the next free number first: the file's `{meta: song_num=N}` line is set or
+added (`with_song_num`, nothing else in the file changes), or for a server
+library the server song is updated. The VSB row then gets that number, and
+the report lists it in `renumbered` ("Way Maker: 12 → 1041"; the summary
+says "N given a new number"). When Psalm150 cannot be changed yet
+(read-only, or the server does not list the file), VSB gets the song
+without a number and picks a free one itself. Tested against the sample
+database (`tests/vsb_sync.rs`).
 
 `fields_from_song` is the reverse of `vsb_to_chordpro`: stanzas separated by
 blank lines, `chorus` / `chorus 2` / `bridge` / `intro` / `verse N` header

@@ -135,4 +135,29 @@ fn second_run_is_quiet_and_edits_reach_vsb() {
 
     let fourth = run(&third.links);
     assert_eq!(fourth.report.summary(), "Everything is in step");
+
+    // A new Psalm150 song with a number another VSB song has: it is not
+    // written under that number. (Here the server library does not list the
+    // file yet, so Psalm150 keeps its number and VSB picks a free one.)
+    let taken = read_vsb_mdb(&mdb).unwrap()[0].song_num;
+    fs::write(
+        songs.join("9999-new-song.pro"),
+        format!("{{title: Brand new song}}
+{{meta: song_num={taken}}}
+
+{{start_of_verse}}
+New words here
+{{end_of_verse}}
+"),
+    )
+    .unwrap();
+    let fifth = run(&fourth.links);
+    assert!(fifth.report.errors.is_empty(), "{:?}", fifth.report.errors);
+    assert_eq!(fifth.report.rows_inserted, 1, "{:?}", fifth.report);
+    let added = read_vsb_mdb(&mdb)
+        .unwrap()
+        .into_iter()
+        .find(|row| row.title == "Brand new song")
+        .expect("added to VSB");
+    assert_ne!(added.song_num, taken, "not under a number another song has");
 }
