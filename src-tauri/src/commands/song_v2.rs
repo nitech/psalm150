@@ -341,22 +341,28 @@ pub async fn save_song_lines(
     save_content(&app, &state, filename, patched, expected_hash).await
 }
 
+/// Save a song found online: into the songs folder, or for a server library
+/// onto the song server (with the device's rights, as edits are) and then
+/// into its offline copy.
 #[tauri::command]
-pub fn save_web_song(
+pub async fn save_web_song(
     app: AppHandle,
     state: State<'_, AppState>,
     content: String,
 ) -> Result<SongDetail, String> {
-    let (folder, folder_hash) = with_state(&state, |runtime| {
-        if runtime.read_only {
-            return Err("Library is in read-only mode".into());
-        }
+    let (folder, folder_hash, target) = with_state(&state, |runtime| {
+        let target = match &runtime.config.server_library {
+            Some(server) => SaveTarget::Server(server.url.clone()),
+            None if runtime.read_only => return Err("Library is in read-only mode".into()),
+            None => SaveTarget::Folder,
+        };
         Ok((
             runtime
                 .songs_folder
                 .clone()
                 .ok_or_else(|| "No songs folder selected".to_string())?,
             runtime.folder_hash.clone(),
+            target,
         ))
     })?;
     let parsed = parse_chordpro(&content, "web.pro");
@@ -369,7 +375,12 @@ pub fn save_web_song(
     let number = parsed.meta.song_num.unwrap_or(0).max(0);
     let preferred = format!("{number:04}-{stem}.pro");
     let serialized = serialize_chordpro(&parsed);
-    let filename = create_song_unique(&folder, &preferred, &serialized)?;
+    let filename = match target {
+        SaveTarget::Folder => create_song_unique(&folder, &preferred, &serialized)?,
+        SaveTarget::Server(url) => {
+            server_library::add_song(&app, &url, &folder, &preferred, &serialized).await?
+        }
+    };
     let saved = parse_chordpro(&serialized, &filename);
     let index_error = with_state(&state, |runtime| {
         Ok(runtime

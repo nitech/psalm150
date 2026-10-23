@@ -808,11 +808,13 @@ export class Psa150App extends Psa150Element {
     if (!this.currentFilename || !isWebResultId(this.currentFilename)) return;
     const candidate = this.webResults[webResultIndex(this.currentFilename)];
     if (!candidate) return;
-    if (this.readOnly) {
+    // A server library saves to the song server, like edits do.
+    if (!this.songEditsAllowed()) {
       this.showToast("Library is read-only", "error");
       return;
     }
-    const ok = await confirm(`Save "${candidate.title}" to your songs folder?`, {
+    const where = this.serverLibrary ? "the church's song server" : "your songs folder";
+    const ok = await confirm(`Save "${candidate.title}" to ${where}?`, {
       title: "Save song",
       kind: "info",
     });
