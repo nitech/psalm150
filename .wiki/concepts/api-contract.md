@@ -35,7 +35,7 @@ sources:
   - id: test
     resource: /api/tests/api_flow.rs
     title: openapi_describes_every_operation (public list, routing check)
-generated: { by: agent, at: 2026-10-05T18:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # API contract
@@ -94,6 +94,7 @@ the lower of its own `role` and its person's
 | POST | `/desktop-auth/codes` | editor | 201 `{code, expires_at}` | Body `{device_name, code_challenge}`; name 1–120 characters after trimming; challenge 43–128 of `[A-Za-z0-9_-]`; code `psa_c_…`, valid 5 minutes | yes (consent screen) | – |
 | POST | `/desktop-auth/token` | none | 201 `{token, device_id, device_name, church_name, room_name}` | Body `{code, code_verifier}`; single use; every failure is 400 `the sign-in code is invalid or has expired` | – | yes |
 | GET | `/songs?q=&limit=&offset=&sort=&direction=` | any token | 200 `SongSummary[]` | `limit` defaults to 100, clamped to 1–200; `offset` skips rows (default 0); `sort` `title` (default), `number` or `key` (songs without one last), `direction` `asc` (default) or `desc`; 400 for other values; `key` (tonics separated by commas, e.g. `G,D,Bb`; enharmonic spellings match, a name that is not a note matches nothing; at most 24) and `key_mode` (`major` or `minor`) keep only songs in those keys. Each `SongSummary` has `song_key` (as written, or null) | yes (pages of 100) | – |
+| GET | `/songs/online?q=` | song editor | 200 `OnlineSong[]`, 400, 503 | Looks for `q` (at least 3 characters) on chord and lyric sites; up to 3 `{title, artist, source_name, source_url, chordpro}`, best first; nothing saved; answers kept in memory for 6 h; at most 2 searches at once; 503 when the search engine does not answer ([online search](online-search.md)) | yes (songs list, after the person asks) | – |
 | GET | `/songs/keys` | any token | 200 `SongKeyCount[]` | `{root, minor, songs}` per key the church's songs are in: `root` is the tonic as a pitch class (C = 0 … B = 11); songs without a readable key are left out; ordered by root, major first | yes (key filter) | – |
 | POST | `/songs` | editor or desktop | 201 `SongSummary` | | yes | – |
 | GET | `/songs/{id}` | any token | 200 `SongDetail` | 404 when missing or in another church | yes | yes (songs a set needs that it lacks) |

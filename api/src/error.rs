@@ -25,6 +25,9 @@ pub enum AppError {
         message: String,
         retry_after_seconds: u64,
     },
+    /// Something the server depends on (the search engine) did not answer.
+    #[error("{0}")]
+    Unavailable(String),
     #[error("database operation failed")]
     Database(#[from] sqlx::Error),
     #[error("internal server error")]
@@ -45,6 +48,7 @@ impl IntoResponse for AppError {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
+            Self::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Database(_) | Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

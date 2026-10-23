@@ -9,6 +9,7 @@ import type {
   DeviceTokenSummary,
   KeyMode,
   Member,
+  OnlineSong,
   RemoteCommand,
   RemoteCommandRequest,
   RemoteDesktop,
@@ -263,6 +264,11 @@ export class SongServerApi {
 
   private songsRoot(): string {
     return this.token() ? "/songs" : "/public/songs";
+  }
+
+  /** Song editors: looks for a song online; takes a few seconds. Nothing is saved. */
+  searchOnline(query: string, signal?: AbortSignal): Promise<OnlineSong[]> {
+    return this.fetchJson(`/songs/online?q=${encodeURIComponent(query)}`, { signal });
   }
 
   createSong(chordpro: string): Promise<SongSummary> {

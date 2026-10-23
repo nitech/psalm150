@@ -71,7 +71,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-05T20:30:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Web client
@@ -228,6 +228,13 @@ are not affected.
   The choice is kept in `localStorage["psa150-song-sort"]`
   (`{column: "title"|"number"|"key", direction}`). Each row shows the song's
   key on the right; a **Key** header sorts by it (C to B, major before minor).
+- **Online search**: when a search of at least 3 characters finds nothing
+  (no key filter, and the person can edit), the list says "No songs match
+  "…"" and offers **Search online** (or Enter in the field); it never
+  searches by itself. A spinner with **Cancel** while it runs, then **Found
+  online** (title, artist · site); picking one opens the **New song** editor
+  filled with it ("Add song", with a "Found on <site>" link) to check and
+  save. `GET /songs/online` ([online search](online-search.md)).
 - **Key filter**: **Filter** at the right of the sort header opens a sheet
   (a bottom sheet on phones, a dialog on wide screens): All / Major / Minor
   and the twelve tonics, several at once, each with its song count from

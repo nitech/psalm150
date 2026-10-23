@@ -377,6 +377,12 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .empty-state { padding: var(--psa-space-8) var(--psa-space-4); text-align: center; }
 .empty-state :is(h1, h2) { margin: 0 0 var(--psa-space-2); font-size: 18px; }
 .empty-state p { margin: 0 auto var(--psa-space-4); max-width: 36ch; color: var(--psa-text-secondary); }
+/* No songs match: the offer to search online, and its progress. */
+.online-state .button .icon { width: 18px; height: 18px; }
+.online-state .spinner { display: block; width: 28px; height: 28px; margin: 0 auto var(--psa-space-3); border: 2px solid var(--psa-border); border-top-color: var(--psa-accent); border-radius: 50%; animation: online-spin 0.9s linear infinite; }
+@keyframes online-spin { to { transform: rotate(360deg); } }
+#song-results .list-heading { margin: 0; padding: var(--psa-space-3) var(--psa-space-4) var(--psa-space-2); }
+.online-source { margin: 0 0 var(--psa-space-3); color: var(--psa-text-secondary); }
 
 /* ── Song reader ────────────────────────────────────────────────────────── */
 

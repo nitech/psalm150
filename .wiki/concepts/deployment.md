@@ -32,7 +32,7 @@ sources:
   - id: readme
     resource: /README.md
     title: Run instructions
-generated: { by: agent, at: 2026-10-05T18:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Deployment and config
@@ -134,7 +134,8 @@ volume `psa150-postgres`. Open `http://localhost:8080` for first-run setup
 `Dockerfile` has three stages:
 
 1. `oven/bun:1.3.4-alpine` builds `web/dist`.
-2. `rust:1.94-bookworm` runs `cargo build --locked --release`.
+2. `rust:1.94-bookworm` copies `shared/lyrics/` (the online search crate, a
+   path dependency of the API) and runs `cargo build --locked --release`.
 3. `debian:bookworm-slim` with CA certificates, running as `65532:65532`, entry
    point `psa150-server`, exposing 8080.
 

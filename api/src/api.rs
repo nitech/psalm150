@@ -102,6 +102,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         list_revisions,
         get_revision,
         list_song_keys,
+        crate::online::search_online,
         list_public_songs,
         list_public_song_keys,
         get_public_song,
@@ -141,6 +142,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
     ),
     components(schemas(
         ErrorBody,
+        crate::online::OnlineSong,
         HealthResponse,
         ServerInfo,
         SetupStatus,
@@ -378,6 +380,7 @@ pub fn router() -> Router<AppState> {
         .route("/public/songs/keys", get(list_public_song_keys))
         .route("/public/songs/{song_id}", get(get_public_song))
         .merge(crate::access::router())
+        .merge(crate::online::router())
         .merge(crate::sets::router())
         .merge(crate::shared_sets::router())
         .merge(crate::live_sets::router())

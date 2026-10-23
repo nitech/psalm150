@@ -8,6 +8,7 @@ RUN bun run build
 
 FROM rust:1.94-bookworm AS api-builder
 WORKDIR /source/api
+COPY shared/lyrics/ /source/shared/lyrics/
 COPY api/ ./
 RUN cargo build --locked --release
 

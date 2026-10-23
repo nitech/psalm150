@@ -45,6 +45,16 @@ export interface Member {
   created_at: string;
 }
 
+/** A song found online (`GET /songs/online`), not in the library yet. */
+export interface OnlineSong {
+  title: string;
+  artist: string | null;
+  /** The site, as people know it: `worshipchords.com`. */
+  source_name: string;
+  source_url: string;
+  chordpro: string;
+}
+
 export interface SongSummary {
   id: string;
   revision_id: string;

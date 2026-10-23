@@ -6,6 +6,7 @@ pub mod config;
 pub mod error;
 pub mod live_sets;
 pub mod models;
+pub mod online;
 pub mod pages;
 pub mod remote;
 pub mod rooms;
@@ -37,6 +38,8 @@ pub struct AppState {
     pub live_sets: Arc<live_sets::LiveSets>,
     /// In-memory counts of wrong passwords.
     pub throttle: Arc<throttle::Throttle>,
+    /// Online song lookup with its memory of recent answers.
+    pub online: Arc<online::OnlineSearch>,
     /// Where the reverse proxy puts the client's address
     /// (`PSA150_CLIENT_IP_HEADER`); without it, the connection's peer.
     pub client_ip_header: Option<HeaderName>,
@@ -50,6 +53,7 @@ impl AppState {
             remote: Arc::default(),
             live_sets: Arc::default(),
             throttle: Arc::default(),
+            online: Arc::default(),
             client_ip_header: None,
         }
     }

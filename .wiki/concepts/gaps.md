@@ -27,7 +27,7 @@ sources:
   - id: access
     resource: /api/src/access.rs
     title: Sessions, API tokens, members
-generated: { by: agent, at: 2026-10-05T20:30:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Gaps and backlog
@@ -90,6 +90,9 @@ generated: { by: agent, at: 2026-10-05T20:30:00Z }
   Room names are short guessable flowers, unique per server, with no code or
   PIN; an owner's switch, the operator's checkbox and renaming are the only
   controls ([rooms](rooms.md)).
+- **Online search is not limited per church**: `GET /songs/online` runs
+  at most 2 searches at once and keeps answers for 6 h, but has no
+  per-church or per-person rate limit ([online search](online-search.md)).
 - **Shared set links are not limited**: the token-free `/public/sets/{key}`
   endpoints have no rate limit, an editable link records no one for its
   changes, and links do not expire by themselves; stopping the share is the

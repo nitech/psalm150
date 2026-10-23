@@ -20,7 +20,7 @@ sources:
   - id: api
     resource: /api/src/api.rs
     title: Every handler and the OpenAPI document
-generated: { by: agent, at: 2026-10-05T18:00:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Psalm150 Song Server
@@ -30,6 +30,10 @@ church. It gives a church a shared, revisioned library in PostgreSQL. The
 Psalm150 desktop app (the separate `PSA150` client repo) can use it as a
 **server-backed library** instead of a local ChordPro folder. The desktop
 never needs the server to project: it works from its last downloaded copy.
+More generally, **the desktop must work without a server**: many churches
+never set one up. Code both need (design tokens, icons, the
+[online song search](concepts/online-search.md)) lives in `shared/` here and
+the desktop mirrors it; the server never does work the desktop depends on.
 
 The code still says `PSA150` / `psa150` throughout (crate, env vars, image,
 token prefixes). The client was renamed to Psalm150 and this repo was not

@@ -23,7 +23,7 @@ sources:
   - id: hook
     resource: /.githooks/pre-commit
     title: Version bump on every commit
-generated: { by: agent, at: 2026-10-15T16:45:00Z }
+generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---
 
 # Build and CI
@@ -42,6 +42,10 @@ cargo test --manifest-path api/Cargo.toml --all-features
 cd web && bun install && bun run build     # tsc --noEmit + vite build
 cd web && bun run typecheck
 cd web && bun run test                     # vitest run (web/tests/)
+
+# Online song search crate (shared with the desktop)
+cargo test --manifest-path shared/lyrics/Cargo.toml
+cargo run --manifest-path shared/lyrics/Cargo.toml --example search -- "way maker"
 
 # Everything, as deployed
 docker compose up --build

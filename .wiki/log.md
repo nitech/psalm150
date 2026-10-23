@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-23
+* **Online song search**: new shared crate `psa150-lyrics` in `shared/lyrics/` (mirrored by the desktop with `bun run sync:shared`) finds a song on chord and lyric sites and turns it into clean ChordPro: trusted sites first, pages fetched in parallel with 6 s timeouts, Ultimate Guitar's JSON, chord lines placed at their columns, many header styles, repeats written out, clutter and player notes dropped, results ranked and deduplicated. New `GET /api/v1/songs/online?q=` for song editors (`online.rs`, answers kept 6 h, 2 at once, 503 `AppError::Unavailable` when the search engine fails). The web client offers **Search online** when a search finds nothing and opens a picked song in the New song editor to check and save. The Docker build copies `shared/lyrics/`; CI tests the crate. Recorded that the desktop must work without a server (AGENTS.md, overview). Pages touched: online-search (new), api-contract, web-client, gaps, deployment, build-and-ci, overview, index.
+
 ## 2026-10-21
 * **Mode switch centred, panel symbols**: the song editor's Visual / Chords / ChordPro switch has the bar's frosted pill look and, on wide screens, sits in the middle of the page column, lined up with the bar at the bottom. The section panel's actions have symbols (new `note`, `arrowUp`, `arrowDown` in `shared/icons.ts`). Pages touched: none (style only).
 * **No double gap between sections**: the song editor drops empty lines at the start and end of each section when it opens a song (or comes back from ChordPro), with new `trimSections` in `chord-doc.ts`; they only showed as a second gap, and saving writes the song without them. Pages touched: none (editor detail).

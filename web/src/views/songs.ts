@@ -15,7 +15,7 @@ import {
   songText,
   stepTranspose,
 } from "../song-render.ts";
-import type { KeyMode, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
+import type { KeyMode, OnlineSong, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
 import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
@@ -25,6 +25,12 @@ let lastSearch = "";
 const PAGE_SIZE = 100;
 
 const NEW_SONG_TEMPLATE = "{title: }\n{author: }\n{key: }\n\n{start_of_verse}\n\n{end_of_verse}\n";
+
+/** Searches at least this long may look online when the library has nothing. */
+const ONLINE_MIN_CHARS = 3;
+
+/** A song found online, waiting in the New song editor to be checked and saved. */
+let onlineDraft: OnlineSong | null = null;
 
 /** A song as the add buttons need it. */
 interface SongRef {
@@ -57,6 +63,8 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   const filterSummary = ctx.main.querySelector<HTMLElement>("#filter-summary")!;
   let timer = 0;
   let request = 0;
+  /** The online search for `lastSearch`: offered, running (with its abort) or done. */
+  let online: { query: string; songs: OnlineSong[] | null; abort: AbortController | null } | null = null;
   let loaded = 0;
   let loading = false;
   let sort = readSongSort();
@@ -117,7 +125,10 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       keepFocus(sortBar, renderSort);
       const html = songs.map(row).join("");
       if (append) results.insertAdjacentHTML("beforeend", html);
-      else {
+      else if (!songs.length && offersOnline()) {
+        online = { query: lastSearch, songs: null, abort: null };
+        renderOnline();
+      } else {
         const filtered = filterActive(filter);
         results.innerHTML = songs.length
           ? html
@@ -133,7 +144,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       if (typed) {
         announce(songs.length
           ? `${songs.length}${songs.length === PAGE_SIZE ? " or more" : ""} ${songs.length === 1 ? "song" : "songs"}`
-          : "No songs found");
+          : online ? "No songs found. Press Enter to search online." : "No songs found");
       }
       loaded = offset + songs.length;
       more.hidden = songs.length < PAGE_SIZE;
@@ -147,14 +158,102 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     }
   };
 
+  /** Nothing in the library: an editor may look online (never by itself, it takes seconds). */
+  const offersOnline = () => ctx.canEdit && lastSearch.length >= ONLINE_MIN_CHARS && !filterActive(filter);
+
+  const stopOnline = () => {
+    online?.abort?.abort();
+    online = null;
+  };
+
+  /** The offer, the running search or what it found, in place of "No songs found". */
+  const renderOnline = () => {
+    if (!online) return;
+    const query = `“${escapeHtml(online.query)}”`;
+    if (online.abort) {
+      results.innerHTML = `<li><div class="empty-state online-state" aria-busy="true">
+        <span class="spinner" aria-hidden="true"></span>
+        <h2>Searching online for ${query}…</h2>
+        <p>Looking through chord and lyric sites. This takes a few seconds.</p>
+        <button type="button" class="button secondary" data-online="cancel">Cancel</button>
+      </div></li>`;
+      return;
+    }
+    if (online.songs?.length) {
+      results.innerHTML = `<li class="list-heading">Found online</li>${online.songs
+        .map((song, index) => `<li><button type="button" class="list-row" data-online-song="${index}">
+          <span class="row-main"><strong>${escapeHtml(song.title)}</strong><small>${escapeHtml([song.artist, song.source_name].filter(Boolean).join(" · "))}</small></span>${icon("next")}
+        </button></li>`)
+        .join("")}`;
+      return;
+    }
+    if (online.songs) {
+      results.innerHTML = `<li>${emptyState(`Nothing found online for “${online.query}”`, "Try the full title, or a line from the lyrics.")}</li>`;
+      return;
+    }
+    results.innerHTML = `<li><div class="empty-state online-state">
+      <h2>No songs match ${query}</h2>
+      <p>It is not in the library. Search online for chords and lyrics? You can check the song before you add it.</p>
+      <button type="button" class="button primary" data-online="search">${icon("search")}Search online</button>
+    </div></li>`;
+  };
+
+  const searchOnline = async () => {
+    if (!online || online.abort) return;
+    const mine = online;
+    const abort = new AbortController();
+    mine.abort = abort;
+    mine.songs = null;
+    renderOnline();
+    announce(`Searching online for ${mine.query}`);
+    try {
+      const songs = await ctx.api.searchOnline(mine.query, abort.signal);
+      if (online !== mine || abort.signal.aborted) return;
+      mine.songs = songs;
+      announce(songs.length ? `Found ${songs.length} online` : "Nothing found online");
+    } catch (error) {
+      if (online !== mine || abort.signal.aborted) return;
+      if (error instanceof ApiError && error.status === 401) return ctx.signOut();
+      showToast(errorMessage(error), true);
+    } finally {
+      if (online === mine && mine.abort === abort) {
+        mine.abort = null;
+        keepFocus(results, renderOnline);
+      }
+    }
+  };
+
   input.addEventListener("input", () => {
     lastSearch = input.value.trim();
+    stopOnline();
     window.clearTimeout(timer);
     timer = window.setTimeout(() => void load(false, true), 250);
   });
+  // Enter in the field asks online when the list offers it.
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !online || online.abort || online.songs) return;
+    if (online.query !== input.value.trim()) return;
+    event.preventDefault();
+    void searchOnline();
+  });
   results.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-add]");
+    const target = event.target as HTMLElement;
+    const button = target.closest<HTMLButtonElement>("[data-add]");
     if (button) toggleInCurrentSet(ctx, { id: button.dataset.add!, title: button.dataset.title! });
+    const action = target.closest<HTMLButtonElement>("[data-online]")?.dataset.online;
+    if (action === "search") void searchOnline();
+    if (action === "cancel" && online) {
+      online.abort?.abort();
+      online.abort = null;
+      renderOnline();
+      results.querySelector<HTMLButtonElement>("[data-online='search']")?.focus();
+    }
+    const found = target.closest<HTMLButtonElement>("[data-online-song]");
+    const song = found ? online?.songs?.[Number(found.dataset.onlineSong)] : undefined;
+    if (song) {
+      onlineDraft = song;
+      ctx.navigate("#/songs/new");
+    }
   });
   ctx.main.querySelector("#more-songs")?.addEventListener("click", () => void load(true));
 
@@ -193,6 +292,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   await load(false);
   return () => {
     window.clearTimeout(timer);
+    online?.abort?.abort();
     observer.disconnect();
     unsubscribe();
   };
@@ -511,8 +611,12 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
     return;
   }
   const back = song ? `#/songs/${song.id}` : "#/songs";
-  setTitle(song ? `Edit ${song.title}` : "New song", "Songs");
-  ctx.main.innerHTML = `${pageHead({ title: song ? "Edit song" : "New song", quietTitle: true, back, actions: `<div class="segmented ce-modes" role="group" aria-label="Edit as"></div>` })}
+  // A song picked from an online search opens here once, to check and save.
+  const draft = song ? null : onlineDraft;
+  onlineDraft = null;
+  setTitle(song ? `Edit ${song.title}` : draft ? `Add ${draft.title}` : "New song", "Songs");
+  ctx.main.innerHTML = `${pageHead({ title: song ? "Edit song" : draft ? "Add song" : "New song", quietTitle: true, back, actions: `<div class="segmented ce-modes" role="group" aria-label="Edit as"></div>` })}
+  ${draft ? `<p class="online-source">Found on <a href="${escapeHtml(draft.source_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(draft.source_name)}</a>. Check the words and chords, then save to add it to the library.</p>` : ""}
   <form class="editor" id="editor-form">
     <div id="chord-editor"></div>
     <p class="form-message" role="status"></p>
@@ -520,7 +624,7 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
 
   // Save is the ✓ in the editor's bar; Back leaves without saving.
   const form = ctx.main.querySelector<HTMLFormElement>("#editor-form")!;
-  const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? NEW_SONG_TEMPLATE, {
+  const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? draft?.chordpro ?? NEW_SONG_TEMPLATE, {
     modes: ctx.main.querySelector<HTMLElement>(".ce-modes")!,
     save: () => form.requestSubmit(),
   });

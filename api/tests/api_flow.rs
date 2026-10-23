@@ -3161,3 +3161,26 @@ async fn send(
     let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     (status, json)
 }
+
+/// Looking online is for song editors, and a too short search is refused
+/// before anything is fetched (so this test needs no network).
+#[sqlx::test(migrations = "./migrations")]
+async fn online_search_is_for_song_editors(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, _) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+
+    let anonymous = send(&app, "GET", "/api/v1/songs/online?q=way+maker", None, None).await;
+    assert_eq!(anonymous.0, StatusCode::UNAUTHORIZED);
+    let viewing = send(
+        &app,
+        "GET",
+        "/api/v1/songs/online?q=way+maker",
+        Some(&viewer),
+        None,
+    )
+    .await;
+    assert_eq!(viewing.0, StatusCode::FORBIDDEN);
+    let short = send(&app, "GET", "/api/v1/songs/online?q=ab", Some(&owner), None).await;
+    assert_eq!(short.0, StatusCode::BAD_REQUEST);
+}
