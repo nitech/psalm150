@@ -650,8 +650,12 @@ fn chord_line_mark(token: &str) -> bool {
 
 fn is_chord_line(line: &str) -> bool {
     let mut chords = 0;
-    for token in line.split_whitespace() {
-        let bare = token.trim_matches(|c| c == '(' || c == ')' || c == '|');
+    // Bar lines split chords too: "|Em  D|G  |C |".
+    for token in line
+        .split(|c: char| c.is_whitespace() || c == '|')
+        .filter(|t| !t.is_empty())
+    {
+        let bare = token.trim_matches(|c| c == '(' || c == ')');
         if is_chord(bare) {
             chords += 1;
         } else if !chord_line_mark(token) {
@@ -1056,5 +1060,6 @@ mod tests {
         }
         assert!(is_chord_line("G  D/F#  Em  C  | x2"));
         assert!(!is_chord_line("Am I the one"));
+        assert!(is_chord_line("|Em    D|G    |C  |C  |"));
     }
 }
