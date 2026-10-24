@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-10-24
+* **Set items carry the song's key**: `SetSongRef` (each set item's `song`, also on shared sets) has `song_key` (the revision's `{key}`, null when none), additive. The web client shows the key each item is played in (the key moved by the item's transpose) at the end of the rows of a set, the set editor and a shared set. Pages touched: sets.
+* **Phone-first set editing and song paging (web)**: set rows delete with a left swipe on touch screens (red Delete; a long swipe deletes at once), the × stays for a mouse; drag to reorder shows a green drop line; Add songs, Delete (⋮) and the current set switch sit in the editor's bar; a list's songs page with a swipe (Previous / Next with a mouse); Back buttons go back in history so a list keeps its place. Pages touched: none (web only).
+
 ## 2026-10-23
 * **Wider desktop editor, grey header**: on wide screens the song editor uses more width (880 px for the words, 1480 px for ChordPro and its preview) and its header has the rail's grey instead of white in the light theme. Pages touched: web-client.
 * **Fixed Share and Edit; editor header on desktop**: Share and Edit are always in the song bar. On wide screens (1100 px and up) the song editor's header spans the page with ‹ Back (with its word), the mode switch and the section / details / Save bar that otherwise floats at the bottom; narrower windows keep the phone layout. Pages touched: web-client.

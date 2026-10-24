@@ -412,6 +412,19 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 #song-results .song-row { padding-top: 0; padding-bottom: 0; }
 .row-main { display: grid; flex: 1; min-width: 0; }
 .row-main strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Swipe left to delete (swipe-delete.ts), on touch screens; a mouse gets
+   the row's × button (.swipe-alt) instead. */
+[data-swipe-row] { position: relative; overflow: hidden; }
+.swipe-content { position: relative; z-index: 1; background: var(--psa-bg-surface); transform: translateX(var(--swipe, 0px)); }
+.swipe-settling > .swipe-content { transition: transform 220ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+.swipe-delete { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; border: 0; background: var(--psa-danger); color: var(--psa-on-danger); font: inherit; font-weight: 700; }
+/* Past the point where letting go deletes, the label follows the row's edge. */
+.swipe-full > .swipe-delete { justify-content: flex-start; padding-left: calc(100% + var(--swipe, 0px) + 22px); transition: padding 120ms; }
+.swipe-folding { transition: height 260ms var(--psa-ease-standard), opacity 260ms; opacity: 0; }
+.edit-row[data-swipe-row] { padding: 0; }
+.edit-row > .swipe-content { padding: var(--psa-space-2) var(--psa-space-3); }
+@media (pointer: fine) { .swipe-delete { display: none; } }
+@media (pointer: coarse) { .swipe-alt { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; } }
 .row-main strong.missing { color: var(--psa-danger); font-style: italic; }
 .row-main small { color: var(--psa-text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .date-badge { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: var(--psa-radius-sm); background: var(--psa-accent-soft); color: var(--psa-accent-text); line-height: 1; }

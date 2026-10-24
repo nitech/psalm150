@@ -15,7 +15,8 @@ import {
 } from "../song-render.ts";
 import type { SetItem, SharedSet, SharedSetLive, SongDetail } from "../types.ts";
 import { errorMessage, escapeHtml, serviceDate, showToast, startPolling, transposeLabel } from "../ui.ts";
-import { itemPeek, itemTitle, openSongPicker, playNav } from "./sets.ts";
+import { itemPeek, itemTitle, keyCell, openSongPicker, playNav } from "./sets.ts";
+import { bindSwipeDelete, swipeRow } from "../swipe-delete.ts";
 import { bindItemSwipe, swapScreen, type Slide } from "../transitions.ts";
 import { holdScreen } from "../wake-lock.ts";
 
@@ -145,19 +146,31 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "",
       escapeHtml(item.note),
     ].filter(Boolean).join(" · ") || "&nbsp;";
-    const main = `<span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong><small>${details}</small></span>`;
+    const main = `<span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong><small>${details}</small></span>${keyCell(item.song?.song_key, item.transpose)}`;
     if (!set.editable || item.kind !== "song") {
       return `<li><a class="list-row" href="#/item/${item.id}">${main}${icon("next")}</a></li>`;
     }
-    return `<li class="list-row song-row" data-key="${item.id}">
-      <a class="row-link" href="#/item/${item.id}">${main}</a>
-      <button type="button" class="icon-button small danger" data-remove="${item.id}" aria-label="Remove: ${escapeHtml(`${index + 1}, ${itemTitle(item)}`)}">${icon("close")}</button>
-    </li>`;
+    // Phones swipe a row left to remove the song; a mouse has the × button.
+    return `<li data-key="${item.id}" data-item="${item.id}" data-swipe-row>${swipeRow(`<a class="row-link" href="#/item/${item.id}">${main}</a>
+      <button type="button" class="icon-button small danger swipe-alt" data-remove="${item.id}" aria-label="Remove: ${escapeHtml(`${index + 1}, ${itemTitle(item)}`)}">${icon("close")}</button>`, "Remove", "list-row song-row")}</li>`;
+  };
+
+  const removeItem = (itemId: string) => {
+    const index = set.items.findIndex((item) => item.id === itemId);
+    const item = set.items[index];
+    if (!item) return;
+    const songId = item.song_id;
+    void change(
+      () => api.removeSharedSong(key, item.id),
+      `Removed ${itemTitle(item)}.`,
+      songId ? () => api.addSharedSong(key, songId, index) : undefined,
+    );
   };
 
   const showSet = (present: (draw: () => void) => void = (draw) => draw()) => {
     present(drawSet);
     main.addEventListener("click", onSetClick);
+    const unbindSwipe = bindSwipeDelete(main, (row) => removeItem(row.dataset.item!));
     // The first tick would only read again what was just drawn.
     let fresh = true;
     const poller = startPolling(async () => {
@@ -177,6 +190,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     return () => {
       poller.stop();
       main.removeEventListener("click", onSetClick);
+      unbindSwipe();
     };
   };
 
@@ -184,15 +198,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     const target = event.target as HTMLElement;
     const remove = target.closest<HTMLButtonElement>("[data-remove]");
     if (remove) {
-      const index = set.items.findIndex((item) => item.id === remove.dataset.remove);
-      const item = set.items[index];
-      if (!item) return;
-      const songId = item.song_id;
-      void change(
-        () => api.removeSharedSong(key, item.id),
-        `Removed ${itemTitle(item)}.`,
-        songId ? () => api.addSharedSong(key, songId, index) : undefined,
-      );
+      removeItem(remove.dataset.remove!);
       return;
     }
     if (target.closest("#add-songs")) {

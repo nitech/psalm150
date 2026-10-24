@@ -582,6 +582,8 @@ pub struct SetSongRef {
     pub title: String,
     pub song_number: Option<String>,
     pub authors: String,
+    /// The song's key as written (`{key}`), before the item's transpose.
+    pub song_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

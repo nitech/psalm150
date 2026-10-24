@@ -28,6 +28,8 @@ import {
 import { closeSheet, openSheet } from "./songs.ts";
 import { bindItemSwipe } from "../transitions.ts";
 import { holdScreen } from "../wake-lock.ts";
+import { bindSwipeDelete, swipeRow } from "../swipe-delete.ts";
+import { transposeChord } from "../chordpro.ts";
 import { barActions, bindBarActions } from "../bar-menu.ts";
 
 function setRow(set: SetSummary, currentId?: string): string {
@@ -92,6 +94,17 @@ export function itemPeek(setName: string, items: SetItem[], index: number, song:
     ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : ""}`;
 }
 
+/** The key an item is played in: its song's key moved by the item's transpose, or "". */
+export function itemKey(songKey: string | null | undefined, transpose: number): string {
+  return songKey?.trim() ? transposeChord(songKey.trim(), transpose) : "";
+}
+
+/** The key at the end of a set's song row. */
+export function keyCell(songKey: string | null | undefined, transpose: number): string {
+  const key = itemKey(songKey, transpose);
+  return key ? `<span class="row-key" aria-label="Key ${escapeHtml(key)}">${escapeHtml(key)}</span>` : "";
+}
+
 export function itemTitle(item: SetItem): string {
   if (item.kind === "blank") return "Blank screen";
   return item.song?.title ?? "Deleted song";
@@ -118,7 +131,7 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
         <a class="list-row" href="#/sets/${set.id}/play/${index}">
           <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>
             <small>${[item.song?.song_number ? `No. ${escapeHtml(item.song.song_number)}` : "", item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "", escapeHtml(item.note)].filter(Boolean).join(" · ") || "&nbsp;"}</small></span>
-          ${icon("next")}
+          ${keyCell(item.song?.song_key, item.transpose)}${icon("next")}
         </a></li>`).join("")}</ol>`
     : emptyState("This set is empty", ctx.canEdit ? "Edit the set to add songs." : "A leader has not added songs yet.")}
   <p class="fine-print">Updated ${new Date(set.updated_at).toLocaleString()} · version ${set.version}</p>`;
@@ -284,7 +297,7 @@ async function openShareSheet(ctx: AppContext, set: SetDetail, onChange: (shared
 interface Draft {
   name: string;
   service_date: string | null;
-  items: Array<SetItemInput & { id: string; title: string; subtitle: string }>;
+  items: Array<SetItemInput & { id: string; title: string; subtitle: string; songKey?: string | null }>;
 }
 
 /**
@@ -313,6 +326,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
           transpose: item.transpose,
           note: item.note,
           title: itemTitle(item),
+          songKey: item.song?.song_key ?? null,
           // A transpose made elsewhere (the desktop, "Add to a set") is kept,
           // and so is a note; neither is edited here.
           subtitle: item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "",
@@ -334,6 +348,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       transpose: Number(query.get("transpose") ?? 0) || 0,
       note: "",
       title: song.title,
+      songKey: song.song_key,
       subtitle: Number(query.get("transpose")) ? `Transpose ${transposeLabel(Number(query.get("transpose")))}` : "",
     });
   }
@@ -378,15 +393,15 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
         const title = item.kind === "song" && item.song_id
           ? `<a class="edit-row-title" href="#/songs/${item.song_id}" data-title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>`
           : escapeHtml(item.title);
-        return `<li class="edit-row" data-index="${index}" data-key="${item.id}">
-        <div class="edit-row-main">
+        // Phones swipe a row left to delete it; a mouse has the × button.
+        return `<li class="edit-row" data-index="${index}" data-key="${item.id}" data-swipe-row>${swipeRow(`<div class="edit-row-main">
           <button type="button" class="grip" data-grip aria-label="Move ${name}: drag, or use the up and down arrow keys" title="Drag to reorder">${icon("grip")}</button>
           <span class="row-main"><strong>${title}</strong>${item.subtitle ? `<small>${escapeHtml(item.subtitle)}</small>` : ""}</span>
+          ${keyCell(item.songKey, item.transpose ?? 0)}
           <div class="row-tools">
-            <button type="button" class="icon-button small danger" data-act="remove" aria-label="Remove: ${name}">${icon("close")}</button>
+            <button type="button" class="icon-button small danger swipe-alt" data-act="remove" aria-label="Remove: ${name}">${icon("close")}</button>
           </div>
-        </div>
-      </li>`;
+        </div>`, "Delete")}</li>`;
       }).join("")
       : `<li class="muted pad">No songs yet. Add them with + at the top.</li>`;
   }, () => {
@@ -418,15 +433,19 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     }
     const button = target.closest<HTMLButtonElement>("button[data-act='remove']");
     const row = button?.closest<HTMLElement>("[data-index]");
-    if (!button || !row) return;
+    if (button && row) removeItem(row);
+  });
+  const removeItem = (row: HTMLElement) => {
     const index = Number(row.dataset.index);
     const item = draft.items[index];
+    if (!item) return;
     focusIndex = index;
     focusKey = "";
     draft.items.splice(index, 1);
     announce(`${item.title} removed.`);
     renderItems();
-  });
+  };
+  const unbindSwipe = bindSwipeDelete(list, removeItem);
   // The grip moves its row with the arrow keys, too.
   list.addEventListener("keydown", (event) => {
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
@@ -448,6 +467,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       transpose: 0,
       note: "",
       title: song.title,
+      songKey: song.song_key,
       subtitle: "",
     });
     renderItems();
@@ -510,6 +530,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   return () => {
     unbindBar();
     unbindCurrent?.();
+    unbindSwipe();
   };
 }
 
@@ -700,7 +721,7 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
 export function openSongPicker(
   search: (query: string) => Promise<SongSummary[]>,
   inDraft: (songId: string) => number,
-  onPick: (song: { id: string; title: string; song_number: string | null }) => void,
+  onPick: (song: { id: string; title: string; song_number: string | null; song_key: string | null }) => void,
 ): void {
   const sheet = openSheet(`<h2>Add songs</h2>
     <div class="search-field">${icon("search")}<input type="search" id="picker-search" placeholder="Title, number or a line" aria-label="Search songs" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
@@ -717,7 +738,7 @@ export function openSongPicker(
       if (mine !== request) return;
       results.innerHTML = songs.slice(0, 50).map((song) => {
         const added = inDraft(song.id) > 0;
-        return `<button class="list-row${added ? " added" : ""}" data-song="${song.id}" data-title="${escapeHtml(song.title)}" data-number="${escapeHtml(song.song_number ?? "")}">
+        return `<button class="list-row${added ? " added" : ""}" data-song="${song.id}" data-title="${escapeHtml(song.title)}" data-number="${escapeHtml(song.song_number ?? "")}" data-song-key="${escapeHtml(song.song_key ?? "")}">
         <span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
         <span class="row-main"><strong>${escapeHtml(song.title)}</strong><small>${added ? "Already in this set · tap to add again" : escapeHtml(song.authors || "")}</small></span>${icon(added ? "check" : "plus")}
       </button>`;
@@ -734,7 +755,7 @@ export function openSongPicker(
     const row = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-song]");
     if (!row) return;
     const again = row.classList.contains("added");
-    onPick({ id: String(row.dataset.song), title: String(row.dataset.title), song_number: row.dataset.number || null });
+    onPick({ id: String(row.dataset.song), title: String(row.dataset.title), song_number: row.dataset.number || null, song_key: row.dataset.songKey || null });
     row.classList.add("added");
     const small = row.querySelector("small");
     if (small) small.textContent = "Already in this set · tap to add again";

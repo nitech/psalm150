@@ -48,7 +48,7 @@ on `SetSummary` and `SetDetail` says whether it is.
 A set holds at most 200 items (`MAX_SET_ITEMS`). Items are stored in request
 order (`position` 0, 1, 2 …).
 
-On read, each item carries `song: {revision_id, title, song_number, authors}`
+On read, each item carries `song: {revision_id, title, song_number, authors, song_key}`
 from the song's **current** revision. A song deleted after it was added stays
 in the set with its `song_id`, but `song` is `null`. The web client shows it
 as "Deleted song". A set does not pin a revision: an edited song shows its new

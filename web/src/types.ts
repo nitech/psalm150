@@ -186,6 +186,8 @@ export interface SetSongRef {
   title: string;
   song_number: string | null;
   authors: string;
+  /** The song's key as written, before the item's transpose. */
+  song_key: string | null;
 }
 
 export interface SetItem {

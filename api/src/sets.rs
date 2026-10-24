@@ -539,6 +539,7 @@ struct ItemRow {
     title: Option<String>,
     song_number: Option<String>,
     authors: Option<String>,
+    song_key: Option<String>,
 }
 
 pub async fn fetch_set(
@@ -574,7 +575,7 @@ pub(crate) async fn fetch_items(
 ) -> Result<HashMap<Uuid, Vec<SetItem>>, AppError> {
     let rows = sqlx::query_as::<_, ItemRow>(
         "SELECT i.set_id, i.id, i.kind, i.song_id, i.transpose, i.note,
-                r.id AS revision_id, r.title, r.song_number, r.authors
+                r.id AS revision_id, r.title, r.song_number, r.authors, r.song_key
          FROM song_set_items i
          LEFT JOIN songs s
            ON s.id = i.song_id AND s.church_id = $1 AND s.deleted_at IS NULL
@@ -597,6 +598,7 @@ pub(crate) async fn fetch_items(
                 title,
                 song_number: row.song_number,
                 authors: row.authors.unwrap_or_default(),
+                song_key: row.song_key,
             }),
             _ => None,
         };
