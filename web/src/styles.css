@@ -179,7 +179,7 @@ body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
 
 .shell { min-height: 100dvh; }
 .page { width: min(100%, 760px); margin: 0 auto; padding: 0 var(--page-pad) calc(var(--tabbar-h) + var(--dock-h) + 24px); }
-.page > :first-child:not(.app-bar, .play) { margin-top: var(--psa-space-4); }
+.page > :first-child:not(.app-bar, .play, .swipe-view) { margin-top: var(--psa-space-4); }
 /* The page itself takes focus only as a place to start reading (after a
    sheet closes, the skip link); it is not a control, so no ring. */
 .page:focus, .page:focus-visible { outline: none; box-shadow: none; }
@@ -240,7 +240,7 @@ button.tab:not(.on) { background: none; }
   .tab:hover { background: var(--psa-bg-surface); color: var(--psa-text); }
   .tab.on { background: var(--psa-accent-soft); }
   .page { padding-bottom: calc(var(--dock-h) + var(--psa-space-8)); }
-  .page > :first-child:not(.app-bar, .play) { margin-top: var(--psa-space-8); }
+  .page > :first-child:not(.app-bar, .play, .swipe-view) { margin-top: var(--psa-space-8); }
 }
 /* Light theme on wide screens: the rail is the grey ground and the page is
    white. `--rail-bg` keeps the root's grey after the body takes white. */
@@ -458,15 +458,22 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .edit-row { padding: var(--psa-space-2) var(--psa-space-3); }
 .edit-row-main { display: flex; align-items: center; gap: var(--psa-space-2); min-height: 48px; }
 .row-tools { display: flex; gap: 4px; }
-.grip { display: grid; place-items: center; width: 36px; height: 44px; margin-left: -6px; flex: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
+.grip { display: grid; place-items: center; width: 36px; height: 44px; margin-left: -6px; padding: 0; flex: none; border: 0; border-radius: var(--psa-radius-xs); background: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
+.grip:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+/* A song's title opens the song. */
+.edit-row-title { color: inherit; text-decoration: none; }
+@media (hover: hover) { .edit-row-title:hover { text-decoration: underline; } }
 /* The title takes two lines before it is cut. */
 .edit-row .row-main strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
-/* Reordering (sets.ts): the row picked up floats as a ghost under the finger,
-   the others slide aside to open a gap where it will land, and on letting go
-   the ghost settles into that gap. */
-.list.reordering > .edit-row { transition: transform 200ms var(--psa-ease-standard); }
-.list.reordering > .edit-row.drag-origin { z-index: 1; background: var(--psa-bg-sunken); box-shadow: inset 0 0 0 2px var(--psa-border-strong); border-radius: calc(var(--psa-radius-md) - 4px); }
+/* Reordering (sets.ts): the row picked up floats as a ghost under the finger
+   and its place shrinks to a green line with room around it; the others
+   slide aside so the line is where it will land. On letting go the place
+   opens to a full row and the ghost settles into it. */
+.list.reordering > .edit-row { transition: transform 200ms var(--psa-ease-standard), height 200ms var(--psa-ease-standard); }
+.list.reordering > .edit-row.drag-origin { position: relative; z-index: 1; overflow: hidden; padding-block: 0; border-top-color: transparent; background: none; }
 .list.reordering > .edit-row.drag-origin > * { visibility: hidden; }
+.list.reordering > .edit-row.drag-origin::after { content: ""; position: absolute; left: var(--psa-space-3); right: var(--psa-space-3); top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--psa-accent); transition: opacity 150ms; }
+.list.landing > .edit-row.drag-origin::after { opacity: 0; }
 .drag-ghost { position: fixed; z-index: 80; margin: 0; list-style: none; pointer-events: none; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); box-shadow: 0 12px 28px rgb(0 0 0 / 0.22), 0 4px 10px rgb(0 0 0 / 0.12); opacity: 0.96; will-change: transform; }
 .drag-ghost .grip { cursor: grabbing; color: var(--psa-accent-text); }
 .drag-ghost.settling { transition: transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1.1), box-shadow 220ms; box-shadow: var(--psa-shadow-sm); }
@@ -962,11 +969,21 @@ body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px 
 @keyframes vt-to-right { to { transform: translateX(100%); } }
 @keyframes vt-to-left-part { to { transform: translateX(-28%); opacity: 0.6; } }
 
-/* Swiping through a set: the item (not the bars) follows the finger. */
-.play { touch-action: pan-y; }
-.play.dragging > :not(.app-bar, .play-nav),
-.play.settling > :not(.app-bar, .play-nav) { transform: translateX(var(--drag, 0px)); will-change: transform; }
-.play.settling > :not(.app-bar, .play-nav) { transition: transform 240ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+/* Swiping through songs (a set, a list): the song (not the bars) follows the
+   finger, and the neighbour (.swipe-peek) comes in beside it. */
+.swipe-view { position: relative; touch-action: pan-y; }
+.page:has(> .swipe-view) { overflow-x: clip; }
+.swipe-view.dragging > :not(.app-bar, .play-nav),
+.swipe-view.settling > :not(.app-bar, .play-nav) { transform: translateX(var(--drag, 0px)); will-change: transform; }
+.swipe-view.settling > :not(.app-bar, .play-nav) { transition: transform 240ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+.swipe-peek { position: absolute; width: 100%; pointer-events: none; }
+.swipe-peek .page-titles { margin-top: 0; }
+.swipe-peek .peek-back { display: flex; align-items: center; gap: var(--psa-space-2); padding-top: 30vh; justify-content: center; color: var(--psa-text-secondary); font-size: 17px; font-weight: 600; }
+.swipe-peek .peek-back .icon { width: 22px; height: 22px; }
+/* A list's songs, one after another: phones swipe, mice step with these
+   (under the song, clear of the current set's card). */
+.song-nav { display: grid; grid-template-columns: 1fr 1fr; gap: var(--psa-space-2); margin: var(--psa-space-6) 0 var(--psa-space-4); }
+@media (pointer: coarse) { .song-nav { display: none; } }
 
 /* The installed app's swipe back: the screen follows the finger. `left`
    rather than a transform, so the fixed bars inside stay where they are. */

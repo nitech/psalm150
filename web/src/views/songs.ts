@@ -4,6 +4,8 @@ import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type L
 import { groupSets } from "../current-set.ts";
 import { barActions, bindBarActions, setSwitch, type BarAction } from "../bar-menu.ts";
 import { canKeepScreenOn, holdScreen, keepScreenOn, setKeepScreenOn } from "../wake-lock.ts";
+import { endSequence, songNeighbours, stepSequence } from "../song-sequence.ts";
+import { bindItemSwipe } from "../transitions.ts";
 import { mountChordEditor } from "../chord-editor.ts";
 import type { DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
@@ -18,7 +20,7 @@ import {
   songText,
   stepTranspose,
 } from "../song-render.ts";
-import type { KeyMode, OnlineSong, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
+import type { KeyMode, OnlineSong, SongDetail, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
 import { copyText, errorMessage, escapeHtml, readPreference, searchClear, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
@@ -54,7 +56,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     <button type="button" class="filter-toggle" id="key-filter" aria-haspopup="dialog"></button>
   </div>
   <div class="filter-summary" id="filter-summary" hidden></div>
-  <ul class="list" id="song-results" aria-label="Songs"><li><p class="muted pad">Loading…</p></li></ul>
+  <ul class="list" id="song-results" aria-label="Songs" data-song-list><li><p class="muted pad">Loading…</p></li></ul>
   <div class="load-more" id="load-more" hidden><button class="button secondary" id="more-songs">Show more songs</button></div>`;
 
   const input = ctx.main.querySelector<HTMLInputElement>("#song-search")!;
@@ -473,10 +475,41 @@ function toggleInCurrentSet(ctx: LibraryContext, song: SongRef, transpose = 0): 
   }, { exclusive: false });
 }
 
+/** Songs read lately, so swiping to the next one in a list opens it at once. */
+const recentSongs = new Map<string, { song: SongDetail; at: number }>();
+const RECENT_MS = 120_000;
+/** The song a swipe or step is opening, which may come from `recentSongs`. */
+let steppingTo: string | null = null;
+
+async function readSong(ctx: LibraryContext, id: string, fresh = false): Promise<SongDetail> {
+  const recent = recentSongs.get(id);
+  if (!fresh && recent && Date.now() - recent.at < RECENT_MS) return recent.song;
+  const song = await ctx.api.getSong(id);
+  recentSongs.set(id, { song, at: Date.now() });
+  return song;
+}
+
+/** A song as it starts on its page, for the neighbour peeking in during a swipe. */
+function songPeek(song: SongDetail | null, title: string, options: ReturnType<typeof readReaderOptions>): string {
+  const heading = `<div class="page-titles"><h1>${escapeHtml(song?.title ?? title)}</h1></div>`;
+  if (!song) return heading;
+  const display = prepareSong(song.chordpro, 0);
+  const meta = [song.song_number ? `No. ${song.song_number}` : "", song.authors, keyLabel(display, 0)].filter(Boolean).map(escapeHtml).join(" · ");
+  return `${heading}${meta ? `<p class="page-meta">${meta}</p>` : ""}${renderSongBody(display, options)}`;
+}
+
 export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promise<Cleanup> {
-  const song = await ctx.api.getSong(songId);
+  // Read afresh, except when stepping through a list (just read, and fast).
+  const stepped = steppingTo === songId;
+  steppingTo = null;
+  const song = await readSong(ctx, songId, !stepped);
   const options = readReaderOptions();
   let transpose = 0;
+  // Opened from a list: its other songs are a swipe (or a step) away.
+  const around = songNeighbours(song.id);
+  for (const neighbour of [around?.next, around?.previous]) {
+    if (neighbour) void readSong(ctx, neighbour.id).catch(() => undefined);
+  }
 
   /** Fixed in the bar: + (or ✓) for the current set, when there is one. */
   const setToggle = () => {
@@ -507,16 +540,57 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     const display = prepareSong(song.chordpro, transpose);
     const meta = [song.song_number ? `No. ${song.song_number}` : "", song.authors, keyLabel(display, transpose)]
       .filter(Boolean).map(escapeHtml).join(" · ");
-    ctx.main.innerHTML = `${pageHead({
+    ctx.main.innerHTML = `<div class="swipe-view">${pageHead({
       title: song.title,
-      back: "#/songs",
+      back: around?.back ?? "#/songs",
       autohide: true,
       actions: actions(display),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
     ${renderSongBody(display, options)}
-    <p class="fine-print">Revision ${song.revision_id.slice(0, 8)} · Transposing here only changes what you see${ctx.canEdit ? " and what you add to a set" : ""}.</p>`;
+    ${songNav()}
+    <p class="fine-print">Revision ${song.revision_id.slice(0, 8)} · Transposing here only changes what you see${ctx.canEdit ? " and what you add to a set" : ""}.</p></div>`;
   };
+
+  /** Previous and Next under the song, for a mouse; phones swipe instead. */
+  const songNav = () => {
+    if (!around) return "";
+    const step = (way: "prev" | "next", label: string, title: string) => `<button type="button" class="play-step${way === "next" ? " next" : ""}" data-song-step="${way}" aria-label="${escapeHtml(`${label}: ${title}`)}">
+      ${way === "prev" ? icon("back") : ""}<span><small>${label}</small><strong>${escapeHtml(title)}</strong></span>${way === "next" ? icon("next") : ""}
+    </button>`;
+    return `<nav class="song-nav" aria-label="Songs in the list">
+      ${around.previous ? step("prev", "Previous", around.previous.title) : step("prev", "Back", "To the list")}
+      ${around.next ? step("next", "Next", around.next.title) : "<span></span>"}
+    </nav>`;
+  };
+
+  /** To the list's next (1) or previous (-1) song; back from the first one tapped, to the list. */
+  const goTo = (way: 1 | -1) => {
+    if (!around) return;
+    const target = way === 1 ? around.next : around.previous;
+    if (target) {
+      stepSequence(way);
+      steppingTo = target.id;
+      ctx.navigate(`#/songs/${target.id}`, true);
+    } else if (way === -1) {
+      endSequence();
+      // The list is the screen before this one: Back, so it keeps its place.
+      history.back();
+    }
+  };
+  const unbindSwipe = around
+    ? bindItemSwipe(ctx.main, { previous: true, next: Boolean(around.next) }, goTo, (way) => {
+      const target = way === 1 ? around.next : around.previous;
+      if (!target) return `<p class="peek-back">${icon("back")}Back to the list</p>`;
+      return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options);
+    })
+    : () => undefined;
+  const onKeys = (event: KeyboardEvent) => {
+    if (!around || (event.target as HTMLElement).closest("input, textarea, [contenteditable]") || event.altKey || event.metaKey || event.ctrlKey) return;
+    if (event.key === "ArrowRight" && around.next) goTo(1);
+    if (event.key === "ArrowLeft") goTo(-1);
+  };
+  document.addEventListener("keydown", onKeys);
 
   const unbindBar = bindBarActions(ctx.main);
   ctx.main.addEventListener("click", onSetAction);
@@ -524,6 +598,11 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     const target = event.target as HTMLElement;
     if (target.closest("[data-set-act='toggle']")) {
       toggleInCurrentSet(ctx, song, transpose);
+      return;
+    }
+    const step = target.closest<HTMLElement>("[data-song-step]")?.dataset.songStep;
+    if (step) {
+      goTo(step === "next" ? 1 : -1);
       return;
     }
     const reader = onReaderAction(ctx.main, target, options, {
@@ -563,6 +642,8 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const releaseScreen = holdScreen();
   return () => {
     releaseScreen();
+    unbindSwipe();
+    document.removeEventListener("keydown", onKeys);
     ctx.main.removeEventListener("click", onSetAction);
     unbindBar();
     unsubscribe();

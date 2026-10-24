@@ -27,7 +27,9 @@ function wanted(): boolean {
  */
 export function swapScreen(kind: Slide, update: () => void): void {
   const doc = document as ViewTransitionDocument;
-  if (!kind || !doc.startViewTransition || !wanted()) {
+  const skip = slideDone;
+  slideDone = false;
+  if (!kind || skip || !doc.startViewTransition || !wanted()) {
     update();
     return;
   }
@@ -46,6 +48,18 @@ export function swapScreen(kind: Slide, update: () => void): void {
     delete root.dataset.slide;
     update();
   }
+}
+
+/** The next screen is already in place (a swipe moved it there). */
+let slideDone = false;
+let slideDoneTimer = 0;
+
+/** The next `swapScreen` swaps without sliding; for a screen a swipe already brought in. */
+export function skipNextSlide(): void {
+  slideDone = true;
+  window.clearTimeout(slideDoneTimer);
+  // Only for the change about to happen.
+  slideDoneTimer = window.setTimeout(() => { slideDone = false; }, 1500);
 }
 
 /**
@@ -93,26 +107,57 @@ export function installedApp(): boolean {
     || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
+/** Space between the screen and the neighbour peeking in beside it. */
+const PEEK_GAP = 32;
+
 /**
- * Swiping sideways through a set's items: the item follows the finger
- * (`.play` gets `--drag`), springs back on a short swipe, and on a long or
- * quick one `go` moves to the neighbour, whose slide starts where the finger
- * let go. Vertical scrolling is left to the browser (`touch-action: pan-y`),
- * and in the browser a touch at the very left edge is left for its Back.
+ * Swiping sideways through songs (a set's items, a list's songs): the screen
+ * (`.swipe-view`, which gets `--drag`) follows the finger, and with `peek`
+ * the neighbour comes in beside it, so you see where you are going. A short
+ * swipe springs back; a long or quick one moves on: with `peek` the
+ * neighbour slides all the way in and `go` swaps it in without another
+ * slide, else `go`'s own slide starts where the finger let go. Vertical
+ * scrolling is left to the browser (`touch-action: pan-y`), and in the
+ * browser a touch at the very left edge is left for its Back.
  */
 export function bindItemSwipe(
   root: HTMLElement,
   neighbours: { previous: boolean; next: boolean },
   go: (step: 1 | -1) => void,
+  peek?: (step: 1 | -1) => string,
 ): () => void {
   let startX = 0;
   let startY = 0;
   let startTime = 0;
   let offset = 0;
-  let mode: "off" | "maybe" | "drag" = "off";
-  const play = () => root.querySelector<HTMLElement>(".play");
+  let mode: "off" | "maybe" | "drag" | "leaving" = "off";
+  let peeking: 1 | -1 | 0 = 0;
+  const view = () => root.querySelector<HTMLElement>(".swipe-view");
+
+  /** Puts the neighbour `step` beside the screen, level with the top of the window. */
+  const showPeek = (step: 1 | -1 | 0) => {
+    if (step === peeking) return;
+    peeking = step;
+    const element = view();
+    element?.querySelector(".swipe-peek")?.remove();
+    if (!element || !step || !peek) return;
+    const free = step === 1 ? neighbours.next : neighbours.previous;
+    if (!free) return;
+    const panel = document.createElement("div");
+    panel.className = "swipe-peek";
+    panel.setAttribute("aria-hidden", "true");
+    panel.innerHTML = peek(step);
+    const box = element.getBoundingClientRect();
+    const first = element.querySelector<HTMLElement>(":scope > :not(.app-bar, .play-nav, .swipe-peek)");
+    const firstTop = first ? first.getBoundingClientRect().top - box.top : 0;
+    const bar = element.querySelector<HTMLElement>(":scope > .app-bar")?.getBoundingClientRect().bottom ?? 0;
+    panel.style.top = `${Math.max(firstTop, Math.max(0, bar) - box.top + 12)}px`;
+    panel.style.left = `${step * (box.width + PEEK_GAP)}px`;
+    element.append(panel);
+  };
 
   const start = (event: TouchEvent) => {
+    if (mode === "leaving") return;
     mode = "off";
     if (event.touches.length !== 1 || root.closest("body")?.querySelector("dialog[open]")) return;
     startX = event.touches[0].clientX;
@@ -124,7 +169,7 @@ export function bindItemSwipe(
     mode = "maybe";
   };
   const move = (event: TouchEvent) => {
-    if (mode === "off") return;
+    if (mode !== "maybe" && mode !== "drag") return;
     const dx = event.touches[0].clientX - startX;
     const dy = event.touches[0].clientY - startY;
     if (mode === "maybe") {
@@ -134,32 +179,47 @@ export function bindItemSwipe(
       }
       if (Math.abs(dx) < 10) return;
       mode = "drag";
-      play()?.classList.remove("settling");
-      play()?.classList.add("dragging");
+      view()?.classList.remove("settling");
+      view()?.classList.add("dragging");
     }
     // Past the first or last item it gives a little, like a rubber band.
     const free = dx < 0 ? neighbours.next : neighbours.previous;
     offset = free ? dx : dx * 0.25;
-    play()?.style.setProperty("--drag", `${offset}px`);
+    showPeek(dx < 0 ? 1 : dx > 0 ? -1 : 0);
+    view()?.style.setProperty("--drag", `${offset}px`);
   };
   const end = (event: TouchEvent) => {
     if (mode !== "drag") {
-      mode = "off";
+      if (mode !== "leaving") mode = "off";
       return;
     }
     mode = "off";
-    const element = play();
+    const element = view();
     const step = offset < 0 ? 1 : -1;
     const free = step === 1 ? neighbours.next : neighbours.previous;
     const speed = Math.abs(offset) / Math.max(1, event.timeStamp - startTime);
     if (free && (Math.abs(offset) > window.innerWidth * 0.22 || (Math.abs(offset) > 30 && speed > 0.35))) {
-      // Leave it where the finger let go; the slide to the neighbour starts there.
-      go(step);
+      if (!peek || !element) {
+        // Leave it where the finger let go; the slide to the neighbour starts there.
+        go(step);
+        return;
+      }
+      // The neighbour slides all the way in, then takes the screen's place.
+      mode = "leaving";
+      element.classList.replace("dragging", "settling");
+      element.style.setProperty("--drag", `${-step * (element.getBoundingClientRect().width + PEEK_GAP)}px`);
+      window.setTimeout(() => {
+        skipNextSlide();
+        go(step);
+      }, 230);
       return;
     }
     element?.classList.replace("dragging", "settling");
     element?.style.setProperty("--drag", "0px");
-    window.setTimeout(() => element?.classList.remove("settling"), 260);
+    window.setTimeout(() => {
+      element?.classList.remove("settling");
+      if (mode === "off") showPeek(0);
+    }, 260);
   };
   root.addEventListener("touchstart", start, { passive: true });
   root.addEventListener("touchmove", move, { passive: true });

@@ -15,7 +15,7 @@ import {
 } from "../song-render.ts";
 import type { SetItem, SharedSet, SharedSetLive, SongDetail } from "../types.ts";
 import { errorMessage, escapeHtml, serviceDate, showToast, startPolling, transposeLabel } from "../ui.ts";
-import { itemTitle, openSongPicker, playNav } from "./sets.ts";
+import { itemPeek, itemTitle, openSongPicker, playNav } from "./sets.ts";
 import { bindItemSwipe, swapScreen, type Slide } from "../transitions.ts";
 import { holdScreen } from "../wake-lock.ts";
 
@@ -229,7 +229,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       const transpose = stepTranspose(item.transpose, extraTranspose);
       const display = song ? prepareSong(song.chordpro, transpose) : null;
       const key = display ? keyLabel(display, transpose) : "";
-      main.innerHTML = `<div class="play">
+      main.innerHTML = `<div class="play swipe-view">
         ${pageHead({
           title: itemTitle(item),
           subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
@@ -259,7 +259,10 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     main.addEventListener("click", onBar);
 
     // Swipe sideways (the item follows the finger), or the arrow keys.
-    const unbindSwipe = bindItemSwipe(main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step));
+    const unbindSwipe = bindItemSwipe(main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step), (step) => {
+      const neighbour = set.items[index + step];
+      return itemPeek(set.name, set.items, index + step, neighbour?.song_id ? songs.get(neighbour.song_id) : null, options);
+    });
     // The neighbours' songs, read now so a swipe to them opens at once.
     for (const neighbour of [set.items[index + 1], set.items[index - 1]]) {
       if (neighbour?.song_id) void loadSong(neighbour.song_id).catch(() => undefined);

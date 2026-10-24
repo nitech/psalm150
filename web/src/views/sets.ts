@@ -7,6 +7,7 @@ import {
   keyLabel,
   prepareSong,
   readReaderOptions,
+  type ReaderOptions,
   renderSongBody,
 } from "../song-render.ts";
 import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetLive, SetShare, SetSummary, SongDetail, SongSummary } from "../types.ts";
@@ -27,6 +28,7 @@ import {
 import { closeSheet, openSheet } from "./songs.ts";
 import { bindItemSwipe } from "../transitions.ts";
 import { holdScreen } from "../wake-lock.ts";
+import { barActions, bindBarActions } from "../bar-menu.ts";
 
 function setRow(set: SetSummary, currentId?: string): string {
   return `<li><a class="list-row" href="#/sets/${set.id}">
@@ -54,6 +56,20 @@ export async function setList(ctx: AppContext): Promise<void> {
   ${past.length ? `<h2 class="list-heading" id="sets-past">Earlier</h2>${rows(past, "sets-past")}` : ""}`;
 }
 
+/**
+ * An item of a set as its service view starts, for the neighbour peeking in
+ * beside it while swiping. `song` is null while not read yet.
+ */
+export function itemPeek(setName: string, items: SetItem[], index: number, song: SongDetail | null | undefined, options: ReaderOptions): string {
+  const item = items[index];
+  const display = song ? prepareSong(song.chordpro, item.transpose) : null;
+  const key = display ? keyLabel(display, item.transpose) : "";
+  return `<div class="page-titles"><p class="eyebrow">${escapeHtml(`${setName} · ${index + 1} of ${items.length}`)}</p><h1>${escapeHtml(itemTitle(item))}</h1></div>
+    ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
+    ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
+    ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : ""}`;
+}
+
 export function itemTitle(item: SetItem): string {
   if (item.kind === "blank") return "Blank screen";
   return item.song?.title ?? "Deleted song";
@@ -63,22 +79,14 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
   const set = await ctx.api.getSet(setId);
   setTitle(set.name, "Sets");
   const over = Boolean(set.service_date && set.service_date < today());
-  // The current set's card is hidden here, so a switch in the bar says
-  // whether this is the current set and turns it on or off. A set whose
-  // service is over can stop being current but not become it again.
-  const isCurrent = () => ctx.currentSet.value?.id === set.id;
-  const currentToggle = () => {
-    if (!isCurrent() && over) return "";
-    const label = isCurrent() ? "The current set: tap to stop using it" : "Make this the current set";
-    return `<button type="button" class="icon-button ghost${isCurrent() ? " on" : ""}" data-current aria-pressed="${isCurrent()}" aria-label="${label}" title="${label}">${icon("setlist")}</button>`;
-  };
+  const current = currentSetToggle(ctx, set, over);
   /** The share button looks switched on while the set is shared. */
   const shareLabel = () => set.shared ? "Shared on a link: manage the link" : "Share on a link";
   ctx.main.innerHTML = `${pageHead({
     title: set.name,
     subtitle: serviceDate(set.service_date, true),
     back: "#/sets",
-    actions: `<span id="current-toggle">${currentToggle()}</span>${ctx.canEdit
+    actions: `${current.html}${ctx.canEdit
       ? `<button type="button" class="icon-button ghost${set.shared ? " on" : ""}" data-share aria-label="${shareLabel()}" title="${shareLabel()}">${icon("share")}</button>
          <a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="Edit set">${icon("edit")}</a>`
       : ""}`,
@@ -100,22 +108,43 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     shareButton.setAttribute("aria-label", shareLabel());
     shareButton.title = shareLabel();
   })));
-  const toggle = ctx.main.querySelector<HTMLElement>("#current-toggle")!;
-  toggle.addEventListener("click", (event) => {
-    if (!(event.target as HTMLElement).closest("[data-current]")) return;
-    void ctx.run(async () => {
-      if (isCurrent()) {
-        await ctx.currentSet.dismiss();
-        announce(`${set.name} is no longer the current set.`);
-      } else {
-        await ctx.currentSet.choose(set.id);
-        announce(`${set.name} is the current set.`);
-      }
-    });
-  });
-  return ctx.currentSet.subscribe(() => {
-    keepFocus(toggle, () => { toggle.innerHTML = currentToggle(); }, () => toggle.querySelector<HTMLElement>("button"));
-  });
+  return current.bind(ctx.main);
+}
+
+/**
+ * The current set's card is hidden on a set's own screens, so a switch in
+ * their bar says whether this is the current set (pressed) and turns it on
+ * or off. A set whose service is over can stop being current but not
+ * become it again. `bind` returns the cleanup.
+ */
+function currentSetToggle(ctx: AppContext, set: { id: string; name: string }, over: boolean): { html: string; bind: (root: HTMLElement) => Cleanup } {
+  const isCurrent = () => ctx.currentSet.value?.id === set.id;
+  const inner = () => {
+    if (!isCurrent() && over) return "";
+    const label = isCurrent() ? "The current set: tap to stop using it" : "Make this the current set";
+    return `<button type="button" class="icon-button ghost${isCurrent() ? " on" : ""}" data-current aria-pressed="${isCurrent()}" aria-label="${label}" title="${label}">${icon("setlist")}</button>`;
+  };
+  return {
+    html: `<span class="current-toggle">${inner()}</span>`,
+    bind: (root) => {
+      const toggle = root.querySelector<HTMLElement>(".current-toggle")!;
+      toggle.addEventListener("click", (event) => {
+        if (!(event.target as HTMLElement).closest("[data-current]")) return;
+        void ctx.run(async () => {
+          if (isCurrent()) {
+            await ctx.currentSet.dismiss();
+            announce(`${set.name} is no longer the current set.`);
+          } else {
+            await ctx.currentSet.choose(set.id);
+            announce(`${set.name} is the current set.`);
+          }
+        });
+      });
+      return ctx.currentSet.subscribe(() => {
+        keepFocus(toggle, () => { toggle.innerHTML = inner(); }, () => toggle.querySelector<HTMLElement>("button"));
+      });
+    },
+  };
 }
 
 /** Where a shared set opens, for anyone with the link. */
@@ -236,13 +265,22 @@ interface Draft {
   items: Array<SetItemInput & { id: string; title: string; subtitle: string }>;
 }
 
-export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<void> {
+/**
+ * The editor's draft while one of its songs is open (a title tapped), so
+ * coming back finds it as it was. Taken once, by the editor of that set.
+ */
+let parkedDraft: { key: string; version: number | null; draft: Draft } | null = null;
+
+export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cleanup | void> {
   if (!ctx.canEdit) {
     ctx.navigate(setId ? `#/sets/${setId}` : "#/sets", true);
     return;
   }
   const existing = setId ? await ctx.api.getSet(setId, { fresh: true }) : null;
-  const draft: Draft = existing
+  const draftKey = existing?.id ?? "new";
+  const parked = parkedDraft?.key === draftKey && parkedDraft.version === (existing?.version ?? null) ? parkedDraft.draft : null;
+  parkedDraft = null;
+  const draft: Draft = parked ?? (existing
     ? {
         name: existing.name,
         service_date: existing.service_date,
@@ -258,14 +296,14 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
           subtitle: item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "",
         })),
       }
-    : { name: "", service_date: nextSunday(), items: [] };
+    : { name: "", service_date: nextSunday(), items: [] });
 
   // "New set…" from a song page starts the set with that song.
   const query = routeQuery();
   const startSong = query.get("song");
   // Only a song id: the value comes from the link and goes into an API path.
   const startedFromSong = Boolean(!existing && startSong && /^[0-9a-f-]{36}$/i.test(startSong));
-  if (startedFromSong) {
+  if (startedFromSong && !parked) {
     const song = await ctx.api.getSong(startSong!);
     draft.items.push({
       id: crypto.randomUUID(),
@@ -280,13 +318,19 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
 
   const back = existing ? `#/sets/${existing.id}` : "#/sets";
   setTitle(existing ? `Edit ${existing.name}` : "New set", "Sets");
-  // Back is Cancel; Delete and Save sit in the bar, always in reach.
+  // Back is Cancel. The bar: the current set switch, Add songs, ⋮ with
+  // Delete, and Save, always in reach.
+  const over = Boolean(existing?.service_date && existing.service_date < today());
+  const current = existing ? currentSetToggle(ctx, existing, over) : null;
+  const menu = existing ? barActions("set-edit", [{ id: "delete-set", label: "Delete set", icon: "trash" }], 0) : "";
   ctx.main.innerHTML = `${pageHead({
     title: existing ? "Edit set" : "New set",
     back,
     // On phones the title sits in the bar beside Back.
     compact: true,
-    actions: `${existing ? `<button type="button" class="icon-button ghost danger" id="delete-set" aria-label="Delete set" title="Delete set">${icon("trash")}</button>` : ""}
+    actions: `${current?.html ?? ""}
+      <button type="button" class="icon-button ghost" id="add-songs" aria-label="Add songs" title="Add songs">${icon("plus")}</button>
+      ${menu}
       <button class="button primary small" type="submit" form="set-form" id="save-set">${icon("check")}Save</button>`,
   })}
   <form class="set-form" id="set-form">
@@ -294,13 +338,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
       <label>Name<input name="name" required maxlength="200" value="${escapeHtml(draft.name)}" placeholder="Sunday morning" /></label>
       <label>Service date<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
     </div>
-    <div class="list-heading-row"><h2 class="list-heading" id="items-heading">Items</h2>
-      <div class="inline-actions">
-        <button type="button" class="button secondary small" id="add-blank" aria-label="Add a blank screen">${icon("blank")}Blank</button>
-        <button type="button" class="button secondary small" id="add-songs" aria-label="Add songs">${icon("plus")}Songs</button>
-      </div>
-    </div>
-    <ol class="list editable" id="draft-items" aria-labelledby="items-heading"></ol>
+    <ol class="list editable" id="draft-items" aria-label="Songs" data-song-list></ol>
     <p class="form-message" role="status"></p>
   </form>`;
 
@@ -309,79 +347,78 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
   const message = form.querySelector<HTMLElement>(".form-message")!;
   const saveButton = ctx.main.querySelector<HTMLButtonElement>("#save-set")!;
 
-  // Rows carry their item's id (`data-key`), so the button pressed keeps
+  // Rows carry their item's id (`data-key`), so the control in use keeps
   // focus when a move or removal redraws the list.
   const renderItems = () => keepFocus(list, () => {
     list.innerHTML = draft.items.length
       ? draft.items.map((item, index) => {
         const name = escapeHtml(`${index + 1}, ${item.title}`);
+        const title = item.kind === "song" && item.song_id
+          ? `<a class="edit-row-title" href="#/songs/${item.song_id}" data-title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>`
+          : escapeHtml(item.title);
         return `<li class="edit-row" data-index="${index}" data-key="${item.id}">
         <div class="edit-row-main">
-          <span class="grip" data-grip aria-hidden="true" title="Drag to reorder">${icon("grip")}</span>
-          <span class="row-main"><strong>${escapeHtml(item.title)}</strong>${item.subtitle ? `<small>${escapeHtml(item.subtitle)}</small>` : ""}</span>
+          <button type="button" class="grip" data-grip aria-label="Move ${name}: drag, or use the up and down arrow keys" title="Drag to reorder">${icon("grip")}</button>
+          <span class="row-main"><strong>${title}</strong>${item.subtitle ? `<small>${escapeHtml(item.subtitle)}</small>` : ""}</span>
           <div class="row-tools">
-            <button type="button" class="icon-button small" data-act="up" aria-label="Move up: ${name}" ${index === 0 ? "disabled" : ""}>${icon("up")}</button>
-            <button type="button" class="icon-button small" data-act="down" aria-label="Move down: ${name}" ${index === draft.items.length - 1 ? "disabled" : ""}>${icon("down")}</button>
             <button type="button" class="icon-button small danger" data-act="remove" aria-label="Remove: ${name}">${icon("close")}</button>
           </div>
         </div>
       </li>`;
       }).join("")
-      : `<li class="muted pad">No items yet. Add songs, or a blank screen for prayer or a reading.</li>`;
+      : `<li class="muted pad">No songs yet. Add them with + at the top.</li>`;
   }, () => {
-    // The button is now disabled (the row reached an end): another of the
-    // row's buttons. The row went: the next row's, else Add songs.
+    // The row went: the next row's Remove, else Add songs.
     const same = Array.from(list.querySelectorAll<HTMLElement>("[data-key]")).find((row) => row.dataset.key === focusKey);
     const rows = list.querySelectorAll<HTMLElement>("[data-index]");
     const near = same ?? rows[Math.min(focusIndex, rows.length - 1)];
-    return near?.querySelector<HTMLElement>("button[data-act]:not(:disabled)") ?? form.querySelector<HTMLElement>("#add-songs");
+    return near?.querySelector<HTMLElement>(same ? "[data-grip]" : "button[data-act]") ?? ctx.main.querySelector<HTMLElement>("#add-songs");
   });
-  /** The row of the last button pressed, for `renderItems`' fallback. */
+  /** The row of the last control used, for `renderItems`' fallback. */
   let focusIndex = 0;
   let focusKey = "";
   renderItems();
 
-  list.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-act]");
-    const row = button?.closest<HTMLElement>("[data-index]");
-    if (!button || !row) return;
-    const index = Number(row.dataset.index);
-    const item = draft.items[index];
-    focusIndex = index;
-    focusKey = item.id;
-    switch (button.dataset.act) {
-      case "up":
-        draft.items.splice(index - 1, 0, ...draft.items.splice(index, 1));
-        announce(`${item.title} moved to ${index} of ${draft.items.length}.`);
-        break;
-      case "down":
-        draft.items.splice(index + 1, 0, ...draft.items.splice(index, 1));
-        announce(`${item.title} moved to ${index + 2} of ${draft.items.length}.`);
-        break;
-      case "remove":
-        draft.items.splice(index, 1);
-        announce(`${item.title} removed.`);
-        break;
-    }
-    renderItems();
-  });
-  // Drag a row by its grip to reorder, with a mouse or a finger
-  // (`bindReorder`). Keyboards and screen readers use the arrow buttons.
-  bindReorder(list, (from, to) => {
+  const moveItem = (from: number, to: number) => {
     const [item] = draft.items.splice(from, 1);
     draft.items.splice(to, 0, item);
     focusIndex = to;
     focusKey = item.id;
     renderItems();
     announce(`${item.title} moved to ${to + 1} of ${draft.items.length}.`);
-  });
-  form.querySelector("#add-blank")?.addEventListener("click", () => {
-    draft.items.push({ id: crypto.randomUUID(), kind: "blank", note: "", transpose: 0, title: "Blank screen", subtitle: "" });
+  };
+  list.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    // A song's title opens it; the draft waits here until coming back.
+    if (target.closest(".edit-row-title")) {
+      parkedDraft = { key: draftKey, version: existing?.version ?? null, draft: { ...draft, ...formFields() } };
+      return;
+    }
+    const button = target.closest<HTMLButtonElement>("button[data-act='remove']");
+    const row = button?.closest<HTMLElement>("[data-index]");
+    if (!button || !row) return;
+    const index = Number(row.dataset.index);
+    const item = draft.items[index];
+    focusIndex = index;
+    focusKey = "";
+    draft.items.splice(index, 1);
+    announce(`${item.title} removed.`);
     renderItems();
-    announce(`Blank screen added as item ${draft.items.length}.`);
   });
+  // The grip moves its row with the arrow keys, too.
+  list.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    const row = (event.target as HTMLElement).closest("[data-grip]")?.closest<HTMLElement>("[data-index]");
+    if (!row) return;
+    event.preventDefault();
+    const index = Number(row.dataset.index);
+    const to = index + (event.key === "ArrowUp" ? -1 : 1);
+    if (to >= 0 && to < draft.items.length) moveItem(index, to);
+  });
+  // Drag a row by its grip to reorder, with a mouse or a finger (`bindReorder`).
+  bindReorder(list, moveItem);
   const inDraft = (songId: string) => draft.items.filter((item) => item.song_id === songId).length;
-  form.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker((search) => ctx.api.listSongs(search), inDraft, (song) => {
+  ctx.main.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker((search) => ctx.api.listSongs(search), inDraft, (song) => {
     draft.items.push({
       id: crypto.randomUUID(),
       kind: "song",
@@ -394,7 +431,14 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     renderItems();
   }));
 
-  ctx.main.querySelector("#delete-set")?.addEventListener("click", () => {
+  const formFields = () => {
+    const data = new FormData(form);
+    return { name: String(data.get("name") ?? ""), service_date: String(data.get("date") ?? "") || null };
+  };
+  const unbindBar = bindBarActions(ctx.main);
+  const unbindCurrent = current?.bind(ctx.main);
+  ctx.main.addEventListener("click", (event) => {
+    if (!(event.target as HTMLElement).closest("[data-action='delete-set']")) return;
     if (!existing || !confirm(`Delete “${existing.name}” for everyone?`)) return;
     void ctx.run(async () => {
       try {
@@ -441,6 +485,10 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
       message.textContent = errorMessage(error);
     }
   });
+  return () => {
+    unbindBar();
+    unbindCurrent?.();
+  };
 }
 
 /** Moves under this far before a press on the grip becomes a drag. */
@@ -451,8 +499,9 @@ const SCROLL_EDGE = 90;
 /**
  * Reordering a list by dragging its rows' grips (`[data-grip]` inside
  * `[data-index]` rows). The row picked up floats as a ghost under the pointer
- * and leaves a dashed gap; the rows it passes slide aside, so the gap is
- * always where it would land. Letting go settles the ghost into the gap, then
+ * and its place shrinks to a green line with half a row of room around it;
+ * the rows it passes slide aside, so the line is always where it would land.
+ * Letting go opens the room to a full row and settles the ghost into it, then
  * `onMove(from, to)` reorders and redraws (it is not called for a drop where
  * it started). Escape, or the browser taking the touch, puts it back.
  */
@@ -477,6 +526,13 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
       return { top: box.top + startScroll, height: box.height };
     });
     const height = boxes[from].height;
+    /** The room around the line while dragging. */
+    const room = Math.round(height / 2);
+    // Where every row sits once the dragged one has shrunk to the line.
+    const shrunk = boxes.map((box, index) => ({
+      top: index > from ? box.top - (height - room) : box.top,
+      height: index === from ? room : box.height,
+    }));
     const start = row.getBoundingClientRect();
     let pointerY = down.clientY;
     let to = from;
@@ -485,10 +541,20 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
 
     const dy = () => pointerY - down.clientY;
     const scrolled = () => window.scrollY - startScroll;
-    /** How far the gap is from where the row started. */
-    const gapOffset = () => to > from
-      ? boxes[to].top + boxes[to].height - height - boxes[from].top
-      : boxes[to].top - boxes[from].top;
+    /** How far the row's place moves to reach `to`, in `places` (full or shrunk rows). */
+    const placeOffset = (places: typeof boxes) => to > from
+      ? places[to].top + places[to].height - (places[from].top + places[from].height)
+      : places[to].top - places[from].top;
+    /** Moves the rows between `from` and `to` aside by `by`, and the row's place to `to`. */
+    const shiftRows = (by: number, places: typeof boxes) => {
+      rows.forEach((other, index) => {
+        let shift = 0;
+        if (index === from) shift = placeOffset(places);
+        else if (from < index && index <= to) shift = -by;
+        else if (to <= index && index < from) shift = by;
+        other.style.transform = shift ? `translate3d(0, ${shift}px, 0)` : "";
+      });
+    };
 
     const lift = () => {
       ghost = row.cloneNode(true) as HTMLElement;
@@ -500,7 +566,11 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
       Object.assign(ghost.style, { left: `${start.left}px`, top: `${start.top}px`, width: `${start.width}px`, height: `${start.height}px` });
       document.body.append(ghost);
       list.classList.add("reordering");
+      // The row's place shrinks to the line, smoothly.
+      row.style.height = `${height}px`;
+      void row.offsetHeight;
       row.classList.add("drag-origin");
+      row.style.height = `${room}px`;
       document.body.classList.add("reordering");
       if (down.pointerType === "touch") navigator.vibrate?.(8);
     };
@@ -509,19 +579,13 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
       if (!ghost) return;
       ghost.style.transform = `translate3d(0, ${dy()}px, 0) scale(1.02)`;
       const centre = boxes[from].top + height / 2 + dy() + scrolled();
-      const middle = (index: number) => boxes[index].top + boxes[index].height / 2;
+      const middle = (index: number) => shrunk[index].top + shrunk[index].height / 2;
       let next = from;
       while (next > 0 && centre < middle(next - 1)) next--;
       while (next < rows.length - 1 && centre > middle(next + 1)) next++;
-      if (next === to && row.style.transform) return;
+      if (next === to) return;
       to = next;
-      rows.forEach((other, index) => {
-        let shift = 0;
-        if (index === from) shift = gapOffset();
-        else if (from < index && index <= to) shift = -height;
-        else if (to <= index && index < from) shift = height;
-        other.style.transform = shift ? `translate3d(0, ${shift}px, 0)` : "";
-      });
+      shiftRows(room, shrunk);
     };
 
     // Near the top or bottom edge the page scrolls, faster the closer.
@@ -556,13 +620,14 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
         active = false;
         return;
       }
-      if (!drop) {
-        to = from;
-        rows.forEach((other) => { other.style.transform = ""; });
-      }
-      // Settle the ghost into the gap, then draw the list in its new order.
+      if (!drop) to = from;
+      // Open the place to a full row where it lands, settle the ghost into
+      // it, then draw the list in its new order.
+      list.classList.add("landing");
+      row.style.height = `${height}px`;
+      shiftRows(height, boxes);
       const settled = ghost;
-      const target = (to === from ? 0 : gapOffset()) - scrolled();
+      const target = placeOffset(boxes) - scrolled();
       settled.classList.add("settling");
       settled.style.transform = `translate3d(0, ${target}px, 0)`;
       const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -570,11 +635,12 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
       const land = () => {
         if (done) return;
         done = true;
-        list.classList.remove("reordering");
+        list.classList.remove("reordering", "landing");
         document.body.classList.remove("reordering");
         if (to !== from) onMove(from, to);
         else {
           row.classList.remove("drag-origin");
+          row.style.height = "";
           rows.forEach((other) => { other.style.transform = ""; });
         }
         settled.remove();
@@ -702,7 +768,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     renderedTarget = target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "";
     const key = display ? keyLabel(display, transpose) : "";
     const active = document.activeElement;
-    ctx.main.innerHTML = `<div class="play">
+    ctx.main.innerHTML = `<div class="play swipe-view">
       ${pageHead({
         title: itemTitle(item),
         subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
@@ -796,7 +862,10 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   };
 
   // Swipe sideways through the set; the item follows the finger.
-  const unbindSwipe = bindItemSwipe(ctx.main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step));
+  const unbindSwipe = bindItemSwipe(ctx.main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step), (step) => {
+    const neighbour = set.items[index + step];
+    return itemPeek(set.name, set.items, index + step, neighbour?.song_id ? songCache.get(neighbour.song_id) : null, options);
+  });
   // The neighbours' songs, read now so a swipe to them opens at once.
   for (const neighbour of [set.items[index + 1], set.items[index - 1]]) {
     if (neighbour?.song_id) void loadSong(ctx, songCache, neighbour.song_id).catch(() => undefined);
