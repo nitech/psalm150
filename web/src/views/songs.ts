@@ -19,7 +19,7 @@ import {
   stepTranspose,
 } from "../song-render.ts";
 import type { KeyMode, OnlineSong, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
-import { copyText, errorMessage, escapeHtml, readPreference, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
+import { copyText, errorMessage, escapeHtml, readPreference, searchClear, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
 let lastSearch = "";
@@ -46,7 +46,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   ctx.main.innerHTML = `${pageHead({ title: "Songs", church: ctx.libraryName, wideOnly: true })}
   <div class="search-bar">
     ${menuButton()}
-    <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" /></div>
+    <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" />${searchClear}</div>
     ${ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song" title="New song">${icon("plus")}</a>` : ""}
   </div>
   <div class="list-sort" id="song-sort" hidden>

@@ -4,7 +4,7 @@ import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.
 import { icon } from "../icons.ts";
 import type { RemoteCommandRequest, RemoteDesktop, SetDetail } from "../types.ts";
 import { groupSets } from "../current-set.ts";
-import { errorMessage, escapeHtml, relativeDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
+import { errorMessage, escapeHtml, relativeDate, searchClear, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
 
 /**
@@ -239,7 +239,7 @@ async function pickFromSet(ctx: AppContext, send: Send): Promise<void> {
 
 function pickSong(ctx: AppContext, send: Send): void {
   const sheet = openSheet(`<h2>Project a song</h2>
-    <div class="search-field">${icon("search")}<input type="search" id="remote-search" placeholder="Title, number or a line" aria-label="Search songs" autocomplete="off" enterkeyhint="search" /></div>
+    <div class="search-field">${icon("search")}<input type="search" id="remote-search" placeholder="Title, number or a line" aria-label="Search songs" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
     <div class="list" id="remote-results"></div>`);
   const input = sheet.querySelector<HTMLInputElement>("#remote-search")!;
   const results = sheet.querySelector<HTMLElement>("#remote-results")!;

@@ -289,3 +289,25 @@ export function writePreference(key: string, value: string | null): void {
     // Preferences are a convenience; ignore blocked storage.
   }
 }
+
+/**
+ * The × at the right of a search field, after its input: shown while the
+ * field has text (CSS), and `installSearchClear` empties the field on a tap.
+ */
+export const searchClear = `<button type="button" class="search-clear" aria-label="Clear search" title="Clear search">${icon("close")}</button>`;
+
+/**
+ * Empties the search field whose × was tapped, as if the text had been
+ * deleted (an `input` event, so its screen searches again), and keeps
+ * focus in it for the next search.
+ */
+export function installSearchClear(): void {
+  document.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest(".search-clear");
+    const input = button?.parentElement?.querySelector<HTMLInputElement>("input");
+    if (!input) return;
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+  });
+}

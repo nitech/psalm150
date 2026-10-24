@@ -9,7 +9,7 @@ import { installLyricsCopy } from "./song-render.ts";
 import { installedApp, slideBetween, swapScreen, takeBrowserAnimated } from "./transitions.ts";
 import "./install.ts";
 import type { SessionInfo, SetDetail, Session } from "./types.ts";
-import { dateBadge, errorMessage, escapeHtml, hideToast, readPreference, setFormBusy, showToast } from "./ui.ts";
+import { dateBadge, errorMessage, escapeHtml, hideToast, installSearchClear, readPreference, setFormBusy, showToast } from "./ui.ts";
 import { moreView } from "./views/more.ts";
 import { peopleView } from "./views/people.ts";
 import { apiDocs } from "./views/api-docs.ts";
@@ -47,6 +47,7 @@ for (const type of ["keydown", "pointerdown"]) {
 applyTheme();
 registerServiceWorker();
 installLyricsCopy();
+installSearchClear();
 openPermalink();
 
 /**

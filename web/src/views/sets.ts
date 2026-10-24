@@ -16,6 +16,7 @@ import {
   errorMessage,
   escapeHtml,
   readPreference,
+  searchClear,
   serviceDate,
   setFormBusy,
   showToast,
@@ -617,7 +618,7 @@ export function openSongPicker(
   onPick: (song: { id: string; title: string; song_number: string | null }) => void,
 ): void {
   const sheet = openSheet(`<h2>Add songs</h2>
-    <div class="search-field">${icon("search")}<input type="search" id="picker-search" placeholder="Title, number or a line" aria-label="Search songs" autocomplete="off" enterkeyhint="search" /></div>
+    <div class="search-field">${icon("search")}<input type="search" id="picker-search" placeholder="Title, number or a line" aria-label="Search songs" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
     <div class="list" id="picker-results"></div>
     <button class="button primary wide" id="picker-done">Done</button>`);
   const input = sheet.querySelector<HTMLInputElement>("#picker-search")!;

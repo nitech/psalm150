@@ -140,7 +140,14 @@ input:focus, textarea:focus { outline: none; border-color: var(--psa-accent); bo
 
 .search-field { position: relative; margin-bottom: var(--psa-space-4); }
 .search-field .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--psa-text-tertiary); pointer-events: none; }
-.search-field input { padding-left: 44px; border-radius: var(--psa-radius-full); }
+.search-field input { padding-left: 44px; padding-right: 44px; border-radius: var(--psa-radius-full); }
+.search-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+/* × at the right empties the field; shown only while there is text. */
+.search-clear { position: absolute; right: 4px; top: 50%; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--psa-text-tertiary); transform: translateY(-50%); }
+.search-field .search-clear .icon { position: static; width: 18px; height: 18px; transform: none; color: inherit; }
+.search-field input:placeholder-shown ~ .search-clear { display: none; }
+@media (hover: hover) { .search-clear:hover { color: var(--psa-text); background: var(--psa-bg-sunken); } }
+.search-clear:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
 /* The song list's top: search (and New), stuck to the top while the list scrolls. */
 .search-bar {
   position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: var(--psa-space-2);

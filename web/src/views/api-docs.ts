@@ -1,7 +1,7 @@
 import { announce, setTitle } from "../a11y.ts";
 import { emptyState, pageHead, type LibraryContext } from "../context.ts";
 import { icon } from "../icons.ts";
-import { escapeHtml, showToast } from "../ui.ts";
+import { escapeHtml, searchClear, showToast } from "../ui.ts";
 
 /**
  * `#/api` (also `/api/docs`): the server's API reference, drawn from its own
@@ -90,7 +90,7 @@ export async function apiDocs(ctx: LibraryContext): Promise<void> {
       <dt>Version</dt><dd>${escapeHtml(doc.info.version)} · <a href="/api/openapi.json" download="psa150-openapi.json">OpenAPI document (JSON)</a> for tools such as Postman or Swagger</dd>
     </dl>
   </section>
-  <div class="search-field">${icon("search")}<input type="search" id="api-search" placeholder="Path, method or words" aria-label="Search the API" autocomplete="off" enterkeyhint="search" /></div>
+  <div class="search-field">${icon("search")}<input type="search" id="api-search" placeholder="Path, method or words" aria-label="Search the API" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
   <div id="api-groups">
     ${groups.map((group) => `<section class="api-group" data-group aria-labelledby="api-group-${slug(group.name)}">
       <h2 class="list-heading" id="api-group-${slug(group.name)}">${escapeHtml(group.name)}</h2>
