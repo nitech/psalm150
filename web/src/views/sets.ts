@@ -19,7 +19,6 @@ import {
   readPreference,
   searchClear,
   serviceDate,
-  setFormBusy,
   showToast,
   startPolling,
   today,
@@ -300,22 +299,24 @@ interface Draft {
   items: Array<SetItemInput & { id: string; title: string; subtitle: string; songKey?: string | null }>;
 }
 
-/**
- * The editor's draft while one of its songs is open (a title tapped), so
- * coming back finds it as it was. Taken once, by the editor of that set.
- */
-let parkedDraft: { key: string; version: number | null; draft: Draft } | null = null;
+/** A save still on its way when the editor closed; the next editor waits for it. */
+let savingInBackground: Promise<unknown> = Promise.resolve();
+
+/** A set with no name is called by its date, as "25.10", like the sets people make by hand. */
+function defaultSetName(date: string | null): string {
+  if (!date) return "New set";
+  const [, month, day] = date.split("-");
+  return `${Number(day)}.${month}`;
+}
 
 export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cleanup | void> {
   if (!ctx.canEdit) {
     ctx.navigate(setId ? `#/sets/${setId}` : "#/sets", true);
     return;
   }
+  await savingInBackground.catch(() => undefined);
   const existing = setId ? await ctx.api.getSet(setId, { fresh: true }) : null;
-  const draftKey = existing?.id ?? "new";
-  const parked = parkedDraft?.key === draftKey && parkedDraft.version === (existing?.version ?? null) ? parkedDraft.draft : null;
-  parkedDraft = null;
-  const draft: Draft = parked ?? (existing
+  const draft: Draft = existing
     ? {
         name: existing.name,
         service_date: existing.service_date,
@@ -332,14 +333,14 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
           subtitle: item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "",
         })),
       }
-    : { name: "", service_date: nextSunday(), items: [] });
+    : { name: "", service_date: nextSunday(), items: [] };
 
   // "New set…" from a song page starts the set with that song.
   const query = routeQuery();
   const startSong = query.get("song");
   // Only a song id: the value comes from the link and goes into an API path.
   const startedFromSong = Boolean(!existing && startSong && /^[0-9a-f-]{36}$/i.test(startSong));
-  if (startedFromSong && !parked) {
+  if (startedFromSong) {
     const song = await ctx.api.getSong(startSong!);
     draft.items.push({
       id: crypto.randomUUID(),
@@ -355,24 +356,22 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
 
   const back = existing ? `#/sets/${existing.id}` : "#/sets";
   setTitle(existing ? `Edit ${existing.name}` : "New set", "Sets");
-  // Back is Cancel. The bar: the current set switch, Add songs, ⋮ with
-  // Delete, and Save, always in reach.
-  const over = Boolean(existing?.service_date && existing.service_date < today());
-  const current = existing ? currentSetToggle(ctx, existing, over) : null;
-  const menu = existing ? barActions("set-edit", [{ id: "delete-set", label: "Delete set", icon: "trash" }], 0) : "";
+  // Every change is saved as it is made, so there is no Save: Back is Done.
+  // The bar: the current set switch, Add songs, ⋮ with Delete, and whether
+  // the last change is saved.
   ctx.main.innerHTML = `${pageHead({
     title: existing ? "Edit set" : "New set",
     back,
     // On phones the title sits in the bar beside Back.
     compact: true,
-    actions: `${current?.html ?? ""}
+    actions: `<span class="set-edit-actions"></span>
       <button type="button" class="icon-button ghost" id="add-songs" aria-label="Add songs" title="Add songs">${icon("plus")}</button>
-      ${menu}
-      <button class="button primary small" type="submit" form="set-form" id="save-set">${icon("check")}Save</button>`,
+      <span class="set-edit-menu"></span>
+      <span class="save-status" id="save-status" role="status"></span>`,
   })}
   <form class="set-form" id="set-form">
     <div class="set-form-row">
-      <label>Name<input name="name" required maxlength="200" value="${escapeHtml(draft.name)}" placeholder="Sunday morning" /></label>
+      <label>Name<input name="name" maxlength="200" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(defaultSetName(draft.service_date))}" /></label>
       <label>Service date<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
     </div>
     <ol class="list editable" id="draft-items" aria-label="Songs" data-song-list></ol>
@@ -382,7 +381,9 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   const form = ctx.main.querySelector<HTMLFormElement>("#set-form")!;
   const list = form.querySelector<HTMLOListElement>("#draft-items")!;
   const message = form.querySelector<HTMLElement>(".form-message")!;
-  const saveButton = ctx.main.querySelector<HTMLButtonElement>("#save-set")!;
+  const status = ctx.main.querySelector<HTMLElement>("#save-status")!;
+  const nameInput = form.querySelector<HTMLInputElement>("input[name='name']")!;
+  const dateInput = form.querySelector<HTMLInputElement>("input[name='date']")!;
 
   // Rows carry their item's id (`data-key`), so the control in use keeps
   // focus when a move or removal redraws the list.
@@ -423,14 +424,12 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     focusKey = item.id;
     renderItems();
     announce(`${item.title} moved to ${to + 1} of ${draft.items.length}.`);
+    save();
   };
   list.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    // A song's title opens it; the draft waits here until coming back.
-    if (target.closest(".edit-row-title")) {
-      parkedDraft = { key: draftKey, version: existing?.version ?? null, draft: { ...draft, ...formFields() } };
-      return;
-    }
+    // A song's title opens it; anything still waiting is saved on the way.
+    if (target.closest(".edit-row-title")) return;
     const button = target.closest<HTMLButtonElement>("button[data-act='remove']");
     const row = button?.closest<HTMLElement>("[data-index]");
     if (button && row) removeItem(row);
@@ -444,6 +443,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     draft.items.splice(index, 1);
     announce(`${item.title} removed.`);
     renderItems();
+    save();
   };
   const unbindSwipe = bindSwipeDelete(list, removeItem);
   // The grip moves its row with the arrow keys, too.
@@ -471,21 +471,133 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       subtitle: "",
     });
     renderItems();
+    save();
   }));
 
-  const formFields = () => {
-    const data = new FormData(form);
-    return { name: String(data.get("name") ?? ""), service_date: String(data.get("date") ?? "") || null };
+  // ── Saving as you go ──
+  /** The set as saved: none yet for a new set until its first change. */
+  let saved: { id: string; version: number } | null = existing ? { id: existing.id, version: existing.version } : null;
+  let timer = 0;
+  let running: Promise<void> | null = null;
+  let again = false;
+  /** Someone else saved meanwhile: stop, rather than overwrite their change. */
+  let stale = false;
+  let statusTimer = 0;
+  const showStatus = (text: string, fade = false) => {
+    window.clearTimeout(statusTimer);
+    status.textContent = text;
+    status.classList.toggle("shown", Boolean(text));
+    if (fade) statusTimer = window.setTimeout(() => status.classList.remove("shown"), 1600);
   };
+  const input = () => {
+    const date = dateInput.value || null;
+    return {
+      name: nameInput.value.trim() || defaultSetName(date),
+      service_date: date,
+      items: draft.items.map(({ id, kind, song_id, transpose, note }) => ({
+        id, kind, song_id: kind === "song" ? song_id : null, transpose: transpose ?? 0, note: note?.trim() ?? "",
+      })),
+    };
+  };
+  /** Saves now; a change made while saving is saved right after. */
+  const flush = (): Promise<void> => {
+    window.clearTimeout(timer);
+    timer = 0;
+    if (stale) return Promise.resolve();
+    if (running) {
+      again = true;
+      return running;
+    }
+    showStatus("Saving…");
+    running = (async () => {
+      try {
+        const body = input();
+        const result = saved
+          ? await ctx.api.updateSet(saved.id, saved.version, body)
+          : await ctx.api.createSet(body);
+        const created = !saved;
+        saved = { id: result.id, version: result.version };
+        message.textContent = "";
+        showStatus("Saved", true);
+        if (created) {
+          // The new set is the one being edited from now on.
+          history.replaceState(history.state, "", `#/sets/${result.id}/edit`);
+          setupBar(result);
+          // A set started from a song becomes the current set, like adding a song to one.
+          if (startedFromSong) void ctx.currentSet.choose(result.id).catch(() => undefined);
+        }
+        if (created || ctx.currentSet.value?.id === result.id) void ctx.currentSet.refresh().catch(() => undefined);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          ctx.signOut();
+          return;
+        }
+        if (error instanceof ApiError && error.status === 409) {
+          stale = true;
+          showStatus("Not saved");
+          message.innerHTML = `Someone else changed this set while you were editing. <a href="#/sets/${saved?.id}/edit">Open their version</a> and make your change again.`;
+          return;
+        }
+        showStatus("Not saved");
+        message.textContent = `${errorMessage(error)} Your change is kept here and saved with the next one.`;
+      } finally {
+        running = null;
+      }
+      if (again) {
+        again = false;
+        await flush();
+      }
+    })();
+    savingInBackground = running;
+    return running;
+  };
+  /** Saves after `delay` ms of quiet (typing), at once otherwise. */
+  const save = (delay = 0) => {
+    window.clearTimeout(timer);
+    if (delay) {
+      showStatus("");
+      timer = window.setTimeout(() => void flush(), delay);
+    } else {
+      void flush();
+    }
+  };
+  nameInput.addEventListener("input", () => save(800));
+  nameInput.addEventListener("change", () => save());
+  dateInput.addEventListener("change", () => {
+    nameInput.placeholder = defaultSetName(dateInput.value || null);
+    save();
+  });
+  // Enter in the name saves (no form to send).
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    save();
+    nameInput.blur();
+  });
+
+  // The bar's current set switch and ⋮ (Delete), once the set exists.
+  let unbindCurrent: Cleanup | undefined;
+  const setupBar = (set: { id: string; name: string; service_date: string | null }) => {
+    const over = Boolean(set.service_date && set.service_date < today());
+    const current = currentSetToggle(ctx, set, over);
+    ctx.main.querySelector(".set-edit-actions")!.innerHTML = current.html;
+    ctx.main.querySelector(".set-edit-menu")!.innerHTML = barActions("set-edit", [{ id: "delete-set", label: "Delete set", icon: "trash" }], 0);
+    unbindCurrent?.();
+    unbindCurrent = current.bind(ctx.main);
+  };
+  if (existing) setupBar(existing);
   const unbindBar = bindBarActions(ctx.main);
-  const unbindCurrent = current?.bind(ctx.main);
   ctx.main.addEventListener("click", (event) => {
     if (!(event.target as HTMLElement).closest("[data-action='delete-set']")) return;
-    if (!existing || !confirm(`Delete “${existing.name}” for everyone?`)) return;
+    const name = nameInput.value.trim() || defaultSetName(dateInput.value || null);
+    if (!saved || !confirm(`Delete “${name}” for everyone?`)) return;
+    window.clearTimeout(timer);
+    stale = true;
     void ctx.run(async () => {
+      await running?.catch(() => undefined);
       try {
-        await ctx.api.deleteSet(existing.id, existing.version);
+        await ctx.api.deleteSet(saved!.id, saved!.version);
       } catch (error) {
+        stale = false;
         if (error instanceof ApiError && error.status === 409) throw new Error("Someone changed this set. Reload it before deleting.");
         throw error;
       }
@@ -495,39 +607,12 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     });
   });
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const data = new FormData(form);
-    const input = {
-      name: String(data.get("name") ?? "").trim(),
-      service_date: String(data.get("date") ?? "") || null,
-      items: draft.items.map(({ id, kind, song_id, transpose, note }) => ({
-        id, kind, song_id: kind === "song" ? song_id : null, transpose: transpose ?? 0, note: note?.trim() ?? "",
-      })),
-    };
-    setFormBusy(form, true);
-    saveButton.disabled = true;
-    try {
-      const saved = existing
-        ? await ctx.api.updateSet(existing.id, existing.version, input)
-        : await ctx.api.createSet(input);
-      showToast(existing ? "Set saved." : "Set created.");
-      // A set started from a song becomes the current set, like adding a song to one.
-      const current = startedFromSong ? ctx.currentSet.choose(saved.id) : ctx.currentSet.refresh();
-      void current.catch(() => undefined);
-      ctx.navigate(`#/sets/${saved.id}`, true);
-    } catch (error) {
-      setFormBusy(form, false);
-      saveButton.disabled = false;
-      if (error instanceof ApiError && error.status === 401) return ctx.signOut();
-      if (error instanceof ApiError && error.status === 409) {
-        message.innerHTML = `Someone else saved this set while you were editing. <a href="#/sets/${existing?.id}">Open their version</a> and make your change again.`;
-        return;
-      }
-      message.textContent = errorMessage(error);
-    }
-  });
+  // A new set started from a song has something to save at once.
+  if (startedFromSong) save();
+
   return () => {
+    // Leaving with a name still being typed: save it on the way out.
+    if (timer) void flush();
     unbindBar();
     unbindCurrent?.();
     unbindSwipe();

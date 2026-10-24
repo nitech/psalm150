@@ -464,6 +464,9 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .current-note .link-button { font-weight: 500; }
 .set-note { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-left: 3px solid var(--psa-accent); border-radius: var(--psa-radius-xs); background: var(--psa-bg-surface); }
 .set-form { display: grid; gap: var(--psa-space-4); }
+/* The set editor saves as you go: a quiet word in the bar says so. */
+.save-status { min-width: 4.5em; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; opacity: 0; transition: opacity 300ms; }
+.save-status.shown { opacity: 1; }
 .set-form .list { margin: 0; }
 /* Name and date side by side; the date takes what it needs. */
 .set-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 10.5rem); gap: var(--psa-space-3); }
