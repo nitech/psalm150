@@ -5,7 +5,7 @@ import { groupSets } from "../current-set.ts";
 import { barActions, bindBarActions, setSwitch, type BarAction } from "../bar-menu.ts";
 import { canKeepScreenOn, holdScreen, keepScreenOn, setKeepScreenOn } from "../wake-lock.ts";
 import { endSequence, songNeighbours, stepSequence } from "../song-sequence.ts";
-import { bindItemSwipe } from "../transitions.ts";
+import { appGoesBack, bindItemSwipe } from "../transitions.ts";
 import { mountChordEditor } from "../chord-editor.ts";
 import type { DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
@@ -625,7 +625,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     } else if (way === -1) {
       endSequence();
       // The list is the screen before this one: Back, so it keeps its place.
-      history.back();
+      appGoesBack();
     }
   };
   const unbindSwipe = around

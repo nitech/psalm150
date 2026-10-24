@@ -6,7 +6,7 @@ import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { icon, type IconName } from "./icons.ts";
 import { installLyricsCopy } from "./song-render.ts";
-import { installedApp, slideBetween, swapScreen, takeBrowserAnimated } from "./transitions.ts";
+import { appGoesBack, installedApp, slideBetween, swapScreen, takeBrowserAnimated } from "./transitions.ts";
 import "./install.ts";
 import type { SessionInfo, SetDetail, Session } from "./types.ts";
 import { dateBadge, errorMessage, escapeHtml, hideToast, installSearchClear, readPreference, setFormBusy, showToast } from "./ui.ts";
@@ -336,6 +336,12 @@ let routeToken = 0;
 let shownRoute: Route | null = null;
 /** The hash path of the screen shown, to know which way the next one slides. */
 let shownPath: string | null = null;
+/**
+ * Each history entry remembers the screen it was opened from (`prev`), so
+ * a screen's Back button can go back in history (to the same place in a
+ * list) instead of opening that screen anew at the top. Only a new entry
+ * (no state yet) gets it; one reached with Back or Forward keeps its own.
+ */
 let hashListener: (() => void) | null = null;
 
 /** "Version 0.1.0 · 15 Oct, 16:27": the build time tells deploys apart. */
@@ -699,6 +705,8 @@ async function route(): Promise<void> {
   const token = ++routeToken;
   // Swiping back in Safari already moved the screens; do not slide again.
   const slide = takeBrowserAnimated() ? null : slideBetween(shownPath, path);
+  const state = history.state as { prev?: string | null } | null;
+  if (state?.prev === undefined) history.replaceState({ ...(state ?? {}), prev: shownPath === path ? null : shownPath }, "");
   // Views name their screen more exactly ("Amazing Grace · Songs · PSA150").
   setTitle(TABS.find((tab) => tab.tab === match.entry.tab)?.label);
   main.classList.add("loading");
@@ -782,7 +790,8 @@ function libraryContext(main: HTMLElement): LibraryContext {
       if (location.hash === target) {
         void route();
       } else if (replace) {
-        history.replaceState(null, "", target);
+        // The same entry: it keeps the screen it was opened from.
+        history.replaceState({ prev: (history.state as { prev?: string | null } | null)?.prev ?? null }, "", target);
         void route();
       } else {
         location.hash = target;
@@ -959,6 +968,16 @@ function updateScrollState(): void {
 
 function startShellListeners(): void {
   history.scrollRestoration = "manual";
+  // Back to the screen this one was opened from: history's Back, so it
+  // comes back where it was (scrolled, searched) rather than at the top.
+  document.addEventListener("click", (event) => {
+    const back = (event.target as HTMLElement).closest<HTMLAnchorElement>("a.bar-back");
+    const target = back?.getAttribute("href")?.replace(/^#/, "");
+    const prev = (history.state as { prev?: string | null } | null)?.prev;
+    if (!back || !target || !prev || prev !== target || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    appGoesBack();
+  });
   // ☰ buttons are re-rendered with each screen, so listen once for all of them.
   document.addEventListener("click", (event) => {
     const opener = (event.target as HTMLElement).closest<HTMLElement>("[data-menu]");

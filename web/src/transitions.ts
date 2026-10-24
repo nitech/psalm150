@@ -94,6 +94,12 @@ window.addEventListener("popstate", (event) => {
   browserAnimated = ua === true || Date.now() - lastEdgeTouch < 1500;
 });
 
+/** The app itself goes Back next (a Back button, a swipe), so the browser does not animate it. */
+export function appGoesBack(): void {
+  lastEdgeTouch = 0;
+  history.back();
+}
+
 /** Whether the change now under way was already animated by the browser; asks once. */
 export function takeBrowserAnimated(): boolean {
   const value = browserAnimated;
