@@ -457,7 +457,8 @@ function refreshToggles(ctx: LibraryContext, root: HTMLElement): void {
 
 /**
  * One tap: add the song to the current set, or take it out if it is there.
- * Both show a toast with Undo. Without a current set, offers the sets.
+ * The current set's card says which (tapping again undoes it). Without a
+ * current set, offers the sets.
  */
 function toggleInCurrentSet(ctx: LibraryContext, song: SongRef, transpose = 0): void {
   const store = ctx.currentSet;
@@ -467,19 +468,8 @@ function toggleInCurrentSet(ctx: LibraryContext, song: SongRef, transpose = 0): 
     return;
   }
   void ctx.run(async () => {
-    if (store.count(song.id)) {
-      const removed = await store.removeSong(song.id);
-      showToast(`Removed from ${set.name}.`, {
-        action: removed
-          ? { label: "Undo", run: () => void ctx.run(() => store.restoreItem(removed.item, removed.index), { exclusive: false }) }
-          : undefined,
-      });
-    } else {
-      const itemId = await store.addSong(song.id, transpose);
-      showToast(`Added to ${set.name}.`, {
-        action: { label: "Undo", run: () => void ctx.run(() => store.removeItem(itemId), { exclusive: false }) },
-      });
-    }
+    if (store.count(song.id)) await store.removeSong(song.id);
+    else await store.addSong(song.id, transpose);
   }, { exclusive: false });
 }
 

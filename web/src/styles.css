@@ -507,6 +507,8 @@ body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-s
 .current-bar .row-main small { color: var(--psa-accent-text); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .current-count { color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .current-link > .icon:last-child { color: var(--psa-text-tertiary); }
+.current-bar.noted { border-color: var(--psa-accent); }
+.current-bar.noted .current-label { color: var(--psa-text); }
 .current-bar.bump { animation: bump 420ms var(--psa-ease-standard); }
 @keyframes bump { 40% { transform: scale(1.03); border-color: var(--psa-accent); } }
 /* Forms and the service view have their own bottom bars. */

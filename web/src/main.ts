@@ -878,16 +878,28 @@ function renderCurrentBar(set: SetDetail | null): void {
   link.href = `#/sets/${set.id}`;
   bar.dataset.count = String(songs);
   link.setAttribute("aria-label", `Current set: ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
+  // When a song is added or removed (the + / ✓ on a song), the card says so
+  // for a moment in place of "Current set", with a small pulse. No toast:
+  // tapping the same button again undoes it.
+  const change = previous === undefined ? 0 : songs - Number(previous);
+  const note = change > 0 ? "Song added" : change < 0 ? "Song removed" : "";
   link.innerHTML = `${dateBadge(set.service_date)}
-    <span class="row-main"><small>Current set</small><strong>${escapeHtml(set.name)}</strong></span>
+    <span class="row-main"><small class="current-label">${note || "Current set"}</small><strong>${escapeHtml(set.name)}</strong></span>
     <span class="current-count">${songs} ${songs === 1 ? "song" : "songs"}</span>${icon("next")}`;
-  // A small pulse when a song lands in the set.
-  if (previous !== undefined && previous !== String(songs)) {
-    bar.classList.remove("bump");
-    void bar.offsetWidth;
-    bar.classList.add("bump");
-  }
+  window.clearTimeout(currentNoteTimer);
+  bar.classList.toggle("noted", Boolean(note));
+  if (!note) return;
+  bar.classList.remove("bump");
+  void bar.offsetWidth;
+  bar.classList.add("bump");
+  announce(`${note} ${change > 0 ? "to" : "from"} ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
+  currentNoteTimer = window.setTimeout(() => {
+    bar.classList.remove("noted");
+    const label = bar.querySelector(".current-label");
+    if (label) label.textContent = "Current set";
+  }, 2500);
 }
+let currentNoteTimer = 0;
 
 /** The bar's ✕: no current set on this phone until one is chosen, with Undo. */
 async function dismissCurrentSet(): Promise<void> {
