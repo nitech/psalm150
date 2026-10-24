@@ -21,6 +21,11 @@ export interface BarAction {
   href?: string;
   /** An on/off action: the menu shows it as a checkbox item. */
   checked?: boolean;
+  /**
+   * Shows the on/off action as a switch in the menu, which stays open so the
+   * switch is seen to flip. The screen updates it with `setSwitch`.
+   */
+  switch?: boolean;
   /** Extra classes and attributes for the bar button. */
   className?: string;
   attributes?: string;
@@ -128,6 +133,9 @@ function menuItem(action: BarAction): string {
     return `<div class="bar-menu-item bar-menu-stepper" role="group" aria-label="${escapeHtml(`${action.label}, ${action.stepper.spoken}`)}">${icon(action.icon)}<span>${escapeHtml(action.label)}</span>${down}<span class="bar-stepper-value" aria-hidden="true">${escapeHtml(action.stepper.value)}</span>${up}</div>`;
   }
   const role = action.checked === undefined ? `role="menuitem"` : `role="menuitemcheckbox" aria-checked="${action.checked}"`;
+  if (action.switch) {
+    return `<button type="button" ${role} tabindex="-1" class="bar-menu-item bar-menu-switch" data-action="${action.id}" data-keep-open>${icon(action.icon)}<span>${escapeHtml(action.label)}</span><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button>`;
+  }
   const check = action.checked === undefined ? "" : `<span class="bar-menu-check" aria-hidden="true">${action.checked ? icon("check") : ""}</span>`;
   const inner = `${icon(action.icon)}<span>${escapeHtml(action.label)}</span>${check}`;
   return action.href
@@ -155,6 +163,20 @@ export function barActions(screen: string, actions: BarAction[], maxFrequent = M
     ${inMenu.length ? `<button type="button" class="icon-button ghost bar-more" aria-haspopup="menu" aria-expanded="false" aria-label="More actions" title="More actions">${icon("more")}</button>
     <div class="bar-menu" role="menu" aria-label="More actions" hidden>${inMenu.map(menuItem).join("")}</div>` : ""}
   </div>`;
+}
+
+/**
+ * Flips a switch action in place, in the menu and in the bar (when it is
+ * used often enough to sit there), so the open menu is not redrawn.
+ */
+export function setSwitch(root: HTMLElement, actionId: string, on: boolean): void {
+  root.querySelectorAll<HTMLElement>(`.bar-actions [data-action="${actionId}"]`).forEach((element) => {
+    if (element.closest(".bar-menu")) element.setAttribute("aria-checked", String(on));
+    else {
+      element.setAttribute("aria-pressed", String(on));
+      element.classList.toggle("on", on);
+    }
+  });
 }
 
 /**

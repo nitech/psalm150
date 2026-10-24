@@ -25,6 +25,7 @@ import {
 } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
 import { bindItemSwipe } from "../transitions.ts";
+import { holdScreen } from "../wake-lock.ts";
 
 function setRow(set: SetSummary, currentId?: string): string {
   return `<li><a class="list-row" href="#/sets/${set.id}">
@@ -366,44 +367,15 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
     }
     renderItems();
   });
-  // With a mouse, drag a row by its grip to reorder. On touch screens the
-  // grip is hidden and the arrow buttons reorder, as they do for keyboards.
-  list.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "touch") return;
-    const grip = (event.target as HTMLElement).closest<HTMLElement>("[data-grip]");
-    const row = grip?.closest<HTMLElement>("[data-index]");
-    if (!grip || !row) return;
-    event.preventDefault();
-    const pointer = event.pointerId;
-    row.classList.add("dragging");
-    const rows = () => [...list.querySelectorAll<HTMLElement>("[data-index]")];
-    const move = (moveEvent: PointerEvent) => {
-      if (moveEvent.pointerId !== pointer) return;
-      const before = rows().find((other) => {
-        if (other === row) return false;
-        const box = other.getBoundingClientRect();
-        return moveEvent.clientY < box.top + box.height / 2;
-      });
-      if (before) {
-        if (row.nextElementSibling !== before) list.insertBefore(row, before);
-      } else if (list.lastElementChild !== row) {
-        list.append(row);
-      }
-      if (moveEvent.clientY < 96) window.scrollBy(0, -12);
-      else if (moveEvent.clientY > window.innerHeight - 180) window.scrollBy(0, 12);
-    };
-    const end = (endEvent: PointerEvent) => {
-      if (endEvent.pointerId !== pointer) return;
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", end);
-      document.removeEventListener("pointercancel", end);
-      const order = rows().map((other) => Number(other.dataset.index));
-      draft.items = order.map((position) => draft.items[position]);
-      renderItems();
-    };
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", end);
-    document.addEventListener("pointercancel", end);
+  // Drag a row by its grip to reorder, with a mouse or a finger
+  // (`bindReorder`). Keyboards and screen readers use the arrow buttons.
+  bindReorder(list, (from, to) => {
+    const [item] = draft.items.splice(from, 1);
+    draft.items.splice(to, 0, item);
+    focusIndex = to;
+    focusKey = item.id;
+    renderItems();
+    announce(`${item.title} moved to ${to + 1} of ${draft.items.length}.`);
   });
   form.querySelector("#add-blank")?.addEventListener("click", () => {
     draft.items.push({ id: crypto.randomUUID(), kind: "blank", note: "", transpose: 0, title: "Blank screen", subtitle: "" });
@@ -470,6 +442,168 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<voi
       }
       message.textContent = errorMessage(error);
     }
+  });
+}
+
+/** Moves under this far before a press on the grip becomes a drag. */
+const DRAG_SLOP = 4;
+/** Closer than this to the top or bottom of the window, the page scrolls. */
+const SCROLL_EDGE = 90;
+
+/**
+ * Reordering a list by dragging its rows' grips (`[data-grip]` inside
+ * `[data-index]` rows). The row picked up floats as a ghost under the pointer
+ * and leaves a dashed gap; the rows it passes slide aside, so the gap is
+ * always where it would land. Letting go settles the ghost into the gap, then
+ * `onMove(from, to)` reorders and redraws (it is not called for a drop where
+ * it started). Escape, or the browser taking the touch, puts it back.
+ */
+function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => void): void {
+  let active = false;
+  list.addEventListener("pointerdown", (down) => {
+    if (active || down.button !== 0) return;
+    const grip = (down.target as HTMLElement).closest<HTMLElement>("[data-grip]");
+    const row = grip?.closest<HTMLElement>("[data-index]");
+    if (!grip || !row) return;
+    down.preventDefault();
+    active = true;
+    const pointer = down.pointerId;
+    grip.setPointerCapture?.(pointer);
+
+    const rows = [...list.querySelectorAll<HTMLElement>("[data-index]")];
+    const from = rows.indexOf(row);
+    const startScroll = window.scrollY;
+    // Where every row sits in the page before anything moves.
+    const boxes = rows.map((other) => {
+      const box = other.getBoundingClientRect();
+      return { top: box.top + startScroll, height: box.height };
+    });
+    const height = boxes[from].height;
+    const start = row.getBoundingClientRect();
+    let pointerY = down.clientY;
+    let to = from;
+    let ghost: HTMLElement | null = null;
+    let frame = 0;
+
+    const dy = () => pointerY - down.clientY;
+    const scrolled = () => window.scrollY - startScroll;
+    /** How far the gap is from where the row started. */
+    const gapOffset = () => to > from
+      ? boxes[to].top + boxes[to].height - height - boxes[from].top
+      : boxes[to].top - boxes[from].top;
+
+    const lift = () => {
+      ghost = row.cloneNode(true) as HTMLElement;
+      ghost.removeAttribute("data-index");
+      ghost.removeAttribute("data-key");
+      ghost.classList.add("drag-ghost");
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.querySelectorAll("button").forEach((button) => { button.tabIndex = -1; });
+      Object.assign(ghost.style, { left: `${start.left}px`, top: `${start.top}px`, width: `${start.width}px`, height: `${start.height}px` });
+      document.body.append(ghost);
+      list.classList.add("reordering");
+      row.classList.add("drag-origin");
+      document.body.classList.add("reordering");
+      if (down.pointerType === "touch") navigator.vibrate?.(8);
+    };
+
+    const layout = () => {
+      if (!ghost) return;
+      ghost.style.transform = `translate3d(0, ${dy()}px, 0) scale(1.02)`;
+      const centre = boxes[from].top + height / 2 + dy() + scrolled();
+      const middle = (index: number) => boxes[index].top + boxes[index].height / 2;
+      let next = from;
+      while (next > 0 && centre < middle(next - 1)) next--;
+      while (next < rows.length - 1 && centre > middle(next + 1)) next++;
+      if (next === to && row.style.transform) return;
+      to = next;
+      rows.forEach((other, index) => {
+        let shift = 0;
+        if (index === from) shift = gapOffset();
+        else if (from < index && index <= to) shift = -height;
+        else if (to <= index && index < from) shift = height;
+        other.style.transform = shift ? `translate3d(0, ${shift}px, 0)` : "";
+      });
+    };
+
+    // Near the top or bottom edge the page scrolls, faster the closer.
+    const autoScroll = () => {
+      frame = requestAnimationFrame(autoScroll);
+      const bottom = window.innerHeight - SCROLL_EDGE - 60;
+      const step = pointerY < SCROLL_EDGE ? -(SCROLL_EDGE - pointerY) : pointerY > bottom ? pointerY - bottom : 0;
+      if (!step) return;
+      window.scrollBy(0, Math.max(-16, Math.min(16, step / 4)));
+      layout();
+    };
+
+    const move = (event: PointerEvent) => {
+      if (event.pointerId !== pointer) return;
+      pointerY = event.clientY;
+      if (!ghost) {
+        if (Math.abs(dy()) < DRAG_SLOP) return;
+        lift();
+        autoScroll();
+      }
+      event.preventDefault();
+      layout();
+    };
+
+    const finish = (drop: boolean) => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", cancel);
+      document.removeEventListener("keydown", escape, true);
+      cancelAnimationFrame(frame);
+      if (!ghost) {
+        active = false;
+        return;
+      }
+      if (!drop) {
+        to = from;
+        rows.forEach((other) => { other.style.transform = ""; });
+      }
+      // Settle the ghost into the gap, then draw the list in its new order.
+      const settled = ghost;
+      const target = (to === from ? 0 : gapOffset()) - scrolled();
+      settled.classList.add("settling");
+      settled.style.transform = `translate3d(0, ${target}px, 0)`;
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let done = false;
+      const land = () => {
+        if (done) return;
+        done = true;
+        list.classList.remove("reordering");
+        document.body.classList.remove("reordering");
+        if (to !== from) onMove(from, to);
+        else {
+          row.classList.remove("drag-origin");
+          rows.forEach((other) => { other.style.transform = ""; });
+        }
+        settled.remove();
+        active = false;
+      };
+      if (reduced) land();
+      else {
+        settled.addEventListener("transitionend", land, { once: true });
+        window.setTimeout(land, 300);
+      }
+    };
+    const up = (event: PointerEvent) => {
+      if (event.pointerId === pointer) finish(true);
+    };
+    const cancel = (event: PointerEvent) => {
+      if (event.pointerId === pointer) finish(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      finish(false);
+    };
+    document.addEventListener("pointermove", move, { passive: false });
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", cancel);
+    document.addEventListener("keydown", escape, true);
   });
 }
 
@@ -544,7 +678,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const item = set.items[index];
   // Chords as last set on a song page; no panel here.
   const options = readReaderOptions();
-  let wakeLock: { release(): Promise<void> } | null = null;
   const go = (next: number) => ctx.navigate(`#/sets/${set.id}/play/${next}`, true);
 
   if (!item) {
@@ -678,16 +811,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   document.addEventListener("keydown", keys);
 
   // Keep the phone awake while reading from it.
-  const nav = navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<{ release(): Promise<void> }> } };
-  const lockScreen = () => {
-    nav.wakeLock?.request("screen").then((lock) => { wakeLock = lock; }).catch(() => undefined);
-  };
-  // The browser drops the lock when the page is hidden; take it again.
-  const visibility = () => {
-    if (document.visibilityState === "visible") lockScreen();
-  };
-  document.addEventListener("visibilitychange", visibility);
-  lockScreen();
+  const releaseScreen = holdScreen();
 
   render();
   const poller = startPolling(poll, () => 15000);
@@ -698,8 +822,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     livePoller?.stop();
     unbindSwipe();
     document.removeEventListener("keydown", keys);
-    document.removeEventListener("visibilitychange", visibility);
-    void wakeLock?.release().catch(() => undefined);
+    releaseScreen();
   };
 }
 

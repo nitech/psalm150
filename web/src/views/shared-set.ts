@@ -17,6 +17,7 @@ import type { SetItem, SharedSet, SharedSetLive, SongDetail } from "../types.ts"
 import { errorMessage, escapeHtml, serviceDate, showToast, startPolling, transposeLabel } from "../ui.ts";
 import { itemTitle, openSongPicker, playNav } from "./sets.ts";
 import { bindItemSwipe, swapScreen, type Slide } from "../transitions.ts";
+import { holdScreen } from "../wake-lock.ts";
 
 /**
  * A set a leader shared on a link: anyone who has `/shared/{key}` reads the
@@ -215,7 +216,6 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     const song = item.kind === "song" && item.song_id ? await loadSong(item.song_id) : null;
     const options = readReaderOptions();
     let extraTranspose = 0;
-    let wakeLock: { release(): Promise<void> } | null = null;
     const go = (next: number) => {
       const target = set.items[next];
       if (target) location.replace(`#/item/${target.id}`);
@@ -269,26 +269,16 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       if (event.key === "ArrowRight") go(index + 1);
       if (event.key === "ArrowLeft") go(index - 1);
     };
-    // Keep the phone awake while reading from it; the browser drops the lock
-    // when the page is hidden, so take it again.
-    const nav = navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<{ release(): Promise<void> }> } };
-    const lockScreen = () => {
-      nav.wakeLock?.request("screen").then((lock) => { wakeLock = lock; }).catch(() => undefined);
-    };
-    const visibility = () => {
-      if (document.visibilityState === "visible") lockScreen();
-    };
+    // Keep the phone awake while reading from it.
+    const releaseScreen = holdScreen();
     document.addEventListener("keydown", keys);
-    document.addEventListener("visibilitychange", visibility);
-    lockScreen();
     present(draw);
     return () => {
       unbindBar();
       main.removeEventListener("click", onBar);
       unbindSwipe();
       document.removeEventListener("keydown", keys);
-      document.removeEventListener("visibilitychange", visibility);
-      void wakeLock?.release().catch(() => undefined);
+      releaseScreen();
     };
   };
 

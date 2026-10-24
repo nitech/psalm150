@@ -2,7 +2,8 @@ import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets } from "../current-set.ts";
-import { barActions, bindBarActions, type BarAction } from "../bar-menu.ts";
+import { barActions, bindBarActions, setSwitch, type BarAction } from "../bar-menu.ts";
+import { canKeepScreenOn, holdScreen, keepScreenOn, setKeepScreenOn } from "../wake-lock.ts";
 import { mountChordEditor } from "../chord-editor.ts";
 import type { DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
@@ -505,6 +506,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     const bar: BarAction[] = readerBarActions(display, options, transpose);
     if (ctx.canEdit) bar.push({ id: "add-to-set", label: ctx.currentSet.value ? "Add to another set" : "Add to a set", icon: "sets" });
     bar.push({ id: "copy", label: "Copy the words", icon: "copy" });
+    if (canKeepScreenOn()) bar.push({ id: "keep-awake", label: "Keep screen on", icon: "sun", checked: keepScreenOn(), switch: true, className: keepScreenOn() ? "on" : "" });
     bar.push({ id: "share", label: "Share song", icon: "share", fixed: true });
     if (ctx.canEdit) bar.push({ id: "edit", label: "Edit song", icon: "edit", href: `#/songs/${song.id}/edit`, fixed: true });
     // Phones have room for one used-often icon beside a leader's five fixed ones.
@@ -548,6 +550,13 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       case "copy":
         void copyLyrics(song.title, songText(prepareSong(song.chordpro, 0)));
         break;
+      case "keep-awake": {
+        const on = !keepScreenOn();
+        setKeepScreenOn(on);
+        setSwitch(ctx.main, "keep-awake", on);
+        announce(on ? "The screen stays on" : "The screen may turn off");
+        break;
+      }
       case "share":
         void shareSong(ctx, song);
         break;
@@ -561,7 +570,9 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   });
   setTitle(song.title, "Songs");
   render();
+  const releaseScreen = holdScreen();
   return () => {
+    releaseScreen();
     ctx.main.removeEventListener("click", onSetAction);
     unbindBar();
     unsubscribe();

@@ -291,6 +291,13 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .bar-menu-item .icon { width: 20px; height: 20px; flex: none; color: var(--psa-text-secondary); }
 .bar-menu-check { display: inline-flex; width: 20px; color: var(--psa-accent-text); }
 .bar-menu-check .icon { color: inherit; }
+/* An on/off setting in the menu: a light switch, flipped in place. */
+.switch-track { position: relative; flex: none; width: 40px; height: 24px; margin-left: 8px; border-radius: var(--psa-radius-full); background: var(--psa-border-strong); transition: background-color 160ms var(--psa-ease-standard); }
+.switch-thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 200ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.bar-menu-switch[aria-checked="true"] .switch-track { background: var(--psa-accent); }
+.bar-menu-switch[aria-checked="true"] .switch-thumb { transform: translateX(16px); }
+.bar-menu-switch[aria-checked="true"] > .icon { color: var(--psa-accent-text); }
+@media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }
 /* Transpose: − key +, in the bar as one pill and in the menu as one row
    with two places to tap. */
 .bar-stepper { position: relative; display: inline-flex; align-items: center; height: 40px; padding: 0 2px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); }
@@ -324,6 +331,10 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 
 .list { display: grid; margin: 0 0 var(--psa-space-4); padding: 0; list-style: none; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); overflow: hidden; }
 .list > * + *, .list > li + li { border-top: 1px solid var(--psa-border-subtle); }
+/* Lists are tapped and dragged, not read closely: no text selection to get
+   in the way of a drag or a long press. */
+.list { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.list :is(input, textarea) { -webkit-user-select: text; user-select: text; }
 .list-heading { margin: var(--psa-space-6) 0 var(--psa-space-2); color: var(--psa-text-secondary); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 #share-body .list-heading { margin: 0; }
 .list-heading-row { display: flex; align-items: end; justify-content: space-between; gap: var(--psa-space-3); }
@@ -441,15 +452,22 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .edit-row { padding: var(--psa-space-2) var(--psa-space-3); }
 .edit-row-main { display: flex; align-items: center; gap: var(--psa-space-2); min-height: 48px; }
 .row-tools { display: flex; gap: 4px; }
-.grip { display: grid; place-items: center; width: 28px; height: 44px; flex: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
-/* Touch screens reorder with the arrow buttons; no grip, no drag. */
-@media (pointer: coarse) {
-  .grip { display: none; }
-}
+.grip { display: grid; place-items: center; width: 36px; height: 44px; margin-left: -6px; flex: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
 /* The title takes two lines before it is cut. */
 .edit-row .row-main strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
-.edit-row.dragging { position: relative; z-index: 2; background: var(--psa-bg-elevated); box-shadow: var(--psa-shadow-md); }
-.edit-row.dragging .grip { cursor: grabbing; color: var(--psa-accent-text); }
+/* Reordering (sets.ts): the row picked up floats as a ghost under the finger,
+   the others slide aside to open a gap where it will land, and on letting go
+   the ghost settles into that gap. */
+.list.reordering > .edit-row { transition: transform 200ms var(--psa-ease-standard); }
+.list.reordering > .edit-row.drag-origin { z-index: 1; background: var(--psa-bg-sunken); box-shadow: inset 0 0 0 2px var(--psa-border-strong); border-radius: calc(var(--psa-radius-md) - 4px); }
+.list.reordering > .edit-row.drag-origin > * { visibility: hidden; }
+.drag-ghost { position: fixed; z-index: 80; margin: 0; list-style: none; pointer-events: none; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); box-shadow: 0 12px 28px rgb(0 0 0 / 0.22), 0 4px 10px rgb(0 0 0 / 0.12); opacity: 0.96; will-change: transform; }
+.drag-ghost .grip { cursor: grabbing; color: var(--psa-accent-text); }
+.drag-ghost.settling { transition: transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1.1), box-shadow 220ms; box-shadow: var(--psa-shadow-sm); }
+body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .list.reordering > .edit-row, .drag-ghost.settling { transition: none; }
+}
 .form-actions.sticky {
   position: sticky; bottom: calc(var(--tabbar-h) + 10px); z-index: 5;
   padding: var(--psa-space-3) 0; background: linear-gradient(transparent, var(--psa-bg-canvas) 30%);
