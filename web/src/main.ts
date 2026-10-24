@@ -776,7 +776,7 @@ function libraryContext(main: HTMLElement): LibraryContext {
     setPublic(value) {
       publicLibrary = value ? session?.church_name ?? "Song library" : null;
     },
-    canEdit: Boolean(session && session.role !== "viewer"),
+    canEdit: canEditSets(),
     main,
     navigate(target: string, replace = false) {
       if (location.hash === target) {
@@ -864,6 +864,11 @@ function signOut(): void {
 
 /* ── Current set bar, offline notice, scrolling ──────────────────────────── */
 
+/** Leaders and owners may edit sets. */
+function canEditSets(): boolean {
+  return Boolean(session && session.role !== "viewer");
+}
+
 function renderCurrentBar(set: SetDetail | null): void {
   const bar = document.querySelector<HTMLElement>("#current-bar");
   const link = document.querySelector<HTMLAnchorElement>("#current-link");
@@ -875,7 +880,8 @@ function renderCurrentBar(set: SetDetail | null): void {
   }
   const songs = set.items.filter((item) => item.kind === "song").length;
   const previous = bar.dataset.count;
-  link.href = `#/sets/${set.id}`;
+  // Leaders go straight to editing the set; the set's own page is one Back away.
+  link.href = canEditSets() ? `#/sets/${set.id}/edit` : `#/sets/${set.id}`;
   bar.dataset.count = String(songs);
   link.setAttribute("aria-label", `Current set: ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
   // When a song is added or removed (the + / ✓ on a song), the card says so

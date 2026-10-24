@@ -63,25 +63,26 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
   const set = await ctx.api.getSet(setId);
   setTitle(set.name, "Sets");
   const over = Boolean(set.service_date && set.service_date < today());
-  // The bar at the bottom is hidden here, so this says whether the set is
-  // current and lets the person switch it on or off.
-  const currentStatus = () => ctx.currentSet.value?.id === set.id
-    ? `<button type="button" class="button secondary small" data-current="clear">${icon("close")}Stop using as the current set</button>`
-    : over
-      ? ""
-      : `<button type="button" class="button secondary small" data-current="choose">${icon("check")}Make this the current set</button>`;
+  // The current set's card is hidden here, so a switch in the bar says
+  // whether this is the current set and turns it on or off. A set whose
+  // service is over can stop being current but not become it again.
+  const isCurrent = () => ctx.currentSet.value?.id === set.id;
+  const currentToggle = () => {
+    if (!isCurrent() && over) return "";
+    const label = isCurrent() ? "The current set: tap to stop using it" : "Make this the current set";
+    return `<button type="button" class="icon-button ghost${isCurrent() ? " on" : ""}" data-current aria-pressed="${isCurrent()}" aria-label="${label}" title="${label}">${icon("setlist")}</button>`;
+  };
   /** The share button looks switched on while the set is shared. */
   const shareLabel = () => set.shared ? "Shared on a link: manage the link" : "Share on a link";
   ctx.main.innerHTML = `${pageHead({
     title: set.name,
     subtitle: serviceDate(set.service_date, true),
     back: "#/sets",
-    actions: ctx.canEdit
+    actions: `<span id="current-toggle">${currentToggle()}</span>${ctx.canEdit
       ? `<button type="button" class="icon-button ghost${set.shared ? " on" : ""}" data-share aria-label="${shareLabel()}" title="${shareLabel()}">${icon("share")}</button>
          <a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="Edit set">${icon("edit")}</a>`
-      : "",
+      : ""}`,
   })}
-  <div id="current-status">${currentStatus()}</div>
   ${set.items.length
     ? `<ol class="list numbered" aria-label="Songs: tap one to go through the set from there">${set.items.map((item, index) => `<li>
         <a class="list-row" href="#/sets/${set.id}/play/${index}">
@@ -99,25 +100,21 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     shareButton.setAttribute("aria-label", shareLabel());
     shareButton.title = shareLabel();
   })));
-  const status = ctx.main.querySelector<HTMLElement>("#current-status")!;
-  status.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-current]");
-    if (!button) return;
+  const toggle = ctx.main.querySelector<HTMLElement>("#current-toggle")!;
+  toggle.addEventListener("click", (event) => {
+    if (!(event.target as HTMLElement).closest("[data-current]")) return;
     void ctx.run(async () => {
-      if (button.dataset.current === "clear") {
-        const previous = await ctx.currentSet.dismiss();
-        showToast(`${set.name} is no longer the current set.`, {
-          action: { label: "Undo", run: () => void ctx.run(async () => { await ctx.currentSet.choose(previous); }, { exclusive: false }) },
-        });
-        return;
+      if (isCurrent()) {
+        await ctx.currentSet.dismiss();
+        announce(`${set.name} is no longer the current set.`);
+      } else {
+        await ctx.currentSet.choose(set.id);
+        announce(`${set.name} is the current set.`);
       }
-      await ctx.currentSet.choose(set.id);
-      const now = ctx.currentSet.value;
-      showToast(now ? `${now.name} is the current set.` : "No upcoming set.");
     });
   });
   return ctx.currentSet.subscribe(() => {
-    keepFocus(status, () => { status.innerHTML = currentStatus(); }, () => status.querySelector<HTMLElement>("button"));
+    keepFocus(toggle, () => { toggle.innerHTML = currentToggle(); }, () => toggle.querySelector<HTMLElement>("button"));
   });
 }
 

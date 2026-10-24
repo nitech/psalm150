@@ -340,7 +340,7 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .list > * + *, .list > li + li { border-top: 1px solid var(--psa-border-subtle); }
 /* Lists are tapped and dragged, not read closely: no text selection to get
    in the way of a drag or a long press. */
-.list { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.list, .list * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .list :is(input, textarea) { -webkit-user-select: text; user-select: text; }
 .list-heading { margin: var(--psa-space-6) 0 var(--psa-space-2); color: var(--psa-text-secondary); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 #share-body .list-heading { margin: 0; }
@@ -448,7 +448,6 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .current-note { display: flex; gap: var(--psa-space-2); align-items: flex-start; margin: 0 0 var(--psa-space-4); color: var(--psa-accent-text); font-size: 14px; font-weight: 600; }
 .current-note .icon { width: 18px; height: 18px; margin-top: 1px; }
 .current-note .link-button { font-weight: 500; }
-#current-status > .button { margin-bottom: var(--psa-space-4); }
 .set-note { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-left: 3px solid var(--psa-accent); border-radius: var(--psa-radius-xs); background: var(--psa-bg-surface); }
 .set-form { display: grid; gap: var(--psa-space-4); }
 .set-form .list { margin: 0; }
