@@ -38,22 +38,44 @@ function setRow(set: SetSummary, currentId?: string): string {
   </a></li>`;
 }
 
+/** The sets as last shown, so Back to the list draws it at once while it is read again. */
+let shownSets: { church: string; json: string; sets: SetSummary[] } | null = null;
+
 export async function setList(ctx: AppContext): Promise<void> {
-  const sets = await ctx.api.listSets();
-  const { upcoming, undated, past } = groupSets(sets, today());
-  const currentId = ctx.currentSet.value?.id;
-  const rows = (group: SetSummary[], label: string) => `<ul class="list" aria-labelledby="${label}">${group.map((set) => setRow(set, currentId)).join("")}</ul>`;
-  ctx.main.innerHTML = `${pageHead({
-    title: "Sets",
-    church: ctx.session.church_name,
-    compact: true,
-    menu: true,
-    actions: ctx.canEdit ? `<a class="icon-button accent" href="#/sets/new" aria-label="New set">${icon("plus")}</a>` : "",
-  })}
-  ${sets.length ? "" : emptyState("No sets yet", ctx.canEdit ? "Make a set for the next service; the desktop picks it up at its next synchronization." : "Leaders make sets for each service. They will appear here.")}
-  ${upcoming.length ? `<h2 class="list-heading" id="sets-upcoming">Upcoming</h2>${rows(upcoming, "sets-upcoming")}` : ""}
-  ${undated.length ? `<h2 class="list-heading" id="sets-undated">No date</h2>${rows(undated, "sets-undated")}` : ""}
-  ${past.length ? `<h2 class="list-heading" id="sets-past">Earlier</h2>${rows(past, "sets-past")}` : ""}`;
+  const church = ctx.session.church_name;
+  const draw = (sets: SetSummary[]) => {
+    const { upcoming, undated, past } = groupSets(sets, today());
+    const currentId = ctx.currentSet.value?.id;
+    const rows = (group: SetSummary[], label: string) => `<ul class="list" aria-labelledby="${label}">${group.map((set) => setRow(set, currentId)).join("")}</ul>`;
+    ctx.main.innerHTML = `${pageHead({
+      title: "Sets",
+      church: ctx.session.church_name,
+      compact: true,
+      menu: true,
+      actions: ctx.canEdit ? `<a class="icon-button accent" href="#/sets/new" aria-label="New set">${icon("plus")}</a>` : "",
+    })}
+    ${sets.length ? "" : emptyState("No sets yet", ctx.canEdit ? "Make a set for the next service; the desktop picks it up at its next synchronization." : "Leaders make sets for each service. They will appear here.")}
+    ${upcoming.length ? `<h2 class="list-heading" id="sets-upcoming">Upcoming</h2>${rows(upcoming, "sets-upcoming")}` : ""}
+    ${undated.length ? `<h2 class="list-heading" id="sets-undated">No date</h2>${rows(undated, "sets-undated")}` : ""}
+    ${past.length ? `<h2 class="list-heading" id="sets-past">Earlier</h2>${rows(past, "sets-past")}` : ""}`;
+  };
+  const read = async () => {
+    const sets = await ctx.api.listSets();
+    const json = JSON.stringify(sets);
+    const changed = shownSets?.church !== church || shownSets.json !== json;
+    shownSets = { church, json, sets };
+    return { sets, changed };
+  };
+  if (shownSets?.church === church) {
+    draw(shownSets.sets);
+    // Redrawn only if a set changed meanwhile, and only while still on screen.
+    const main = ctx.main;
+    void read().then(({ sets, changed }) => {
+      if (changed && main.isConnected) keepFocus(main, () => draw(sets));
+    }).catch(() => undefined);
+    return;
+  }
+  draw((await read()).sets);
 }
 
 /**

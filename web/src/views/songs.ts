@@ -26,6 +26,22 @@ import { copyText, errorMessage, escapeHtml, readPreference, searchClear, servic
 /** Kept while the tab is open so Back returns to the same search. */
 let lastSearch = "";
 
+/**
+ * The song list as last shown, so coming back to it (Back from a song) draws
+ * it at once, at the same place, while it is read again quietly; it only
+ * changes if the songs did.
+ */
+let shownList: {
+  key: string;
+  html: string;
+  /** The first page's songs and revisions, to tell whether a new read changed anything. */
+  firstPage: string;
+  loaded: number;
+  numbered: boolean;
+  more: boolean;
+  sortHidden: boolean;
+} | null = null;
+
 /** Songs per request; the list asks for the next page as you reach the end. */
 const PAGE_SIZE = 100;
 
@@ -107,8 +123,26 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     </li>`;
   };
 
-  /** `typed`: the search changed, so a screen reader hears how many songs it found. */
-  const load = async (append: boolean, typed = false) => {
+  const listKey = () => JSON.stringify([ctx.isPublic, ctx.canEdit, lastSearch, sort, filter]);
+  const signature = (songs: SongSummary[]) => songs.map((song) => `${song.id}:${song.revision_id}`).join(",");
+  const remember = (firstPage?: string) => {
+    shownList = {
+      key: listKey(),
+      html: results.innerHTML,
+      firstPage: firstPage ?? shownList?.firstPage ?? "",
+      loaded,
+      numbered,
+      more: !more.hidden,
+      sortHidden: sortBar.hidden,
+    };
+  };
+
+  /**
+   * `typed`: the search changed, so a screen reader hears how many songs it
+   * found. `quiet`: a fresh read of a list already drawn from memory, which
+   * leaves it alone unless its songs changed.
+   */
+  const load = async (append: boolean, typed = false, quiet = false) => {
     const mine = ++request;
     const offset = append ? loaded : 0;
     loading = true;
@@ -122,6 +156,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
         keyMode: filter.mode === "all" ? undefined : filter.mode,
       });
       if (mine !== request) return;
+      if (quiet && shownList?.key === listKey() && shownList.firstPage === signature(songs)) return;
       // Sorted by number, numbered songs come first: the first page tells.
       numbered = (append && numbered) || songs.some((song) => song.song_number) || sort.column === "number";
       results.classList.toggle("has-numbers", numbered);
@@ -153,6 +188,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       }
       loaded = offset + songs.length;
       more.hidden = songs.length < PAGE_SIZE;
+      if (!online) remember(append ? undefined : signature(songs));
     } catch (error) {
       if (mine !== request) return;
       if (error instanceof ApiError && error.status === 401) return ctx.signOut();
@@ -294,7 +330,21 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   observer.observe(more);
 
   const unsubscribe = ctx.currentSet.subscribe(() => refreshToggles(ctx, results));
-  await load(false);
+  const memory = shownList?.key === listKey() ? shownList : null;
+  if (memory) {
+    // Drawn at once from memory (the screen keeps its place), then read again.
+    results.innerHTML = memory.html;
+    loaded = memory.loaded;
+    numbered = memory.numbered;
+    results.classList.toggle("has-numbers", numbered);
+    more.hidden = !memory.more;
+    sortBar.hidden = memory.sortHidden;
+    keepFocus(sortBar, renderSort);
+    refreshToggles(ctx, results);
+    void load(false, false, true);
+  } else {
+    await load(false);
+  }
   return () => {
     window.clearTimeout(timer);
     online?.abort?.abort();
@@ -581,7 +631,8 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const unbindSwipe = around
     ? bindItemSwipe(ctx.main, { previous: true, next: Boolean(around.next) }, goTo, (way) => {
       const target = way === 1 ? around.next : around.previous;
-      if (!target) return `<p class="peek-back">${icon("back")}Back to the list</p>`;
+      // Back to the list: the song slides off and the list comes back (Back's own slide).
+      if (!target) return null;
       return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options);
     })
     : () => undefined;

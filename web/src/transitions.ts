@@ -113,7 +113,8 @@ const PEEK_GAP = 32;
 /**
  * Swiping sideways through songs (a set's items, a list's songs): the screen
  * (`.swipe-view`, which gets `--drag`) follows the finger, and with `peek`
- * the neighbour comes in beside it, so you see where you are going. A short
+ * the neighbour comes in beside it, so you see where you are going (`peek`
+ * gives null where there is none to show, such as the list). A short
  * swipe springs back; a long or quick one moves on: with `peek` the
  * neighbour slides all the way in and `go` swaps it in without another
  * slide, else `go`'s own slide starts where the finger let go. Vertical
@@ -124,7 +125,7 @@ export function bindItemSwipe(
   root: HTMLElement,
   neighbours: { previous: boolean; next: boolean },
   go: (step: 1 | -1) => void,
-  peek?: (step: 1 | -1) => string,
+  peek?: (step: 1 | -1) => string | null,
 ): () => void {
   let startX = 0;
   let startY = 0;
@@ -146,7 +147,10 @@ export function bindItemSwipe(
     const panel = document.createElement("div");
     panel.className = "swipe-peek";
     panel.setAttribute("aria-hidden", "true");
-    panel.innerHTML = peek(step);
+    const html = peek(step);
+    // No neighbour to show (back to a list): the screen slides off by itself.
+    if (html === null) return;
+    panel.innerHTML = html;
     const box = element.getBoundingClientRect();
     const first = element.querySelector<HTMLElement>(":scope > :not(.app-bar, .play-nav, .swipe-peek)");
     const firstTop = first ? first.getBoundingClientRect().top - box.top : 0;
@@ -199,7 +203,7 @@ export function bindItemSwipe(
     const free = step === 1 ? neighbours.next : neighbours.previous;
     const speed = Math.abs(offset) / Math.max(1, event.timeStamp - startTime);
     if (free && (Math.abs(offset) > window.innerWidth * 0.22 || (Math.abs(offset) > 30 && speed > 0.35))) {
-      if (!peek || !element) {
+      if (!element?.querySelector(".swipe-peek")) {
         // Leave it where the finger let go; the slide to the neighbour starts there.
         go(step);
         return;
