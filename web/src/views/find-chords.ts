@@ -1,13 +1,13 @@
 /**
  * Chords from the web for a song of ours that has none: search online,
  * pick a version, see our own words with its chords laid over them
- * ([chord-match.ts](../chord-match.ts)), and save only when it looks right.
+ * ([chord-match.ts](../../../shared/chord-match.ts)), and save only when it looks right.
  * Nothing changes until Save, which makes a new revision (so it can be
  * undone like any edit).
  */
 import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
-import { keySteps, matchChords, type ChordMatch, type KeyChoice } from "../chord-match.ts";
+import { keySteps, matchChords, type ChordMatch, type KeyChoice } from "../../../shared/chord-match.ts";
 import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.ts";
 import { icon } from "../icons.ts";
 import { prepareSong, renderSongBody } from "../song-render.ts";

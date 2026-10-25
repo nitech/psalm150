@@ -1,4 +1,7 @@
 import { hasChords, parseChordPro, transposeSong, type DisplaySong } from "./chordpro.ts";
+import { guessKey } from "../../shared/chord-match.ts";
+
+export { guessKey };
 import { announce } from "./a11y.ts";
 import { reopenMenu, type BarAction } from "./bar-menu.ts";
 import { escapeHtml, readPreference, transposeLabel, writePreference } from "./ui.ts";
@@ -115,55 +118,13 @@ export function songKey(song: DisplaySong): string | null {
   return guessKey(chords);
 }
 
-const NOTES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-const PITCH: Record<string, number> = {
-  C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11, H: 11,
-};
-/** Steps above the tonic of a major key's chords: I ii iii IV V vi. */
-const MAJOR = [[0, false], [2, true], [4, true], [5, false], [7, false], [9, true]] as const;
-
-/**
- * The key a song's chords fit best: every chord in a key's scale counts,
- * the last chord being its tonic counts most (songs end at home) and the
- * first a little. A major key and its relative minor fit the same chords;
- * the minor wins only when its tonic scores more, so a worship song in G
- * that opens on Em stays in G.
- */
-export function guessKey(chords: string[]): string | null {
-  const parsed = chords
-    .map((chord) => chord.match(/^([A-H][#b]?)(m(?!aj))?/))
-    .filter((match): match is RegExpMatchArray => Boolean(match) && match![1] in PITCH)
-    .map((match) => ({ root: PITCH[match[1]], minor: Boolean(match[2]) }));
-  if (!parsed.length) return null;
-  let best: { tonic: number; minor: boolean; score: number } | null = null;
-  for (let tonic = 0; tonic < 12; tonic++) {
-    for (const minor of [false, true]) {
-      // A minor key uses the chords of the major key a minor third up.
-      const major = minor ? (tonic + 3) % 12 : tonic;
-      const fits = (c: { root: number; minor: boolean }) =>
-        MAJOR.some(([step, isMinor]) => (major + step) % 12 === c.root && isMinor === c.minor);
-      const home = (c: { root: number; minor: boolean }) => c.root === tonic && c.minor === minor;
-      let score = parsed.filter(fits).length;
-      if (home(parsed[parsed.length - 1])) score += 3;
-      if (home(parsed[0])) score += 1;
-      score += parsed.filter(home).length * 0.5;
-      if (!best || score > best.score || (score === best.score && !minor && best.minor)) best = { tonic, minor, score };
-    }
-  }
-  return best ? `${NOTES[best.tonic]}${best.minor ? "m" : ""}` : null;
-}
 
 /**
  * The reader's own bar actions, for a song with chords: the chords on/off
- * switch (fixed) and Transpose (− key +), in the ⋮ menu unless
- * `transposeFixed`. Handle them with `onReaderAction`.
+ * switch (fixed) and Transpose (− key +), always in the ⋮ menu: it is too
+ * wide for a phone's bar. Handle them with `onReaderAction`.
  */
-export function readerBarActions(
-  song: DisplaySong,
-  options: ReaderOptions,
-  transpose: number,
-  transposeFixed = false,
-): BarAction[] {
+export function readerBarActions(song: DisplaySong, options: ReaderOptions, transpose: number): BarAction[] {
   if (!hasChords(song)) return [];
   const key = songKey(song);
   const steps = transpose ? transposeLabel(transpose) : "";
@@ -180,7 +141,7 @@ export function readerBarActions(
       id: "transpose",
       label: "Transpose",
       icon: "transpose",
-      fixed: transposeFixed,
+      menuOnly: true,
       stepper: {
         value: key ?? (steps || "±0"),
         spoken: key ? `key ${key}${steps ? `, ${steps}` : ""}` : steps || "not transposed",

@@ -86,8 +86,9 @@ git config core.hooksPath .githooks                        # once per clone: bum
   `ApiDoc` `paths(...)` / `components(...)` lists, and `web/src/types.ts`
   mirrors `api/src/models.rs` by hand.
 - Migrations in `api/migrations/` are append-only; they run at startup.
-- `shared/` (design tokens, icons and the `shared/lyrics` online song
-  lookup crate) is canonical for both apps. The desktop mirrors it with
+- `shared/` (design tokens, icons, `chord-match.ts` for chords from the
+  web, and the `shared/lyrics` online song lookup crate) is canonical for
+  both apps. The desktop mirrors it with
   `bun run sync:shared`; edit here, then sync the desktop.
 - The desktop must work without a song server. Never move something the
   desktop needs into the server only; share the code instead (as

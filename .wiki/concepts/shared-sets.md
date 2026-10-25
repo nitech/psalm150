@@ -118,7 +118,7 @@ their next snapshot and a leader editing from an older version gets the usual
   the app shell, signed in or not): the church, date and set name, the items
   with their numbers, transpose and notes, and **Go through the songs**.
   `#/item/{itemId}` shows one item like the service view (key, note, words
-  and chords, a chords switch and a "− key +" transpose pill in the bar (view only),
+  and chords, a chords switch in the bar and Transpose "− key +" in ⋮ (view only),
   Previous/Next, swipe, arrow keys, wake lock) without Follow or Project. The
   list reads the set again every 30 s while visible. A stopped link says the
   leader may have stopped sharing.

@@ -286,8 +286,14 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .icon-button.in-set { color: var(--psa-accent-text); }
 /* Bar actions (bar-menu.ts): fixed icons, a thin divider, the often used ones
    (with a small dot, as they come and go), then ⋮ and its menu. */
-.bar-actions { position: relative; display: flex; align-items: center; gap: var(--psa-space-1); }
-.bar-frequent { display: flex; gap: var(--psa-space-1); }
+/* ⋮ and the fixed icons never shrink; when the bar is short of room the
+   often-used icons go first (they are in ⋮ too), so ⋮ is never pushed out. */
+.page-actions { min-width: 0; }
+.bar-actions { position: relative; display: flex; align-items: center; gap: var(--psa-space-1); min-width: 0; }
+.bar-actions > .icon-button, .bar-actions > a.icon-button, .bar-more { flex: none; }
+.bar-frequent { display: flex; gap: var(--psa-space-1); min-width: 0; overflow: hidden; }
+.bar-frequent > * { flex: none; }
+.bar-actions.crowded .bar-frequent, .bar-actions.crowded .bar-divider { display: none; }
 .bar-divider { width: 1px; height: 22px; margin: 0 2px; background: var(--psa-border-strong); }
 .icon-button.frequent { position: relative; }
 .icon-button.frequent::after { content: ""; position: absolute; bottom: 5px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--psa-accent-text); }

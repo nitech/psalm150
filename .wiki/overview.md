@@ -32,7 +32,8 @@ Psalm150 desktop app (the separate `PSA150` client repo) can use it as a
 never needs the server to project: it works from its last downloaded copy.
 More generally, **the desktop must work without a server**: many churches
 never set one up. Code both need (design tokens, icons, the
-[online song search](concepts/online-search.md)) lives in `shared/` here and
+[online song search](concepts/online-search.md), laying chords from the web
+over a song, `shared/chord-match.ts`) lives in `shared/` here and
 the desktop mirrors it; the server never does work the desktop depends on.
 
 The code still says `PSA150` / `psa150` throughout (crate, env vars, image,

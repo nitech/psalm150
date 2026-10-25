@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { chordKey, keySteps, lineLikeness, matchChords, moveChordsTo } from "../src/chord-match.ts";
-import { parseDoc, parseLyric } from "../src/chord-doc.ts";
+import { chordKey, keySteps, lineLikeness, matchChords, moveChordsTo, parseLyric } from "../../shared/chord-match.ts";
 
-const line = (source: string) => parseLyric(source, 0, []);
+const line = (source: string) => parseLyric(source);
 const placed = (text: string, chords: { pos: number; name: string }[]) =>
   chords.map((chord) => `${chord.name}@${text.slice(chord.pos).split(" ")[0]}`).join(" ");
 
@@ -116,10 +115,41 @@ describe("keys", () => {
 
   it("reads the key from the chords when the written key disagrees, or with a capo", () => {
     const keyOf = (...head: string[]) =>
-      chordKey(parseDoc([...head, "[C]Bless the [G]Lord oh my [D]soul", "[C]Oh my [G]soul"].join("\n")).doc);
+      chordKey([...head, "[C]Bless the [G]Lord oh my [D]soul", "[C]Oh my [G]soul"].join("\n"));
     expect(keyOf("{key: G}")).toBe("G");
     expect(keyOf("{key: Em}")).toBe("Em");
     expect(keyOf("{key: Bb}")).toBe("G");
     expect(keyOf("{key: A}", "{capo: 2}")).toBe("G");
+    expect(keyOf("{meta: key=G}")).toBe("G");
+  });
+});
+
+describe("what is written back", () => {
+  const online = ["{key: G}", "[G]Amazing [C]grace, how [G]sweet the sound"].join("\n");
+
+  it("keeps every other line byte for byte, CRLF included", () => {
+    const ours = ["{title: Amazing Grace}", "# a note", "{comment: Slowly}", "", "Amazing grace how sweet the sound", "Not online at all", ""].join("\r\n");
+    const result = matchChords(ours, online);
+    expect(result.chordpro.split("\r\n")).toEqual([
+      "{title: Amazing Grace}",
+      "{key: G}",
+      "# a note",
+      "{comment: Slowly}",
+      "",
+      "[G]Amazing [C]grace how [G]sweet the sound",
+      "Not online at all",
+      "",
+    ]);
+  });
+
+  it("changes the key where the song writes it, in its own form", () => {
+    const ours = ["{title: Amazing Grace}", "{meta: key=A}", "Amazing grace how sweet the sound"].join("\n");
+    expect(matchChords(ours, online, "online").chordpro).toContain("{meta: key=G}\n");
+    expect(matchChords(ours, online).chordpro).toContain("[A]Amazing [D]grace how [A]sweet");
+  });
+
+  it("leaves tab and grid blocks alone", () => {
+    const ours = ["{start_of_tab}", "Amazing grace how sweet the sound", "{end_of_tab}"].join("\n");
+    expect(matchChords(ours, online).matched).toBe(0);
   });
 });

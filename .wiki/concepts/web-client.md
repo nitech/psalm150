@@ -260,7 +260,7 @@ are not affected.
   `maxFrequent`), two otherwise. Everything else is in **⋮** with icon and
   text: **Transpose** (icon "C → D", `transpose`; a row with − and + to tap and the key between them; the
   menu stays open while stepping), Add to a (another) set, Copy the words,
-  and for leaders on a song with no chords **Chords from the web** (below). Transpose in the bar is one pill, "− G +". The key
+  and for leaders on a song with no chords **Chords from the web** (below). Transpose is always in ⋮ ("− G +"), never in the bar, however much it is used: it is too wide for a phone's bar (`menuOnly`). The key
   is the song's `{key}`, else a guess from its chords (`guessKey`: the key
   whose scale fits most chords, the last chord being home counting most,
   major over its relative minor on a tie), moved with the transpose; with no
@@ -271,12 +271,16 @@ are not affected.
   most 2: it comes at 3 uses and goes when its uses fade (half every 14
   days) below 1.5. Uses are counted per screen in
   `localStorage["psa150-bar-usage-song"]`, from the menu and from the
-  promoted icon (`bar-menu.ts`, tested). The menu closes on Escape (focus
+  promoted icon (`bar-menu.ts`, tested). ⋮ and the fixed icons never
+  shrink: when the bar is short of room (a narrow phone, a long title) the
+  often-used icons are dropped from it (`.crowded`, measured whenever the
+  screen is drawn or resized), so ⋮ is never pushed out. The menu closes on Escape (focus
   back on ⋮), a tap outside or Tab, and moves with the arrow keys.
 - **Chords from the web** (`#/songs/{id}/chords`, `views/find-chords.ts`):
   for a song without chords. It searches online (`GET /songs/online`) for
   the song's title at once; the field can be changed and searched again.
-  Each version found is laid over **our** song by `chord-match.ts`
+  Each version found is laid over **our** song by `shared/chord-match.ts`
+  (shared with the desktop, which mirrors it)
   (tested): each of our lines takes the chords of the online line most like
   it by its words (in any order; at least 0.6 alike; of equal ones the next
   after the last match), every chord going to the same word, as far into it,
@@ -489,7 +493,7 @@ reduced motion is asked for:
 link, signed in or not, and stands outside the shell like the room reader:
 the set, **Go through the songs**, and one item at a time at
 `#/item/{itemId}` with words and chords. Its bar has the chords switch and
-the transpose pill ("− G +") always in it, as there is nothing else (no ⋮).
+⋮ with Transpose ("− G +").
 There is no Follow or
 Project. The tab title has the set's day. Moving between the set and its
 items slides like the app ([movement](#movement-on-phones)). When a leader leads the set, the page moves to the item they show

@@ -240,9 +240,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
           title: itemTitle(item),
           subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
           back: "#/",
-          // Reading from a link: chords and transpose are all the bar has,
-          // so transpose sits in it rather than in a menu of one.
-          actions: display ? barActions("shared-song", readerBarActions(display, options, transpose, true)) : "",
+          actions: display ? barActions("shared-song", readerBarActions(display, options, transpose)) : "",
         })}
         ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
         ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}

@@ -17,6 +17,8 @@ export interface BarAction {
   icon: IconName;
   /** Always in the bar; the others are in the menu. */
   fixed?: boolean;
+  /** Always in the menu, however often it is used (Transpose). */
+  menuOnly?: boolean;
   /** A link instead of a button. */
   href?: string;
   /** An on/off action: the menu shows it as a checkbox item. */
@@ -151,7 +153,8 @@ function menuItem(action: BarAction): string {
 export function barActions(screen: string, actions: BarAction[], maxFrequent = MAX_FREQUENT): string {
   const inMenu = actions.filter((action) => !action.fixed);
   const usage = readUsage(screen);
-  const shown = frequent(usage, inMenu.map((action) => action.id), Date.now(), maxFrequent);
+  const promotable = inMenu.filter((action) => !action.menuOnly).map((action) => action.id);
+  const shown = frequent(usage, promotable, Date.now(), maxFrequent);
   writeUsage(screen, usage);
   const often = inMenu.filter((action) => shown.includes(action.id));
   const fixed = actions.filter((action) => action.fixed);
@@ -259,6 +262,26 @@ export function bindBarActions(root: HTMLElement): () => void {
   const onOutside = (event: Event) => {
     if (!root.querySelector(".bar-actions")?.contains(event.target as Node)) close(false);
   };
+  // A bar short of room drops its often-used icons (they are in ⋮ too)
+  // rather than clip one; ⋮ itself never shrinks (styles.css).
+  let fitting = 0;
+  const fit = () => {
+    cancelAnimationFrame(fitting);
+    fitting = requestAnimationFrame(() => {
+      root.querySelectorAll<HTMLElement>(".bar-actions").forEach((bar) => {
+        bar.classList.remove("crowded");
+        const often = bar.querySelector<HTMLElement>(".bar-frequent");
+        if (often && often.scrollWidth > often.clientWidth + 1) bar.classList.add("crowded");
+      });
+    });
+  };
+  // Screens redraw their bar (a transpose step, a set change): fit again.
+  // The screen is drawn before it is on the page, and phones turn: fit
+  // again whenever its size changes too.
+  const redrawn = new MutationObserver(fit);
+  redrawn.observe(root, { childList: true, subtree: true });
+  const resized = new ResizeObserver(fit);
+  resized.observe(root);
   root.addEventListener("click", onClick);
   root.addEventListener("keydown", onKey);
   document.addEventListener("pointerdown", onOutside);
@@ -266,5 +289,8 @@ export function bindBarActions(root: HTMLElement): () => void {
     root.removeEventListener("click", onClick);
     root.removeEventListener("keydown", onKey);
     document.removeEventListener("pointerdown", onOutside);
+    redrawn.disconnect();
+    resized.disconnect();
+    cancelAnimationFrame(fitting);
   };
 }
