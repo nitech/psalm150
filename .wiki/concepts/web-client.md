@@ -282,10 +282,19 @@ are not affected.
   after the last match), every chord going to the same word, as far into it,
   or, for a word the online line lacks, the same share of the way between
   the matching words around it. Lines with no such line get no chords, and
-  lines that already have chords are left alone. The chords are moved into
-  the song's `{key}`; a song with none takes the online song's (its
-  `{key}`, else `guessKey`). Only chords (and that key) are added: words,
-  sections and every other line stay byte for byte. The versions are listed
+  lines that already have chords are left alone. The saved `{key}` always
+  fits the saved chords. The key the online chords are in (`chordKey`) is
+  their `{key}` when the chords agree with it, else the key they fit best
+  (`guessKey`); with a `{capo}` only the chords count, as `{key}` then often
+  names the key that sounds. Keys are compared by their chords
+  (`keySteps`): a minor key and its relative major (Em and G) are the same.
+  When the song's key and the chords' key differ, the summary says so and
+  the leader picks **Keep <song key> (chords ±n)** (the default; the chords
+  are moved) or **Change the song to <chords' key>** (its `{key}` is
+  rewritten). A song without a key gets the chords' key; when the chords'
+  key cannot be told they are kept as written, with a note to check them.
+  Only chords (and that key) change: words, sections and every other line
+  stay byte for byte. The versions are listed
   best first with "N of M lines" (a version matching none is disabled); the
   chosen one shows a summary (lines, source link, key moved) with **Save
   chords** and the preview, our song with its new chords. Save sends

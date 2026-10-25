@@ -7,7 +7,7 @@
  */
 import { announce, keepFocus, setTitle } from "../a11y.ts";
 import { ApiError } from "../api.ts";
-import { matchChords, type ChordMatch } from "../chord-match.ts";
+import { keySteps, matchChords, type ChordMatch, type KeyChoice } from "../chord-match.ts";
 import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.ts";
 import { icon } from "../icons.ts";
 import { prepareSong, renderSongBody } from "../song-render.ts";
@@ -41,7 +41,34 @@ export async function findChords(ctx: AppContext, [songId]: string[]): Promise<C
   let abort: AbortController | null = null;
   let candidates: Candidate[] | null = null;
   let chosen = 0;
+  /** Keep the song's key (move the chords) or take the chords' key. */
+  let keyChoice: KeyChoice = "song";
   let saving = false;
+
+  /** The chosen version laid over the song, in the chosen key. */
+  const current = (): ChordMatch => matchChords(song.chordpro, candidates![chosen].song.chordpro, keyChoice);
+
+  /**
+   * The key line: the saved song's `{key}` always fits its chords. When the
+   * song's key and the chords' key differ, the leader picks which one stays.
+   */
+  const keyPart = (match: ChordMatch): string => {
+    const { songKey, onlineKey } = match;
+    const strong = (key: string) => `<strong>${escapeHtml(key)}</strong>`;
+    if (!onlineKey) {
+      return `<p class="chord-key-note">The key of these chords cannot be told, so they are kept as written${songKey ? `. Check that they fit the song's key, ${strong(songKey)}` : ""}.</p>`;
+    }
+    if (!songKey) return `<p class="chord-key-note">The song has no key yet. It gets ${strong(onlineKey)}, the key these chords are in.</p>`;
+    const steps = keySteps(onlineKey, songKey) ?? 0;
+    if (!steps) return `<p class="chord-key-note">The chords are in the song's key, ${strong(songKey)}.</p>`;
+    const option = (value: KeyChoice, label: string) =>
+      `<button type="button" role="radio" class="${keyChoice === value ? "on" : ""}" aria-checked="${keyChoice === value}" data-key-choice="${value}">${label}</button>`;
+    return `<p class="chord-key-note">The song is in ${strong(songKey)}, these chords are in ${strong(onlineKey)}.</p>
+      <div class="segmented chord-key-choice" role="radiogroup" aria-label="Key to save the song in">
+        ${option("song", `Keep ${escapeHtml(songKey)} (chords ${transposeLabel(steps)})`)}
+        ${option("online", `Change the song to ${escapeHtml(onlineKey)}`)}
+      </div>`;
+  };
 
   const render = () => {
     if (abort) {
@@ -62,12 +89,9 @@ export async function findChords(ctx: AppContext, [songId]: string[]): Promise<C
       );
       return;
     }
-    const { song: found, match } = candidates[chosen];
-    const notes = [
-      match.transposed ? `Moved ${transposeLabel(match.transposed)} to the song's key, ${escapeHtml(match.key ?? "")}.` : "",
-      !match.transposed && match.key ? `Key ${escapeHtml(match.key)}.` : "",
-      match.matched < match.lines ? "Lines without a match get no chords." : "",
-    ].filter(Boolean).join(" ");
+    const found = candidates[chosen].song;
+    const match = current();
+    const notes = match.matched < match.lines ? "Lines without a match get no chords." : "";
     results.innerHTML = `
       <h2 class="list-heading">Found online</h2>
       <div class="list chord-sources" role="radiogroup" aria-label="Version to take the chords from">
@@ -80,6 +104,7 @@ export async function findChords(ctx: AppContext, [songId]: string[]): Promise<C
       <div class="chord-preview-head">
         <p><strong>Chords on ${match.matched} of ${match.lines} lines</strong>, from <a href="${escapeHtml(found.source_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(found.source_name)}</a>. ${notes} Your words stay as they are.</p>
         <button type="button" class="button primary" id="save-chords"${saving ? " disabled" : ""}>${icon("check")}Save chords</button>
+        <div class="chord-key">${keyPart(match)}</div>
       </div>
       ${renderSongBody(prepareSong(match.chordpro, 0), { chords: true })}`;
   };
@@ -123,7 +148,7 @@ export async function findChords(ctx: AppContext, [songId]: string[]): Promise<C
     saving = true;
     keepFocus(results, render);
     try {
-      await ctx.api.updateSong(song.id, song.revision_id, candidates[chosen].match.chordpro);
+      await ctx.api.updateSong(song.id, song.revision_id, current().chordpro);
       showToast("Saved the chords.");
       ctx.navigate(back, true);
     } catch (error) {
@@ -148,6 +173,12 @@ export async function findChords(ctx: AppContext, [songId]: string[]): Promise<C
     const pick = target.closest<HTMLElement>("[data-candidate]");
     if (pick) {
       chosen = Number(pick.dataset.candidate);
+      keepFocus(results, render);
+      return;
+    }
+    const key = target.closest<HTMLElement>("[data-key-choice]");
+    if (key) {
+      keyChoice = key.dataset.keyChoice as KeyChoice;
       keepFocus(results, render);
       return;
     }

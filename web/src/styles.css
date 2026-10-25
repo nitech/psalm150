@@ -1019,3 +1019,8 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
 .chord-preview-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--psa-space-3); margin: var(--psa-space-4) 0; padding: var(--psa-space-3) var(--psa-space-4); border-radius: var(--psa-radius-sm); background: var(--psa-bg-surface); border: 1px solid var(--psa-border); }
 .chord-preview-head p { flex: 1 1 18em; margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
 .chord-preview-head strong { color: var(--psa-text); }
+.chord-key { flex: 1 1 100%; display: grid; gap: var(--psa-space-2); }
+.chord-key-note { margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
+.chord-key-note strong { color: var(--psa-text); }
+.chord-key-choice { justify-self: start; grid-auto-columns: auto; }
+.chord-key-choice button { padding: 0 var(--psa-space-3); }

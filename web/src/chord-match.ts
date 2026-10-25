@@ -9,9 +9,11 @@
  */
 import {
   findMeta,
+  isMinorKey,
   keyDistance,
   keyUsesFlats,
   moveChord,
+  parseChordName,
   newId,
   parseDoc,
   serializeDoc,
@@ -25,6 +27,14 @@ import { guessKey } from "./song-render.ts";
 /** How alike two lines must be (0–1, by their words) to share chords. */
 export const LINE_MATCH = 0.6;
 
+/**
+ * Which key the chords and the song agree on: the song's own `{key}` (the
+ * chords are moved into it) or the key the online chords are in (the
+ * song's `{key}` changes to it). A song without a key always takes the
+ * online one.
+ */
+export type KeyChoice = "song" | "online";
+
 export interface ChordMatch {
   /** Our song with the chords added, ready to save. */
   chordpro: string;
@@ -32,10 +42,16 @@ export interface ChordMatch {
   lines: number;
   /** Of those, the lines that got chords. */
   matched: number;
-  /** The key the song is in now; set from the online song when ours had none. */
+  /** The song's `{key}` before, or null when it has none (or none we can read). */
+  songKey: string | null;
+  /** The key the online chords are written in, or null when it cannot be told. */
+  onlineKey: string | null;
+  /** The key the saved song is in: its `{key}` always matches its chords. */
   key: string | null;
-  /** Semitones the online chords were moved to fit our `{key}`. */
+  /** Semitones the online chords were moved into the song's key. */
   transposed: number;
+  /** The key that was kept (`online` when the song had none). */
+  choice: KeyChoice;
 }
 
 interface Word {
@@ -135,24 +151,57 @@ function lyricLines(doc: SongDoc): LyricLine[] {
   );
 }
 
-/** The key a song's `{key}` names, else the one its chords fit best. */
-function keyOf(doc: SongDoc): string | null {
-  return findMeta(doc, "key")?.value.trim() || guessKey(lyricLines(doc).flatMap((line) => line.chords.map((c) => c.name)));
+/** A key we can work with (`G`, `F#m`), else null. */
+function readKey(value: string | undefined): string | null {
+  const key = value?.trim() ?? "";
+  return key && parseChordName(key) ? key : null;
+}
+
+/** A key's major root: a minor key shares its chords with the major a minor third up (Em → G). */
+function majorRoot(key: string): string {
+  const root = parseChordName(key)!.root;
+  return isMinorKey(key) ? moveChord(root, 3, keyUsesFlats(key)) : root;
+}
+
+/**
+ * Semitones from one key's chords to another's, between -5 and +6. A major
+ * key and its relative minor are 0 apart: Em and G use the same chords.
+ */
+export function keySteps(from: string, to: string): number | null {
+  if (!readKey(from) || !readKey(to)) return null;
+  return keyDistance(majorRoot(from), majorRoot(to));
+}
+
+/**
+ * The key a song's chords are written in. Its `{key}` when the chords agree
+ * with it; else the key the chords fit best, as they are what gets moved.
+ * With a `{capo}` the chords are shapes and `{key}` is often the key that
+ * sounds, so only the chords count.
+ */
+export function chordKey(doc: SongDoc): string | null {
+  const guessed = guessKey(lyricLines(doc).flatMap((line) => line.chords.map((chord) => chord.name)));
+  const written = readKey(findMeta(doc, "key")?.value);
+  if (Number(findMeta(doc, "capo")?.value)) return guessed;
+  if (written && (!guessed || keySteps(written, guessed) === 0)) return written;
+  return guessed ?? written;
 }
 
 /**
  * Lays the chords of `online` (ChordPro found online) over `ours`. Our
- * lines that already have chords are left alone. The online chords are
- * moved into our `{key}`; when ours has none, it takes the online song's.
+ * lines that already have chords are left alone. The saved song's `{key}`
+ * always fits its chords: with `choice` "song" (the default) the chords are
+ * moved into the song's key; with "online", or when the song has no key,
+ * the song's `{key}` becomes the one the chords are in.
  */
-export function matchChords(ours: string, online: string): ChordMatch {
+export function matchChords(ours: string, online: string, choice: KeyChoice = "song"): ChordMatch {
   const { doc } = parseDoc(ours);
   const found = parseDoc(online).doc;
   const candidates = lyricLines(found).filter((line) => line.text.trim());
-  const ourKey = findMeta(doc, "key")?.value.trim() || null;
-  const theirKey = keyOf(found);
-  const transposed = ourKey && theirKey ? keyDistance(theirKey, ourKey) ?? 0 : 0;
-  const flat = keyUsesFlats(ourKey ?? theirKey ?? "");
+  const songKey = readKey(findMeta(doc, "key")?.value);
+  const onlineKey = chordKey(found);
+  const takeOnline = Boolean(onlineKey) && (choice === "online" || !songKey);
+  const transposed = !takeOnline && songKey && onlineKey ? keySteps(onlineKey, songKey) ?? 0 : 0;
+  const flat = keyUsesFlats((takeOnline ? onlineKey : songKey) ?? "");
 
   let lines = 0;
   let matched = 0;
@@ -178,10 +227,19 @@ export function matchChords(ours: string, online: string): ChordMatch {
     matched += 1;
   }
 
-  let key = ourKey;
-  if (!ourKey && theirKey && matched) {
-    setMeta(doc, "key", theirKey);
-    key = theirKey;
+  let key = songKey;
+  if (takeOnline && matched) {
+    setMeta(doc, "key", onlineKey!);
+    key = onlineKey;
   }
-  return { chordpro: serializeDoc(doc).text, lines, matched, key, transposed };
+  return {
+    chordpro: serializeDoc(doc).text,
+    lines,
+    matched,
+    songKey,
+    onlineKey,
+    key,
+    transposed,
+    choice: takeOnline ? "online" : "song",
+  };
 }

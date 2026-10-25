@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { lineLikeness, matchChords, moveChordsTo } from "../src/chord-match.ts";
-import { parseLyric } from "../src/chord-doc.ts";
+import { chordKey, keySteps, lineLikeness, matchChords, moveChordsTo } from "../src/chord-match.ts";
+import { parseDoc, parseLyric } from "../src/chord-doc.ts";
 
 const line = (source: string) => parseLyric(source, 0, []);
 const placed = (text: string, chords: { pos: number; name: string }[]) =>
@@ -85,5 +85,41 @@ The [G]sun comes up, it's a [D]new day dawning
     const result = matchChords(`{title: X}\n[F]Bless the Lord, O my soul\n`, online);
     expect(result.lines).toBe(0);
     expect(result.chordpro).toContain("[F]Bless the Lord, O my soul");
+  });
+
+  it("keeps the song's key by default and can take the online key instead", () => {
+    const inA = ours.replace("{meta: song_num=858}", "{key: A}");
+    const kept = matchChords(inA, online);
+    expect(kept).toMatchObject({ songKey: "A", onlineKey: "G", key: "A", transposed: 2, choice: "song" });
+    const taken = matchChords(inA, online, "online");
+    expect(taken).toMatchObject({ key: "G", transposed: 0, choice: "online" });
+    expect(taken.chordpro).toContain("{key: G}");
+    expect(taken.chordpro).not.toContain("{key: A}");
+    expect(taken.chordpro).toContain("[C]Bless the [G]Lord, O my [D]soul");
+  });
+
+  it("does not move chords between a minor key and its relative major", () => {
+    const result = matchChords(ours.replace("{meta: song_num=858}", "{key: Em}"), online);
+    expect(result.transposed).toBe(0);
+    expect(result.key).toBe("Em");
+    expect(result.chordpro).toContain("[C]Bless the [G]Lord, O my [D]soul");
+  });
+});
+
+describe("keys", () => {
+  it("counts a minor key and its relative major as the same chords", () => {
+    expect(keySteps("Em", "G")).toBe(0);
+    expect(keySteps("G", "A")).toBe(2);
+    expect(keySteps("Em", "Am")).toBe(5);
+    expect(keySteps("Dm", "F")).toBe(0);
+  });
+
+  it("reads the key from the chords when the written key disagrees, or with a capo", () => {
+    const keyOf = (...head: string[]) =>
+      chordKey(parseDoc([...head, "[C]Bless the [G]Lord oh my [D]soul", "[C]Oh my [G]soul"].join("\n")).doc);
+    expect(keyOf("{key: G}")).toBe("G");
+    expect(keyOf("{key: Em}")).toBe("Em");
+    expect(keyOf("{key: Bb}")).toBe("G");
+    expect(keyOf("{key: A}", "{capo: 2}")).toBe("G");
   });
 });
