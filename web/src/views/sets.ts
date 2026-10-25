@@ -902,11 +902,13 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
         subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
         back: `#/sets/${set.id}`,
         autohide: true,
-        actions: ctx.canEdit ? `<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>` : "",
+        // Projecting sits in the bar with leading, not as a button under the title.
+        actions: ctx.canEdit
+          ? `${target ? `<button class="icon-button ghost" id="project-here" aria-label="Project this on ${escapeHtml(target.room_name)}" title="Project this on ${escapeHtml(target.room_name)}">${icon("project")}</button>` : ""}<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>`
+          : "",
       })}
       ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
       ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
-      ${target && ctx.canEdit ? `<button class="button secondary wide" id="project-here">${icon("remote")}Project this on ${escapeHtml(target.room_name)}</button>` : ""}
       ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : emptyState("This song was deleted", "It is no longer in the library.")}
       ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
     </div>`;

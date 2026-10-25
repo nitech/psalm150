@@ -386,8 +386,10 @@ are not affected.
   (`PUT /sets/{id}/live` leading, `GET` otherwise) and lets go a minute after
   the phone goes quiet ([shared sets](shared-sets.md#leading-live)). The page
   also polls `GET /remote/desktops` every 15 s and redraws only when the
-  **Project this on <desktop>** button (leaders, when a desktop accepts
-  commands) changes ([remote control](remote-control.md)).
+  **Project this on <desktop>** button changes ([remote control](remote-control.md)).
+  That button is an icon in the bar beside Lead (leaders, when a desktop
+  accepts commands; its label and tooltip name the room), so nothing but the
+  key and the item's note sits between the title and the song.
 
 The service view's polling stops while the page is hidden, such as a locked
 phone or a background tab, and runs at once when it is shown again.

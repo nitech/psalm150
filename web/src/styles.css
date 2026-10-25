@@ -868,7 +868,6 @@ body.is-busy { cursor: progress; }
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 
-.play #project-here { margin-bottom: var(--psa-space-5); }
 body[data-route^="/sets/id/play"] .toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
 /* Above the song editor's bar of chords and buttons. */
 body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }

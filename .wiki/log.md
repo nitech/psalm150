@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-25
+* **Project button in the service view's bar (web)**: "Project this on <room>" is an icon beside Lead in the bar instead of a wide button under the title. Pages touched: web-client.
+
 ## 2026-10-24
 * **Set editor saves as you go (web)**: no Save button. Name (after a pause in typing), date, adding, moving and removing songs each save at once with `PUT /sets/{id}` on the version last saved, one at a time; a 409 stops saving and links to the other version. A new set is created on its first change, named by its date ("25.10") when left unnamed. Pages touched: none (web only).
 * **Set items carry the song's key**: `SetSongRef` (each set item's `song`, also on shared sets) has `song_key` (the revision's `{key}`, null when none), additive. The web client shows the key each item is played in (the key moved by the item's transpose) at the end of the rows of a set, the set editor and a shared set. Pages touched: sets.
