@@ -78,8 +78,11 @@ double-click toggles the default and the widest width.
   History and Favourites choose what the song list shows; the active one has
   a lime edge. The VSB sync icon sits at the bottom when a database is linked
   ([VSB sync](vsb-sync.md)).
-- **Song actions** sit on the song title row instead: Edit (icon), a
-  favourite star and the add-to-setlist button.
+- **Song actions** sit on the song title row instead: Edit (icon),
+  **Chords from the web** (chord icon; only for a library song that may be
+  edited and has words but no chords, see
+  [web search](web-search.md#chords-for-a-song-without-any)), a favourite
+  star and the add-to-setlist button.
 
 There is no "Now showing" text in the app bar. The stanza row shows
 "On screen: …" only while a different song is previewed.

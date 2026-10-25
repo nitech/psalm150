@@ -1,7 +1,8 @@
 // Mirrors the song server's shared files into this repo. The server repo is
 // canonical; never edit a mirror by hand.
 //
-//   shared/psa150-tokens.css, shared/icons.ts  →  src/shared/
+//   shared/psa150-tokens.css, shared/icons.ts,
+//   shared/chord-match.ts                       →  src/shared/
 //   shared/lyrics/ (the online song lookup)     →  src-tauri/crates/psa150-lyrics/
 //
 //   bun run sync:shared    copy the files from the server checkout
@@ -19,7 +20,7 @@ const check = process.argv.includes("--check");
 
 /** `files`: only these; without it, the whole folder (build output left out). */
 const MIRRORS = [
-  { source: "shared", target: "src/shared", files: ["psa150-tokens.css", "icons.ts"] },
+  { source: "shared", target: "src/shared", files: ["psa150-tokens.css", "icons.ts", "chord-match.ts"] },
   { source: "shared/lyrics", target: "src-tauri/crates/psa150-lyrics" },
 ];
 const SKIPPED = new Set(["target", "Cargo.lock"]);

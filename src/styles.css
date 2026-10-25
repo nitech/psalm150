@@ -3497,3 +3497,213 @@ body.stage-projection {
     opacity: 0.6;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Chords from the web
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.chords-dialog {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chords-dialog .chords-search {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
+.chords-dialog .chords-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chords-dialog p {
+  margin: 0;
+  line-height: 1.32;
+}
+
+.chords-dialog .chords-search input {
+  flex: 1;
+  min-width: 0;
+}
+
+.chords-dialog .chords-status {
+  margin: 16px 0 0;
+  color: var(--text-secondary);
+}
+
+.chords-dialog .chords-sources {
+  display: grid;
+  margin-top: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.chords-dialog .chords-source {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chords-dialog .chords-source + .chords-source {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.chords-dialog .chords-source:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chords-dialog .chords-source.on {
+  background: rgba(198, 216, 140, 0.12);
+  box-shadow: inset 3px 0 0 var(--accent-lime);
+}
+
+.chords-dialog .chords-source:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chords-dialog .chords-source-meta {
+  grid-column: 1;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+}
+
+.chords-dialog .chords-source-count {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.chords-dialog .chords-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.chords-dialog .chords-summary p {
+  flex: 1 1 20em;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.chords-dialog .chords-summary strong {
+  color: var(--text-strong);
+}
+
+.chords-dialog .chords-summary a {
+  color: var(--accent-lime);
+}
+
+.chords-dialog .chords-key {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 8px;
+}
+
+.chords-dialog .chords-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.chords-dialog .chords-key-choice {
+  justify-self: start;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+}
+
+.chords-dialog .chords-key-option {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.chords-dialog .chords-key-option.on {
+  background: var(--accent-lime);
+  color: #161616;
+}
+
+.chords-dialog .chords-preview {
+  margin-top: 12px;
+  font-size: 0.95rem;
+  line-height: 1.32;
+  color: var(--text-strong);
+}
+
+.chords-dialog .chords-preview-label {
+  margin: 12px 0 4px;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-transform: capitalize;
+  color: var(--text-muted);
+}
+
+.chords-dialog .chords-preview-comment {
+  margin: 0 0 4px;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.chords-dialog .chords-preview-gap {
+  height: 0.6rem;
+}
+
+.chords-dialog .chords-preview-line {
+  margin: 0 0 2px;
+  white-space: pre-wrap;
+  font-size: 0.95rem;
+  color: var(--text-strong);
+}
+
+.chords-dialog .chords-preview-line.with-chords {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.chords-dialog .chords-seg {
+  display: inline-flex;
+  flex-direction: column;
+  white-space: pre;
+}
+
+.chords-dialog .chords-seg-chord {
+  min-height: 1.2em;
+  padding-right: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--accent-lime);
+}
+

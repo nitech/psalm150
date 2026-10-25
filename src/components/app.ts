@@ -73,6 +73,13 @@ import {
   type SongSortColumn,
 } from "../song-sort";
 import { Psa150Element } from "./base";
+import {
+  keySteps,
+  matchChords,
+  parseLyric,
+  type ChordMatch,
+  type KeyChoice,
+} from "../shared/chord-match";
 import { StanzaNumberInput } from "../stanza-number-input";
 import {
   projectionStructureSignature,
@@ -199,6 +206,13 @@ export class Psa150App extends Psa150Element {
     importTotal: { state: true },
     importSong: { state: true },
     importReportOpen: { state: true },
+    chordsOpen: { state: true },
+    chordsQuery: { state: true },
+    chordsSearching: { state: true },
+    chordsFound: { state: true },
+    chordsChosen: { state: true },
+    chordsKeyChoice: { state: true },
+    chordsSaving: { state: true },
     importReport: { state: true },
     toastMsg: { state: true },
     toastTone: { state: true },
@@ -282,6 +296,14 @@ export class Psa150App extends Psa150Element {
   declare importTotal: number;
   declare importSong: string;
   declare importReportOpen: boolean;
+  /** Chords from the web: the dialog, its search and the versions found. */
+  declare chordsOpen: boolean;
+  declare chordsQuery: string;
+  declare chordsSearching: boolean;
+  declare chordsFound: { candidate: WebSearchCandidate; match: ChordMatch }[] | null;
+  declare chordsChosen: number;
+  declare chordsKeyChoice: KeyChoice;
+  declare chordsSaving: boolean;
   declare importReport: ImportReport | null;
   declare toastMsg: string;
   declare toastTone: ToastTone;
@@ -398,6 +420,13 @@ export class Psa150App extends Psa150Element {
     this.importTotal = 0;
     this.importSong = "";
     this.importReportOpen = false;
+    this.chordsOpen = false;
+    this.chordsQuery = "";
+    this.chordsSearching = false;
+    this.chordsFound = null;
+    this.chordsChosen = 0;
+    this.chordsKeyChoice = "song";
+    this.chordsSaving = false;
     this.importReport = null;
     this.toastMsg = "";
     this.toastTone = "info";
@@ -1058,6 +1087,83 @@ export class Psa150App extends Psa150Element {
       }
       this.showToast(message, "error");
       return message.includes("FILE_SAVED_INDEX_FAILED");
+    }
+  }
+
+  // ── Chords from the web ────────────────────────────────────────────────
+
+  private chordsGeneration = 0;
+
+  /** A library song with words and not one chord (only those get the offer). */
+  private songLacksChords(): boolean {
+    if (!this.canAdhocEdit() || !this.currentSong) return false;
+    const lines = this.currentSong.parsed.sections.flatMap((section) => section.lines);
+    return lines.some((line) => line.text.trim()) && lines.every((line) => !line.chords.length);
+  }
+
+  /** Opens the dialog and searches for the song's title at once. */
+  private openChords() {
+    if (!this.currentSong) return;
+    this.chordsOpen = true;
+    this.chordsQuery = (this.currentSong.parsed.meta.title as string) || "";
+    this.chordsKeyChoice = "song";
+    void this.searchChords();
+  }
+
+  private closeChords() {
+    this.chordsGeneration += 1;
+    this.chordsOpen = false;
+    this.chordsSearching = false;
+    this.chordsFound = null;
+  }
+
+  /** Looks online and lays each version over the song, best first. */
+  private async searchChords() {
+    const query = this.chordsQuery.trim();
+    if (query.length < 3 || !this.currentSong) {
+      this.showToast("Search for at least 3 characters", "info");
+      return;
+    }
+    const generation = ++this.chordsGeneration;
+    const raw = this.currentSong.parsed.raw;
+    this.chordsSearching = true;
+    this.chordsFound = null;
+    try {
+      const candidates = await api.searchWebSongs(query);
+      if (generation !== this.chordsGeneration) return;
+      this.chordsFound = candidates
+        .map((candidate) => ({ candidate, match: matchChords(raw, candidate.chordpro_content) }))
+        .sort((a, b) => b.match.matched - a.match.matched);
+      this.chordsChosen = 0;
+    } catch (err) {
+      if (generation !== this.chordsGeneration) return;
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      if (generation === this.chordsGeneration) this.chordsSearching = false;
+    }
+  }
+
+  /** The chosen version laid over the song, in the chosen key. */
+  private chordsMatch(): ChordMatch | null {
+    const found = this.chordsFound?.[this.chordsChosen];
+    if (!found || !this.currentSong) return null;
+    return matchChords(this.currentSong.parsed.raw, found.candidate.chordpro_content, this.chordsKeyChoice);
+  }
+
+  /** Saves the song with its new chords, like the editor's Save. */
+  private async saveChords() {
+    const match = this.chordsMatch();
+    if (!match || !this.currentSong || !this.currentFilename || this.chordsSaving) return;
+    this.chordsSaving = true;
+    try {
+      this.currentSong = await api.saveSong(this.currentFilename, match.chordpro, this.currentSong.content_hash);
+      this.closeChords();
+      this.showToast(this.serverLibrary ? "Chords saved to the song server" : "Chords saved", "success");
+      await this.refreshSongs();
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      this.chordsSaving = false;
     }
   }
 
@@ -2207,7 +2313,7 @@ export class Psa150App extends Psa150Element {
 
   private anyModalOpen(): boolean {
     return this.editOpen || this.settingsOpen || this.importOpen ||
-      this.importReportOpen || this.duplicatesOpen;
+      this.importReportOpen || this.duplicatesOpen || this.chordsOpen;
   }
 
   /**
@@ -2380,7 +2486,7 @@ export class Psa150App extends Psa150Element {
       !event.shiftKey && !event.isComposing && !event.defaultPrevented &&
       !isTextEntryTarget(target) && !isContentEditableTarget(target) &&
       !this.editOpen && !this.settingsOpen && !this.importOpen &&
-      !this.importReportOpen && !this.duplicatesOpen &&
+      !this.importReportOpen && !this.duplicatesOpen && !this.chordsOpen &&
       this.projecting && this.projection?.slides.length;
     if (numberShortcut) {
       event.preventDefault();
@@ -2406,6 +2512,10 @@ export class Psa150App extends Psa150Element {
         this.editOpen = false;
         return;
       }
+      if (this.chordsOpen) {
+        this.closeChords();
+        return;
+      }
       if (this.settingsOpen) {
         this.settingsOpen = false;
         return;
@@ -2429,7 +2539,7 @@ export class Psa150App extends Psa150Element {
     const combo = comboFromEvent(event);
     const action = combo ? actionForCombo(this.shortcuts, combo) : null;
     const modalOpen = this.editOpen || this.settingsOpen || this.importOpen ||
-      this.importReportOpen || this.duplicatesOpen;
+      this.importReportOpen || this.duplicatesOpen || this.chordsOpen;
     const view = combo ? VIEW_SHORTCUTS[combo] : undefined;
     if (view && !modalOpen) {
       event.preventDefault();
@@ -2684,6 +2794,13 @@ export class Psa150App extends Psa150Element {
         ?open=${this.editOpen}
         .content=${this.renderEditContent()}
         @psa150-close=${() => (this.editOpen = false)}
+      ></psa150-modal>
+      <psa150-modal
+        heading="Chords from the web"
+        variant="tall"
+        ?open=${this.chordsOpen}
+        .content=${this.renderChordsContent()}
+        @psa150-close=${() => this.closeChords()}
       ></psa150-modal>
       <psa150-modal
         heading="Importing songbook"
@@ -3350,6 +3467,15 @@ export class Psa150App extends Psa150Element {
           aria-label="Edit the ChordPro source"
           @click=${() => this.openEdit()}
         >${icon("edit")}</button>
+        ${this.songLacksChords()
+          ? html`<button
+              type="button"
+              class="song-action-btn"
+              title="Chords from the web"
+              aria-label="Chords from the web"
+              @click=${() => this.openChords()}
+            >${icon("chords")}</button>`
+          : nothing}
         ${filename
           ? html`
               <button
@@ -3911,6 +4037,127 @@ export class Psa150App extends Psa150Element {
           ${sectionsToRender.length ? sectionsToRender.map((id) => this.renderSettingsSection(id)) : html`<div class="settings-empty"><strong>No matching settings</strong><span>Try terms like “display”, “songs”, “remote”, or “import”.</span></div>`}
         </div>
       </div>`;
+  }
+
+  /**
+   * Chords from the web: search, the versions found (by how many of the
+   * song's lines they cover), the key, and the song's own words with the
+   * chosen chords. Nothing is saved before Save chords.
+   */
+  private renderChordsContent(): TemplateResult {
+    const found = this.chordsFound;
+    const match = this.chordsOpen ? this.chordsMatch() : null;
+    return html`<div class="chords-dialog">
+      <form
+        class="chords-search"
+        @submit=${(event: Event) => {
+          event.preventDefault();
+          void this.searchChords();
+        }}
+      >
+        <input
+          type="search"
+          aria-label="Search online for"
+          autocomplete="off"
+          spellcheck="false"
+          .value=${this.chordsQuery}
+          @input=${(event: Event) => (this.chordsQuery = (event.target as HTMLInputElement).value)}
+        />
+        <button type="submit" class="secondary compact" ?disabled=${this.chordsSearching}>Search</button>
+      </form>
+      <div class="chords-body scroll-region">${this.chordsSearching
+        ? html`<p class="chords-status" role="status">Searching chord sites… This takes a few seconds.</p>`
+        : !found
+          ? nothing
+          : !found.some((item) => item.match.matched)
+            ? html`<p class="chords-status" role="status">
+                ${found.length
+                  ? "No chords fit these words. Try the original title, or a line from the song."
+                  : "Nothing found online. Try the full title, or a line from the lyrics."}
+              </p>`
+            : html`
+                <div class="chords-sources" role="radiogroup" aria-label="Version to take the chords from">
+                  ${found.map(({ candidate, match: m }, index) => html`
+                    <button
+                      type="button"
+                      role="radio"
+                      class="chords-source ${index === this.chordsChosen ? "on" : ""}"
+                      aria-checked=${index === this.chordsChosen ? "true" : "false"}
+                      ?disabled=${!m.matched}
+                      @click=${() => (this.chordsChosen = index)}
+                    >
+                      <span class="chords-source-title">${candidate.title}</span>
+                      <span class="chords-source-meta">${[candidate.artist, candidate.source_name].filter(Boolean).join(" · ")}</span>
+                      <span class="chords-source-count">${m.matched} of ${m.lines} lines</span>
+                    </button>
+                  `)}
+                </div>
+                ${match ? this.renderChordsPreview(match) : nothing}
+              `}</div>
+    </div>`;
+  }
+
+  private renderChordsPreview(match: ChordMatch) {
+    const source = this.chordsFound![this.chordsChosen].candidate;
+    const { songKey, onlineKey } = match;
+    const steps = songKey && onlineKey ? keySteps(onlineKey, songKey) ?? 0 : 0;
+    const option = (value: KeyChoice, label: string) => html`<button
+      type="button"
+      role="radio"
+      class="chords-key-option ${this.chordsKeyChoice === value ? "on" : ""}"
+      aria-checked=${this.chordsKeyChoice === value ? "true" : "false"}
+      @click=${() => (this.chordsKeyChoice = value)}
+    >${label}</button>`;
+    const key = !onlineKey
+      ? html`<p class="chords-note">The key of these chords cannot be told, so they are kept as written${songKey ? html`. Check that they fit the song's key, <strong>${songKey}</strong>` : nothing}.</p>`
+      : !songKey
+        ? html`<p class="chords-note">The song has no key yet. It gets <strong>${onlineKey}</strong>, the key these chords are in.</p>`
+        : !steps
+          ? html`<p class="chords-note">The chords are in the song's key, <strong>${songKey}</strong>.</p>`
+          : html`<p class="chords-note">The song is in <strong>${songKey}</strong>, these chords are in <strong>${onlineKey}</strong>.</p>
+              <div class="chords-key-choice" role="radiogroup" aria-label="Key to save the song in">
+                ${option("song", `Keep ${songKey} (chords ${steps > 0 ? `+${steps}` : steps})`)}
+                ${option("online", `Change the song to ${onlineKey}`)}
+              </div>`;
+    return html`
+      <div class="chords-summary">
+        <p>
+          <strong>Chords on ${match.matched} of ${match.lines} lines</strong>, from
+          <a href=${source.source_url} target="_blank" rel="noopener noreferrer">${source.source_name}</a>.
+          ${match.matched < match.lines ? "Lines without a match get no chords. " : ""}Your words stay as they are.
+        </p>
+        <button type="button" class="primary compact" ?disabled=${this.chordsSaving} @click=${() => this.saveChords()}>
+          Save chords
+        </button>
+        <div class="chords-key">${key}</div>
+      </div>
+      <div class="chords-preview">${this.renderChordProPreview(match.chordpro)}</div>
+    `;
+  }
+
+  /** ChordPro as a musician reads it: section labels, chords above the words. */
+  private renderChordProPreview(chordpro: string) {
+    return chordpro.split(/\r?\n/).map((raw) => {
+      const line = raw.trim();
+      const directive = /^\{\s*([A-Za-z_][\w-]*)\s*(?::\s*(.*?))?\s*\}$/.exec(line);
+      if (directive) {
+        const name = directive[1].toLowerCase();
+        const value = (directive[2] ?? "").replace(/^label\s*=\s*"?([^"]*)"?$/i, "$1");
+        const kind = /^start_of_(.+)$/.exec(name)?.[1] ?? (name === "soc" ? "chorus" : name === "sov" ? "verse" : name === "sob" ? "bridge" : null);
+        if (kind) return html`<h3 class="chords-preview-label">${value || kind.replace(/_/g, " ")}</h3>`;
+        if (/^(c|comment|comment_italic|ci|comment_box|cb)$/.test(name) && value) return html`<p class="chords-preview-comment">${value}</p>`;
+        return nothing;
+      }
+      if (!line || line.startsWith("#")) return line ? nothing : html`<div class="chords-preview-gap"></div>`;
+      const lyric = parseLyric(raw);
+      if (!lyric.chords.length) return html`<p class="chords-preview-line">${lyric.text}</p>`;
+      const starts = [0, ...lyric.chords.map((chord) => chord.pos)];
+      const pieces = starts.map((start, index) => ({
+        chord: index ? lyric.chords[index - 1].name : "",
+        text: lyric.text.slice(start, starts[index + 1] ?? lyric.text.length),
+      })).filter((piece, index) => index || piece.text);
+      return html`<p class="chords-preview-line with-chords">${pieces.map((piece) => html`<span class="chords-seg"><span class="chords-seg-chord">${piece.chord}</span><span class="chords-seg-text">${piece.text || (piece.chord ? "\u00a0" : "")}</span></span>`)}</p>`;
+    });
   }
 
   private renderEditContent(): TemplateResult {

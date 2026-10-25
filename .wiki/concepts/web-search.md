@@ -5,6 +5,9 @@ description: When the library has no match, the console offers to look online an
 tags: [search, web, online, chordpro]
 status: stable
 sources:
+  - id: chord-match
+    resource: /src/shared/chord-match.ts
+    title: Laying online chords over a song (mirror of the server's shared/chord-match.ts)
   - id: crate
     resource: /src-tauri/crates/psa150-lyrics/src/lib.rs
     title: Mirrored lookup crate (canonical in the song server's shared/lyrics)
@@ -103,6 +106,34 @@ for the audience.
   `server_library::add_song` posts it (`POST /api/v1/songs`) with the device
   token, so the desktop has the rights of the leader who connected it, then
   writes it into the offline copy and the manifest so it can be edited at once.
+
+## Chords for a song without any
+
+A library song with words and no chords gets a **Chords from the web**
+button on its title row (not for web results, nor when edits are not
+allowed). It opens a dialog that searches `search_web_songs` for the song's
+title at once; the field can be changed and searched again (Esc closes).
+Each version found is laid over the song by `src/shared/chord-match.ts`,
+the same code the song server's web client uses (canonical in the server's
+`shared/`, mirrored by `bun run sync:shared`, tested there):
+
+- Each of the song's lines takes the chords of the online line most like it
+  by its words (any order, at least 0.6 alike), each chord on the same word.
+  Lines with no such line get none; lines with chords are left alone; every
+  line that gets no chords is written back byte for byte, CRLF included.
+- The saved `{key}` always fits the chords. The chords' key is their
+  `{key}` when the chords agree, else the key they fit best (with a `{capo}`
+  only the chords count); a minor key and its relative major count as the
+  same. When the song's key and the chords' differ, the operator picks
+  **Keep <key> (chords ±n)** (default, chords moved) or **Change the song
+  to <key>**. A song without a key takes the chords'.
+
+The versions are listed best first with "N of M lines" (none matching:
+disabled). The chosen one shows its summary (source link, key choice),
+**Save chords** and a preview of the song's own words with the chords above.
+Save goes through `save_song` with the hash from load, like the raw editor
+(to the song server in a server library); a song on screen republishes.
+Nothing is saved before that.
 
 ## Related
 
