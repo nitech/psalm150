@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-25
+* **Chords from the web (web)**: leaders can give a song without chords the chords of a version found online. ⋮ **Chords from the web** opens `#/songs/{id}/chords`, which searches by title, lists the versions by how many of the song's lines they cover, previews the song's own words with the chosen chords (moved into its key) and saves them as a new revision only on **Save chords**. Matching in `web/src/chord-match.ts`, tested. Pages touched: web-client.
 * **Project button in the service view's bar (web)**: "Project this on <room>" is an icon beside Lead in the bar instead of a wide button under the title. Pages touched: web-client.
 
 ## 2026-10-24

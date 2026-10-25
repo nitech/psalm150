@@ -147,6 +147,7 @@ navigation offline with the saved `/`, but saves only `/` itself.
 | `#/songs` | Song search and list |
 | `#/songs/new`, `#/songs/{id}/edit` | ChordPro editor |
 | `#/songs/{id}` | Song reader |
+| `#/songs/{id}/chords` | Chords from the web (leaders) |
 | `#/sets` | Set list (default route) |
 | `#/sets/new`, `#/sets/{id}/edit` | Set editor (`#/sets/new?song=…&transpose=…` starts with one song) |
 | `#/sets/{id}` | Set detail (leaders: Share on a link) |
@@ -258,7 +259,8 @@ are not affected.
   icons only one used-often icon comes into the bar (`barActions`'
   `maxFrequent`), two otherwise. Everything else is in **⋮** with icon and
   text: **Transpose** (icon "C → D", `transpose`; a row with − and + to tap and the key between them; the
-  menu stays open while stepping), Add to a (another) set, Copy the words. Transpose in the bar is one pill, "− G +". The key
+  menu stays open while stepping), Add to a (another) set, Copy the words,
+  and for leaders on a song with no chords **Chords from the web** (below). Transpose in the bar is one pill, "− G +". The key
   is the song's `{key}`, else a guess from its chords (`guessKey`: the key
   whose scale fits most chords, the last chord being home counting most,
   major over its relative minor on a tie), moved with the transpose; with no
@@ -271,6 +273,26 @@ are not affected.
   `localStorage["psa150-bar-usage-song"]`, from the menu and from the
   promoted icon (`bar-menu.ts`, tested). The menu closes on Escape (focus
   back on ⋮), a tap outside or Tab, and moves with the arrow keys.
+- **Chords from the web** (`#/songs/{id}/chords`, `views/find-chords.ts`):
+  for a song without chords. It searches online (`GET /songs/online`) for
+  the song's title at once; the field can be changed and searched again.
+  Each version found is laid over **our** song by `chord-match.ts`
+  (tested): each of our lines takes the chords of the online line most like
+  it by its words (in any order; at least 0.6 alike; of equal ones the next
+  after the last match), every chord going to the same word, as far into it,
+  or, for a word the online line lacks, the same share of the way between
+  the matching words around it. Lines with no such line get no chords, and
+  lines that already have chords are left alone. The chords are moved into
+  the song's `{key}`; a song with none takes the online song's (its
+  `{key}`, else `guessKey`). Only chords (and that key) are added: words,
+  sections and every other line stay byte for byte. The versions are listed
+  best first with "N of M lines" (a version matching none is disabled); the
+  chosen one shows a summary (lines, source link, key moved) with **Save
+  chords** and the preview, our song with its new chords. Save sends
+  `PUT /songs/{id}` on the revision opened (409: someone changed it) and
+  returns to the song. Nothing is saved before that. Words that differ a lot
+  from every online version, such as a Norwegian translation of an English
+  song, get no chords.
 - **Reader**: the song with section labels and chords above the lyrics,
   parsed in the browser by `chordpro.ts` with the desktop's stanza rules
   (a blank line starts a new verse; unlabelled verses are numbered). Chords

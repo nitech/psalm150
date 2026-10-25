@@ -1009,3 +1009,13 @@ body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px 
 
 /* Taps answer at once: no grey flash, no double-tap zoom wait. */
 a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+/* Chords from the web (views/find-chords.ts). */
+.chords-search { display: flex; align-items: center; gap: var(--psa-space-2); margin-bottom: var(--psa-space-2); }
+.chords-search .search-field { flex: 1; margin: 0; }
+.chord-sources .list-row + .list-row { border-top: 1px solid var(--psa-border); }
+.chord-sources .list-row.on { background: var(--psa-accent-soft); box-shadow: inset 3px 0 0 var(--psa-accent-text); }
+.chord-sources .list-row:disabled { opacity: 0.55; }
+.chord-preview-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--psa-space-3); margin: var(--psa-space-4) 0; padding: var(--psa-space-3) var(--psa-space-4); border-radius: var(--psa-radius-sm); background: var(--psa-bg-surface); border: 1px solid var(--psa-border); }
+.chord-preview-head p { flex: 1 1 18em; margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
+.chord-preview-head strong { color: var(--psa-text); }

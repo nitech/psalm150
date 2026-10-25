@@ -7,7 +7,7 @@ import { canKeepScreenOn, holdScreen, keepScreenOn, setKeepScreenOn } from "../w
 import { endSequence, songNeighbours, stepSequence } from "../song-sequence.ts";
 import { appGoesBack, bindItemSwipe } from "../transitions.ts";
 import { mountChordEditor } from "../chord-editor.ts";
-import type { DisplaySong } from "../chordpro.ts";
+import { hasChords, type DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
 import {
   keyLabel,
@@ -578,6 +578,8 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const actions = (display: DisplaySong) => {
     const bar: BarAction[] = readerBarActions(display, options, transpose);
     if (ctx.canEdit) bar.push({ id: "add-to-set", label: ctx.currentSet.value ? "Add to another set" : "Add to a set", icon: "sets" });
+    // A song without chords can borrow them from a version found online.
+    if (ctx.canEdit && !hasChords(display)) bar.push({ id: "find-chords", label: "Chords from the web", icon: "chords", href: `#/songs/${song.id}/chords` });
     bar.push({ id: "copy", label: "Copy the words", icon: "copy" });
     if (canKeepScreenOn()) bar.push({ id: "keep-awake", label: "Keep screen on", icon: "sun", checked: keepScreenOn(), switch: true, className: keepScreenOn() ? "on" : "" });
     bar.push({ id: "share", label: "Share song", icon: "share", fixed: true });

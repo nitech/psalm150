@@ -18,6 +18,7 @@ import { joinPath, renderJoin, renderRoomFromPath } from "./views/room.ts";
 import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
 import { renderSharedSet, sharedSetPath } from "./views/shared-set.ts";
 import { songDetail, songEditor, songList } from "./views/songs.ts";
+import { findChords } from "./views/find-chords.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 if (!app) throw new Error("Application mount point is missing");
@@ -311,6 +312,7 @@ const ROUTES: Route[] = [
   { pattern: /^\/songs\/new$/, view: (ctx) => songEditor(ctx, []), tab: "songs" },
   { pattern: /^\/songs\/([0-9a-f-]{36})$/, view: songDetail, tab: "songs", visitors: true },
   { pattern: /^\/songs\/([0-9a-f-]{36})\/edit$/, view: songEditor, tab: "songs" },
+  { pattern: /^\/songs\/([0-9a-f-]{36})\/chords$/, view: findChords, tab: "songs" },
   { pattern: /^\/sets$/, view: setList, tab: "sets" },
   { pattern: /^\/sets\/new$/, view: (ctx) => setEditor(ctx, []), tab: "sets" },
   { pattern: /^\/sets\/([0-9a-f-]{36})$/, view: setDetail, tab: "sets" },
