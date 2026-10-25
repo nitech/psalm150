@@ -6,7 +6,7 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 
 * [Slide pipeline](concepts/slide-pipeline.md) - ChordPro sections to slides: stanza blocks, wrap and height budgets, chorus2 alternation, transposition, overlays
 * [Projection windows](concepts/projection-windows.md) - Pre-created audience/stage webviews, monitors vs simulated display, Escape, lock-free frame delivery
-* [Audience display](concepts/audience-display.md) - Theme CSS variables, fit-to-screen that never breaks a lyric line, overlay pill, stanza counter
+* [Audience display](concepts/audience-display.md) - White on black, one font size per song as large as every stanza fits (never breaking a lyric line), overlay pill with a large song number, stanza counter
 * [Stage display](concepts/stage-display.md) - Musician view with chord rows, next section, key
 
 # Library

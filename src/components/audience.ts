@@ -8,7 +8,7 @@ import {
 } from "../projection-client";
 import type { ProjectionSnapshot, ProjectionState, SlidePayload, SlideTheme } from "../api";
 import { activeStanzaIndex, buildStanzaMarkers } from "../stanza-markers";
-import { planFit } from "../audience-fit";
+import { MAX_FONT_SCREEN_SHARE, needsWrap, planSongFit, type SongFit } from "../audience-fit";
 import { Psa150Element } from "./base";
 
 /**
@@ -17,6 +17,14 @@ import { Psa150Element } from "./base";
  */
 function slideSignature(sessionId: string | null, slide: SlidePayload): string {
   return `${sessionId ?? ""}:${slide.index}:${slide.stanza_index ?? 0}`;
+}
+
+/** Stanzas are measured at this size; the fit scales from it. */
+const MEASURE_FONT = 100;
+
+/** The words of a slide, to tell stanzas apart. */
+function slideWords(slide: SlidePayload): string {
+  return slide.lines.map((line) => line.text).join("\n");
 }
 
 /** Audience-facing projection window. */
@@ -33,6 +41,8 @@ export class Psa150Audience extends Psa150Element {
   private revision = -1;
   private sessionId: string | null = null;
   private unlistenProjection?: () => void;
+  /** The song's font, measured once per song and screen. */
+  private songFit: { key: string; fit: SongFit; words: string[] } | null = null;
 
   constructor() {
     super();
@@ -45,8 +55,11 @@ export class Psa150Audience extends Psa150Element {
     super.connectedCallback();
     window.addEventListener("keydown", this.onKeydown);
     window.addEventListener("resize", this.fit);
-    // Web fonts change line widths when they arrive; refit once they are in.
-    void document.fonts?.ready.then(this.fit);
+    // Web fonts change line widths when they arrive; measure again once they are in.
+    void document.fonts?.ready.then(() => {
+      this.songFit = null;
+      this.fit();
+    });
     void this.startProjectionSync();
   }
 
@@ -103,60 +116,132 @@ export class Psa150Audience extends Psa150Element {
     style.setProperty("--psa150-font-size", `${theme.font_size}px`);
     style.setProperty("--psa150-font-weight", theme.font_bold ? "700" : "500");
     style.setProperty("--psa150-font-style", theme.font_italic ? "italic" : "normal");
-    style.setProperty("--psa150-fg", theme.foreground);
-    style.setProperty("--psa150-bg", theme.background);
+    // Pure white on pure black whatever the theme says: the most contrast a
+    // projector can give.
+    style.setProperty("--psa150-fg", "#ffffff");
+    style.setProperty("--psa150-bg", "#000000");
     style.setProperty("--psa150-margin-top", `${theme.margin_top}px`);
     style.setProperty("--psa150-margin-left", `${theme.margin_left}px`);
     style.setProperty("--psa150-margin-right", `${theme.margin_right}px`);
     style.setProperty("--psa150-margin-bottom", `${theme.margin_bottom}px`);
-    document.body.style.background = theme.background;
-    document.body.style.color = theme.foreground;
+    document.body.style.background = "#000000";
+    document.body.style.color = "#ffffff";
   }
 
   /**
-   * Keep every lyric line intact: lines render unwrapped at natural width and the
-   * block is scaled down to fit the screen. Only a line far wider than the screen
-   * falls back to balanced wrapping (`.wrap`), after which the block is measured
-   * again. See src/audience-fit.ts for the thresholds.
+   * One size for the whole song, as large as it can be: every stanza of the
+   * song is measured off screen, and the font is the largest at which all of
+   * them fit, up to a share of the screen's height (src/audience-fit.ts).
+   * Lines stay whole; a stanza with a far too long line wraps instead.
    */
   private fit = () => {
     const screen = this.querySelector<HTMLElement>(".audience-screen");
     const content = this.querySelector<HTMLElement>(".audience-content");
-    if (!screen || !content) return;
+    if (!screen || !content || !this.slide) return;
 
-    content.style.transform = "";
-    content.style.transformOrigin = "center center";
-    content.classList.remove("wrap");
+    // The corner overlays get their own strip at the bottom.
+    const overlay = this.querySelector<HTMLElement>(".audience-overlay");
+    const counter = this.querySelector<HTMLElement>(".audience-stanza-counter");
+    const reserve = Math.max(
+      overlay ? overlay.offsetHeight + 24 : 0,
+      counter ? counter.offsetHeight + 24 : 0,
+    );
+    const root = document.documentElement.style;
+    root.setProperty("--audience-reserve", `${reserve}px`);
 
     const screenStyle = getComputedStyle(screen);
     const padX = parseFloat(screenStyle.paddingLeft) + parseFloat(screenStyle.paddingRight);
     const padY = parseFloat(screenStyle.paddingTop) + parseFloat(screenStyle.paddingBottom);
-    const overlay = this.querySelector<HTMLElement>(".audience-overlay");
-    const counter = this.querySelector<HTMLElement>(".audience-stanza-counter");
-    const overlayReserve = overlay && overlay.textContent?.trim() ? overlay.offsetHeight + 24 : 0;
-    const counterReserve = counter ? counter.offsetHeight + 24 : 0;
+    const width = Math.max(1, screen.clientWidth - padX);
+    const height = Math.max(1, screen.clientHeight - padY);
 
-    const availableWidth = Math.max(1, screen.clientWidth - padX);
-    const availableHeight = Math.max(1, screen.clientHeight - padY - overlayReserve - counterReserve);
-    const measure = () =>
-      planFit({
-        availableWidth,
-        availableHeight,
-        contentWidth: content.scrollWidth,
-        contentHeight: content.scrollHeight,
-      });
-
-    let plan = measure();
-    if (plan.wrap) {
-      content.classList.add("wrap");
-      plan = measure();
+    const current = slideWords(this.slide);
+    const words = this.songWords(current);
+    const lineStyle = getComputedStyle(content.querySelector(".audience-line") ?? content);
+    const key = JSON.stringify([
+      width,
+      height,
+      window.innerHeight,
+      lineStyle.fontFamily,
+      lineStyle.fontWeight,
+      lineStyle.fontStyle,
+      words,
+    ]);
+    if (this.songFit?.key !== key) {
+      this.songFit = { key, words, fit: this.measureSong(screen, words, width, height) };
     }
-    if (plan.scale < 0.999) {
-      content.style.transform = `scale(${plan.scale})`;
+    const fit = this.songFit.fit;
+    root.setProperty("--psa150-fit-font", `${fit.font}px`);
+    content.classList.toggle("wrap", needsWrap(fit, words.indexOf(current)));
+
+    // Never cut words off, should a measurement be off.
+    content.style.transform = "";
+    const overflow = Math.min(
+      width / Math.max(1, content.scrollWidth),
+      height / Math.max(1, content.scrollHeight),
+    );
+    if (overflow < 0.999) {
+      content.style.transformOrigin = "center center";
+      content.style.transform = `scale(${overflow})`;
     }
   };
 
-  private overlayText(slide: SlidePayload): string {
+  /** The song's stanzas, one entry per different set of words, and the one on screen. */
+  private songWords(current: string): string[] {
+    const words = new Set(
+      (this.projection?.slides ?? []).map(slideWords).filter((text) => text.trim()),
+    );
+    words.add(current);
+    return [...words];
+  }
+
+  private measureSong(screen: HTMLElement, words: string[], width: number, height: number): SongFit {
+    const measure = document.createElement("div");
+    measure.className = "audience-content audience-measure";
+    measure.setAttribute("aria-hidden", "true");
+    screen.append(measure);
+    const show = (index: number, wrap: boolean, font: number) => {
+      measure.replaceChildren(
+        ...words[index].split("\n").map((text) => {
+          const line = document.createElement("div");
+          line.className = "audience-line";
+          line.textContent = text;
+          return line;
+        }),
+      );
+      measure.classList.toggle("wrap", wrap);
+      measure.style.width = wrap ? `${width}px` : "";
+      measure.style.setProperty("--psa150-fit-font", `${font}px`);
+      return measure.getBoundingClientRect();
+    };
+    try {
+      return planSongFit({
+        availableWidth: width,
+        availableHeight: height,
+        baseFont: MEASURE_FONT,
+        maxFont: window.innerHeight * MAX_FONT_SCREEN_SHARE,
+        slides: words.map((_, index) => {
+          const box = show(index, false, MEASURE_FONT);
+          return { width: box.width, height: box.height };
+        }),
+        wrappedFits: (index, font) => {
+          show(index, true, font);
+          return measure.scrollHeight <= height + 0.5 && measure.scrollWidth <= width + 0.5;
+        },
+      });
+    } finally {
+      measure.remove();
+    }
+  }
+
+  /** Whether the slide wraps, from the song measured last, so it shows right at once. */
+  private wrapsNow(slide: SlidePayload): boolean {
+    const fit = this.songFit;
+    return Boolean(fit && needsWrap(fit.fit, fit.words.indexOf(slideWords(slide))));
+  }
+
+  /** The song number, large, then the title and the rest. */
+  private renderOverlay(slide: SlidePayload) {
     const theme = this.theme;
     const parts: string[] = [];
     if (theme?.show_title_overlay !== false && slide.overlay.title) {
@@ -165,16 +250,22 @@ export class Psa150Audience extends Psa150Element {
     if (theme?.show_key_overlay !== false && slide.overlay.key) {
       parts.push(slide.overlay.key);
     }
-    if (slide.overlay.song_num != null) {
-      parts.push(String(slide.overlay.song_num));
-    }
     if (theme?.show_copyright_overlay !== false && slide.overlay.copyright) {
       parts.push(slide.overlay.copyright);
     }
     if (theme?.show_ccli_overlay && slide.overlay.ccli) {
       parts.push(`CCLI ${slide.overlay.ccli}`);
     }
-    return parts.join(" - ");
+    const number = slide.overlay.song_num;
+    if (number == null && parts.length === 0) return nothing;
+    return html`<div class="audience-overlay">
+      ${number != null
+        ? html`<span class="audience-song-number"
+            ><span class="visually-hidden">Song </span>${number}</span
+          >`
+        : nothing}
+      ${parts.length ? html`<span class="audience-overlay-text">${parts.join(" - ")}</span>` : nothing}
+    </div>`;
   }
 
   private renderStanzaCounter() {
@@ -205,20 +296,18 @@ export class Psa150Audience extends Psa150Element {
   render() {
     const slide = this.slide;
     if (!slide || slide.lines.length === 0) {
-      return html`<div class="audience-screen audience-blank"><div class="audience-vignette"></div></div>`;
+      return html`<div class="audience-screen audience-blank"></div>`;
     }
-    const overlay = this.overlayText(slide);
     const signature = slideSignature(this.sessionId, slide);
     return html`
       <div class="audience-screen">
-        <div class="audience-vignette"></div>
         ${keyed(
           signature,
-          html`<div class="audience-content">
+          html`<div class="audience-content ${this.wrapsNow(slide) ? "wrap" : ""}">
             ${slide.lines.map((line) => html`<div class="audience-line">${line.text}</div>`)}
           </div>`,
         )}
-        ${overlay ? html`<div class="audience-overlay">${overlay}</div>` : nothing}
+        ${this.renderOverlay(slide)}
         ${this.renderStanzaCounter()}
       </div>
     `;

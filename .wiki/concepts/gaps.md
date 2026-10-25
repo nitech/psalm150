@@ -46,7 +46,7 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
 - **Online search**: chord positions are only as good as the site's chart ([online song search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
 - **Search** ignores the FTS table and returns unranked `LIKE` matches ([library index](library-index.md)).
-- **Simulated display** is not a true miniature: the theme font is fixed px, so the 960 px window relies on the fit scaler more than a 1920 px projector would; MDB margins may be twips ([audience display](audience-display.md), [MDB import](mdb-import.md)).
+- **Simulated display** is not a true miniature for slide splitting: the Rust pipeline splits long sections for a 1920 px projector at the theme font, while the window sizes the words itself; MDB margins may be twips ([audience display](audience-display.md), [MDB import](mdb-import.md)).
 - **Reports**: CCLI export only reaches the devtools console; the songbook has no lyrics ([reports](reports.md)).
 - `history_days` and `key_format_compressed` are stored but unused ([config](config.md)).
 - **Design tokens**: `designsystem.json` is reference only and still carries component specs (anatomy tags, metric values, nav pills) from the original dashboard reference ([design tokens](design-tokens.md)).
