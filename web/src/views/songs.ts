@@ -539,13 +539,22 @@ async function readSong(ctx: LibraryContext, id: string, fresh = false): Promise
   return song;
 }
 
-/** A song as it starts on its page, for the neighbour peeking in during a swipe. */
-function songPeek(song: SongDetail | null, title: string, options: ReturnType<typeof readReaderOptions>): string {
+/** The note under a song: its revision, and what transposing here does. */
+function revisionNote(song: SongDetail, canEdit: boolean): string {
+  return `<p class="fine-print">Revision ${song.revision_id.slice(0, 8)} · Transposing here only changes what you see${canEdit ? " and what you add to a set" : ""}.</p>`;
+}
+
+/**
+ * A song as it shows on its page, for the neighbour peeking in during a
+ * swipe: everything down to the revision note, so nothing pops in when the
+ * page takes its place.
+ */
+function songPeek(song: SongDetail | null, title: string, options: ReturnType<typeof readReaderOptions>, canEdit: boolean): string {
   const heading = `<div class="page-titles"><h1>${escapeHtml(song?.title ?? title)}</h1></div>`;
   if (!song) return heading;
   const display = prepareSong(song.chordpro, 0);
   const meta = [song.song_number ? `No. ${song.song_number}` : "", song.authors, keyLabel(display, 0)].filter(Boolean).map(escapeHtml).join(" · ");
-  return `${heading}${meta ? `<p class="page-meta">${meta}</p>` : ""}${renderSongBody(display, options)}`;
+  return `${heading}${meta ? `<p class="page-meta">${meta}</p>` : ""}${renderSongBody(display, options)}${revisionNote(song, canEdit)}`;
 }
 
 export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promise<Cleanup> {
@@ -601,7 +610,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
     ${renderSongBody(display, options)}
     ${songNav()}
-    <p class="fine-print">Revision ${song.revision_id.slice(0, 8)} · Transposing here only changes what you see${ctx.canEdit ? " and what you add to a set" : ""}.</p></div>`;
+    ${revisionNote(song, ctx.canEdit)}</div>`;
   };
 
   /** Previous and Next under the song, for a mouse; phones swipe instead. */
@@ -635,7 +644,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       const target = way === 1 ? around.next : around.previous;
       // Back to the list: the song slides off and the list comes back (Back's own slide).
       if (!target) return null;
-      return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options);
+      return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options, ctx.canEdit);
     })
     : () => undefined;
   const onKeys = (event: KeyboardEvent) => {

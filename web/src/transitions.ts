@@ -141,7 +141,11 @@ export function bindItemSwipe(
   let peeking: 1 | -1 | 0 = 0;
   const view = () => root.querySelector<HTMLElement>(".swipe-view");
 
-  /** Puts the neighbour `step` beside the screen, level with the top of the window. */
+  /**
+   * Puts the neighbour `step` beside the screen: level with the screen's own
+   * content while that is in view, so it takes its place without a jump, or
+   * just under the bar when the screen is scrolled down.
+   */
   const showPeek = (step: 1 | -1 | 0) => {
     if (step === peeking) return;
     peeking = step;
@@ -160,8 +164,8 @@ export function bindItemSwipe(
     const box = element.getBoundingClientRect();
     const first = element.querySelector<HTMLElement>(":scope > :not(.app-bar, .play-nav, .swipe-peek)");
     const firstTop = first ? first.getBoundingClientRect().top - box.top : 0;
-    const bar = element.querySelector<HTMLElement>(":scope > .app-bar")?.getBoundingClientRect().bottom ?? 0;
-    panel.style.top = `${Math.max(firstTop, Math.max(0, bar) - box.top + 12)}px`;
+    const bar = Math.max(0, element.querySelector<HTMLElement>(":scope > .app-bar")?.getBoundingClientRect().bottom ?? 0) - box.top;
+    panel.style.top = `${firstTop >= bar ? firstTop : bar + 12}px`;
     panel.style.left = `${step * (box.width + PEEK_GAP)}px`;
     element.append(panel);
   };
