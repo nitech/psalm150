@@ -93,28 +93,26 @@ pub fn resolve_monitor(
     }
 }
 
-pub fn place_window_on_monitor(
-    window: &WebviewWindow,
-    monitor: &Monitor,
-    fullscreen: bool,
-) -> Result<(), String> {
+/// Cover `monitor` with the window. The audience window has no frame and stays
+/// on top, so covering the monitor is fullscreen without the OS fullscreen
+/// switch: that switch showed the window at its small size on the projector
+/// before it filled the screen, and again when leaving it. Size and position
+/// are set while the window is hidden, so it appears already full size.
+pub fn place_window_on_monitor(window: &WebviewWindow, monitor: &Monitor) -> Result<(), String> {
+    if window.is_fullscreen().unwrap_or(false) {
+        let _ = window.set_fullscreen(false);
+    }
     let pos = monitor.position();
-    let _ = window.set_fullscreen(false);
+    let size = monitor.size();
     window
         .set_position(Position::Physical(PhysicalPosition { x: pos.x, y: pos.y }))
         .map_err(|e| e.to_string())?;
-
-    if fullscreen {
-        window.set_fullscreen(true).map_err(|e| e.to_string())?;
-    } else {
-        let size = monitor.size();
-        window
-            .set_size(Size::Physical(PhysicalSize {
-                width: size.width,
-                height: size.height,
-            }))
-            .map_err(|e| e.to_string())?;
-    }
+    window
+        .set_size(Size::Physical(PhysicalSize {
+            width: size.width,
+            height: size.height,
+        }))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -188,7 +186,6 @@ pub fn apply_monitor_to_window(
     app: &AppHandle,
     window_label: &str,
     monitor_id: Option<&str>,
-    fullscreen: bool,
 ) -> Result<(), String> {
     let window = app
         .get_webview_window(window_label)
@@ -201,7 +198,7 @@ pub fn apply_monitor_to_window(
     restore_projection_window_chrome(&window, window_label)?;
 
     if let Some(monitor) = resolve_monitor(app, monitor_id)? {
-        place_window_on_monitor(&window, &monitor, fullscreen)?;
+        place_window_on_monitor(&window, &monitor)?;
     }
     Ok(())
 }

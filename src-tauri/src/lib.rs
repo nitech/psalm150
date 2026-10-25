@@ -251,6 +251,8 @@ pub fn run() {
             commands::projection_cmd::close_audience_window,
             commands::projection_cmd::open_stage_window,
             commands::projection_cmd::close_stage_window,
+            commands::projection_cmd::step_stanza,
+            commands::projection_cmd::show_order_position,
             commands::projection_cmd::close_projection_windows,
             commands::projection_cmd::show_slide,
             commands::projection_cmd::next_slide,

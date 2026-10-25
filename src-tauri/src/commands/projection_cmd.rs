@@ -49,8 +49,8 @@ pub(crate) fn build_snapshot(runtime: &RuntimeState) -> ProjectionSnapshot {
     };
     let next_label = runtime
         .projection
-        .slides
-        .get(runtime.projection.current_index + 1)
+        .next_slide_index()
+        .and_then(|index| runtime.projection.slides.get(index))
         .map(|s| s.section_label.clone());
     let stage = slide.as_ref().map(|slide| {
         stage_slide(
@@ -158,12 +158,13 @@ pub async fn open_audience_window(
     let monitor_id = with_state(&state, |runtime| {
         Ok(runtime.config.audience_monitor.clone())
     })?;
-    display::apply_monitor_to_window(&app, "audience", monitor_id.as_deref(), true)?;
+    display::apply_monitor_to_window(&app, "audience", monitor_id.as_deref())?;
     let window = app
         .get_webview_window("audience")
         .ok_or_else(|| "Audience window is not available".to_string())?;
-    window.show().map_err(|e| e.to_string())?;
+    // The page gets the slide while still hidden, so it never shows the last one.
     sync_projection_windows(&app, &state);
+    window.show().map_err(|e| e.to_string())?;
     if display::is_simulated_display(monitor_id.as_deref()) {
         let _ = window.set_focus();
     }
@@ -172,8 +173,9 @@ pub async fn open_audience_window(
 
 #[tauri::command]
 pub fn close_audience_window(app: AppHandle) -> Result<(), String> {
+    // Hide only. Leaving fullscreen first showed the window shrinking on the
+    // projector before it went; it stays covering its monitor while hidden.
     if let Some(window) = app.get_webview_window("audience") {
-        let _ = window.set_fullscreen(false);
         window.hide().map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -184,7 +186,7 @@ pub async fn open_stage_window(app: AppHandle, state: State<'_, AppState>) -> Re
     ensure_projection_window(&app, "stage")?;
     let monitor_id = with_state(&state, |runtime| Ok(runtime.config.stage_monitor.clone()))?;
     if monitor_id.as_deref().is_some_and(|id| !id.is_empty()) {
-        display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref(), false)?;
+        display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref())?;
     }
     let window = app
         .get_webview_window("stage")
@@ -228,7 +230,7 @@ pub fn show_slide_inner(
         if index >= runtime.projection.slides.len() {
             return Err("Slide index out of range".into());
         }
-        runtime.projection.current_index = index;
+        runtime.projection.go_to_slide(index);
         runtime.projection.blank = false;
         runtime.projection_revision += 1;
         Ok(build_snapshot(runtime))
@@ -252,11 +254,7 @@ pub fn next_slide_inner(app: &AppHandle, state: &AppState) -> Result<ProjectionS
         }
         let was_blank = runtime.projection.blank;
         runtime.projection.blank = false;
-        let before = runtime.projection.current_index;
-        if runtime.projection.current_index + 1 < runtime.projection.slides.len() {
-            runtime.projection.current_index += 1;
-        }
-        let changed = before != runtime.projection.current_index || was_blank;
+        let changed = runtime.projection.step_slide(true) || was_blank;
         if changed {
             runtime.projection_revision += 1;
         }
@@ -283,11 +281,7 @@ pub fn previous_slide_inner(
     let (snapshot, changed) = with_state(state, |runtime| {
         let was_blank = runtime.projection.blank;
         runtime.projection.blank = false;
-        let before = runtime.projection.current_index;
-        if runtime.projection.current_index > 0 {
-            runtime.projection.current_index -= 1;
-        }
-        let changed = before != runtime.projection.current_index || was_blank;
+        let changed = runtime.projection.step_slide(false) || was_blank;
         if changed {
             runtime.projection_revision += 1;
         }
@@ -296,6 +290,51 @@ pub fn previous_slide_inner(
     if changed {
         emit_snapshot(app, &snapshot);
     }
+    Ok(snapshot)
+}
+
+/// The first slide of the next or previous stanza in the sung order.
+#[tauri::command]
+pub fn step_stanza(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    forward: bool,
+) -> Result<ProjectionSnapshot, String> {
+    let (snapshot, changed) = with_state(&state, |runtime| {
+        if runtime.projection.slides.is_empty() {
+            return Err("No slides loaded".into());
+        }
+        let was_blank = runtime.projection.blank;
+        runtime.projection.blank = false;
+        let changed = runtime.projection.step_stanza(forward) || was_blank;
+        if changed {
+            runtime.projection_revision += 1;
+        }
+        Ok((build_snapshot(runtime), changed))
+    })?;
+    if changed {
+        emit_snapshot(&app, &snapshot);
+    }
+    Ok(snapshot)
+}
+
+/// Jump to a step of the sung order (a click in the console's order column).
+#[tauri::command]
+pub fn show_order_position(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    position: usize,
+) -> Result<ProjectionSnapshot, String> {
+    let snapshot = with_state(&state, |runtime| {
+        if position >= runtime.projection.order.len() {
+            return Err("Order position out of range".into());
+        }
+        runtime.projection.go_to_order_position(position);
+        runtime.projection.blank = false;
+        runtime.projection_revision += 1;
+        Ok(build_snapshot(runtime))
+    })?;
+    emit_snapshot(&app, &snapshot);
     Ok(snapshot)
 }
 
@@ -330,8 +369,11 @@ pub fn get_projection_snapshot(state: State<'_, AppState>) -> Result<ProjectionS
 #[tauri::command]
 pub fn get_next_slide_preview(state: State<'_, AppState>) -> Result<Option<SlidePayload>, String> {
     with_state(&state, |runtime| {
-        let next = runtime.projection.current_index + 1;
-        Ok(runtime.projection.slides.get(next).cloned())
+        Ok(runtime
+            .projection
+            .next_slide_index()
+            .and_then(|index| runtime.projection.slides.get(index))
+            .cloned())
     })
 }
 

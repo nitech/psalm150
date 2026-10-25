@@ -1084,7 +1084,14 @@ body.workspace-resizing {
   scroll-padding-top: 7rem;
 }
 
+.song-columns {
+  display: flex;
+  align-items: flex-start;
+}
+
 .song-content {
+  flex: 1;
+  min-width: 0;
   position: relative;
   padding: 24px 32px 32px;
   font-family: var(--font-ui);
@@ -1114,14 +1121,131 @@ body.workspace-resizing {
   transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
+.song-content.projecting {
+  padding-left: 52px;
+}
+
 .song-content.projecting .song-stanza.active::before {
   content: "";
   position: absolute;
   inset-block: 0;
-  left: -15px;
+  left: -10px;
   width: 3px;
   background: var(--accent-lime);
   border-radius: var(--radius-full);
+}
+
+/* The stanza's number key, left of its first line. */
+.stanza-key {
+  position: absolute;
+  top: 0;
+  left: -40px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.song-stanza.active .stanza-key {
+  border-color: var(--accent-lime);
+  background: var(--accent-lime);
+  color: #161616;
+}
+
+/* The sung order, right of the song while it is on screen. */
+.stanza-order {
+  position: sticky;
+  top: 0;
+  flex: 0 0 210px;
+  padding: 24px 16px 32px 0;
+}
+
+.stanza-order-title {
+  margin: 0 0 8px;
+  padding-left: 8px;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.stanza-order ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.stanza-order-step {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stanza-order-step:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stanza-order-step.done {
+  color: var(--text-tertiary);
+}
+
+.stanza-order-step.current {
+  background: rgba(198, 216, 140, 0.12);
+  color: var(--text-strong);
+}
+
+.stanza-order-key {
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stanza-order-step.current .stanza-order-key {
+  border-color: var(--accent-lime);
+  background: var(--accent-lime);
+  color: #161616;
+}
+
+.stanza-order-text {
+  min-width: 0;
+  display: grid;
+}
+
+.stanza-order-label {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.stanza-order-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
 }
 
 .song-section + .song-section {
@@ -1167,15 +1291,6 @@ body.workspace-resizing {
   margin-bottom: 0.15rem;
 }
 
-.song-line.editable-line {
-  cursor: text;
-}
-
-.song-line.editable-line:not(:has(.song-lyric-editable)):hover .song-lyrics {
-  background: rgba(198, 216, 140, 0.06);
-  border-radius: var(--radius-sm);
-}
-
 .song-line-spacer {
   height: 0.9rem;
 }
@@ -1197,71 +1312,20 @@ body.workspace-resizing {
 }
 
 .adhoc-edit-bar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  background: rgba(198, 216, 140, 0.08);
-  border: 1px solid rgba(198, 216, 140, 0.22);
-}
-
-.adhoc-edit-bar.active {
-  background: rgba(198, 216, 140, 0.14);
-  border-color: rgba(198, 216, 140, 0.38);
-  box-shadow: 0 0 0 1px rgba(198, 216, 140, 0.08);
-}
-
-.adhoc-edit-label {
-  font-size: 0.78rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--accent-lime);
-}
-
-.adhoc-save-btn {
-  margin-left: auto;
+  gap: 8px;
 }
 
 .song-stanza.editable {
   cursor: text;
 }
 
-.song-stanza.editable:not(.editing):hover .song-lyrics {
-  background: rgba(198, 216, 140, 0.06);
-  border-radius: var(--radius-sm);
-}
-
-.song-stanza.editing {
-  cursor: text;
-  outline: 1px dashed rgba(198, 216, 140, 0.45);
-  outline-offset: 4px;
-  border-radius: var(--radius-sm);
-}
-
 .song-lyric-editable {
   min-height: 1.32em;
   outline: none;
-  border-radius: var(--radius-sm);
-  padding: 0 2px;
-  background: rgba(198, 216, 140, 0.1);
-}
-
-.song-lyric-editable:focus {
-  background: rgba(198, 216, 140, 0.16);
-  box-shadow: 0 0 0 2px var(--focus-color);
-}
-
-/* Changed words: amber and underlined, so not by colour alone. */
-.adhoc-changed-line .adhoc-changed,
-.song-lyrics .adhoc-changed {
-  color: #f0c060;
-  background: rgba(240, 192, 96, 0.14);
-  border-radius: 2px;
-  padding: 0 1px;
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
+  cursor: text;
 }
 
 .chordpro-section {

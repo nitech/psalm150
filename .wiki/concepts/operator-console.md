@@ -89,7 +89,7 @@ There is no "Now showing" text in the app bar. The stanza row shows
 | View | Opened by | Rows come from | Order |
 | --- | --- | --- | --- |
 | Search (default) | typing, Ctrl+F, closing a view | `search_songs(text)` plus web results; with `#Key`, `list_by_key(key)` intersected with the text search | column sort |
-| History | activity bar | `get_history(50)` as synthesised rows | recency, no header |
+| History | activity bar | `get_history(50)`, with number, key and star from the index (synthesised rows for songs no longer in it) | recency, no header |
 | Favourites | activity bar | `search_songs("", true)` | column sort |
 | Setlist | activity bar | items of the current setlist, titles from the index | service order, no header |
 
@@ -182,8 +182,8 @@ flex row (title + source) spanning all columns and do not widen them.
 | Enter | search field, a song row, or anywhere with a song selected, except on a button or other control Enter activates, in a dialog or in the setlist popup | Project (`projectLoadedSong`) |
 | Down / Up | search field | jump to first / last row |
 | Down / Up | rows, not projecting | move selection (Up from the first row returns to the search field) |
-| Down / Up | projecting | next / previous **stanza** |
-| → / ← (configurable) | projecting, not typing | next / previous **slide** |
+| Down / Up | projecting | next / previous **stanza** in the [sung order](performance-sections.md#sung-order) |
+| → / ← (configurable) | projecting, not typing | next / previous **slide**, on through the sung order |
 | 1–9, then multi-digit numbers such as 10, 11, 12 | projecting, outside text fields and modals, unless turned off | jump to the numbered **stanza** (first slide) and unblank |
 | B (configurable) | projecting, not typing | blank screen |
 | Alt+S (configurable) | a library song selected, also while typing | add it to the active setlist; with none active, open the add-to-setlist menu |
@@ -237,11 +237,19 @@ active projection session first.
 
 `projecting = true` after Project. When the selected song is also active, the
 song pane switches from the flat view to **stanza view** (blocks from
-[performance sections](performance-sections.md)). The active stanza is
-highlighted and scrolled into view; clicking another stanza jumps
-(`show_slide`); clicking the active stanza's lyrics enters
-[ad hoc editing](adhoc-editing.md). `projection-closed` from the backend resets
-`projecting`. Header buttons: see Layout.
+[performance sections](performance-sections.md)). Each stanza has its number
+key in a small box on its left (lime for the one on screen); intro and
+interlude blocks have none. The active stanza is highlighted and scrolled into
+view; clicking another stanza jumps (`show_slide`); clicking a line of the
+active stanza puts the caret there for [ad hoc editing](adhoc-editing.md).
+`projection-closed` from the backend resets `projecting`. Header buttons: see
+Layout.
+
+**Order column**: right of the stanzas, under "Order", the
+[sung order](performance-sections.md#sung-order) as a list of steps, each
+with its stanza's number key, section label and first line. The step on
+screen is lime, steps already sung are dimmed, and a click shows a step
+(`show_order_position`). The arrow keys walk down this list.
 
 There are **no stanza buttons**: the number keys (above) and clicking a stanza
 switch stanzas. While a different song is previewed, an "On screen: …" line

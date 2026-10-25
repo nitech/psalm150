@@ -11,8 +11,12 @@ import { activeStanzaIndex, buildStanzaMarkers } from "../stanza-markers";
 import { planFit } from "../audience-fit";
 import { Psa150Element } from "./base";
 
-function slideSignature(slide: SlidePayload): string {
-  return `${slide.index}:${slide.stanza_index ?? 0}:${slide.lines.map((line) => line.text).join("\n")}`;
+/**
+ * Which slide this is, not what it says: a new slide fades in, but a
+ * correction saved while it is on screen just replaces the words.
+ */
+function slideSignature(sessionId: string | null, slide: SlidePayload): string {
+  return `${sessionId ?? ""}:${slide.index}:${slide.stanza_index ?? 0}`;
 }
 
 /** Audience-facing projection window. */
@@ -27,6 +31,7 @@ export class Psa150Audience extends Psa150Element {
   declare projection: ProjectionState | null;
   declare theme: SlideTheme | null;
   private revision = -1;
+  private sessionId: string | null = null;
   private unlistenProjection?: () => void;
 
   constructor() {
@@ -85,6 +90,7 @@ export class Psa150Audience extends Psa150Element {
   private applySnapshot(snapshot: ProjectionSnapshot) {
     if (snapshot.revision <= this.revision) return;
     this.revision = snapshot.revision;
+    this.sessionId = snapshot.session_id;
     this.projection = snapshot.projection;
     this.theme = snapshot.theme;
     this.applyTheme(snapshot.theme);
@@ -174,17 +180,22 @@ export class Psa150Audience extends Psa150Element {
   private renderStanzaCounter() {
     const projection = this.projection;
     if (!projection || projection.blank) return nothing;
-    const markers = buildStanzaMarkers(projection.slides);
-    if (markers.length <= 1) return nothing;
-    const active = activeStanzaIndex(markers, projection.current_index);
+    // Steps of the sung order (a repeated chorus counts each time).
+    const order = projection.order ?? [];
+    const markers = order.length ? [] : buildStanzaMarkers(projection.slides);
+    const total = order.length || markers.length;
+    if (total <= 1) return nothing;
+    const active = order.length
+      ? Math.min(projection.order_position ?? 0, total - 1)
+      : activeStanzaIndex(markers, projection.current_index);
     const hasPrev = active > 0;
-    const hasNext = active < markers.length - 1;
+    const hasNext = active < total - 1;
     return html`
       <div class="audience-stanza-counter">
         <span class="audience-stanza-arrow ${hasPrev ? "" : "dim"}" aria-hidden="true">↑</span>
         <span class="audience-stanza-count"
           ><span class="visually-hidden">Stanza </span>${active + 1}<span aria-hidden="true"> / </span
-          ><span class="visually-hidden"> of </span>${markers.length}</span
+          ><span class="visually-hidden"> of </span>${total}</span
         >
         <span class="audience-stanza-arrow ${hasNext ? "" : "dim"}" aria-hidden="true">↓</span>
       </div>
@@ -197,7 +208,7 @@ export class Psa150Audience extends Psa150Element {
       return html`<div class="audience-screen audience-blank"><div class="audience-vignette"></div></div>`;
     }
     const overlay = this.overlayText(slide);
-    const signature = slideSignature(slide);
+    const signature = slideSignature(this.sessionId, slide);
     return html`
       <div class="audience-screen">
         <div class="audience-vignette"></div>

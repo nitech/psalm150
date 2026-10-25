@@ -51,12 +51,30 @@ current_index)` finds the marker containing the current slide;
 `stanzaStepSlideIndex` gives the first slide of the next or previous marker
 (Up/Down while projecting, and the audience counter).
 
+## Sung order
+
+`suggested_order` (Rust, `projection/mod.rs`, tested) gives
+`ProjectionState.order`, the stanza indices in the order they are sung, and
+`order_position` says which step is on screen. A song whose only chorus is
+written once gets it after every later stanza: verse 1, chorus, verse 2,
+chorus, verse 3, chorus (a chorus written first comes back after each verse);
+a pre-chorus written just before it comes along. Songs that write their
+choruses out (more than one chorus stanza, or chorus2 slots) or have none are
+sung as written.
+
+Next/previous slide (→/←, the audience keys, the phone remote) step through
+the slides of a stanza, then on through `order`; Up/Down (`step_stanza`) go to
+the first slide of the next or previous step. A stanza picked by number or
+click (`show_slide`) takes its first place at or after the current step, so
+the chorus picked after verse 2 is the one after verse 2. Saving a correction
+keeps the step. The console shows the order beside the song
+([operator console](operator-console.md#projecting-mode)).
+
 ## The alignment assumption
 
-Stanza view pairs preview block *i* with marker *i*. Blocks come from **all**
-performance sections, markers only from **projected** slides, so a song with an
-`Intro` or `Interlude` section shifts the highlight by one block; recorded in
-[gaps](gaps.md). Blank-line detection also differs slightly: Rust splits on
+Stanza view pairs the *i*-th projected preview block with marker *i*: blocks
+of `Intro` and `Interlude` sections are skipped (they have no slides and no
+number key). Blank-line detection also differs slightly: Rust splits on
 `text.is_empty()`, the console additionally requires no chords.
 
 ## Related

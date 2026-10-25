@@ -1,4 +1,5 @@
 import { html, nothing, type TemplateResult } from "lit";
+import { live } from "lit/directives/live.js";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm } from "@tauri-apps/plugin-dialog";
@@ -49,7 +50,6 @@ import { applyKey, keyTokenAt, matchingKeys, parseSearch, type KeyToken } from "
 import {
   applyPendingEditsToLineText,
   collectLineEdits,
-  diffLineSegments,
   hasPendingEdits,
   lineIsBlank,
   type PendingEdits,
@@ -64,7 +64,6 @@ import {
   buildPreviewStanzaBlocksFromSections,
   buildStanzaMarkers,
   type PreviewStanzaBlock,
-  stanzaStepSlideIndex,
 } from "../stanza-markers";
 import {
   parseSongSort,
@@ -690,7 +689,11 @@ export class Psa150App extends Psa150Element {
         songs = await api.searchSongs("", true);
       } else if (this.browseMode === "history") {
         const history = await api.getHistory(50);
-        songs = history.map(([filename, title], index) => syntheticRow(index, filename, title));
+        // Numbers, keys and stars come from the index, as in the other lists.
+        const library = new Map((await api.searchSongs("", false)).map((row) => [row.filename, row]));
+        songs = history.map(
+          ([filename, title], index) => library.get(filename) ?? syntheticRow(index, filename, title),
+        );
       } else if (this.browseMode === "setlist") {
         songs = await this.setlistRows();
       } else {
@@ -1002,16 +1005,17 @@ export class Psa150App extends Psa150Element {
     );
   }
 
+  /** Up/Down: the next or previous stanza in the sung order. */
   private async advanceStanza(direction: "next" | "prev") {
+    this.stanzaNumberInput.reset();
     if (!this.projecting || !this.projection?.slides.length) return;
-    const markers = buildStanzaMarkers(this.projection.slides);
-    const slideIndex = stanzaStepSlideIndex(
-      markers,
-      this.projection.current_index,
-      direction,
-    );
-    if (slideIndex === null) return;
-    await this.jumpToStanza(slideIndex);
+    this.applyProjectionSnapshot(await api.stepStanza(direction === "next"));
+  }
+
+  private async showOrderPosition(position: number) {
+    this.stanzaNumberInput.reset();
+    if (!this.projecting || !this.projection?.slides.length) return;
+    this.applyProjectionSnapshot(await api.showOrderPosition(position));
   }
 
   private async jumpToStanza(slideIndex: number) {
@@ -1057,15 +1061,52 @@ export class Psa150App extends Psa150Element {
     }
   }
 
-  private enterAdhocEdit(blockKey: string, event?: Event) {
-    if (!this.canAdhocEdit()) return;
-    event?.stopPropagation();
-    this.adhocEditingBlockKey = blockKey;
-  }
-
+  /** Leave the line being corrected; corrections stay until saved or discarded. */
   private exitAdhocEdit() {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && focused.matches(".song-lyric-editable")) focused.blur();
     this.adhocEditingBlockKey = null;
   }
+
+  private discardAdhocEdits() {
+    this.exitAdhocEdit();
+    this.resetAdhocEdits();
+  }
+
+  /**
+   * Keys in a line being corrected stay there (no stanza or song navigation).
+   * Enter saves, Esc leaves, Up/Down move to the line above or below.
+   */
+  private onAdhocLineKeydown = (event: KeyboardEvent) => {
+    event.stopPropagation();
+    const line = event.currentTarget as HTMLElement;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.exitAdhocEdit();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      this.exitAdhocEdit();
+      if (hasPendingEdits(this.adhocPendingEdits)) void this.saveAdhocEdits();
+    } else if (
+      (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+      !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey
+    ) {
+      const lines = [...this.querySelectorAll<HTMLElement>(".song-lyric-editable")];
+      const next = lines[lines.indexOf(line) + (event.key === "ArrowDown" ? 1 : -1)];
+      if (!next) return;
+      event.preventDefault();
+      const offset = window.getSelection()?.focusOffset ?? 0;
+      next.focus();
+      const text = next.firstChild;
+      const range = document.createRange();
+      if (text) range.setStart(text, Math.min(offset, text.textContent?.length ?? 0));
+      else range.setStart(next, 0);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  };
 
   private onAdhocLineInput(
     provenance: { sectionIndex: number; lineIndex: number },
@@ -1121,13 +1162,6 @@ export class Psa150App extends Psa150Element {
       originalText,
       this.adhocPendingEdits,
     );
-  }
-
-  private lineHasPendingEdit(provenance: { sectionIndex: number; lineIndex: number }): boolean {
-    const edit = this.adhocPendingEdits.get(
-      sourceLineKey(provenance.sectionIndex, provenance.lineIndex),
-    );
-    return Boolean(edit && edit.text !== edit.original);
   }
 
   private async deleteSong() {
@@ -3025,32 +3059,35 @@ export class Psa150App extends Psa150Element {
                 ? (this.currentSong.parsed.meta.title as string) || "Untitled"
                 : "Select a song"}
             </h1>
+            ${this.renderAdhocEditBar()}
             ${this.renderSongPaneSaveButton()}
             ${this.renderSongActions()}
           </div>
         </header>
         <div class="song-body scroll-region">
           ${this.renderSongNotices()}
-          <div class="song-content ${this.isProjectionActive() ? "projecting" : ""}">
-            ${this.currentSong
-              ? html`<div class="song-title-meta">
-                  <div class="song-title-meta-line">${this.renderSongTitleMeta()}</div>
-                  ${this.renderSongSecondaryMeta()}
-                </div>`
-              : nothing}
-            ${this.renderSongContent()}
+          <div class="song-columns">
+            <div class="song-content ${this.isProjectionActive() ? "projecting" : ""}">
+              ${this.currentSong
+                ? html`<div class="song-title-meta">
+                    <div class="song-title-meta-line">${this.renderSongTitleMeta()}</div>
+                    ${this.renderSongSecondaryMeta()}
+                  </div>`
+                : nothing}
+              ${this.renderSongContent()}
+            </div>
+            ${this.renderStanzaOrder()}
           </div>
         </div>
       </section>
     `;
   }
 
-  /** Ad hoc edit bar and the "On screen" line, pinned at the top of the song body. */
+  /** The "On screen" line, pinned at the top of the song body. */
   private renderSongNotices() {
-    const adhoc = this.renderAdhocEditBar();
     const onScreen = this.renderStanzaNavigation();
-    if (adhoc === nothing && onScreen === nothing) return nothing;
-    return html`<div class="song-notices">${adhoc}${onScreen}</div>`;
+    if (onScreen === nothing) return nothing;
+    return html`<div class="song-notices">${onScreen}</div>`;
   }
 
   /**
@@ -3442,31 +3479,33 @@ export class Psa150App extends Psa150Element {
     `;
   }
 
+  /** Correction buttons on the title row, while a line is being corrected or has changed. */
   private renderAdhocEditBar() {
     const editing = this.adhocEditingBlockKey != null;
     const changed = hasPendingEdits(this.adhocPendingEdits);
     if (!editing && !changed) return nothing;
+    // mousedown would move focus out of the line first and re-render the row.
+    const keepFocus = (event: Event) => event.preventDefault();
     return html`
-      <div class="adhoc-edit-bar ${editing ? "active" : ""}">
-        <span class="adhoc-edit-label">${editing ? "Ad hoc editing" : "Unsaved corrections"}</span>
-        ${changed && this.canAdhocEdit()
+      <div class="adhoc-edit-bar" role="group" aria-label="Corrections">
+        ${changed
           ? html`
-              <button
-                type="button"
-                class="primary compact adhoc-save-btn"
-                @click=${() => this.saveAdhocEdits()}
-              >
-                Save corrections
+              <button type="button" class="ghost compact" @mousedown=${keepFocus} @click=${() => this.discardAdhocEdits()}>
+                Discard
               </button>
+              ${this.canAdhocEdit()
+                ? html`<button
+                    type="button"
+                    class="primary compact"
+                    title="Save corrections (Enter)"
+                    @mousedown=${keepFocus}
+                    @click=${() => { this.exitAdhocEdit(); void this.saveAdhocEdits(); }}
+                  >Save corrections</button>`
+                : nothing}
             `
-          : nothing}
-        ${editing
-          ? html`
-              <button type="button" class="ghost compact" @click=${() => this.exitAdhocEdit()}>
-                Done
-              </button>
-            `
-          : nothing}
+          : html`<button type="button" class="ghost compact" @mousedown=${keepFocus} @click=${() => this.exitAdhocEdit()}>
+              Done
+            </button>`}
       </div>
     `;
   }
@@ -3526,46 +3565,51 @@ export class Psa150App extends Psa150Element {
   private renderFlatPerformanceContent(
     performanceSections: ReturnType<typeof buildPerformanceSections>,
   ) {
+    const canEdit = this.canAdhocEdit();
     return performanceSections.map((section, sectionIndex) => {
       const blockKeys = this.lineBlockKeys(sectionIndex, section.lines);
-      let previousBlockKey: string | null = null;
-
       return html`
         <section class="song-section ${section.kind}">
           <h2 class="song-section-label">${section.label}</h2>
           ${section.lines.map((line, lineIndex) => {
             const provenance = section.lineProvenance[lineIndex];
-            if (!provenance || lineIsBlank(line)) {
-              previousBlockKey = null;
-              return nothing;
-            }
-
-            const blockKey = blockKeys[lineIndex]!;
-            const isEditing = this.adhocEditingBlockKey === blockKey;
-            const focusOnMount = isEditing && previousBlockKey !== blockKey;
-            previousBlockKey = blockKey;
-
-            return this.renderInteractiveLyricLine(
-              line,
-              provenance,
-              blockKey,
-              isEditing,
-              this.canAdhocEdit(),
-              focusOnMount,
-              false,
-            );
+            if (!provenance || lineIsBlank(line)) return nothing;
+            return this.renderInteractiveLyricLine(line, provenance, blockKeys[lineIndex]!, canEdit);
           })}
         </section>
       `;
     });
   }
 
+  /**
+   * Index of each preview block's stanza among the projected stanzas (its
+   * number key minus one), or null for blocks that are not projected (intro,
+   * interlude).
+   */
+  private projectedStanzaIndices(
+    performanceSections: ReturnType<typeof buildPerformanceSections>,
+    blocks: PreviewStanzaBlock[],
+  ): (number | null)[] {
+    let next = 0;
+    return blocks.map((block) => {
+      const kind = performanceSections[block.sectionIndex]?.kind;
+      return kind === "intro" || kind === "interlude" ? null : next++;
+    });
+  }
+
+  /**
+   * Stanza view while projecting: each stanza has its number key on the left;
+   * clicking another stanza shows it, and clicking a line of the stanza on
+   * screen puts the caret there to correct it.
+   */
   private renderStanzaPerformanceContent(
     performanceSections: ReturnType<typeof buildPerformanceSections>,
     blocks: PreviewStanzaBlock[],
   ) {
     const markers = buildStanzaMarkers(this.projection!.slides);
-    const activeBlock = activeStanzaIndex(markers, this.projection!.current_index);
+    const activeMarker = activeStanzaIndex(markers, this.projection!.current_index);
+    const stanzaIndices = this.projectedStanzaIndices(performanceSections, blocks);
+    const canEdit = this.canAdhocEdit();
 
     return performanceSections.map((section, sectionIndex) => {
       const sectionBlocks = blocks
@@ -3578,30 +3622,29 @@ export class Psa150App extends Psa150Element {
           <h2 class="song-section-label">${section.label}</h2>
           ${sectionBlocks.map(({ block, index }) => {
             const blockKey = stanzaBlockKey(sectionIndex, block.stanzaIndexInSection);
-            const isActive = index === activeBlock;
-            const slideIndex = markers[index]?.slideIndices[0];
-            const isEditing = this.adhocEditingBlockKey === blockKey;
-            const canEdit = this.canAdhocEdit() && isActive;
+            const stanza = stanzaIndices[index];
+            const isActive = stanza != null && stanza === activeMarker;
+            const slideIndex = stanza != null ? markers[stanza]?.slideIndices[0] : undefined;
+            const editable = canEdit && isActive;
 
             return html`
               <div
-                class="song-stanza ${isActive ? "active" : ""} ${isEditing ? "editing" : ""} ${canEdit ? "editable" : ""}"
+                class="song-stanza ${isActive ? "active" : ""} ${editable ? "editable" : ""}"
                 aria-current=${isActive ? "true" : nothing}
                 @click=${(event: Event) => {
-                  if (slideIndex == null || isEditing) return;
-                  if (!this.canAdhocEdit() || !isActive) {
-                    void this.jumpToStanza(slideIndex);
-                    return;
-                  }
-                  const target = event.target as HTMLElement;
-                  if (target.closest(".song-lyrics, .song-lyric-editable")) {
-                    this.enterAdhocEdit(blockKey, event);
-                    return;
-                  }
+                  if (slideIndex == null) return;
+                  if (editable && (event.target as HTMLElement).closest(".song-lyric-editable")) return;
                   void this.jumpToStanza(slideIndex);
                 }}
               >
-                ${this.renderStanzaLines(block, isEditing, canEdit && isActive)}
+                ${stanza != null
+                  ? html`<span class="stanza-key" aria-hidden="true" title="Press ${stanza + 1} to show this stanza">${stanza + 1}</span>`
+                  : nothing}
+                ${block.lines.map((line, lineIndex) => {
+                  const provenance = block.lineProvenance[lineIndex];
+                  if (!provenance || lineIsBlank(line)) return nothing;
+                  return this.renderInteractiveLyricLine(line, provenance, blockKey, editable);
+                })}
               </div>
             `;
           })}
@@ -3610,92 +3653,79 @@ export class Psa150App extends Psa150Element {
     });
   }
 
-  private renderStanzaLines(block: PreviewStanzaBlock, editing: boolean, focusOnMount: boolean) {
-    return block.lines.map((line, lineIndex) => {
-      const provenance = block.lineProvenance[lineIndex];
-      if (!provenance || lineIsBlank(line)) return nothing;
-
-      return this.renderInteractiveLyricLine(
-        line,
-        provenance,
-        stanzaBlockKey(block.sectionIndex, block.stanzaIndexInSection),
-        editing,
-        this.canAdhocEdit(),
-        focusOnMount && lineIndex === 0,
-        true,
-      );
-    });
+  /**
+   * The order the stanzas are sung in, beside the song while it is on
+   * screen: the arrow keys follow it. Each step names its stanza number and
+   * first words; the one on screen is marked, and a click shows a step.
+   */
+  private renderStanzaOrder() {
+    const projection = this.projection;
+    if (!this.isProjectionActive() || !this.selectedSongIsActive() || !projection?.order?.length) {
+      return nothing;
+    }
+    const markers = buildStanzaMarkers(projection.slides);
+    const numberOf = new Map(markers.map((marker, index) => [marker.stanzaIndex, index]));
+    const position = projection.order_position ?? 0;
+    return html`
+      <nav class="stanza-order" aria-label="Order">
+        <h2 class="stanza-order-title">Order</h2>
+        <ol>
+          ${projection.order.map((stanzaIndex, step) => {
+            const number = numberOf.get(stanzaIndex);
+            if (number == null) return nothing;
+            const marker = markers[number];
+            const label = projection.slides[marker.slideIndices[0]]?.section_label ?? "";
+            const firstLine = marker.lines.find((line) => line.text.trim())?.text ?? "";
+            const current = step === position;
+            return html`
+              <li>
+                <button
+                  type="button"
+                  class="stanza-order-step ${current ? "current" : ""} ${step < position ? "done" : ""}"
+                  aria-current=${current ? "step" : nothing}
+                  title=${firstLine}
+                  @click=${() => this.showOrderPosition(step)}
+                >
+                  <span class="stanza-order-key">${number + 1}</span>
+                  <span class="stanza-order-text">
+                    <span class="stanza-order-label">${label}</span>
+                    <span class="stanza-order-line">${firstLine}</span>
+                  </span>
+                </button>
+              </li>
+            `;
+          })}
+        </ol>
+      </nav>
+    `;
   }
 
+  /**
+   * One lyric line. Where it may be corrected it is editable text: a click
+   * puts the caret where it lands, with no other change to how it looks.
+   * `live` leaves the text alone while it matches what is typed, so the caret
+   * never jumps.
+   */
   private renderInteractiveLyricLine(
     line: LyricLine,
     provenance: { sectionIndex: number; lineIndex: number },
     blockKey: string,
-    editing: boolean,
     canEdit: boolean,
-    focusOnMount: boolean,
-    inStanza: boolean,
   ) {
-    const originalText = line.text;
-    const displayText = this.displayLineText(provenance, originalText);
-    const changed = this.lineHasPendingEdit(provenance);
-
-    if (editing) {
-      return html`
-        <div class="song-line">
-          <div
-            class="song-lyrics song-lyric-editable"
-            contenteditable="plaintext-only"
-            spellcheck="false"
-            @input=${(event: Event) => this.onAdhocLineInput(provenance, originalText, event)}
-            @keydown=${(event: KeyboardEvent) => event.stopPropagation()}
-            ${(el: HTMLElement) => this.bindEditableLine(el, displayText, focusOnMount)}>${displayText || "\u00a0"}</div>
-        </div>
-      `;
+    const text = this.displayLineText(provenance, line.text);
+    if (!canEdit) {
+      return html`<div class="song-line"><div class="song-lyrics">${text || "\u00a0"}</div></div>`;
     }
-
-    return html`
-      <div
-        class="song-line ${canEdit ? "editable-line" : ""}"
-        @click=${(event: Event) => {
-          if (!canEdit || inStanza) return;
-          this.enterAdhocEdit(blockKey, event);
-        }}
-      >
-        <div
-          class="song-lyrics ${changed ? "adhoc-changed-line" : ""}"
-          @click=${(event: Event) => {
-            if (!canEdit || !inStanza) return;
-            this.enterAdhocEdit(blockKey, event);
-          }}>${changed ? this.renderDiffLine(originalText, displayText) : displayText || "\u00a0"}</div>
-      </div>
-    `;
-  }
-
-  private bindEditableLine(el: HTMLElement, displayText: string, shouldFocus: boolean) {
-    if (document.activeElement !== el) {
-      el.textContent = displayText || "\u00a0";
-    }
-    if (shouldFocus && document.activeElement !== el) {
-      requestAnimationFrame(() => {
-        el.focus();
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(range);
-      });
-    }
-  }
-
-  private renderDiffLine(original: string, current: string) {
-    const segments = diffLineSegments(original, current);
-    return segments.map((segment) =>
-      segment.changed
-        ? html`<span class="adhoc-changed">${segment.text}</span>`
-        : segment.text,
-    );
+    return html`<div class="song-line"><div
+      class="song-lyrics song-lyric-editable"
+      contenteditable="plaintext-only"
+      spellcheck="false"
+      .textContent=${live(text)}
+      @focus=${() => { this.adhocEditingBlockKey = blockKey; }}
+      @blur=${() => { if (this.adhocEditingBlockKey === blockKey) this.adhocEditingBlockKey = null; }}
+      @input=${(event: Event) => this.onAdhocLineInput(provenance, line.text, event)}
+      @keydown=${this.onAdhocLineKeydown}
+    ></div></div>`;
   }
 
   private audienceDisplayOptions(): SelectOption[] {

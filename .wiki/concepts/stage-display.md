@@ -21,7 +21,8 @@ plus the chords the audience never sees.
 
 ## Payload (`StageSlide`)
 
-`index`, `section_label`, `next_section_label` (label of `slides[index + 1]`,
+`index`, `section_label`, `next_section_label` (label of the slide "next" goes to in the
+[sung order](performance-sections.md#sung-order),
 if any), `lines[{text, chords[]}]` (chord names already transposed; positions
 are not carried, so chords are printed as one row above the lyric, joined by
 two spaces), `overlay`, `nashville` (flag only), `key` (song key from meta).

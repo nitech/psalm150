@@ -26,18 +26,24 @@ generated: { by: agent, at: 2026-09-13T14:00:00Z }
 
 `canAdhocEdit()`: not read-only, a real file is loaded (not a web result), and
 the song has a filename. In **projecting** stanza view only the active stanza
-is editable; in the flat view any line is. Click the lyrics to start; the bar
-above the song shows "Ad hoc editing" (with Done) or "Unsaved corrections"
-(with **Save corrections**). Escape leaves edit mode without discarding.
+is editable; in the flat view any line is. Editable lines are always
+`contenteditable="plaintext-only"`, so a click puts a blinking caret where it
+lands and nothing else changes: no border, background or colour. While a line
+has focus, or corrections are unsaved, buttons sit on the song's title row:
+**Done** while nothing has changed, else **Discard** and **Save
+corrections**. In a line, Enter saves (and leaves the line), Esc leaves it
+without discarding, Up/Down move to the line above or below at about the same
+column, and no other key reaches the console's shortcuts.
 
 ## Model
 
 `adhocPendingEdits: Map<"section:line", {original, text}>`, keyed by the
 **source** coordinates from `lineProvenance`. A corrected chorus line edits the
-template, so every performance of that chorus changes. Lines render as
-`contenteditable="plaintext-only"`; key events stop propagating so navigation
-keys do not fire. Changed lines show a word-level diff (`diffLineSegments`, an
-LCS over whitespace-split tokens) with the changed words highlighted.
+template, so every performance of that chorus changes. A line's text is bound
+with Lit's `live` directive, so a re-render leaves it alone while it matches
+what was typed and the caret never jumps (it used to jump to the start of the
+line after the first Backspace). Changed words are not highlighted;
+`diffLineSegments` stays in `adhoc-edit.ts`, tested, but unused.
 
 ## Saving
 

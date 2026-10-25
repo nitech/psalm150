@@ -84,6 +84,10 @@ export interface ProjectionState {
   blank: boolean;
   transpose_semitones: number;
   hold_slide_id?: string | null;
+  /** Stanza indices in the order they are sung; next/previous step through it. */
+  order?: number[];
+  /** Where in `order` the stanza on screen is. */
+  order_position?: number;
 }
 
 export interface StageSlide {
@@ -423,6 +427,9 @@ export const api = {
   showSlide: (index: number) => invoke<ProjectionSnapshot>("show_slide", { index }),
   nextSlide: () => invoke<ProjectionSnapshot>("next_slide"),
   previousSlide: () => invoke<ProjectionSnapshot>("previous_slide"),
+  stepStanza: (forward: boolean) => invoke<ProjectionSnapshot>("step_stanza", { forward }),
+  showOrderPosition: (position: number) =>
+    invoke<ProjectionSnapshot>("show_order_position", { position }),
   blankScreen: () => invoke<ProjectionSnapshot>("blank_screen"),
   getProjectionState: () => invoke<ProjectionState>("get_projection_state"),
   getProjectionSnapshot: () => invoke<ProjectionSnapshot>("get_projection_snapshot"),

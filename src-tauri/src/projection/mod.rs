@@ -3,7 +3,7 @@ pub mod split;
 
 use serde::{Deserialize, Serialize};
 
-use crate::library::chordpro::{is_projectable_section, ParsedSong};
+use crate::library::chordpro::{is_projectable_section, ParsedSong, SectionKind};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlideTheme {
@@ -71,6 +71,14 @@ pub struct ProjectionState {
     pub blank: bool,
     pub transpose_semitones: i32,
     pub hold_slide_id: Option<String>,
+    /// Stanza indices in the order they are sung (see `suggested_order`).
+    /// The arrow keys and the phone remote step through this, so a chorus
+    /// written once comes back after every verse.
+    #[serde(default)]
+    pub order: Vec<usize>,
+    /// Where in `order` the stanza on screen is.
+    #[serde(default)]
+    pub order_position: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,7 +111,17 @@ pub struct SlideOverlay {
 }
 
 pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Vec<SlidePayload> {
+    build_slides_with_kinds(song, theme, transpose).0
+}
+
+/// The slides, and the section kind of each stanza (indexed by `stanza_index`).
+pub fn build_slides_with_kinds(
+    song: &ParsedSong,
+    theme: &SlideTheme,
+    transpose: i32,
+) -> (Vec<SlidePayload>, Vec<SectionKind>) {
     let sections = expand_chorus_sections(&song.sections);
+    let mut kinds = Vec::new();
     let mut slides = Vec::new();
     let mut index = 0usize;
     let mut stanza_index = 0usize;
@@ -160,16 +178,185 @@ pub fn build_slides(song: &ParsedSong, theme: &SlideTheme, transpose: i32) -> Ve
                 });
                 index += 1;
             }
+            kinds.push(section.kind.clone());
             stanza_index += 1;
         }
     }
-    slides
+    (slides, kinds)
+}
+
+/// The order the stanzas are usually sung in. A song whose only chorus is
+/// written once gets it after every verse that follows it (and after every
+/// verse when the chorus comes first): verse 1, chorus, verse 2, chorus…
+/// A pre-chorus written just before that chorus comes along with it. Songs
+/// that write their choruses out, or have none, are sung as written.
+pub fn suggested_order(kinds: &[SectionKind]) -> Vec<usize> {
+    let as_written: Vec<usize> = (0..kinds.len()).collect();
+    let choruses: Vec<usize> = kinds
+        .iter()
+        .enumerate()
+        .filter(|(_, kind)| matches!(kind, SectionKind::Chorus | SectionKind::Chorus2))
+        .map(|(index, _)| index)
+        .collect();
+    if choruses.len() != 1 {
+        return as_written;
+    }
+    let chorus = choruses[0];
+    let lead_in = (chorus > 0 && kinds[chorus - 1] == SectionKind::PreChorus).then(|| chorus - 1);
+    let mut order = Vec::with_capacity(kinds.len() * 2);
+    for index in as_written {
+        order.push(index);
+        if index > chorus {
+            order.extend(lead_in);
+            order.push(chorus);
+        }
+    }
+    order
+}
+
+impl ProjectionState {
+    fn stanza_of(&self, slide: usize) -> Option<usize> {
+        self.slides.get(slide).map(|slide| slide.stanza_index)
+    }
+
+    fn first_slide_of(&self, stanza: usize) -> Option<usize> {
+        self.slides
+            .iter()
+            .position(|slide| slide.stanza_index == stanza)
+    }
+
+    fn last_slide_of(&self, stanza: usize) -> Option<usize> {
+        self.slides
+            .iter()
+            .rposition(|slide| slide.stanza_index == stanza)
+    }
+
+    /// Where in `order` slide `index`'s stanza is: the first time it comes at
+    /// or after the current position, else its first time at all. So the
+    /// chorus picked after verse 2 is the chorus after verse 2.
+    fn locate(&self, index: usize) -> usize {
+        let Some(stanza) = self.stanza_of(index) else {
+            return 0;
+        };
+        let from = self.order_position.min(self.order.len());
+        self.order[from..]
+            .iter()
+            .position(|&s| s == stanza)
+            .map(|offset| from + offset)
+            .or_else(|| self.order.iter().position(|&s| s == stanza))
+            .unwrap_or(0)
+    }
+
+    /// Makes `order` and `order_position` agree with the slide on screen.
+    fn sync_order(&mut self) {
+        if self.order.is_empty() {
+            let mut order: Vec<usize> =
+                self.slides.iter().map(|slide| slide.stanza_index).collect();
+            order.dedup();
+            self.order = order;
+        }
+        if self.order.get(self.order_position).copied() != self.stanza_of(self.current_index) {
+            self.order_position = self.locate(self.current_index);
+        }
+    }
+
+    /// The slide that "next" shows, without moving there (the stage's next label).
+    pub fn next_slide_index(&self) -> Option<usize> {
+        let stanza = self.stanza_of(self.current_index)?;
+        if self.stanza_of(self.current_index + 1) == Some(stanza) {
+            return Some(self.current_index + 1);
+        }
+        if self.order.get(self.order_position) != Some(&stanza) {
+            return (self.current_index + 1 < self.slides.len()).then_some(self.current_index + 1);
+        }
+        self.order
+            .get(self.order_position + 1)
+            .and_then(|&next| self.first_slide_of(next))
+    }
+
+    /// Shows slide `index` (a stanza picked by number or click).
+    pub fn go_to_slide(&mut self, index: usize) {
+        self.sync_order();
+        self.current_index = index;
+        self.order_position = self.locate(index);
+    }
+
+    /// Shows the first slide of the stanza at `position` in `order`.
+    pub fn go_to_order_position(&mut self, position: usize) -> bool {
+        self.sync_order();
+        let Some(first) = self
+            .order
+            .get(position)
+            .and_then(|&stanza| self.first_slide_of(stanza))
+        else {
+            return false;
+        };
+        let changed = first != self.current_index || position != self.order_position;
+        self.current_index = first;
+        self.order_position = position;
+        changed
+    }
+
+    /// The next or previous slide: within the stanza, then on through `order`.
+    pub fn step_slide(&mut self, forward: bool) -> bool {
+        self.sync_order();
+        let Some(stanza) = self.stanza_of(self.current_index) else {
+            return false;
+        };
+        let current = self.current_index;
+        if forward {
+            if self.stanza_of(current + 1) == Some(stanza) {
+                self.current_index += 1;
+                return true;
+            }
+            return self.go_to_order_position(self.order_position + 1);
+        }
+        if current > 0 && self.stanza_of(current - 1) == Some(stanza) {
+            self.current_index -= 1;
+            return true;
+        }
+        let Some(position) = self.order_position.checked_sub(1) else {
+            return false;
+        };
+        let Some(last) = self
+            .order
+            .get(position)
+            .and_then(|&stanza| self.last_slide_of(stanza))
+        else {
+            return false;
+        };
+        self.current_index = last;
+        self.order_position = position;
+        true
+    }
+
+    /// The first slide of the next or previous stanza in `order`.
+    pub fn step_stanza(&mut self, forward: bool) -> bool {
+        self.sync_order();
+        let position = if forward {
+            self.order_position + 1
+        } else {
+            match self.order_position.checked_sub(1) {
+                Some(position) => position,
+                None => return false,
+            }
+        };
+        self.go_to_order_position(position)
+    }
+
+    /// After a rebuild (a saved correction): keep the place in `order`.
+    pub fn keep_order_position(&mut self, old: &ProjectionState) {
+        self.order_position = old.order_position.min(self.order.len().saturating_sub(1));
+        self.sync_order();
+    }
 }
 
 /// Chorus2 sections are alternate-chorus templates. When a song defines chorus2,
 /// the main chorus block before it is also a template; performance slots after
 /// chorus2 alternate between main and alternate content.
-fn expand_chorus_sections(sections: &[crate::library::chordpro::SongSection]) -> Vec<crate::library::chordpro::SongSection> {
+fn expand_chorus_sections(
+    sections: &[crate::library::chordpro::SongSection],
+) -> Vec<crate::library::chordpro::SongSection> {
     use crate::library::chordpro::{SectionKind, SongSection};
 
     let chorus2_idx = sections.iter().position(|s| s.kind == SectionKind::Chorus2);
@@ -404,6 +591,98 @@ Line
         assert_eq!(slides[0].overlay.song_num, Some(227));
         assert_eq!(slides[0].overlay.title.as_deref(), Some("Numbered"));
         assert_eq!(slides[0].overlay.key.as_deref(), Some("G"));
+    }
+
+    fn kinds_of(content: &str) -> Vec<SectionKind> {
+        let parsed = parse_chordpro(content, "test.pro");
+        build_slides_with_kinds(&parsed, &SlideTheme::default(), 0).1
+    }
+
+    #[test]
+    fn a_chorus_written_once_follows_every_later_verse() {
+        let kinds = kinds_of(
+            "{start_of_verse}\nV1\n{end_of_verse}\n{start_of_chorus}\nC\n{end_of_chorus}\n{start_of_verse}\nV2\n{end_of_verse}\n{start_of_verse}\nV3\n{end_of_verse}\n",
+        );
+        assert_eq!(suggested_order(&kinds), vec![0, 1, 2, 1, 3, 1]);
+    }
+
+    #[test]
+    fn a_chorus_first_comes_back_after_each_verse() {
+        let kinds = kinds_of(
+            "{start_of_chorus}\nC\n{end_of_chorus}\n{start_of_verse}\nV1\n{end_of_verse}\n{start_of_verse}\nV2\n{end_of_verse}\n",
+        );
+        assert_eq!(suggested_order(&kinds), vec![0, 1, 0, 2, 0]);
+    }
+
+    #[test]
+    fn a_pre_chorus_comes_along_with_its_chorus() {
+        use SectionKind::*;
+        assert_eq!(
+            suggested_order(&[Verse, PreChorus, Chorus, Verse]),
+            vec![0, 1, 2, 3, 1, 2]
+        );
+    }
+
+    #[test]
+    fn songs_with_written_out_choruses_or_none_are_sung_as_written() {
+        use SectionKind::*;
+        assert_eq!(
+            suggested_order(&[Verse, Chorus, Verse, Chorus]),
+            vec![0, 1, 2, 3]
+        );
+        assert_eq!(suggested_order(&[Verse, Verse, Verse]), vec![0, 1, 2]);
+        assert_eq!(suggested_order(&[Verse, Chorus]), vec![0, 1]);
+    }
+
+    fn state_for(stanzas: &[usize], order: Vec<usize>) -> ProjectionState {
+        let slides = stanzas
+            .iter()
+            .enumerate()
+            .map(|(index, &stanza_index)| SlidePayload {
+                index,
+                section_index: stanza_index,
+                stanza_index,
+                section_label: String::new(),
+                lines: vec![],
+                overlay: SlideOverlay::default(),
+            })
+            .collect();
+        ProjectionState {
+            slides,
+            order,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn stepping_follows_the_order_and_the_slides_within_a_stanza() {
+        // Stanza 1 (the chorus) has two slides.
+        let mut state = state_for(&[0, 1, 1, 2], vec![0, 1, 2, 1]);
+        let mut seen = vec![state.current_index];
+        while state.step_slide(true) {
+            seen.push(state.current_index);
+        }
+        assert_eq!(seen, vec![0, 1, 2, 3, 1, 2]);
+        assert_eq!(state.order_position, 3);
+        assert!(state.step_slide(false));
+        assert_eq!(state.current_index, 1);
+        assert!(state.step_slide(false));
+        assert_eq!((state.current_index, state.order_position), (3, 2));
+        assert!(state.step_stanza(false));
+        assert_eq!((state.current_index, state.order_position), (1, 1));
+    }
+
+    #[test]
+    fn picking_a_stanza_finds_its_next_place_in_the_order() {
+        let mut state = state_for(&[0, 1, 2, 3], vec![0, 1, 2, 1, 3, 1]);
+        state.go_to_slide(2);
+        assert_eq!(state.order_position, 2);
+        state.go_to_slide(1);
+        assert_eq!(state.order_position, 3);
+        state.go_to_slide(0);
+        assert_eq!(state.order_position, 0);
+        assert!(state.step_stanza(true));
+        assert_eq!((state.current_index, state.order_position), (1, 1));
     }
 
     #[test]

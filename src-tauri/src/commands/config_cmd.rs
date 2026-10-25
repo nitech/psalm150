@@ -119,7 +119,7 @@ pub fn set_audience_monitor(
     })?;
     if let Some(window) = app.get_webview_window("audience") {
         if window.is_visible().unwrap_or(false) {
-            display::apply_monitor_to_window(&app, "audience", monitor_id.as_deref(), true)?;
+            display::apply_monitor_to_window(&app, "audience", monitor_id.as_deref())?;
         }
     }
     Ok(())
@@ -137,7 +137,7 @@ pub fn set_stage_monitor(
     })?;
     if let Some(window) = app.get_webview_window("stage") {
         if window.is_visible().unwrap_or(false) {
-            display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref(), false)?;
+            display::apply_monitor_to_window(&app, "stage", monitor_id.as_deref())?;
         }
     }
     Ok(())

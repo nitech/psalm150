@@ -77,17 +77,21 @@ copyright (unless `show_copyright_overlay` is false), `CCLI n` (only if
 
 ## Stanza counter (bottom-right)
 
-`n / total` with arrows that dim at the ends. Built from
-[stanza markers](performance-sections.md) over `ProjectionState.slides`; shown
-only when there is more than one stanza. The component receives the projection,
+`n / total` with arrows that dim at the ends: the step of the
+[sung order](performance-sections.md#sung-order) on screen
+(`order_position + 1` of `order.length`, so a repeated chorus counts each
+time), or [stanza markers](performance-sections.md) when there is no order.
+Shown only when there is more than one step. The component receives the projection,
 theme and audience payload together in a revisioned `ProjectionSnapshot`.
 
 ## Keys and blank
 
 Escape closes both projection windows; Down/Right `next_slide`; Up/Left
-`previous_slide` (direct `invoke`). A slide with no lines renders
-`.audience-blank` (vignette only). Slides are keyed by `index:stanza:text`, so
-a changed slide remounts and replays the `audience-in` animation.
+`previous_slide` (direct `invoke`), which follow the sung order. A slide with
+no lines renders `.audience-blank` (vignette only). Slides are keyed by
+`session:index:stanza`, not by their words: a new slide remounts and plays the
+`audience-in` fade, while a correction saved while the slide is on screen
+replaces the words in place with no animation.
 
 ## Related
 

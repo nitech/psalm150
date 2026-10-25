@@ -12,7 +12,7 @@ use crate::library::files::{
     content_hash, create_song_unique, delete_song_recoverable, replace_song, song_path,
     RecoveryItem,
 };
-use crate::projection::{build_slides, ProjectionState, SlideTheme};
+use crate::projection::{build_slides_with_kinds, suggested_order, ProjectionState, SlideTheme};
 use crate::{with_state, AppState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,17 +38,20 @@ fn theme_for(app: &AppHandle, folder_hash: Option<&String>) -> SlideTheme {
 }
 
 fn projection_for(parsed: &ParsedSong, theme: &SlideTheme, transpose: i32) -> ProjectionState {
+    let (slides, kinds) = build_slides_with_kinds(parsed, theme, transpose);
     ProjectionState {
         filename: Some(parsed.meta.filename.clone()),
         title: Some(parsed.meta.title.clone()),
         key: parsed.meta.key.clone(),
         ccli: parsed.meta.ccli.clone(),
         nashville: false,
-        slides: build_slides(parsed, theme, transpose),
+        slides,
         current_index: 0,
         blank: false,
         transpose_semitones: transpose,
         hold_slide_id: None,
+        order: suggested_order(&kinds),
+        order_position: 0,
     }
 }
 
@@ -212,6 +215,7 @@ fn preserve_position(old: &ProjectionState, new: &mut ProjectionState) {
     });
     new.current_index = mapped.unwrap_or(old.current_index.min(new.slides.len() - 1));
     new.blank = old.blank;
+    new.keep_order_position(old);
 }
 
 /// Where a save goes: the songs folder, or the song server behind a server

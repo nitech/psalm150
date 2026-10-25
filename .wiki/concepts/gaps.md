@@ -45,7 +45,6 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
 - **Remote control**: the LAN page can only step slides and blank, and its PIN travels in clear over HTTP. The song server remote can project songs and set items and is on by default, but only works in a server library. Room sharing is also on by default, so a newly connected PC shows its words to anyone who knows its (guessable, flower) room name until the operator or the church's owner turns it off ([remote control](remote-control.md#room)).
 - **Online search**: chord positions are only as good as the site's chart ([online song search](web-search.md)).
 - **Transpose** treats flats other than `Db`/`Eb` as `C`; Nashville is a flag with no rendering ([slide pipeline](slide-pipeline.md)).
-- **Stanza view** highlight is off by one for songs with `Intro`/`Interlude` sections ([performance sections](performance-sections.md)).
 - **Search** ignores the FTS table and returns unranked `LIKE` matches ([library index](library-index.md)).
 - **Simulated display** is not a true miniature: the theme font is fixed px, so the 960 px window relies on the fit scaler more than a 1920 px projector would; MDB margins may be twips ([audience display](audience-display.md), [MDB import](mdb-import.md)).
 - **Reports**: CCLI export only reaches the devtools console; the songbook has no lyrics ([reports](reports.md)).

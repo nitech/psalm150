@@ -39,13 +39,16 @@ intercepted (`CloseRequested` → `prevent_close` → `close_projection_windows`
 ## Opening
 
 `open_audience_window` (async): read `config.audience_monitor`, then
-`display::apply_monitor_to_window(.., fullscreen = true)`:
+`display::apply_monitor_to_window`:
 
 - **Simulated display** (`audience_monitor == "__simulated__"`): decorations
   on, not on top, resizable, titled "Congregation (Simulated Display)", 960x540
   logical, cascaded 40 px from the main window. Focus moves to it.
 - **A monitor id** (`"x,y,w,h"` of the monitor) or empty (primary): chrome
-  restored, window moved to the monitor origin and set fullscreen. The console
+  restored, window moved to the monitor origin and sized to the monitor while
+  still hidden (no OS fullscreen: switching it showed the window small on the
+  projector before it filled the screen). The current snapshot is sent before
+  `show()`, so the window appears full size with the right slide. The console
   re-takes focus afterwards so keyboard navigation keeps working.
 
 `open_stage_window` only repositions when `stage_monitor` is set ("Stage
@@ -55,7 +58,8 @@ is visible re-applies placement immediately.
 
 ## Closing and Escape
 
-`close_projection_windows` hides both windows, leaves fullscreen, and emits
+`close_projection_windows` hides both windows (only hides: leaving
+fullscreen first showed the window shrink on the projector) and emits
 `projection-closed`; the console flips `projecting = false`. Escape reaches it
 three ways: a **global** shortcut registered once in `setup()` (acts only while
 a projection window is visible; registering twice panics), the audience and

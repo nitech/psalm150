@@ -88,7 +88,9 @@ while the browser is open.
 | `close_audience_window`, `close_stage_window` | | no (only via the pair below) |
 | `close_projection_windows` | emits `projection-closed` | yes (console, audience, stage) |
 | `show_slide` | `index` → `ProjectionSnapshot` | yes |
-| `next_slide`, `previous_slide`, `blank_screen` | → `ProjectionSnapshot` | yes (console + audience keys + phone) |
+| `next_slide`, `previous_slide`, `blank_screen` | → `ProjectionSnapshot`; next/previous follow `ProjectionState.order` | yes (console + audience keys + phone) |
+| `step_stanza` | `forward` → `ProjectionSnapshot`: first slide of the next/previous step of `order` | yes (console Up/Down) |
+| `show_order_position` | `position` → `ProjectionSnapshot` | yes (console order column) |
 | `get_projection_snapshot` | → the same complete revisioned snapshot used by events | all three pages |
 | `get_projection_state` | → legacy `ProjectionState` | no |
 | `get_next_slide_preview` | → `Option<SlidePayload>` | no |
