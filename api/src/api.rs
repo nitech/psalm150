@@ -85,6 +85,12 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::access::create_member,
         crate::access::update_member,
         crate::access::remove_member,
+        crate::account_links::list_account_links,
+        crate::account_links::create_invite,
+        crate::account_links::create_reset_link,
+        crate::account_links::revoke_account_link,
+        crate::account_links::get_account_link,
+        crate::account_links::use_account_link,
         get_church,
         update_church,
         list_device_tokens,
@@ -159,6 +165,12 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         Member,
         CreateMemberRequest,
         UpdateMemberRequest,
+        crate::models::AccountLinkKind,
+        crate::models::CreateInviteRequest,
+        crate::models::AccountLink,
+        crate::models::AccountLinkResponse,
+        crate::models::PublicAccountLink,
+        crate::models::UseAccountLinkRequest,
         ChurchSettings,
         UpdateChurchRequest,
         CreateDeviceTokenRequest,
@@ -246,8 +258,8 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     ),
     (
         "Sign-in and account",
-        "Signing in and out, and changing your own password.",
-        &["session", "account"],
+        "Signing in and out, changing your own password, and opening an invite or reset link.",
+        &["session", "account", "public/account-links"],
     ),
     (
         "API tokens",
@@ -256,7 +268,7 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     ),
     (
         "People",
-        "The church's people and their roles. Owners only.",
+        "The church's people and their roles, and links that invite people or reset a password. Owners only.",
         &["members"],
     ),
     ("Church", "The church's name and settings.", &["church"]),
@@ -380,6 +392,7 @@ pub fn router() -> Router<AppState> {
         .route("/public/songs/keys", get(list_public_song_keys))
         .route("/public/songs/{song_id}", get(get_public_song))
         .merge(crate::access::router())
+        .merge(crate::account_links::router())
         .merge(crate::online::router())
         .merge(crate::sets::router())
         .merge(crate::shared_sets::router())

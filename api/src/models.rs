@@ -205,6 +205,73 @@ pub struct UpdateMemberRequest {
     pub disabled: Option<bool>,
 }
 
+/// What an account link does when it is opened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum AccountLinkKind {
+    /// A new person chooses a username and password and joins the church.
+    Invite,
+    /// One person chooses a new password.
+    Reset,
+}
+
+/// An owner invites someone with a link instead of choosing their password.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateInviteRequest {
+    pub role: Role,
+    /// Filled in for them; they may change it when they open the link.
+    pub display_name: Option<String>,
+}
+
+/// A link that has not been used yet.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AccountLink {
+    pub id: Uuid,
+    pub kind: AccountLinkKind,
+    /// Invites: the role they get.
+    pub role: Option<Role>,
+    /// Invites: the name the owner gave; resets: the person's name.
+    pub display_name: Option<String>,
+    /// Resets: whose password it sets.
+    pub user_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// A new link. `token` is shown only now; the server keeps only its hash.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AccountLinkResponse {
+    #[serde(flatten)]
+    pub link: AccountLink,
+    pub token: String,
+    /// Where the web client opens it, such as `/invite/{token}`.
+    pub path: String,
+}
+
+/// What someone opening a link sees before they choose a password.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PublicAccountLink {
+    pub kind: AccountLinkKind,
+    pub church_name: String,
+    pub display_name: Option<String>,
+    /// Resets: the username they sign in with.
+    pub username: Option<String>,
+    /// Invites: the role they get.
+    pub role: Option<Role>,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Using a link: a password, and for an invite also a username and name.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UseAccountLinkRequest {
+    /// At least 10 characters.
+    pub password: String,
+    /// Invites only.
+    pub username: Option<String>,
+    /// Invites only; defaults to the name the owner gave.
+    pub display_name: Option<String>,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateDeviceTokenRequest {
     pub name: String,

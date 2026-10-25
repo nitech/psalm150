@@ -2933,6 +2933,8 @@ async fn openapi_describes_every_operation(pool: PgPool) {
         "DELETE /api/v1/public/sets/{share_key}/items/{item_id}",
         "GET /api/v1/public/sets/{share_key}/live/events",
         "POST /api/v1/desktop-auth/token",
+        "GET /api/v1/public/account-links/{token}",
+        "POST /api/v1/public/account-links/{token}",
     ];
     let mut operations = 0;
     for (path, item) in doc["paths"].as_object().expect("paths") {
@@ -3244,5 +3246,299 @@ async fn new_songs_get_the_next_number(pool: PgPool) {
         imported.1["songs"][0]["song_number"].is_null(),
         "{}",
         imported.1
+    );
+}
+
+/// Owners invite people and reset passwords with one-time links; the person
+/// chooses the password and is signed in.
+#[sqlx::test(migrations = "./migrations")]
+async fn invite_and_reset_links(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+
+    // Only owners make links.
+    for token in [&viewer, &desktop] {
+        let refused = send(
+            &app,
+            "POST",
+            "/api/v1/members/invites",
+            Some(token),
+            Some(json!({ "role": "leader" })),
+        )
+        .await;
+        assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    }
+
+    let invite = send(
+        &app,
+        "POST",
+        "/api/v1/members/invites",
+        Some(&owner),
+        Some(json!({ "role": "leader", "display_name": " Ida " })),
+    )
+    .await;
+    assert_eq!(invite.0, StatusCode::CREATED);
+    assert_eq!(invite.1["kind"], "invite");
+    assert_eq!(invite.1["display_name"], "Ida");
+    let token = invite.1["token"]
+        .as_str()
+        .expect("invite token")
+        .to_string();
+    assert_eq!(invite.1["path"], format!("/invite/{token}"));
+    let invite_id = invite.1["id"].as_str().expect("invite id").to_string();
+
+    let links = send(&app, "GET", "/api/v1/members/links", Some(&owner), None).await;
+    assert_eq!(links.0, StatusCode::OK);
+    assert_eq!(links.1.as_array().expect("links").len(), 1);
+
+    let opened = send(
+        &app,
+        "GET",
+        &format!("/api/v1/public/account-links/{token}"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(opened.0, StatusCode::OK);
+    assert_eq!(opened.1["kind"], "invite");
+    assert_eq!(opened.1["church_name"], "Test Church");
+    assert_eq!(opened.1["role"], "leader");
+    assert!(opened.1.get("token").is_none());
+
+    let use_link = |token: String, body: Value| {
+        let app = app.clone();
+        async move {
+            send(
+                &app,
+                "POST",
+                &format!("/api/v1/public/account-links/{token}"),
+                None,
+                Some(body),
+            )
+            .await
+        }
+    };
+    // A taken username, a short password and no username are refused; the
+    // link still works afterwards.
+    for (body, status) in [
+        (
+            json!({ "username": "OWNER", "password": MEMBER_PASSWORD }),
+            StatusCode::CONFLICT,
+        ),
+        (
+            json!({ "username": "ida", "password": "short" }),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            json!({ "password": MEMBER_PASSWORD }),
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        assert_eq!(use_link(token.clone(), body).await.0, status);
+    }
+    let joined = use_link(
+        token.clone(),
+        json!({ "username": "ida", "password": MEMBER_PASSWORD }),
+    )
+    .await;
+    assert_eq!(joined.0, StatusCode::OK);
+    assert_eq!(joined.1["display_name"], "Ida");
+    assert_eq!(joined.1["role"], "leader");
+    let ida_id = joined.1["user_id"].as_str().expect("ida id").to_string();
+    let ida = joined.1["token"].as_str().expect("session").to_string();
+    assert_eq!(
+        send(&app, "GET", "/api/v1/session", Some(&ida), None)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    sign_in(&app, "ida", MEMBER_PASSWORD).await;
+
+    // Used once, it is gone.
+    let again = use_link(
+        token.clone(),
+        json!({ "username": "ida2", "password": MEMBER_PASSWORD }),
+    )
+    .await;
+    assert_eq!(again.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        send(
+            &app,
+            "GET",
+            &format!("/api/v1/public/account-links/{token}"),
+            None,
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        send(
+            &app,
+            "DELETE",
+            &format!("/api/v1/members/links/{invite_id}"),
+            Some(&owner),
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+
+    // A revoked invite does not work.
+    let revoked = send(
+        &app,
+        "POST",
+        "/api/v1/members/invites",
+        Some(&owner),
+        Some(json!({ "role": "viewer" })),
+    )
+    .await;
+    let revoked_token = revoked.1["token"].as_str().expect("token").to_string();
+    let revoked_id = revoked.1["id"].as_str().expect("id");
+    assert_eq!(
+        send(
+            &app,
+            "DELETE",
+            &format!("/api/v1/members/links/{revoked_id}"),
+            Some(&owner),
+            None
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let dead = use_link(
+        revoked_token,
+        json!({ "username": "zed", "display_name": "Zed", "password": MEMBER_PASSWORD }),
+    )
+    .await;
+    assert_eq!(dead.0, StatusCode::NOT_FOUND);
+
+    // Reset links: not for yourself; a new one replaces the last.
+    let owner_id = send(&app, "GET", "/api/v1/session", Some(&owner), None)
+        .await
+        .1["user_id"]
+        .as_str()
+        .expect("owner id")
+        .to_string();
+    let own = send(
+        &app,
+        "POST",
+        &format!("/api/v1/members/{owner_id}/reset-link"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(own.0, StatusCode::FORBIDDEN);
+    let first = send(
+        &app,
+        "POST",
+        &format!("/api/v1/members/{ida_id}/reset-link"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(first.0, StatusCode::CREATED);
+    let first_token = first.1["token"].as_str().expect("token").to_string();
+    let reset = send(
+        &app,
+        "POST",
+        &format!("/api/v1/members/{ida_id}/reset-link"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(reset.0, StatusCode::CREATED);
+    assert_eq!(reset.1["kind"], "reset");
+    assert_eq!(reset.1["display_name"], "Ida");
+    let reset_token = reset.1["token"].as_str().expect("token").to_string();
+    assert_eq!(reset.1["path"], format!("/reset-password/{reset_token}"));
+    assert_eq!(
+        send(
+            &app,
+            "GET",
+            &format!("/api/v1/public/account-links/{first_token}"),
+            None,
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    let opened = send(
+        &app,
+        "GET",
+        &format!("/api/v1/public/account-links/{reset_token}"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(opened.1["username"], "ida");
+
+    let new_password = "a-brand-new-password";
+    let done = use_link(reset_token.clone(), json!({ "password": new_password })).await;
+    assert_eq!(done.0, StatusCode::OK);
+    assert_eq!(done.1["user_id"], ida_id.as_str());
+    // Her other sessions ended; the new password works, the old does not.
+    assert_eq!(
+        send(&app, "GET", "/api/v1/session", Some(&ida), None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        try_sign_in(&app, "ida", MEMBER_PASSWORD).await,
+        StatusCode::UNAUTHORIZED
+    );
+    sign_in(&app, "ida", new_password).await;
+    assert_eq!(
+        use_link(reset_token, json!({ "password": new_password }))
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+
+    // A disabled person's reset link stops working.
+    let later = send(
+        &app,
+        "POST",
+        &format!("/api/v1/members/{ida_id}/reset-link"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let later_token = later.1["token"].as_str().expect("token").to_string();
+    assert_eq!(
+        patch_member(&app, &owner, &ida_id, json!({ "disabled": true }))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        send(
+            &app,
+            "GET",
+            &format!("/api/v1/public/account-links/{later_token}"),
+            None,
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        send(
+            &app,
+            "POST",
+            &format!("/api/v1/members/{ida_id}/reset-link"),
+            Some(&owner),
+            None
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
     );
 }

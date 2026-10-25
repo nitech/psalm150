@@ -55,6 +55,7 @@ exist yet ([gaps](gaps.md)).
 | `sessions` | `token_hash CHAR(64)` | Person sessions: `church_id`, `expires_at`, `last_used_at` |
 | `device_tokens` | `id` | `church_id`, `name`, unique `token_hash`, `created_by`, `last_used_at`, `revoked_at`, `room_name` (the desktop's room, null until assigned) and `room_key` (the name folded for matching) |
 | `api_tokens` | `id` | A person's API tokens: `user_id`, `church_id`, `name`, `role` cap in `owner` / `leader` / `viewer`, unique `token_hash`, `created_at`, `expires_at` (null: until revoked), `last_used_at`, `revoked_at` |
+| `account_links` | `id` | One-time invite and password reset links: `kind` in `invite` / `reset`, `church_id`, unique `token_hash`, `role` and `display_name` (invites), `user_id` (resets), `created_by`, `created_at`, `expires_at`, `used_at`, `revoked_at` |
 | `desktop_auth_codes` | `code_hash CHAR(64)` | One-time desktop sign-in codes: `church_id`, `user_id` (the approver), `device_name`, `code_challenge` (S256), `created_at`, `expires_at` (5 minutes), `used_at` |
 | `songs` | `id` | `church_id`, `current_revision_id`, `deleted_at`, `deleted_by`, `deleted_by_device` |
 | `song_revisions` | `id` | `song_id`, `parent_revision_id`, the extracted `title` / `song_number` / `authors` / `language` / `song_key`, the generated `key_root SMALLINT` and `key_minor BOOLEAN`, the full `chordpro`, `content_hash CHAR(64)`, `created_by`, `created_by_device` |
@@ -73,6 +74,8 @@ from the desktop's `{meta: song_num=N}` where it was empty; it changes only
 the extracted column, never the ChordPro source
 ([songs and revisions](songs-and-revisions.md)). Migration `0007_api_tokens.sql`
 added `api_tokens` ([auth and roles](auth-and-roles.md#api-tokens)).
+Migration `0013_account_links.sql` added `account_links`
+([auth and roles](auth-and-roles.md#invite-and-reset-links)).
 Migration `0012_song_keys.sql` added `song_revisions.song_key`, filled it from
 `{key: X}` (else `{meta: key=X}`) for existing revisions, and added the
 immutable SQL functions `song_key_root(text)` (tonic as a pitch class, C = 0,

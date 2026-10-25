@@ -45,6 +45,41 @@ export interface Member {
   created_at: string;
 }
 
+/** What an account link does: invite a new person, or reset one person's password. */
+export type AccountLinkKind = "invite" | "reset";
+
+/** An invite or reset link not used yet (`GET /members/links`). */
+export interface AccountLink {
+  id: string;
+  kind: AccountLinkKind;
+  /** Invites: the role they get. */
+  role: Role | null;
+  /** Invites: the name the owner gave; resets: the person's name. */
+  display_name: string | null;
+  /** Resets: whose password it sets. */
+  user_id: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+/** A new link; `token` is shown only now. */
+export interface AccountLinkResponse extends AccountLink {
+  token: string;
+  /** Where the web client opens it, such as `/invite/{token}`. */
+  path: string;
+}
+
+/** What someone opening a link sees (`GET /public/account-links/{token}`). */
+export interface PublicAccountLink {
+  kind: AccountLinkKind;
+  church_name: string;
+  display_name: string | null;
+  /** Resets: the username they sign in with. */
+  username: string | null;
+  role: Role | null;
+  expires_at: string;
+}
+
 /** A song found online (`GET /songs/online`), not in the library yet. */
 export interface OnlineSong {
   title: string;

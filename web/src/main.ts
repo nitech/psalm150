@@ -4,6 +4,7 @@ import { announce, refocus, selectorFor, setTitle } from "./a11y.ts";
 import { ApiError, SongServerApi } from "./api.ts";
 import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
+import { installFollow } from "./follow.ts";
 import { icon, type IconName } from "./icons.ts";
 import { installLyricsCopy } from "./song-render.ts";
 import { appGoesBack, installedApp, slideBetween, swapScreen, takeBrowserAnimated } from "./transitions.ts";
@@ -14,6 +15,7 @@ import { moreView } from "./views/more.ts";
 import { peopleView } from "./views/people.ts";
 import { apiDocs } from "./views/api-docs.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
+import { accountLinkPath, renderAccountLink } from "./views/account-link.ts";
 import { joinPath, renderJoin, renderRoomFromPath } from "./views/room.ts";
 import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
 import { renderSharedSet, sharedSetPath } from "./views/shared-set.ts";
@@ -34,6 +36,8 @@ let busy = false;
 let lastSessionCheck = 0;
 const api = new SongServerApi(() => session?.token ?? null);
 const currentSet = new CurrentSet(api);
+/** Following the projector from the dock's card (signed in only). */
+const follow = installFollow(api, () => syncCurrentBar());
 /** The first load of the current set, so the first screen can show it. */
 let currentReady: Promise<unknown> = Promise.resolve();
 /**
@@ -96,6 +100,18 @@ async function boot(): Promise<void> {
     const shared = sharedSetPath();
     if (shared) {
       await renderSharedSet(app, api, shared);
+      return;
+    }
+    // And an invite or reset link, which ends in a session.
+    const link = accountLinkPath();
+    if (link) {
+      await renderAccountLink(app, api, link, (next) => {
+        // Whoever was signed in on this phone before gives way.
+        endSession();
+        session = next;
+        storeSession(next);
+        location.replace("/#/songs");
+      });
       return;
     }
     const info = await api.info();
@@ -378,18 +394,24 @@ function renderShell(): void {
     <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
     <main class="page" id="page" tabindex="-1"></main>
   </div>
-  <aside class="dock" id="dock" aria-label="Current set">
+  <section class="follow-view room" id="follow-view" aria-label="The projector's words" hidden></section>
+  <aside class="dock" id="dock" aria-label="Current set and projector">
     <p class="offline-bar" id="offline-bar" role="status" hidden>${icon("offline")}<span>Offline. Showing the songs and sets saved on this phone.</span></p>
     <div class="current-bar" id="current-bar" hidden>
-      <a class="current-link" id="current-link"></a>
-      <button type="button" class="icon-button ghost current-close" id="current-close" aria-label="Put the current set away" title="No current set">${icon("close")}</button>
+      <a class="current-link" id="current-link" hidden></a>
+      <button type="button" class="follow-switch" id="follow-switch" role="switch" aria-checked="false" hidden></button>
+      <button type="button" class="icon-button ghost current-close" id="current-close" aria-label="Put the current set away" title="No current set" hidden>${icon("close")}</button>
     </div>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <p class="sr-only" id="announcer" role="status" aria-live="polite"></p>`;
 
   if (!hashListener) {
-    hashListener = () => void route();
+    hashListener = () => {
+      // Going somewhere else (a tab, a link) shows it, not the projector.
+      follow.off();
+      void route();
+    };
     window.addEventListener("hashchange", hashListener);
     startShellListeners();
   }
@@ -411,15 +433,17 @@ function renderShell(): void {
     document.documentElement.style.setProperty("--dock-h", `${Math.round(entry.contentRect.height)}px`);
   }).observe(document.querySelector("#dock")!);
   currentReady = session ? currentSet.refresh().catch(() => undefined) : Promise.resolve();
+  if (session) follow.start();
+  else follow.stop();
   if (!location.hash || location.hash === "#" || location.hash === "#/") {
     history.replaceState(null, "", homeRoute());
   }
   void route();
 }
 
-/** Members start at their sets; visitors at the songs. */
+/** Everyone starts at the songs. */
 function homeRoute(): string {
-  return session ? "#/sets" : "#/songs";
+  return "#/songs";
 }
 
 /** Stops the current screen and shows a full-page one, such as sign-in. */
@@ -738,7 +762,7 @@ async function route(): Promise<void> {
     failed = true;
     const notFound = error instanceof ApiError && error.status === 404;
     setTitle(notFound ? "Not found" : "Could not load this page");
-    const home = session ? `<a class="button secondary" href="#/sets">Go to sets</a>` : `<a class="button secondary" href="#/songs">Go to songs</a>`;
+    const home = `<a class="button secondary" href="#/songs">Go to songs</a>`;
     next.innerHTML = `<div class="empty-state"><h1 tabindex="-1">${notFound ? "Not found" : "Could not load this page"}</h1><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
   }
   if (token !== routeToken) {
@@ -880,11 +904,21 @@ function canEditSets(): boolean {
   return Boolean(session && session.role !== "viewer");
 }
 
+/** The card shows when it holds a current set, a projector to follow, or both. */
+function syncCurrentBar(): void {
+  const bar = document.querySelector<HTMLElement>("#current-bar");
+  if (!bar) return;
+  bar.hidden = Boolean(document.querySelector("#current-link")?.hasAttribute("hidden"))
+    && Boolean(document.querySelector("#follow-switch")?.hasAttribute("hidden"));
+}
+
 function renderCurrentBar(set: SetDetail | null): void {
   const bar = document.querySelector<HTMLElement>("#current-bar");
   const link = document.querySelector<HTMLAnchorElement>("#current-link");
   if (!bar || !link) return;
-  bar.hidden = !set;
+  link.hidden = !set;
+  document.querySelector<HTMLElement>("#current-close")!.hidden = !set;
+  syncCurrentBar();
   if (!set) {
     delete bar.dataset.count;
     return;
@@ -900,9 +934,10 @@ function renderCurrentBar(set: SetDetail | null): void {
   // tapping the same button again undoes it.
   const change = previous === undefined ? 0 : songs - Number(previous);
   const note = change > 0 ? "Song added" : change < 0 ? "Song removed" : "";
+  const count = `${songs} ${songs === 1 ? "song" : "songs"}`;
+  // Compact, so the projector switch fits beside it: name over count.
   link.innerHTML = `${dateBadge(set.service_date)}
-    <span class="row-main"><small class="current-label">${note || "Current set"}</small><strong>${escapeHtml(set.name)}</strong></span>
-    <span class="current-count">${songs} ${songs === 1 ? "song" : "songs"}</span>${icon("next")}`;
+    <span class="row-main"><strong>${escapeHtml(set.name)}</strong><small class="current-label">${note || count}</small></span>`;
   window.clearTimeout(currentNoteTimer);
   bar.classList.toggle("noted", Boolean(note));
   if (!note) return;
@@ -913,7 +948,7 @@ function renderCurrentBar(set: SetDetail | null): void {
   currentNoteTimer = window.setTimeout(() => {
     bar.classList.remove("noted");
     const label = bar.querySelector(".current-label");
-    if (label) label.textContent = "Current set";
+    if (label) label.textContent = count;
   }, 2500);
 }
 let currentNoteTimer = 0;
@@ -1144,5 +1179,6 @@ function clearSession(): void {
   // Every way out (sign-out, an expired session, another account) leaves
   // nothing of this person's library on the phone.
   currentSet.clear();
+  follow.stop();
   void clearCachedData();
 }

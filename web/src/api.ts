@@ -1,4 +1,7 @@
 import type {
+  AccountLink,
+  AccountLinkResponse,
+  PublicAccountLink,
   ApiToken,
   ApiTokenSummary,
   ChurchSettings,
@@ -196,6 +199,41 @@ export class SongServerApi {
 
   async removeMember(userId: string): Promise<void> {
     await this.requestEmpty(`/members/${userId}`, { method: "DELETE" });
+  }
+
+  /** Owners: invites and reset links not used yet. */
+  listAccountLinks(): Promise<AccountLink[]> {
+    return this.request("/members/links", { cache: "no-store" });
+  }
+
+  /** Owners: a one-time link with which a new person joins with `role`. */
+  createInvite(role: Role, displayName: string): Promise<AccountLinkResponse> {
+    return this.request("/members/invites", {
+      method: "POST",
+      body: JSON.stringify({ role, display_name: displayName || null }),
+    });
+  }
+
+  /** Owners: a one-time link with which the person chooses a new password. */
+  createResetLink(userId: string): Promise<AccountLinkResponse> {
+    return this.request(`/members/${userId}/reset-link`, { method: "POST" });
+  }
+
+  async revokeAccountLink(linkId: string): Promise<void> {
+    await this.requestEmpty(`/members/links/${linkId}`, { method: "DELETE" });
+  }
+
+  /** Anyone with the link: what it is for. 404 when used, expired or revoked. */
+  getAccountLink(token: string): Promise<PublicAccountLink> {
+    return this.request(`/public/account-links/${encodeURIComponent(token)}`, { cache: "no-store" });
+  }
+
+  /** Uses an invite or reset link, which signs the person in. */
+  useAccountLink(token: string, input: { password: string; username?: string; display_name?: string }): Promise<Session> {
+    return this.request(`/public/account-links/${encodeURIComponent(token)}`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   }
 
   getChurch(): Promise<ChurchSettings> {

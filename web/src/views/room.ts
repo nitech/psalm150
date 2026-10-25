@@ -15,7 +15,7 @@ import { errorMessage, escapeHtml, readPreference, showFormError, writePreferenc
  * account and no public library.
  */
 
-const SIZES = [1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+export const SIZES = [1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 const RECONNECT_CHECK_MS = 4000;
 
 export function joinPath(): string | null {
@@ -277,7 +277,7 @@ function openRoom(app: HTMLElement, api: SongServerApi, first: RoomView): void {
   void keepAwake(first.status === "live" || first.status === "blank");
 }
 
-function slideHtml(slide: RoomSlide, index: number): string {
+export function slideHtml(slide: RoomSlide, index: number): string {
   return `<section class="room-slide" data-index="${index}">
     ${slide.label ? `<p class="room-label">${escapeHtml(slide.label)}</p>` : ""}
     ${slide.lines.map((line) => `<p class="room-line">${escapeHtml(line) || "&nbsp;"}</p>`).join("")}

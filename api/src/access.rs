@@ -720,7 +720,7 @@ async fn ensure_another_owner(
     Ok(())
 }
 
-async fn in_another_church(
+pub(crate) async fn in_another_church(
     transaction: &mut Transaction<'_, Postgres>,
     church_id: Uuid,
     user_id: Uuid,
@@ -766,7 +766,7 @@ fn member_not_found() -> AppError {
     AppError::NotFound("member was not found".into())
 }
 
-fn username_taken(error: sqlx::Error) -> AppError {
+pub(crate) fn username_taken(error: sqlx::Error) -> AppError {
     match &error {
         sqlx::Error::Database(database) if database.is_unique_violation() => {
             AppError::Conflict("that username is already taken".into())
@@ -776,7 +776,7 @@ fn username_taken(error: sqlx::Error) -> AppError {
 }
 
 /// `value` trimmed, which must hold 1 to `max` characters.
-fn trimmed<'a>(value: &'a str, what: &str, max: usize) -> Result<&'a str, AppError> {
+pub(crate) fn trimmed<'a>(value: &'a str, what: &str, max: usize) -> Result<&'a str, AppError> {
     let value = value.trim();
     if value.is_empty() || value.chars().count() > max {
         return Err(AppError::BadRequest(format!(

@@ -3,7 +3,7 @@
   "name": "PSA150 Songs",
   "short_name": "PSA150",
   "description": "Your church's songs and sets, on any device.",
-  "start_url": "/#/sets",
+  "start_url": "/#/songs",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

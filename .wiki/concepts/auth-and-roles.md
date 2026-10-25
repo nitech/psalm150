@@ -112,7 +112,7 @@ command uses `require_editor`.
 | Change your own password (`PUT /account/password`) | yes | yes | yes | 403 |
 | Make, list and revoke your own API tokens | yes | yes | yes (read-only tokens) | 403 |
 | List and revoke everyone's API tokens | yes | 403 (own only) | 403 (own only) | 403 |
-| Manage people (`/members`) | yes | 403 | 403 | 403 |
+| Manage people (`/members`, invite and reset links) | yes | 403 | 403 | 403 |
 
 An API token stands in its person's column with its effective role: a
 leader's `viewer` token is a viewer. Owners and leaders differ only in the
@@ -192,6 +192,38 @@ approved or made stay: they belong to the church. The web client's
 
 The web client reads the role again (`GET /session`) when it opens and when
 it comes back into view, so a changed role shows without signing in again.
+
+## Invite and reset links
+
+Instead of choosing someone's password, an owner can send a one-time link
+(`account_links.rs`, table `account_links`; only the token's SHA-256 is
+stored):
+
+- `POST /members/invites` `{role, display_name?}` makes an invite
+  (`psa_i_…`, 7 days). The person opens `/invite/{token}`, chooses a
+  username and password (and a name, unless the owner gave one) and joins
+  the church with that role.
+- `POST /members/{user_id}/reset-link` makes a reset link (`psa_r_…`, 3
+  days) for a person in this church; an earlier unused one for them stops
+  working. Refused for yourself (403, use `PUT /account/password`), for
+  someone who also belongs to another church (403) and for someone who
+  cannot sign in (409). The person opens `/reset-password/{token}` and
+  chooses a new password; all their sessions end.
+- `GET /members/links` lists links not used yet; `DELETE
+  /members/links/{id}` withdraws one. All `require_owner`. The answer to
+  making a link carries `token` and `path` once.
+- `GET /public/account-links/{token}` (no token needed) says what a link is
+  for: kind, church, name, username (resets), role (invites), expiry. `POST`
+  with `{password, username?, display_name?}` uses it and answers with a
+  session, like signing in. A link works once and only until it expires or
+  is withdrawn; a reset link also stops when its person is disabled or leaves
+  the church. Anything else is 404. Using one takes the church's row lock,
+  like other changes to its people, and a taken username is 409 with the
+  link still usable.
+
+The tokens are 64 random hex characters, so the links are not throttled like
+passwords. Pages send `Referrer-Policy: no-referrer`, so the path does not
+leak.
 
 ## Your own account
 

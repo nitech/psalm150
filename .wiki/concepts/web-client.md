@@ -130,25 +130,28 @@ shade, press Escape, or swipe it left: it follows the finger, and closes past
 installed app (`display-mode: standalone` or `navigator.standalone`) a swipe
 in from the left 24 px pulls the drawer out under the finger, with the same
 thresholds, on screens that show ☰ and when no sheet is open. In the browser
-that edge is Safari's Back, so the edge swipe is off there. At the bottom sits the **dock**: the offline notice and the
-[current set](#current-set) bar. The service view hides the dock; the song and
-set editors hide it too, and a set's own page hides the current set bar
-(an offline notice still shows).
+that edge is Safari's Back, so the edge swipe is off there. At the bottom sits the **dock**: the offline notice and one
+card with the [current set](#current-set) and, while a church desktop
+projects, the [projector switch](#following-the-projector). The song and set
+editors hide the dock. A set's own page and its service view leave the set
+out of the card and show only the projector switch (and an offline notice);
+in the service view the dock sits on the step bar.
 Routes live in the URL hash, so the server's static file serving (which has no
 SPA fallback) is enough, and links can be shared or bookmarked. The real
 paths are the song permalink `/songs/{id}`
 ([deployment](deployment.md#song-permalinks)), which the app turns into
 `#/songs/{id}` with `history.replaceState`, and the room reader's `/join` and
-`/join/{room}`, which stay as they are. The service worker answers any
+`/join/{room}`, and the [account links](#invite-and-reset-links)
+`/invite/{token}` and `/reset-password/{token}`, which stay as they are. The service worker answers any
 navigation offline with the saved `/`, but saves only `/` itself.
 
 | Route | Screen |
 | --- | --- |
-| `#/songs` | Song search and list |
+| `#/songs` | Song search and list (default route, signed in or not) |
 | `#/songs/new`, `#/songs/{id}/edit` | ChordPro editor |
 | `#/songs/{id}` | Song reader |
 | `#/songs/{id}/chords` | Chords from the web (leaders) |
-| `#/sets` | Set list (default route) |
+| `#/sets` | Set list |
 | `#/sets/new`, `#/sets/{id}/edit` | Set editor (`#/sets/new?song=…&transpose=…` starts with one song) |
 | `#/sets/{id}` | Set detail (leaders: Share on a link) |
 | `#/sets/{id}/play/{index}` | Service view |
@@ -158,7 +161,7 @@ navigation offline with the saved `/`, but saves only `/` itself.
 | `#/people` | People of the church (owners; others get "Only owners manage people") |
 | `#/api` | API reference (also `/api/docs`; visitors too when the library is public) |
 
-An unknown route goes to `#/sets`. A 401 from any screen clears the session
+An unknown route goes to `#/songs`. A 401 from any screen clears the session
 and shows sign-in. A 404 shows "Not found".
 
 **Page header** (`pageHead`): a sticky bar with Back, the screen's actions
@@ -197,9 +200,11 @@ services included, until a set is chosen again; the toast's **Undo** restores
 the earlier choice. It is per phone: other people's phones and the desktops
 are not affected.
 
-- **Current set bar** in the dock, frosted over the page: date, name and song
-  count; tapping it opens the set, and its ✕ puts the set away. It pulses
-  when the count changes.
+- **Current set card** in the dock, frosted over the page and kept compact so
+  the projector switch fits beside it: date, name over the song count;
+  tapping it opens the set, and its ✕ puts the set away. It pulses when the
+  count changes, and says "Song added" or "Song removed" in place of the
+  count for a moment.
 - **Song list**: leaders see a ＋ on every row. Tapping adds the song to the
   current set; a ✓ shows it is already there, and tapping ✓ removes its last
   entry. Both show a toast with **Undo**. Without a current set the tap opens
@@ -560,17 +565,54 @@ words and announces how many operations match.
 ## People
 
 `#/people` lists the church's people (`GET /members`) with initials, name,
-username, role and "cannot sign in" for disabled people, and **Add a person**
-(name, username, first password, role; viewer by default). Tapping a person
-opens a sheet: name, username and role with **Save** (only changed fields are
-sent); **Set the password** (they are signed out everywhere, API tokens keep
-working); **Disable sign-in** or **Let them sign in again**, with a
+username, role and "cannot sign in" for disabled people; **Invite with a
+link** (optional name and a role; the person chooses their own username and
+password); and **Add a person** (name, username, first password, role;
+viewer by default). Links not used yet (`GET /members/links`) are listed
+under the people with when they stop working and **Withdraw**. A new link
+shows once in a sheet with Copy and Share. Tapping a person opens a sheet:
+name, username and role with **Save** (only changed fields are sent);
+**Make a new password link**, or **Set the password** yourself (they are
+signed out everywhere, API tokens keep working); **Disable sign-in** or **Let them sign in again**, with a
 confirmation; and **Remove from <church>**, with a confirmation. Your own sheet
 has no password or disable controls (use the lock under More) and says
 **Leave <church>**, which signs you out; changing your own role takes you back
 to More with the new role. The server's refusals, such as the last owner or a
 person who also belongs to another church, show in the sheet
 ([auth and roles](auth-and-roles.md#members)).
+
+## Following the projector
+
+`follow.ts`: signed in, the shell reads the church's desktops from the live
+stream Remote uses (`GET /remote/desktops/events`), while the app is in
+view. While a desktop projects, the dock's card shows a switch
+(`role="switch"`) with a dot (red while words are on screen), "Projector" and
+its room name. Switched on, the words that desktop projects fill the screen
+above the dock in large text, as in the [room reader](#following-a-room): the
+song's title, every slide with the one on screen marked and scrolled to the
+middle, text size − and + (the same `room-size` preference as `/join`), a
+status (Live, Screen is blank, Waiting, Not connected) and ✕. The view lies
+over the page, which is inert meanwhile and stays where it was, so switching
+off (the switch, ✕ or Escape) shows the set or song as you left it.
+Following stays on between songs; it ends when every desktop goes away, on
+going somewhere with a link or tab, and on sign-out. The desktop followed is
+the one followed last if it projects (`follow-desktop` preference), else the
+one chosen under Remote, else the first that projects. The words come from
+the church's own stream, so this works whether or not the desktop shares its
+room. Made for a leader stepping through a set in the service view who wants
+to see what the projector shows, then go back to the set.
+
+## Invite and reset links
+
+`/invite/{token}` and `/reset-password/{token}` (`views/account-link.ts`) are
+outside the shell, like `/join`. They read the link
+(`GET /public/account-links/{token}`); a used, expired or withdrawn link says
+so and asks for a new one. An invite shows the church and the role and asks
+for name (filled in when the owner gave one), username and password; a reset
+names the person and their username and asks for a new password. Using the
+link (`POST`) signs them in: whoever was signed in on the phone before is
+signed out, and the app opens on Songs
+([auth and roles](auth-and-roles.md#invite-and-reset-links)).
 
 ## Roles in the UI
 
@@ -586,7 +628,7 @@ and make read-only API tokens. Owners alone see **Church** (People, and
 
 - `web/public/` holds `favicon.ico`, `favicon.svg`, `apple-touch-icon.png`
   (180 px), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` and
-  `manifest.webmanifest` (standalone, start at `#/sets`, dark theme colour).
+  `manifest.webmanifest` (standalone, start at `#/songs`, dark theme colour).
   The icons are the lime "150" mark.
 - `sw.js` (registered in production builds only):
   - the page: network first, the saved copy offline;
@@ -638,7 +680,7 @@ on that browser goes straight to the consent screen. The whole flow is in
   or you sign out. A session left in `sessionStorage` by an older version moves
   over on first read.
 - Per-device preferences are in `localStorage` under `psa150-*`: `theme`,
-  `chords`, `desktop` and `current-set`, and for the
+  `chords`, `desktop`, `current-set` and `follow-desktop` (the desktop followed last from the dock), and for the
   room reader `room` (the last room), `room-size`, `room-contrast`,
   `room-follow` and `room-announce`. Blocked storage is ignored.
 - One `busy` flag stops overlapping actions; adding and removing songs from

@@ -1,4 +1,5 @@
 pub mod access;
+pub mod account_links;
 pub mod api;
 pub mod auth;
 pub mod chordpro;
@@ -71,8 +72,15 @@ pub fn app(state: AppState, web_dist: PathBuf) -> Router {
     if web_dist.is_dir() {
         let index = web_dist.join("index.html");
         // Following a room: `/join` asks for its name, `/join/{name}` opens it.
-        // `/api/docs` is the API reference.
-        for path in ["/join", "/join/{room_name}", "/api/docs"] {
+        // `/api/docs` is the API reference. Invite and reset links let a
+        // person choose their password.
+        for path in [
+            "/join",
+            "/join/{room_name}",
+            "/api/docs",
+            "/invite/{token}",
+            "/reset-password/{token}",
+        ] {
             let index = index.clone();
             router = router.route(path, get(move || pages::app_page(index.clone())));
         }

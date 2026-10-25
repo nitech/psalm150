@@ -1,7 +1,7 @@
 import { setTitle } from "../a11y.ts";
 import { emptyState, pageHead, type AppContext } from "../context.ts";
 import { icon } from "../icons.ts";
-import type { Member, Role } from "../types.ts";
+import type { AccountLink, AccountLinkResponse, Member, Role } from "../types.ts";
 import { errorMessage, escapeHtml, initials, roleName, setFormBusy, showToast } from "../ui.ts";
 import { closeSheet, openSheet } from "./songs.ts";
 
@@ -9,8 +9,10 @@ import { closeSheet, openSheet } from "./songs.ts";
 const ROLES: Role[] = ["owner", "leader", "viewer"];
 
 /**
- * `#/people`: owners add people, change their role, name or username, set a
- * new password, disable sign-in and remove people (`/members`).
+ * `#/people`: owners add people (or invite them with a link, so they choose
+ * their own password), change their role, name or username, set a new
+ * password or send a link to choose one, disable sign-in and remove people
+ * (`/members`).
  */
 export async function peopleView(ctx: AppContext): Promise<void> {
   const head = pageHead({ title: "People", back: "#/more", church: ctx.session.church_name });
@@ -19,7 +21,7 @@ export async function peopleView(ctx: AppContext): Promise<void> {
     ctx.main.innerHTML = `${head}${emptyState("Only owners manage people", "Ask an owner of your church to add people or change what they can do.")}`;
     return;
   }
-  const members = await ctx.api.listMembers();
+  const [members, links] = await Promise.all([ctx.api.listMembers(), ctx.api.listAccountLinks()]);
 
   ctx.main.innerHTML = `${head}
   <ul class="list" aria-label="People">
@@ -28,8 +30,16 @@ export async function peopleView(ctx: AppContext): Promise<void> {
       <span class="row-main"><strong>${escapeHtml(member.display_name)}${member.user_id === ctx.session.user_id ? " (you)" : ""}</strong><small>${escapeHtml(member.username)} · ${roleName(member.role)}${member.disabled ? " · cannot sign in" : ""}</small></span>
       ${icon("next")}
     </button></li>`).join("")}
+    <li><button class="list-row" id="invite-member">${icon("share")}<span class="row-main"><strong>Invite with a link</strong><small>They choose their own username and password</small></span></button></li>
     <li><button class="list-row" id="add-member">${icon("plus")}<span class="row-main"><strong>Add a person</strong><small>With a username and a first password</small></span></button></li>
   </ul>
+  ${links.length ? `<h2 class="list-heading">Links not used yet</h2>
+  <ul class="list" aria-label="Links not used yet">
+    ${links.map((link) => `<li><div class="list-row">
+      <span class="row-main"><strong>${escapeHtml(linkTitle(link))}</strong><small>${escapeHtml(linkSummary(link))}</small></span>
+      <button class="button secondary" data-revoke="${link.id}" aria-label="Withdraw: ${escapeHtml(linkTitle(link))}">Withdraw</button>
+    </div></li>`).join("")}
+  </ul>` : ""}
   <p class="muted">Owners run the church: its people, its settings and everyone's API tokens. Leaders add and edit songs and sets, and connect and steer desktops. Viewers read songs and sets.</p>`;
 
   ctx.main.querySelectorAll<HTMLButtonElement>("[data-member]").forEach((button) => {
@@ -37,6 +47,76 @@ export async function peopleView(ctx: AppContext): Promise<void> {
     if (member) button.addEventListener("click", () => openMemberSheet(ctx, member));
   });
   ctx.main.querySelector("#add-member")?.addEventListener("click", () => openAddSheet(ctx));
+  ctx.main.querySelector("#invite-member")?.addEventListener("click", () => openInviteSheet(ctx));
+  ctx.main.querySelectorAll<HTMLButtonElement>("[data-revoke]").forEach((button) => {
+    button.addEventListener("click", () => void ctx.run(async () => {
+      await ctx.api.revokeAccountLink(String(button.dataset.revoke));
+      showToast("The link no longer works.");
+      ctx.navigate("#/people", true);
+    }));
+  });
+}
+
+function linkTitle(link: AccountLink): string {
+  return link.kind === "invite"
+    ? `Invite${link.display_name ? ` for ${link.display_name}` : ""}`
+    : `New password for ${link.display_name ?? "someone"}`;
+}
+
+function linkSummary(link: AccountLink): string {
+  const until = new Date(link.expires_at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return link.kind === "invite" ? `${roleName(link.role ?? "viewer")} · works until ${until}` : `Works until ${until}`;
+}
+
+function openInviteSheet(ctx: AppContext): void {
+  const sheet = openSheet(`<h2>Invite with a link</h2>
+    <p class="muted">Send the link to the person. They choose their own username and password, and are signed in. It works once, for 7 days.</p>
+    <form id="invite-form" class="stack">
+      <label>Name (optional)<input name="display_name" maxlength="120" autocomplete="off" /></label>
+      <label>Role<select name="role">${roleOptions("viewer")}</select></label>
+      <p class="form-message" role="status"></p>
+      <button class="button primary wide" type="submit">Make the link</button>
+    </form>`);
+  const form = sheet.querySelector<HTMLFormElement>("#invite-form")!;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    setFormBusy(form, true);
+    try {
+      const link = await ctx.api.createInvite(String(data.get("role")) as Role, String(data.get("display_name")).trim());
+      closeSheet(sheet);
+      showLinkSheet(ctx, link, `Join ${ctx.session.church_name} on PSA150`);
+    } catch (error) {
+      setFormBusy(form, false);
+      form.querySelector<HTMLElement>(".form-message")!.textContent = errorMessage(error);
+    }
+  });
+}
+
+/** A link just made, shown this once with Copy and Share. Closing it shows the list with it. */
+function showLinkSheet(ctx: AppContext, link: AccountLinkResponse, shareTitle: string): void {
+  const url = `${location.origin}${link.path}`;
+  const invite = link.kind === "invite";
+  const sheet = openSheet(`<h2>${invite ? "Invite link" : "New password link"}</h2>
+    <p class="muted">${invite
+      ? "Send it to the person, by message or email. Anyone with the link can join, so send it only to them."
+      : `Send it to ${escapeHtml(link.display_name ?? "them")}. With it they choose a new password, and the old one stops working.`}
+      The link is shown only now.</p>
+    <label>Link<input id="link-url" value="${escapeHtml(url)}" readonly /></label>
+    <div class="inline-actions wrap">
+      <button class="button primary" id="copy-link">${icon("copy")}Copy the link</button>
+      ${"share" in navigator ? `<button class="button secondary" id="share-link">${icon("share")}Share</button>` : ""}
+    </div>`);
+  sheet.addEventListener("close", () => ctx.navigate("#/people", true), { once: true });
+  const field = sheet.querySelector<HTMLInputElement>("#link-url")!;
+  field.addEventListener("focus", () => field.select());
+  sheet.querySelector("#copy-link")?.addEventListener("click", () => void ctx.run(async () => {
+    await navigator.clipboard.writeText(url);
+    showToast("Link copied.");
+  }));
+  sheet.querySelector("#share-link")?.addEventListener("click", () => {
+    void navigator.share({ title: shareTitle, url }).catch(() => undefined);
+  });
 }
 
 function openAddSheet(ctx: AppContext): void {
@@ -86,8 +166,13 @@ function openMemberSheet(ctx: AppContext, member: Member): void {
       <button class="button primary wide" type="submit">Save</button>
     </form>
     ${you ? `<p class="muted">Change your own password with <strong>Change your password</strong> (the lock beside your name) under More.</p>` : `<h3 class="list-heading">New password</h3>
+    <div class="stack">
+      <p class="muted">Send them a link to choose a new password themselves. It works once, for 3 days.</p>
+      <button class="button secondary wide" id="reset-link">${icon("share")}Make a new password link</button>
+      <p class="form-message" id="reset-message" role="status"></p>
+    </div>
     <form id="password-form" class="stack">
-      <p class="muted">Setting one signs them out everywhere. Their API tokens keep working.</p>
+      <p class="muted">Or choose one and give it to them. Setting one signs them out everywhere. Their API tokens keep working.</p>
       <label>Password<input name="password" type="password" required minlength="10" autocomplete="new-password" aria-describedby="member-password-hint" /></label>
       <p class="hint field-hint" id="member-password-hint">At least 10 characters.</p>
       <p class="form-message" role="status"></p>
@@ -137,6 +222,19 @@ function openMemberSheet(ctx: AppContext, member: Member): void {
     } catch (error) {
       setFormBusy(details, false);
       details.querySelector<HTMLElement>(".form-message")!.textContent = errorMessage(error);
+    }
+  });
+
+  sheet.querySelector("#reset-link")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    button.disabled = true;
+    try {
+      const link = await ctx.api.createResetLink(member.user_id);
+      closeSheet(sheet);
+      showLinkSheet(ctx, link, `New password for PSA150`);
+    } catch (error) {
+      button.disabled = false;
+      sheet.querySelector<HTMLElement>("#reset-message")!.textContent = errorMessage(error);
     }
   });
 
