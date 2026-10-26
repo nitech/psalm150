@@ -1,7 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
-* **Chord sheet: instrument inside the box (web)**: the instrument button sits top left in the box with the shapes, the shape's name top right; ▷ stays by the chord's name. Pages touched: web-client.
+* **Chord sheet: instrument back in the head (web)**: the instrument button moved into the shapes box was taken back out; it sits again beside ▷ on the chord's line, the shape's name top centre in the box. Pages touched: none beyond this log.
 * **Chord sheet head (web)**: the chord's name sits over its kind and notes, and the instrument button and ▷ are both a touch target high, centred on those two lines. Pages touched: none beyond this log.
 * **Chord sheet: instrument menu and ▷ in the head (web)**: the instrument is a button that opens a menu like ⋮ (Escape closes only the menu), and ▷ sits to its right instead of in the box. Pages touched: web-client.
 * **Sheets slide in and out (web)**: every sheet slides up as it opens and down as it closes (Escape, a tap outside, ×, a swipe, or code closing it), through `openSheet` and `closeSheet`; on wide screens it rises and fades. Pages touched: web-client.

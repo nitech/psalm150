@@ -918,21 +918,20 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
    instrument (a menu like ⋮) and ▷ on one line, then one box with the ways
    to play it (swiped sideways), their name, ‹ › and dots. */
 .chord-head { display: flex; align-items: center; gap: var(--psa-space-2); margin-bottom: var(--psa-space-3); }
-/* The name over what it is, ▷ centred on the two lines. */
+/* The name over what it is; the instrument and ▷ beside them are one
+   height (a touch target), centred on the two lines. */
 .chord-name { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .sheet-body h2.chord-title { margin: 0; font-size: 28px; line-height: 1.15; color: var(--psa-chord); overflow-wrap: anywhere; }
 .chord-subtitle { margin: 0; color: var(--psa-text-secondary); font-size: 14px; line-height: 1.3; }
-/* The instrument, top left in the box, its menu opening down from it. */
-.chord-instrument { position: absolute; top: var(--psa-space-3); left: var(--psa-space-3); z-index: 2; }
-.chord-instrument .button { gap: 4px; padding: 0 var(--psa-space-2) 0 var(--psa-space-3); }
-.chord-instrument .button .icon { width: 16px; height: 16px; color: var(--psa-text-secondary); }
-.chord-instrument .bar-menu { left: 0; right: auto; min-width: 180px; }
-.chord-none { margin: 0; padding: 72px var(--psa-space-4) var(--psa-space-6); text-align: center; }
+.chord-instrument { position: relative; flex: none; }
+.chord-instrument .button { gap: 6px; padding: 0 var(--psa-space-3) 0 var(--psa-space-4); }
+.chord-instrument .button .icon { width: 18px; height: 18px; color: var(--psa-text-secondary); }
+.chord-instrument .bar-menu { min-width: 180px; }
 .chord-head .chord-play { flex: none; }
 .chord-stage { position: relative; border-radius: var(--psa-radius-md); background: var(--psa-bg-sunken); }
 .chord-shapes { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: inherit; }
 .chord-shapes::-webkit-scrollbar { display: none; }
-.chord-shape { display: grid; place-items: center; flex: 0 0 100%; min-height: 240px; margin: 0; padding: 56px 48px 44px; scroll-snap-align: center; scroll-snap-stop: always; }
+.chord-shape { display: grid; place-items: center; flex: 0 0 100%; min-height: 240px; margin: 0; padding: 40px 48px 44px; scroll-snap-align: center; scroll-snap-stop: always; }
 .chord-diagram { width: 100%; max-width: 220px; height: auto; max-height: 260px; color: var(--psa-text); }
 .chord-diagram.piano { max-width: 520px; }
 .chord-diagram .fret, .chord-diagram .string { stroke: var(--psa-text-secondary); stroke-width: 1.5; }
@@ -950,8 +949,7 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 /* A black key is narrow: its name is smaller to fit inside it. */
 .chord-diagram .key-label.on-black { font-size: 7.5px; }
 /* The controls float over the box; only the buttons take taps, so the rest swipes. */
-/* The shape's name, top right, level with the instrument. */
-.chord-shape-name { position: absolute; top: var(--psa-space-3); right: var(--psa-space-4); margin: 0; line-height: 36px; color: var(--psa-text-secondary); font-size: 14px; font-weight: 600; text-align: right; pointer-events: none; }
+.chord-shape-name { position: absolute; top: var(--psa-space-3); left: var(--psa-space-4); right: var(--psa-space-4); margin: 0; text-align: center; font-size: 14px; font-weight: 600; pointer-events: none; }
 .chord-step { position: absolute; top: 50%; margin-top: -22px; }
 .chord-step[data-step="-1"] { left: var(--psa-space-1); }
 .chord-step[data-step="1"] { right: var(--psa-space-1); }

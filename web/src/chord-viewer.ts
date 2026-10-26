@@ -1,9 +1,9 @@
 /**
  * Tapping a chord in a song opens a sheet that shows how to play it, on the
- * instrument the person chose last (remembered on this device; a button at
- * the top left of the box opens a menu of instruments). The ways to play it
- * sit side by side in that box, easiest first: swipe, or use ‹ ›, to go
- * through them, and ▷ by the chord's name sounds the one showing.
+ * instrument the person chose last (remembered on this device; a button by
+ * the chord opens a menu of instruments). The ways to play it sit side by
+ * side in one box, easiest first: swipe, or use ‹ ›, to go through them, and
+ * ▷ beside the instrument sounds the one showing.
  */
 import { playChord, type Sound } from "./chord-audio.ts";
 import {
@@ -74,23 +74,20 @@ export function installChordViewer(): void {
 export function openChordSheet(name: string): void {
   const chord = parseChord(name);
   const subtitle = chord ? `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)} · ${chordNotes(chord).join(" ")}` : "";
-  // The chord, what it is and ▷ share one line; one box holds the
-  // instrument (a button with a menu, like ⋮, top left), the ways to play it
-  // and their controls.
+  // The chord, what it is, the instrument (a button with a menu, like ⋮)
+  // and ▷ share one line; the shapes and their controls share one box.
   const sheet = openSheet(`<div class="chord-head">
       <div class="chord-name">
         <h2 class="chord-title">${escapeHtml(name)}</h2>
         ${subtitle ? `<p class="chord-subtitle">${escapeHtml(subtitle)}</p>` : ""}
       </div>
-      ${chord ? `<button type="button" class="icon-button accent chord-play" id="chord-play" aria-label="Play the chord">${icon("play")}</button>` : ""}
-    </div>
-    ${chord ? `<div class="chord-stage">
-      <div class="chord-instrument">
-        <button type="button" class="button secondary small" id="chord-instrument" aria-haspopup="menu" aria-expanded="false"></button>
+      ${chord ? `<div class="chord-instrument">
+        <button type="button" class="button secondary" id="chord-instrument" aria-haspopup="menu" aria-expanded="false"></button>
         <div class="bar-menu" role="menu" aria-label="Instrument" hidden></div>
       </div>
-      <div id="chord-sheet"></div>
-    </div>` : `<div id="chord-sheet"></div>`}`, { closeButton: false });
+      <button type="button" class="icon-button accent chord-play" id="chord-play" aria-label="Play the chord">${icon("play")}</button>` : ""}
+    </div>
+    <div id="chord-sheet"></div>`, { closeButton: false });
   const body = sheet.querySelector<HTMLElement>("#chord-sheet")!;
   if (!chord) {
     body.innerHTML = `<p class="muted">This chord's name is not one the app can read, so it cannot show how to play it.</p>`;
@@ -111,7 +108,8 @@ export function openChordSheet(name: string): void {
     menu.innerHTML = INSTRUMENTS.map((item) => `<button type="button" role="menuitemradio" aria-checked="${item === instrument}" tabindex="-1" class="bar-menu-item" data-instrument="${item.id}"><span>${item.label}</span><span class="bar-menu-check" aria-hidden="true">${item === instrument ? icon("check") : ""}</span></button>`).join("");
     play.disabled = !shapes.length;
     body.innerHTML = shapes.length
-      ? `<div class="chord-shapes" tabindex="0" role="group" aria-roledescription="carousel" aria-label="Ways to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()}">
+      ? `<div class="chord-stage">
+          <div class="chord-shapes" tabindex="0" role="group" aria-roledescription="carousel" aria-label="Ways to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()}">
             ${shapes.map((shape, index) => `<figure class="chord-shape chord-${instrument.id}" role="group" aria-roledescription="slide" aria-label="${index + 1} of ${shapes.length}: ${escapeHtml(instrument.shapeName(shape))}">
               ${instrument.draw(shape, chord)}
             </figure>`).join("")}
@@ -119,8 +117,9 @@ export function openChordSheet(name: string): void {
           <p class="chord-shape-name" aria-live="polite"></p>
           <button type="button" class="icon-button ghost chord-step" data-step="-1" aria-label="Previous way">${icon("prev")}</button>
           <button type="button" class="icon-button ghost chord-step" data-step="1" aria-label="Next way">${icon("next")}</button>
-          ${shapes.length > 1 ? `<div class="chord-dots" aria-hidden="true">${shapes.map(() => "<span></span>").join("")}</div>` : ""}`
-      : `<p class="muted chord-none">No way to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()} was found.</p>`;
+          ${shapes.length > 1 ? `<div class="chord-dots" aria-hidden="true">${shapes.map(() => "<span></span>").join("")}</div>` : ""}
+        </div>`
+      : `<p class="muted">No way to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()} was found.</p>`;
     showCurrent();
   };
 
