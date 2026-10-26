@@ -20,6 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&config.database_url)
         .await?;
     sqlx::migrate!().run(&pool).await?;
+    let filled = psa150_server::api::backfill_song_keys(&pool).await?;
+    if filled > 0 {
+        tracing::info!(filled, "Song keys guessed from chords");
+    }
 
     let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(address = %config.bind, "PSA150 Song Server listening");

@@ -6,7 +6,8 @@ pub struct SongMetadata {
     pub song_number: Option<String>,
     pub authors: String,
     pub language: Option<String>,
-    /// The `{key}` directive as written, e.g. `G`, `F#m` or `D / E`.
+    /// The `{key}` directive as written, e.g. `G`, `F#m` or `D / E`; without
+    /// one, the key the chords fit best, as the song view shows it.
     pub song_key: Option<String>,
 }
 
@@ -62,8 +63,128 @@ pub fn metadata(source: &str) -> SongMetadata {
         language: language.filter(|value| !value.is_empty()),
         song_key: song_key
             .filter(|value| !value.is_empty())
-            .or(meta_song_key.filter(|value| !value.is_empty())),
+            .or(meta_song_key.filter(|value| !value.is_empty()))
+            .or_else(|| guess_key(&chords(source))),
     }
+}
+
+/// The chords of the lyric lines, in order: not directives, comments, tabs
+/// or grids.
+fn chords(source: &str) -> Vec<&str> {
+    let mut in_tab = false;
+    let mut found = Vec::new();
+    for line in source.lines() {
+        if let Some(name) = directive_name(line) {
+            match name.as_str() {
+                "start_of_tab" | "start_of_grid" | "sot" | "sog" => in_tab = true,
+                "end_of_tab" | "end_of_grid" | "eot" | "eog" => in_tab = false,
+                _ => {}
+            }
+            continue;
+        }
+        if in_tab || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let mut rest = line;
+        while let Some(start) = rest.find('[') {
+            let Some(end) = rest[start + 1..].find(']') else {
+                break;
+            };
+            let name = rest[start + 1..start + 1 + end].trim();
+            if !name.is_empty() {
+                found.push(name);
+            }
+            rest = &rest[start + 2 + end..];
+        }
+    }
+    found
+}
+
+/// The chords of a major key, as steps above its tonic and whether minor.
+const MAJOR: [(u8, bool); 6] = [
+    (0, false),
+    (2, true),
+    (4, true),
+    (5, false),
+    (7, false),
+    (9, true),
+];
+const NOTES: [&str; 12] = [
+    "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B",
+];
+
+/// A chord's root as a pitch class and whether it is minor (`Am`, not `Amaj7`).
+fn chord_root(chord: &str) -> Option<(u8, bool)> {
+    let mut chars = chord.chars().peekable();
+    let base: u8 = match chars.next()? {
+        'C' => 0,
+        'D' => 2,
+        'E' => 4,
+        'F' => 5,
+        'G' => 7,
+        'A' => 9,
+        'B' | 'H' => 11,
+        _ => return None,
+    };
+    let root = match chars.peek() {
+        Some('#') => {
+            chars.next();
+            (base + 1) % 12
+        }
+        Some('b') => {
+            chars.next();
+            (base + 11) % 12
+        }
+        _ => base,
+    };
+    let rest: String = chars.collect();
+    let minor = rest.starts_with('m') && !rest.starts_with("maj");
+    Some((root, minor))
+}
+
+/// The key the chords fit best; the same rules as `guessKey` in
+/// `shared/chord-match.ts`, which the song view uses. Every chord in a key's
+/// scale counts, and ending on (or, less, starting on) its tonic decides
+/// between keys that share chords; a major key wins a tie with its minor.
+fn guess_key(chords: &[&str]) -> Option<String> {
+    let parsed: Vec<(u8, bool)> = chords
+        .iter()
+        .filter_map(|chord| chord_root(chord))
+        .collect();
+    let (first, last) = (*parsed.first()?, *parsed.last()?);
+    let mut best: Option<(u8, bool, f64)> = None;
+    for tonic in 0..12u8 {
+        for minor in [false, true] {
+            // A minor key uses the chords of the major key a minor third up.
+            let major = if minor { (tonic + 3) % 12 } else { tonic };
+            let fits = |&(root, is_minor): &(u8, bool)| {
+                MAJOR
+                    .iter()
+                    .any(|&(step, m)| (major + step) % 12 == root && m == is_minor)
+            };
+            let home = |&(root, is_minor): &(u8, bool)| root == tonic && is_minor == minor;
+            let mut score = parsed.iter().filter(|c| fits(c)).count() as f64;
+            if home(&last) {
+                score += 3.0;
+            }
+            if home(&first) {
+                score += 1.0;
+            }
+            score += parsed.iter().filter(|c| home(c)).count() as f64 * 0.5;
+            let better = match best {
+                None => true,
+                Some((_, best_minor, best_score)) => {
+                    score > best_score || (score == best_score && !minor && best_minor)
+                }
+            };
+            if better {
+                best = Some((tonic, minor, score));
+            }
+        }
+    }
+    best.map(|(tonic, minor, _)| {
+        format!("{}{}", NOTES[tonic as usize], if minor { "m" } else { "" })
+    })
 }
 
 /// The song with `{meta: song_num=N}` added under its `{title}` line (or at
@@ -112,6 +233,13 @@ pub fn export_filename(title: &str, id: uuid::Uuid) -> String {
         .join("-");
     let slug = if slug.is_empty() { "song" } else { &slug };
     format!("{slug}-{}.pro", &id.simple().to_string()[..8])
+}
+
+/// The name of a directive line, with or without a value (`{soc}`).
+fn directive_name(line: &str) -> Option<String> {
+    let inner = line.trim().strip_prefix('{')?.strip_suffix('}')?;
+    let name = inner.split(':').next().unwrap_or(inner);
+    Some(name.trim().to_ascii_lowercase())
 }
 
 fn directive(line: &str) -> Option<(String, String)> {
@@ -181,6 +309,41 @@ mod tests {
             Some("Bb")
         );
         assert_eq!(metadata("{key: }").song_key, None);
+    }
+
+    #[test]
+    fn guesses_the_key_from_the_chords_without_a_key_directive() {
+        let source = "{title: Everyday Hallelujah}
+[G]I can see You in the [G/B]morning
+[C]Of those starry [G]nights, all those [Em]moments
+[Dadd4]I feel Your goodness
+[G]thank You";
+        assert_eq!(metadata(source).song_key.as_deref(), Some("G"));
+        assert_eq!(
+            metadata(
+                "{key: D}
+[G]Words [C]here [G]"
+            )
+            .song_key
+            .as_deref(),
+            Some("D")
+        );
+        assert_eq!(
+            metadata("[Am]Words [Dm]and [E]more [Am]")
+                .song_key
+                .as_deref(),
+            Some("Am")
+        );
+        assert_eq!(
+            metadata(
+                "{sot}
+[Bb]
+{eot}
+No chords"
+            )
+            .song_key,
+            None
+        );
     }
 
     #[test]

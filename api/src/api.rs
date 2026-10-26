@@ -1102,6 +1102,30 @@ async fn list_public_song_keys(
     Ok(Json(song_keys(&state.pool, Library::Public).await?))
 }
 
+/// Fills in the key of revisions stored without one, from their chords, so
+/// song lists show the key the song view shows. Revisions stored before
+/// `metadata` guessed keys are the ones it finds; a song with no chords
+/// stays without a key.
+pub async fn backfill_song_keys(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let rows: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT id, chordpro FROM song_revisions WHERE song_key IS NULL")
+            .fetch_all(pool)
+            .await?;
+    let mut filled = 0;
+    for (id, source) in rows {
+        let Some(key) = chordpro::metadata(&source).song_key else {
+            continue;
+        };
+        sqlx::query("UPDATE song_revisions SET song_key = $1 WHERE id = $2 AND song_key IS NULL")
+            .bind(key)
+            .bind(id)
+            .execute(pool)
+            .await?;
+        filled += 1;
+    }
+    Ok(filled)
+}
+
 async fn song_keys(pool: &PgPool, library: Library) -> Result<Vec<SongKeyCount>, AppError> {
     Ok(sqlx::query_as::<_, SongKeyCount>(&format!(
         "SELECT r.key_root AS root, r.key_minor AS minor, count(*) AS songs
