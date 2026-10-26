@@ -292,14 +292,14 @@ are not affected.
   back on ⋮), a tap outside or Tab, and moves with the arrow keys.
 - **How to play a chord** (`chord-viewer.ts`): every chord in a song
   (`renderSongBody`, so the song page, service view, shared sets and the
-  editor previews) is a button; tapping it opens a sheet with, on one line,
-  the chord's name, kind and notes ("Major · G B D"), an instrument button
+  editor previews) is a button; tapping it opens a sheet with the chord's
+  name over its kind and notes ("Major · G B D") and a round ▷ that plays
+  the shape showing; then one box with, top left, an instrument button
   ("Guitar ⌄") that opens a menu of instruments like ⋮ (the choice is
   remembered in `localStorage["psa150-instrument"]`; more instruments are
-  added to `INSTRUMENTS`) and a round ▷ that plays the shape showing; then
-  one box with the ways to play it side by side to swipe through (scroll
-  snap; ‹ › and the arrow keys too), their name ("Barre, fret 1 · 1/6") and
-  dots. It has no visible ×: a tap outside or a swipe down
+  added to `INSTRUMENTS`), top right the shape's name ("Barre, fret 1 ·
+  1/6"), and the ways to play it side by side to swipe through (scroll
+  snap; ‹ › and the arrow keys too) with dots. It has no visible ×: a tap outside or a swipe down
   closes it (the × stays for screen readers).
 - **Sheets** (`openSheet`/`closeSheet` in `views/songs.ts`, used by every
   sheet in the app): on phones a bottom sheet that slides up as it opens
