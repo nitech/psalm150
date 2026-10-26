@@ -914,19 +914,21 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 @media (min-width: 640px) { .sheet-grip { display: none; } }
 @media (prefers-reduced-motion: reduce) { dialog.sheet, dialog.sheet[open], dialog.sheet[open]::backdrop { transition: none; animation: none; } }
 
-/* How to play a chord (chord-viewer.ts): the chord, what it is and the
-   instrument on one line, then one box with the ways to play it (swiped
-   sideways), their name, ‹ ›, dots and ▷. */
+/* How to play a chord (chord-viewer.ts): the chord, what it is, the
+   instrument (a menu like ⋮) and ▷ on one line, then one box with the ways
+   to play it (swiped sideways), their name, ‹ › and dots. */
 .chord-head { display: flex; align-items: center; gap: var(--psa-space-3); margin-bottom: var(--psa-space-3); }
 .chord-name { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--psa-space-2); flex: 1; min-width: 0; }
 .sheet-body h2.chord-title { margin: 0; font-size: 28px; line-height: 1.2; color: var(--psa-chord); overflow-wrap: anywhere; }
 .chord-subtitle { margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
-.segmented.compact { flex: none; gap: 2px; padding: 3px; }
-.segmented.compact button { min-height: 32px; padding: 0 var(--psa-space-3); font-size: 13px; }
+.chord-instrument { position: relative; flex: none; }
+.chord-instrument .button .icon { width: 16px; height: 16px; margin-right: -4px; color: var(--psa-text-secondary); }
+.chord-instrument .bar-menu { min-width: 180px; }
+.chord-head .chord-play { flex: none; }
 .chord-stage { position: relative; border-radius: var(--psa-radius-md); background: var(--psa-bg-sunken); }
 .chord-shapes { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: inherit; }
 .chord-shapes::-webkit-scrollbar { display: none; }
-.chord-shape { display: grid; place-items: center; flex: 0 0 100%; min-height: 240px; margin: 0; padding: 40px 48px 52px; scroll-snap-align: center; scroll-snap-stop: always; }
+.chord-shape { display: grid; place-items: center; flex: 0 0 100%; min-height: 240px; margin: 0; padding: 40px 48px 44px; scroll-snap-align: center; scroll-snap-stop: always; }
 .chord-diagram { width: 100%; max-width: 220px; height: auto; max-height: 260px; color: var(--psa-text); }
 .chord-diagram.piano { max-width: 520px; }
 .chord-diagram .fret, .chord-diagram .string { stroke: var(--psa-text-secondary); stroke-width: 1.5; }
@@ -952,8 +954,8 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 .chord-dots { position: absolute; bottom: 24px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
 .chord-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--psa-border-strong); }
 .chord-dots span.on { background: var(--psa-text); }
-.chord-play { position: absolute; right: var(--psa-space-3); bottom: var(--psa-space-3); }
 .chord-play .icon { margin-left: 3px; }
+.chord-play:disabled { opacity: 0.4; }
 @media (min-width: 640px) {
   dialog.sheet { margin: auto; border-radius: var(--psa-radius-xl); }
 }

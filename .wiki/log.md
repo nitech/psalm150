@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
+* **Chord sheet: instrument menu and ▷ in the head (web)**: the instrument is a button that opens a menu like ⋮ (Escape closes only the menu), and ▷ sits to its right instead of in the box. Pages touched: web-client.
 * **Sheets slide in and out (web)**: every sheet slides up as it opens and down as it closes (Escape, a tap outside, ×, a swipe, or code closing it), through `openSheet` and `closeSheet`; on wide screens it rises and fades. Pages touched: web-client.
 * **Sheets swipe down to close (web)**: on phones every sheet (`openSheet`) follows a finger dragging it down and closes when let go far or fast enough; a grip at the top shows it. `openSheet(content, { closeButton: false })` leaves the × to screen readers; the chord sheet uses it. The chord sheet puts the chord, its notes and the instrument switch on one line and Play as ▷ inside the box with the shapes. Pages touched: web-client.
 * **How to play a chord (web)**: tapping a chord in a song opens a sheet showing how to play it on guitar or piano (remembered per device), the ways to play it to swipe through from the most common and easiest to barre chords and shapes up the neck (piano: root position and inversions), and Play, synthesised with Web Audio. `web/src/chord-viewer.ts`, `chord-shapes.ts` (tested), `chord-audio.ts`. Pages touched: web-client, index.

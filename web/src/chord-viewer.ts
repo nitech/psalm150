@@ -1,8 +1,9 @@
 /**
  * Tapping a chord in a song opens a sheet that shows how to play it, on the
- * instrument the person chose last (remembered on this device). The ways to
- * play it sit side by side in one box, easiest first: swipe, or use ‹ ›, to
- * go through them, and ▷ in the box sounds the one showing.
+ * instrument the person chose last (remembered on this device; a button by
+ * the chord opens a menu of instruments). The ways to play it sit side by
+ * side in one box, easiest first: swipe, or use ‹ ›, to go through them, and
+ * ▷ beside the instrument sounds the one showing.
  */
 import { playChord, type Sound } from "./chord-audio.ts";
 import {
@@ -73,22 +74,28 @@ export function installChordViewer(): void {
 export function openChordSheet(name: string): void {
   const chord = parseChord(name);
   const subtitle = chord ? `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)} · ${chordNotes(chord).join(" ")}` : "";
-  // The chord, what it is and the instrument share one line; the shapes and
-  // their controls share one box.
+  // The chord, what it is, the instrument (a button with a menu, like ⋮)
+  // and ▷ share one line; the shapes and their controls share one box.
   const sheet = openSheet(`<div class="chord-head">
       <div class="chord-name">
         <h2 class="chord-title">${escapeHtml(name)}</h2>
         ${subtitle ? `<p class="chord-subtitle">${escapeHtml(subtitle)}</p>` : ""}
       </div>
-      <div id="chord-instruments"></div>
+      ${chord ? `<div class="chord-instrument">
+        <button type="button" class="button secondary small" id="chord-instrument" aria-haspopup="menu" aria-expanded="false"></button>
+        <div class="bar-menu" role="menu" aria-label="Instrument" hidden></div>
+      </div>
+      <button type="button" class="icon-button accent chord-play" id="chord-play" aria-label="Play the chord">${icon("play")}</button>` : ""}
     </div>
     <div id="chord-sheet"></div>`, { closeButton: false });
-  const switcher = sheet.querySelector<HTMLElement>("#chord-instruments")!;
   const body = sheet.querySelector<HTMLElement>("#chord-sheet")!;
   if (!chord) {
     body.innerHTML = `<p class="muted">This chord's name is not one the app can read, so it cannot show how to play it.</p>`;
     return;
   }
+  const picker = sheet.querySelector<HTMLButtonElement>("#chord-instrument")!;
+  const menu = sheet.querySelector<HTMLElement>(".chord-instrument .bar-menu")!;
+  const play = sheet.querySelector<HTMLButtonElement>("#chord-play")!;
   let instrument = chosenInstrument();
   let shapes: unknown[] = [];
   let current = 0;
@@ -96,9 +103,10 @@ export function openChordSheet(name: string): void {
   const render = () => {
     shapes = instrument.shapes(chord);
     current = 0;
-    switcher.innerHTML = `<div class="segmented compact" role="radiogroup" aria-label="Instrument">
-        ${INSTRUMENTS.map((item) => `<button type="button" role="radio" aria-checked="${item === instrument}" class="${item === instrument ? "on" : ""}" data-instrument="${item.id}" tabindex="${item === instrument ? 0 : -1}">${item.label}</button>`).join("")}
-      </div>`;
+    picker.innerHTML = `${instrument.label}${icon("down")}`;
+    picker.setAttribute("aria-label", `Instrument: ${instrument.label}`);
+    menu.innerHTML = INSTRUMENTS.map((item) => `<button type="button" role="menuitemradio" aria-checked="${item === instrument}" tabindex="-1" class="bar-menu-item" data-instrument="${item.id}"><span>${item.label}</span><span class="bar-menu-check" aria-hidden="true">${item === instrument ? icon("check") : ""}</span></button>`).join("");
+    play.disabled = !shapes.length;
     body.innerHTML = shapes.length
       ? `<div class="chord-stage">
           <div class="chord-shapes" tabindex="0" role="group" aria-roledescription="carousel" aria-label="Ways to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()}">
@@ -110,7 +118,6 @@ export function openChordSheet(name: string): void {
           <button type="button" class="icon-button ghost chord-step" data-step="-1" aria-label="Previous way">${icon("prev")}</button>
           <button type="button" class="icon-button ghost chord-step" data-step="1" aria-label="Next way">${icon("next")}</button>
           ${shapes.length > 1 ? `<div class="chord-dots" aria-hidden="true">${shapes.map(() => "<span></span>").join("")}</div>` : ""}
-          <button type="button" class="icon-button accent chord-play" id="chord-play" aria-label="Play the chord">${icon("play")}</button>
         </div>`
       : `<p class="muted">No way to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()} was found.</p>`;
     showCurrent();
@@ -133,31 +140,65 @@ export function openChordSheet(name: string): void {
     showCurrent();
   };
 
-  // On the whole sheet, so the instrument switch in the head is heard too.
+  // The instrument menu opens and closes like ⋮ (bar-menu.ts): arrows move
+  // through it, Escape and a tap elsewhere close it.
+  const items = () => [...menu.querySelectorAll<HTMLElement>(".bar-menu-item")];
+  const openMenu = () => {
+    menu.hidden = false;
+    picker.setAttribute("aria-expanded", "true");
+    (items().find((item) => item.getAttribute("aria-checked") === "true") ?? items()[0])?.focus();
+  };
+  const closeMenu = (refocus: boolean) => {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    picker.setAttribute("aria-expanded", "false");
+    if (refocus) picker.focus();
+  };
+
+  // On the whole sheet, so the instrument and ▷ in the head are heard too.
   const root = sheet.querySelector<HTMLElement>(".sheet-body")!;
   root.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
+    if (target.closest("#chord-instrument")) {
+      if (menu.hidden) openMenu();
+      else closeMenu(false);
+      return;
+    }
     const choice = target.closest<HTMLElement>("[data-instrument]");
     if (choice) {
+      closeMenu(true);
       const next = INSTRUMENTS.find((item) => item.id === choice.dataset.instrument);
       if (!next || next === instrument) return;
       instrument = next;
       writePreference("instrument", next.id);
       render();
-      switcher.querySelector<HTMLElement>(`[data-instrument="${next.id}"]`)?.focus();
+      announce(next.label);
       return;
     }
+    if (!target.closest(".chord-instrument")) closeMenu(false);
     const step = target.closest<HTMLElement>("[data-step]");
     if (step) goTo(current + Number(step.dataset.step));
-    if (target.closest("#chord-play")) playChord(instrument.notes(shapes[current]), instrument.sound);
+    if (target.closest("#chord-play") && shapes.length) playChord(instrument.notes(shapes[current]), instrument.sound);
   });
   root.addEventListener("keydown", (event) => {
     const target = event.target as HTMLElement;
-    if (target.closest("[role='radiogroup']") && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
-      const index = INSTRUMENTS.indexOf(instrument) + (event.key === "ArrowRight" ? 1 : -1);
-      switcher.querySelector<HTMLElement>(`[data-instrument="${INSTRUMENTS[(index + INSTRUMENTS.length) % INSTRUMENTS.length].id}"]`)?.click();
-      event.preventDefault();
-    } else if (target.closest(".chord-shapes") && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
+    if (!menu.hidden) {
+      const all = items();
+      const index = all.indexOf(document.activeElement as HTMLElement);
+      if (event.key === "Escape") {
+        // Closes the menu only, not the sheet.
+        event.preventDefault();
+        event.stopPropagation();
+        closeMenu(true);
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        all[(index + (event.key === "ArrowDown" ? 1 : -1) + all.length) % all.length]?.focus();
+      } else if (event.key === "Tab") {
+        closeMenu(false);
+      }
+      return;
+    }
+    if (target.closest(".chord-shapes") && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
       goTo(current + (event.key === "ArrowRight" ? 1 : -1));
       event.preventDefault();
     }
