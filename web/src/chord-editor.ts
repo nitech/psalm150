@@ -297,8 +297,10 @@ export function mountChordEditor(
   }
   function lineHtml(line: Section["lines"][number]): string {
     if (line.kind === "lyric") {
-      // The words keep a caret (for the keyboard) but take no typing, and a phone shows no keyboard.
-      return `<div class="ce-line" data-line="${line.id}"><div class="ce-text" data-line="${line.id}" contenteditable="${editable}" inputmode="none" aria-readonly="true" role="textbox" aria-label="Line" spellcheck="false">${escapeHtml(line.text)}</div><div class="ce-chips">${chipsHtml(line)}</div></div>`;
+      // With a mouse the words keep a caret (for the keyboard) but take no
+      // typing. On a touch screen they are not editable at all, so a long
+      // press does not select words while placing a chord.
+      return `<div class="ce-line" data-line="${line.id}"><div class="ce-text" data-line="${line.id}" contenteditable="${mouse ? editable : "false"}" inputmode="none" aria-readonly="true" role="textbox" aria-label="Line" spellcheck="false">${escapeHtml(line.text)}</div><div class="ce-chips">${chipsHtml(line)}</div></div>`;
     }
     if (line.kind === "comment") return `<div class="ce-comment"><span class="ce-tag">Note</span><div class="ce-comment-text">${escapeHtml(line.text)}</div></div>`;
     return `<div class="ce-raw" title="Change this line in ChordPro"><code>${escapeHtml(line.text)}</code></div>`;
@@ -633,13 +635,20 @@ export function mountChordEditor(
     let pos = letterAt(text, event.clientX, event.clientY);
     const row = event.clientY;
     drawSlideBox(wrap, pos);
+    const magnify = (x: number) => {
+      const slide = wrap.querySelector<HTMLElement>(".ce-slide");
+      if (slide) showLoupe(wrap, slide.getBoundingClientRect(), x, row);
+    };
+    magnify(event.clientX);
     const move = (next: PointerEvent) => {
       if (next.pointerId !== event.pointerId) return;
       // Stay on the row the press started on, wherever the finger drifts up or down.
       const at = letterAt(text, next.clientX, row);
-      if (at === pos) return;
-      pos = at;
-      drawSlideBox(wrap, pos);
+      if (at !== pos) {
+        pos = at;
+        drawSlideBox(wrap, pos);
+      }
+      magnify(next.clientX);
     };
     const end = (next: PointerEvent) => {
       if (next.pointerId !== event.pointerId) return;
@@ -647,6 +656,7 @@ export function mountChordEditor(
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
       wrap.querySelector(".ce-slide")?.remove();
+      hideLoupe();
       if (next.type !== "pointerup") return;
       // Selecting words (a long press) is not a place for a chord.
       const selection = getSelection();
@@ -678,6 +688,49 @@ export function mountChordEditor(
     if (el && sectionsEl.contains(el)) lastCaret = { id: el.dataset.line!, off: caretOffset(el) };
   });
 
+  /*
+   * A magnifier above the finger while it places or moves a chord on a touch
+   * screen, so the letter under the finger can be seen: a copy of the line,
+   * larger, centred on `focus` (the box or the chord and its letter).
+   */
+  const LOUPE_SCALE = 1.7;
+  function showLoupe(wrap: HTMLElement, focus: DOMRect, fingerX: number, fingerY: number): void {
+    let loupe = sectionsEl.querySelector<HTMLElement>(".ce-loupe");
+    if (!loupe) {
+      loupe = document.createElement("div");
+      loupe.className = "ce-loupe";
+      loupe.setAttribute("aria-hidden", "true");
+      loupe.inert = true;
+      sectionsEl.append(loupe);
+    }
+    const copy = wrap.cloneNode(true) as HTMLElement;
+    // Only the original is looked up by its line and chords.
+    copy.querySelectorAll("[data-line], [data-chord], [id], [contenteditable]").forEach((node) => {
+      node.removeAttribute("data-line");
+      node.removeAttribute("data-chord");
+      node.removeAttribute("id");
+      node.removeAttribute("contenteditable");
+    });
+    copy.removeAttribute("data-line");
+    const origin = wrap.getBoundingClientRect();
+    const width = loupe.offsetWidth;
+    const height = loupe.offsetHeight;
+    const cx = focus.left + focus.width / 2 - origin.left;
+    const cy = focus.top + focus.height / 2 - origin.top;
+    copy.classList.add("ce-loupe-copy");
+    copy.style.width = `${origin.width}px`;
+    copy.style.transform = `translate(${width / 2 - cx * LOUPE_SCALE}px, ${height / 2 - cy * LOUPE_SCALE}px) scale(${LOUPE_SCALE})`;
+    loupe.replaceChildren(copy);
+    // Above the finger, clear of it, and inside the screen.
+    const left = Math.min(Math.max(8, fingerX - width / 2), innerWidth - width - 8);
+    const top = Math.max(8, Math.min(fingerY, focus.top) - height - 28);
+    loupe.style.left = `${left}px`;
+    loupe.style.top = `${top}px`;
+  }
+  function hideLoupe(): void {
+    sectionsEl.querySelector(".ce-loupe")?.remove();
+  }
+
   /* Dragging a chord along its line. */
   function dragChord(event: PointerEvent, chip: HTMLElement): void {
     if (event.button > 0) return;
@@ -705,12 +758,20 @@ export function mountChordEditor(
         chord.pos = off;
         layoutChips(id);
       }
+      if (next.pointerType !== "mouse") {
+        // The chord and the letter it is on, from the chord's top to the letter's foot.
+        const chipBox = chip.getBoundingClientRect();
+        const letter = charBox(text, chord.pos);
+        const span = new DOMRect(chipBox.left, chipBox.top, chipBox.width, letter.top + letter.h - chipBox.top);
+        showLoupe(wrap, span, next.clientX, next.clientY);
+      }
     };
     const end = () => {
       chip.removeEventListener("pointermove", move);
       chip.removeEventListener("pointerup", end);
       chip.removeEventListener("pointercancel", end);
       chip.classList.remove("dragging");
+      hideLoupe();
       if (!moved) {
         openLineBubble(id, chord.pos, false, chord.id);
         return;

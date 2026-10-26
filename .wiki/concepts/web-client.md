@@ -403,6 +403,10 @@ are not affected.
   the song's key, "…" for any other chord and, on an existing chord, a
   remove button; a dashed box shows where the chord goes, and tapping a
   chord puts it in and closes the bubble. Drag a chord or use ←/→ to move it.
+  On a touch screen the words are not editable and nothing in Chords can be
+  selected (no long-press selection or callout), and while a finger places
+  or drags a chord a magnifier above it shows a larger copy of the line,
+  centred on the box or the chord and its letter (`showLoupe`).
   Unknown directives and `#` lines show as grey rows and are kept. The
   ChordPro side is the source with colours, a list of problems by line and
   a preview (on wide screens beside it, half each, the same height, each

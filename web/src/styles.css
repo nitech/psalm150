@@ -750,6 +750,14 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 /* On a touch screen: the same box, following the finger along the line. */
 .ce-slide { position: absolute; border: 1.5px solid var(--psa-accent-text); border-radius: 5px; background: var(--psa-accent-medium); pointer-events: none; }
 .ce-slide.end { border-style: dashed; background: transparent; }
+/* On a touch screen nothing in Chords is selected by a long press: it
+   would fight placing and moving chords. */
+@media (hover: none), (pointer: coarse) {
+  .ce[data-mode="chords"] .ce-sections { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+/* The magnifier over the finger (chord-editor.ts showLoupe). */
+.ce-loupe { position: fixed; z-index: 70; width: 200px; height: 84px; overflow: hidden; border: 1px solid var(--psa-border-strong); border-radius: 16px; background: var(--psa-bg-canvas); box-shadow: var(--psa-shadow-lg); pointer-events: none; }
+.ce-loupe-copy { position: absolute; top: 0; left: 0; box-sizing: border-box; margin: 0; transform-origin: 0 0; }
 .ce-comment { display: flex; align-items: baseline; gap: 10px; padding: 8px 0 6px; }
 .ce-tag { flex: none; padding: 1px 8px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); color: var(--psa-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .ce-comment-text { flex: 1; min-width: 3em; color: var(--psa-text-secondary); font-style: italic; white-space: pre-wrap; }
