@@ -3,12 +3,14 @@
  * instrument the person chose last (remembered on this device; a button by
  * the chord opens a menu of instruments). The ways to play it sit side by
  * side in one box, easiest first: swipe, or use ‹ ›, to go through them, and
- * ▷ beside the instrument sounds the one showing.
+ * ▷ beside the instrument sounds the one showing. Tapping a string or a key
+ * in the drawing sounds that one note.
  */
-import { playChord, type Sound } from "./chord-audio.ts";
+import { playChord, playNote, preloadSound, type Sound } from "./chord-audio.ts";
 import {
   chordNotes,
   guitarNotes,
+  GUITAR_TUNING,
   guitarShapes,
   noteName,
   parseChord,
@@ -171,11 +173,20 @@ export function openChordSheet(name: string): void {
       if (!next || next === instrument) return;
       instrument = next;
       writePreference("instrument", next.id);
+      preloadSound(next.sound);
       render();
       announce(next.label);
       return;
     }
     if (!target.closest(".chord-instrument")) closeMenu(false);
+    // A string or key in the drawing: its own note.
+    const note = target.closest<SVGElement>("[data-midi]");
+    if (note) {
+      playNote(Number(note.dataset.midi), instrument.sound);
+      const svg = note.closest("svg")!;
+      flash(note.dataset.string ? svg.querySelector<SVGElement>(`.string[data-string="${note.dataset.string}"]`) : note);
+      return;
+    }
     const step = target.closest<HTMLElement>("[data-step]");
     if (step) goTo(current + Number(step.dataset.step));
     if (target.closest("#chord-play") && shapes.length) playChord(instrument.notes(shapes[current]), instrument.sound);
@@ -213,8 +224,19 @@ export function openChordSheet(name: string): void {
       showCurrent();
     }
   }, true);
+  preloadSound(instrument.sound);
   render();
   announce(`${chord.name}, ${instrument.label}`);
+}
+
+/** Lights a string or key for a moment as it sounds. */
+function flash(element: SVGElement | null): void {
+  if (!element) return;
+  element.classList.remove("struck");
+  // Restart the animation when the same one is tapped again.
+  void element.getBoundingClientRect();
+  element.classList.add("struck");
+  element.addEventListener("animationend", () => element.classList.remove("struck"), { once: true });
 }
 
 /* ── Drawings ─────────────────────────────────────────────────────────── */
@@ -239,7 +261,7 @@ function drawGuitar(shape: GuitarShape, chord: Chord): string {
   for (let row = 0; row <= rows; row++) parts.push(`<line class="fret" x1="${LEFT}" x2="${right}" y1="${TOP + row * FRET_GAP}" y2="${TOP + row * FRET_GAP}"/>`);
   if (first === 1) parts.push(`<rect class="nut" x="${LEFT - 1}" y="${TOP - 5}" width="${right - LEFT + 2}" height="6" rx="1"/>`);
   else parts.push(`<text class="fret-number" x="${LEFT - 12}" y="${y(first) + 5}" text-anchor="end">${first}</text>`);
-  for (let string = 0; string < 6; string++) parts.push(`<line class="string" x1="${x(string)}" x2="${x(string)}" y1="${TOP}" y2="${bottom}"/>`);
+  for (let string = 0; string < 6; string++) parts.push(`<line class="string" data-string="${string}" x1="${x(string)}" x2="${x(string)}" y1="${TOP}" y2="${bottom}"/>`);
   if (shape.barre) {
     const { fret, from, to } = shape.barre;
     parts.push(`<rect class="dot" x="${x(from) - 11}" y="${y(fret) - 11}" width="${x(to) - x(from) + 22}" height="22" rx="11"/>`);
@@ -253,6 +275,10 @@ function drawGuitar(shape: GuitarShape, chord: Chord): string {
       if (shape.fingers[string]) parts.push(`<text class="finger" x="${x(string)}" y="${y(fret) + 5}" text-anchor="middle">${shape.fingers[string]}</text>`);
     }
     if (fret >= 0) parts.push(`<text class="note" x="${x(string)}" y="${bottom + 22}" text-anchor="middle">${noteNameFor(chord, 40 + [0, 5, 10, 15, 19, 24][string] + fret, flats)}</text>`);
+  });
+  // Over everything, a strip per string that is played, to tap it alone.
+  shape.frets.forEach((fret, string) => {
+    if (fret >= 0) parts.push(`<rect class="hit" data-string="${string}" data-midi="${GUITAR_TUNING[string] + fret}" x="${x(string) - STRING_GAP / 2}" y="${TOP - 30}" width="${STRING_GAP}" height="${bottom - TOP + 64}"/>`);
   });
   const spoken = shape.frets.map((fret, string) => `${["low E", "A", "D", "G", "B", "high E"][string]} ${fret < 0 ? "not played" : fret === 0 ? "open" : `fret ${fret}`}`).join(", ");
   return `<svg class="chord-diagram" viewBox="0 0 ${right + 30} ${bottom + 34}" role="img" aria-label="${escapeHtml(spoken)}">${parts.join("")}</svg>`;
@@ -279,11 +305,11 @@ function drawPiano(shape: PianoShape, chord: Chord): string {
     const label = on ? noteNameFor(chord, midi, flats) : "";
     if (black) {
       const x = whiteIndex * whiteWidth - 7;
-      blacks.push(`<rect class="key black${on ? " on" : ""}" x="${x}" y="0" width="14" height="74" rx="2"/>`);
+      blacks.push(`<rect class="key black${on ? " on" : ""}" data-midi="${midi}" x="${x}" y="0" width="14" height="74" rx="2"/>`);
       if (on) blacks.push(`<text class="key-label on-black" x="${x + 7}" y="64" text-anchor="middle">${label}</text>`);
     } else {
       const x = whiteIndex * whiteWidth;
-      whites.push(`<rect class="key white${on ? " on" : ""}" x="${x}" y="0" width="${whiteWidth}" height="${height}" rx="3"/>`);
+      whites.push(`<rect class="key white${on ? " on" : ""}" data-midi="${midi}" x="${x}" y="0" width="${whiteWidth}" height="${height}" rx="3"/>`);
       if (on) whites.push(`<text class="key-label" x="${x + whiteWidth / 2}" y="${height - 10}" text-anchor="middle">${label}</text>`);
       whiteIndex++;
     }

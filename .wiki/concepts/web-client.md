@@ -313,8 +313,18 @@ are not affected.
   four frets; ranked easiest first (open chords, then barre chords and
   shapes up the neck), with finger numbers. Piano shows root position and
   the inversions near middle C, a slash bass in the left hand just below. ▷
-  synthesises the sound (`chord-audio.ts`: a plucked string strummed low to
-  high, or a piano-like tone), no sound files.
+  plays the shape from recordings of the real instruments (`chord-audio.ts`,
+  `web/public/sounds/`: Salamander Grand Piano every third semitone C2–C6,
+  an acoustic guitar from tonejs-instruments every second semitone E2–D5,
+  both CC BY 3.0 and credited under More → About and in
+  `sounds/CREDITS.txt`; shortened, mono, 64 kbit/s MP3, about 1.25 MB in
+  all). Each note plays the nearest recording a little faster or slower;
+  the guitar strums low to high, a little uneven, the piano strikes
+  together. An instrument's recordings load when the sheet opens with it
+  (or it is chosen); until they are there (1.2 s at most) or if they fail,
+  a synthesised plucked string or struck tone plays. Tapping a string that
+  is played, or any key, in the drawing sounds that one note and lights it
+  for a moment; a chord stops the one before, a single note rings on.
 - **Chords from the web** (`#/songs/{id}/chords`, `views/find-chords.ts`):
   for a song without chords. It searches online (`GET /songs/online`) for
   the song's title at once; the field can be changed and searched again.
@@ -674,6 +684,8 @@ and make read-only API tokens. Owners alone see **Church** (People, and
   - the page: network first, the saved copy offline;
   - `/assets/` (hashed): from the cache once saved; the current bundle is
     saved at install, the newest 40 files are kept;
+  - `/sounds/` (the chord recordings): from their own cache
+    (`psa150-sounds-v1`) once saved, never trimmed;
   - `GET /setup`, `/sets`, `/sets/{id}`, `/songs` and `/songs/{id}`: network
     first; offline, after 4 s without an answer, or on a 5xx from the proxy,
     the saved copy. Reads with `cache: "no-store"` always go to the server;

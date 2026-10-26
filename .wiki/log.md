@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
+* **Real piano and guitar sounds; tap a string or key (web)**: chords play from recordings (Salamander Grand Piano, tonejs-instruments acoustic guitar, CC BY 3.0, credited under More → About) in `web/public/sounds/`, loaded when the chord sheet opens and kept offline by the service worker (`psa150-sounds-v1`); the synthesised sound stays as a stand-in. Tapping a string or key in the drawing plays that note. Pages touched: web-client.
 * **Capsule magnifier (web)**: the Chords-mode magnifier is a capsule (straight top and bottom, fully round ends) instead of an oval. Pages touched: web-client.
 * **Oval magnifier (web)**: the Chords-mode magnifier is an oval of glass like the phone's text magnifier, with a point down to the finger. Pages touched: web-client.
 * **Chords mode on touch screens (web)**: the words are not editable and cannot be selected (a long press selected words while placing a chord), and a magnifier above the finger shows a larger copy of the line where a chord is being placed or dragged. Pages touched: web-client.

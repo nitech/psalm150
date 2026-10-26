@@ -4,6 +4,8 @@
  *
  * - The page itself: network first, the saved copy when offline.
  * - /assets/ (hashed, never change): from the cache once saved.
+ * - /sounds/ (the instrument recordings for playing chords): from their own
+ *   cache once saved, kept apart so they never push the app's files out.
  * - Song and set reads: network first; after a few seconds without an answer,
  *   or offline, the saved copy. The network answer still refreshes the cache.
  *   Requests made with `cache: "no-store"` (reads just before an edit) always
@@ -15,6 +17,7 @@
  */
 const SHELL = "psa150-shell-v1";
 const ASSETS = "psa150-assets";
+const SOUNDS = "psa150-sounds-v1";
 const API = "psa150-api-v1";
 const MAX_ASSETS = 40;
 const NETWORK_WAIT_MS = 4000;
@@ -53,7 +56,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     for (const key of await caches.keys()) {
-      if (key.startsWith("psa150-") && ![SHELL, ASSETS, API].includes(key)) await caches.delete(key);
+      if (key.startsWith("psa150-") && ![SHELL, ASSETS, SOUNDS, API].includes(key)) await caches.delete(key);
     }
     await self.clients.claim();
   })());
@@ -70,6 +73,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(networkFirst(event, SHELL, "/", url.pathname === "/"));
   } else if (url.pathname.startsWith("/assets/")) {
     event.respondWith(cacheFirst(event));
+  } else if (url.pathname.startsWith("/sounds/")) {
+    event.respondWith(cacheFirst(event, SOUNDS));
   } else if (CACHED_API.some((pattern) => pattern.test(url.pathname))) {
     event.respondWith(networkFirst(event, API, request));
   }
@@ -92,12 +97,12 @@ async function networkFirst(event, cacheName, key, store = true) {
   ]);
 }
 
-async function cacheFirst(event) {
-  const cache = await caches.open(ASSETS);
+async function cacheFirst(event, cacheName = ASSETS) {
+  const cache = await caches.open(cacheName);
   const hit = await cache.match(event.request);
   if (hit) return hit;
   const response = await fetch(event.request);
-  if (response.ok) event.waitUntil(cache.put(event.request, response.clone()).then(() => trim(cache)));
+  if (response.ok) event.waitUntil(cache.put(event.request, response.clone()).then(() => cacheName === ASSETS && trim(cache)));
   return response;
 }
 

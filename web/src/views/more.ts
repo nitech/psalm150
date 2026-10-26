@@ -87,7 +87,8 @@ export async function moreView(ctx: AppContext): Promise<void> {
     <li><a class="list-row" href="#/api">${icon("text")}<span class="row-main"><strong>API reference</strong><small>Everything this server does, for scripts and other programs</small></span>${icon("next")}</a></li>
     <li><a class="list-row" href="/api/openapi.json" download="psa150-openapi.json">${icon("download")}<span class="row-main"><strong>OpenAPI document</strong><small>The API as JSON, for tools such as Postman or Swagger</small></span></a></li>
   </ul>
-  <p class="fine-print">PSA150 Song Server${info ? ` ${escapeHtml(info.version)}` : ""} · ${ctx.isPublic ? "songs open to everyone, sets private to your church" : "private to your church"}</p>`;
+  <p class="fine-print">PSA150 Song Server${info ? ` ${escapeHtml(info.version)}` : ""} · ${ctx.isPublic ? "songs open to everyone, sets private to your church" : "private to your church"}</p>
+  <p class="fine-print">Chord sounds: <a href="https://sfzinstruments.github.io/pianos/salamander" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm and the acoustic guitar from <a href="https://github.com/nbrosowsky/tonejs-instruments" target="_blank" rel="noopener">tonejs-instruments</a> by Nicholaus Brosowsky, both <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>; shortened and made mono.</p>`;
 
   // Arrow keys move between the options of each choice (ARIA radio group).
   ctx.main.querySelectorAll<HTMLElement>('[role="radiogroup"]').forEach(bindRadioGroup);

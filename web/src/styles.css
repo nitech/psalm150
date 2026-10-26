@@ -968,6 +968,15 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 .chord-diagram .key.on { fill: var(--psa-accent); }
 .chord-diagram .key.black.on { stroke: #1a1a1a; }
 .chord-diagram .key-label { fill: var(--psa-on-accent); font-size: 11px; font-weight: 700; }
+/* Tapping a string or key sounds it; it lights up for a moment. */
+.chord-diagram .hit { fill: transparent; cursor: pointer; }
+.chord-diagram .key { cursor: pointer; }
+.chord-diagram :is(.key-label, .note, .finger) { pointer-events: none; }
+.chord-diagram .string.struck { animation: string-struck 600ms var(--psa-ease-standard); }
+.chord-diagram .key.struck { animation: key-struck 450ms var(--psa-ease-standard); }
+@keyframes string-struck { from { stroke: var(--psa-accent); stroke-width: 4; } }
+@keyframes key-struck { from { fill: var(--psa-accent-hover, var(--psa-accent)); opacity: 0.7; } }
+@media (prefers-reduced-motion: reduce) { .chord-diagram :is(.string, .key).struck { animation-duration: 1ms; } }
 /* A black key is narrow: its name is smaller to fit inside it. */
 .chord-diagram .key-label.on-black { font-size: 7.5px; }
 /* The controls float over the box; only the buttons take taps, so the rest swipes. */
