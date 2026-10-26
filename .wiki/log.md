@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
+* **Chord sheet head (web)**: the chord's name sits over its kind and notes, and the instrument button and ▷ are both a touch target high, centred on those two lines. Pages touched: none beyond this log.
 * **Chord sheet: instrument menu and ▷ in the head (web)**: the instrument is a button that opens a menu like ⋮ (Escape closes only the menu), and ▷ sits to its right instead of in the box. Pages touched: web-client.
 * **Sheets slide in and out (web)**: every sheet slides up as it opens and down as it closes (Escape, a tap outside, ×, a swipe, or code closing it), through `openSheet` and `closeSheet`; on wide screens it rises and fades. Pages touched: web-client.
 * **Sheets swipe down to close (web)**: on phones every sheet (`openSheet`) follows a finger dragging it down and closes when let go far or fast enough; a grip at the top shows it. `openSheet(content, { closeButton: false })` leaves the × to screen readers; the chord sheet uses it. The chord sheet puts the chord, its notes and the instrument switch on one line and Play as ▷ inside the box with the shapes. Pages touched: web-client.

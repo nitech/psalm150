@@ -917,12 +917,15 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 /* How to play a chord (chord-viewer.ts): the chord, what it is, the
    instrument (a menu like ⋮) and ▷ on one line, then one box with the ways
    to play it (swiped sideways), their name, ‹ › and dots. */
-.chord-head { display: flex; align-items: center; gap: var(--psa-space-3); margin-bottom: var(--psa-space-3); }
-.chord-name { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--psa-space-2); flex: 1; min-width: 0; }
-.sheet-body h2.chord-title { margin: 0; font-size: 28px; line-height: 1.2; color: var(--psa-chord); overflow-wrap: anywhere; }
-.chord-subtitle { margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
+.chord-head { display: flex; align-items: center; gap: var(--psa-space-2); margin-bottom: var(--psa-space-3); }
+/* The name over what it is; the instrument and ▷ beside them are one
+   height (a touch target), centred on the two lines. */
+.chord-name { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.sheet-body h2.chord-title { margin: 0; font-size: 28px; line-height: 1.15; color: var(--psa-chord); overflow-wrap: anywhere; }
+.chord-subtitle { margin: 0; color: var(--psa-text-secondary); font-size: 14px; line-height: 1.3; }
 .chord-instrument { position: relative; flex: none; }
-.chord-instrument .button .icon { width: 16px; height: 16px; margin-right: -4px; color: var(--psa-text-secondary); }
+.chord-instrument .button { gap: 6px; padding: 0 var(--psa-space-3) 0 var(--psa-space-4); }
+.chord-instrument .button .icon { width: 18px; height: 18px; color: var(--psa-text-secondary); }
 .chord-instrument .bar-menu { min-width: 180px; }
 .chord-head .chord-play { flex: none; }
 .chord-stage { position: relative; border-radius: var(--psa-radius-md); background: var(--psa-bg-sunken); }

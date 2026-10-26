@@ -82,7 +82,7 @@ export function openChordSheet(name: string): void {
         ${subtitle ? `<p class="chord-subtitle">${escapeHtml(subtitle)}</p>` : ""}
       </div>
       ${chord ? `<div class="chord-instrument">
-        <button type="button" class="button secondary small" id="chord-instrument" aria-haspopup="menu" aria-expanded="false"></button>
+        <button type="button" class="button secondary" id="chord-instrument" aria-haspopup="menu" aria-expanded="false"></button>
         <div class="bar-menu" role="menu" aria-label="Instrument" hidden></div>
       </div>
       <button type="button" class="icon-button accent chord-play" id="chord-play" aria-label="Play the chord">${icon("play")}</button>` : ""}
