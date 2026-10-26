@@ -7,6 +7,7 @@ import { CurrentSet } from "./current-set.ts";
 import { installFollow } from "./follow.ts";
 import { icon, type IconName } from "./icons.ts";
 import { installLyricsCopy } from "./song-render.ts";
+import { installChordViewer } from "./chord-viewer.ts";
 import { appGoesBack, installedApp, slideBetween, swapScreen, takeBrowserAnimated } from "./transitions.ts";
 import "./install.ts";
 import type { SessionInfo, SetDetail, Session } from "./types.ts";
@@ -52,6 +53,7 @@ for (const type of ["keydown", "pointerdown"]) {
 applyTheme();
 registerServiceWorker();
 installLyricsCopy();
+installChordViewer();
 installSearchClear();
 openPermalink();
 

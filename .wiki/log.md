@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-10-26
+* **How to play a chord (web)**: tapping a chord in a song opens a sheet showing how to play it on guitar or piano (remembered per device), the ways to play it to swipe through from the most common and easiest to barre chords and shapes up the neck (piano: root position and inversions), and Play, synthesised with Web Audio. `web/src/chord-viewer.ts`, `chord-shapes.ts` (tested), `chord-audio.ts`. Pages touched: web-client, index.
+* **Song keys in lists**: a revision without `{key}` gets the key its chords fit best (`chordpro::metadata`, the same rules as `guessKey`), and revisions stored before are filled in at startup (`api::backfill_song_keys`). Pages touched: none beyond this log.
+
 ## 2026-10-25
 * **Invite and reset links**: owners can invite someone with a one-time link (`POST /members/invites`, 7 days) with which they choose their own username and password, and send a person a link to choose a new password (`POST /members/{user_id}/reset-link`, 3 days). `GET /members/links` and `DELETE /members/links/{id}` list and withdraw unused links; `GET` and `POST /public/account-links/{token}` read and use one, which signs the person in. New table `account_links` (migration 0013), module `account_links.rs`, tested in `invite_and_reset_links`. Web: **Invite with a link**, unused links with Withdraw, and **Make a new password link** on People; pages `/invite/{token}` and `/reset-password/{token}`. Pages touched: auth-and-roles, data-model, web-client, index.
 * **Follow the projector (web)**: while a church desktop projects, the dock's card shows a switch; on, the projected words fill the screen in large text like `/join` and follow along, over the page, which is back where it was when switched off. Shown in the service view too, above the step bar. The current set card is more compact. `web/src/follow.ts`. Pages touched: web-client, index.

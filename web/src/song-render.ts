@@ -23,7 +23,10 @@ export function prepareSong(chordpro: string, transpose: number): DisplaySong {
   return transposeSong(parseChordPro(chordpro), transpose);
 }
 
-/** The lyrics, with chords above the words when `chords` is on. */
+/**
+ * The lyrics, with chords above the words when `chords` is on. Each chord is
+ * a button: `installChordViewer` shows how to play it.
+ */
 export function renderSongBody(song: DisplaySong, options: ReaderOptions): string {
   if (!song.sections.length) return `<p class="muted">This song has no lyrics yet.</p>`;
   const withChords = options.chords && hasChords(song);
@@ -36,7 +39,7 @@ export function renderSongBody(song: DisplaySong, options: ReaderOptions): strin
           const text = line.segments.map((segment) => segment.text).join("");
           return `<p class="song-line">${escapeHtml(text) || "&nbsp;"}</p>`;
         }
-        return `<p class="song-line">${line.segments.map((segment) => `<span class="seg"><span class="ch">${segment.chord ? escapeHtml(segment.chord) : ""}</span><span class="ly">${escapeHtml(segment.text) || (segment.chord ? "&nbsp;" : "")}</span></span>`).join("")}</p>`;
+        return `<p class="song-line">${line.segments.map((segment) => `<span class="seg">${segment.chord ? `<button type="button" class="ch" data-chord="${escapeHtml(segment.chord)}" aria-label="${escapeHtml(segment.chord)}, how to play it">${escapeHtml(segment.chord)}</button>` : `<span class="ch"></span>`}<span class="ly">${escapeHtml(segment.text) || (segment.chord ? "&nbsp;" : "")}</span></span>`).join("")}</p>`;
       }).join("")}
     </section>`).join("")}
   </div>`;

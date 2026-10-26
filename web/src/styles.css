@@ -461,6 +461,11 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .with-chords .song-line { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0.15em; }
 .seg { display: inline-flex; flex-direction: column; white-space: pre; }
 .ch { min-height: 1.3em; padding-right: 0.35em; color: var(--psa-chord); font-weight: 700; font-size: 0.82em; line-height: 1.3; }
+/* A chord is a button that shows how to play it; it reads as plain chord text. */
+button.ch { position: relative; align-self: flex-start; padding: 0 0.35em 0 0; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; touch-action: manipulation; }
+/* A taller area to tap than the letters, without moving them or covering the next chord. */
+button.ch::after { content: ""; position: absolute; inset: -8px 0 -4px; }
+@media (hover: hover) { button.ch:hover { text-decoration: underline; text-underline-offset: 3px; } }
 .ly { white-space: pre-wrap; }
 
 /* ── Sets ───────────────────────────────────────────────────────────────── */
@@ -887,6 +892,35 @@ dialog.sheet::backdrop { background: var(--psa-bg-scrim); }
 .sheet-body h2 { margin: 0 56px var(--psa-space-3) 0; font-size: 20px; }
 .sheet-body .list { max-height: 55dvh; overflow-y: auto; }
 .sheet-close { position: absolute; top: var(--psa-space-3); right: var(--psa-space-3); }
+
+/* How to play a chord (chord-viewer.ts): the instrument, the ways to play
+   it side by side to swipe through, and Play. */
+.sheet-body h2.chord-title { margin-bottom: var(--psa-space-1); font-size: 28px; color: var(--psa-chord); }
+.chord-subtitle { margin: 0 0 var(--psa-space-4); }
+.chord-sheet { display: grid; gap: var(--psa-space-3); }
+.chord-shapes { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: var(--psa-radius-md); background: var(--psa-bg-sunken); }
+.chord-shapes::-webkit-scrollbar { display: none; }
+.chord-shape { display: grid; place-items: center; flex: 0 0 100%; min-height: 260px; margin: 0; padding: var(--psa-space-4); scroll-snap-align: center; scroll-snap-stop: always; }
+.chord-diagram { width: 100%; max-width: 240px; height: auto; max-height: 300px; color: var(--psa-text); }
+.chord-diagram.piano { max-width: 520px; }
+.chord-diagram .fret, .chord-diagram .string { stroke: var(--psa-text-secondary); stroke-width: 1.5; }
+.chord-diagram .nut { fill: var(--psa-text); }
+.chord-diagram .dot { fill: var(--psa-accent); }
+.chord-diagram .finger { fill: var(--psa-on-accent); font-size: 14px; font-weight: 700; }
+.chord-diagram .open { fill: none; stroke: var(--psa-text); stroke-width: 2; }
+.chord-diagram .mute { fill: var(--psa-text-secondary); font-size: 20px; }
+.chord-diagram .note, .chord-diagram .fret-number { fill: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
+.chord-diagram .key.white { fill: #f4f4f1; stroke: #737373; stroke-width: 1; }
+.chord-diagram .key.black { fill: #1a1a1a; stroke: #1a1a1a; }
+.chord-diagram .key.on { fill: var(--psa-accent); }
+.chord-diagram .key.black.on { stroke: #1a1a1a; }
+.chord-diagram .key-label { fill: var(--psa-on-accent); font-size: 11px; font-weight: 700; }
+.chord-nav { display: flex; align-items: center; gap: var(--psa-space-2); }
+.chord-shape-name { flex: 1; margin: 0; text-align: center; font-weight: 600; }
+.chord-nav .icon-button:disabled { opacity: 0.35; }
+.chord-dots { display: flex; justify-content: center; gap: 6px; margin-top: calc(-1 * var(--psa-space-2)); }
+.chord-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--psa-border-strong); }
+.chord-dots span.on { background: var(--psa-text); }
 @media (min-width: 640px) {
   dialog.sheet { margin: auto; border-radius: var(--psa-radius-xl); }
 }

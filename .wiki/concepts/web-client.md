@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Web client
-description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, set editor with drag to reorder, service view with swipe and Lead (moving shared-link pages along, with a watching count), remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, the API reference, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
+description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, how to play a tapped chord on guitar or piano, set editor with drag to reorder, service view with swipe and Lead (moving shared-link pages along, with a watching count), remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, the API reference, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
 tags: [web, ui, vite, typescript, mobile, pwa, offline]
 status: stable
 sources:
@@ -44,6 +44,15 @@ sources:
   - id: render
     resource: /web/src/song-render.ts
     title: Reader rendering, settings panel and key label
+  - id: chord-viewer
+    resource: /web/src/chord-viewer.ts
+    title: How to play a tapped chord (sheet, drawings, instrument choice)
+  - id: chord-shapes
+    resource: /web/src/chord-shapes.ts
+    title: Chord names, guitar shapes and piano voicings
+  - id: chord-audio
+    resource: /web/src/chord-audio.ts
+    title: Playing a chord with Web Audio
   - id: ui
     resource: /web/src/ui.ts
     title: Toasts with Undo, visibility-aware polling, preferences
@@ -281,6 +290,21 @@ are not affected.
   often-used icons are dropped from it (`.crowded`, measured whenever the
   screen is drawn or resized), so ⋮ is never pushed out. The menu closes on Escape (focus
   back on ⋮), a tap outside or Tab, and moves with the arrow keys.
+- **How to play a chord** (`chord-viewer.ts`): every chord in a song
+  (`renderSongBody`, so the song page, service view, shared sets and the
+  editor previews) is a button; tapping it opens a sheet with the chord's
+  name, kind and notes ("Major · G B D"), a Guitar / Piano switch (the choice
+  is remembered in `localStorage["psa150-instrument"]`; more instruments are
+  added to `INSTRUMENTS`), the ways to play it side by side to swipe through
+  (scroll snap; ‹ › and the arrow keys too) and **Play**. Guitar shapes
+  (`chord-shapes.ts`, tested) are found by searching the neck in standard
+  tuning: the chord's bass lowest (a slash chord's bass too), every needed
+  tone, at least four strings, four fingers with at most one barre, within
+  four frets; ranked easiest first (open chords, then barre chords and
+  shapes up the neck), with finger numbers. Piano shows root position and
+  the inversions near middle C, a slash bass in the left hand. Play
+  synthesises the sound (`chord-audio.ts`: a plucked string strummed low to
+  high, or a piano-like tone), no sound files.
 - **Chords from the web** (`#/songs/{id}/chords`, `views/find-chords.ts`):
   for a song without chords. It searches online (`GET /songs/online`) for
   the song's title at once; the field can be changed and searched again.
