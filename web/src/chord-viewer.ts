@@ -1,8 +1,8 @@
 /**
  * Tapping a chord in a song opens a sheet that shows how to play it, on the
  * instrument the person chose last (remembered on this device). The ways to
- * play it sit side by side, easiest first: swipe, or use ‹ ›, to go through
- * them, and Play sounds the one showing.
+ * play it sit side by side in one box, easiest first: swipe, or use ‹ ›, to
+ * go through them, and ▷ in the box sounds the one showing.
  */
 import { playChord, type Sound } from "./chord-audio.ts";
 import {
@@ -73,9 +73,17 @@ export function installChordViewer(): void {
 export function openChordSheet(name: string): void {
   const chord = parseChord(name);
   const subtitle = chord ? `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)} · ${chordNotes(chord).join(" ")}` : "";
-  const sheet = openSheet(`<h2 class="chord-title">${escapeHtml(name)}</h2>
-    ${subtitle ? `<p class="muted chord-subtitle">${escapeHtml(subtitle)}</p>` : ""}
-    <div class="chord-sheet" id="chord-sheet"></div>`);
+  // The chord, what it is and the instrument share one line; the shapes and
+  // their controls share one box.
+  const sheet = openSheet(`<div class="chord-head">
+      <div class="chord-name">
+        <h2 class="chord-title">${escapeHtml(name)}</h2>
+        ${subtitle ? `<p class="chord-subtitle">${escapeHtml(subtitle)}</p>` : ""}
+      </div>
+      <div id="chord-instruments"></div>
+    </div>
+    <div id="chord-sheet"></div>`, { closeButton: false });
+  const switcher = sheet.querySelector<HTMLElement>("#chord-instruments")!;
   const body = sheet.querySelector<HTMLElement>("#chord-sheet")!;
   if (!chord) {
     body.innerHTML = `<p class="muted">This chord's name is not one the app can read, so it cannot show how to play it.</p>`;
@@ -88,23 +96,23 @@ export function openChordSheet(name: string): void {
   const render = () => {
     shapes = instrument.shapes(chord);
     current = 0;
-    body.innerHTML = `<div class="segmented" role="radiogroup" aria-label="Instrument">
+    switcher.innerHTML = `<div class="segmented compact" role="radiogroup" aria-label="Instrument">
         ${INSTRUMENTS.map((item) => `<button type="button" role="radio" aria-checked="${item === instrument}" class="${item === instrument ? "on" : ""}" data-instrument="${item.id}" tabindex="${item === instrument ? 0 : -1}">${item.label}</button>`).join("")}
-      </div>
-      ${shapes.length
-        ? `<div class="chord-shapes" tabindex="0" role="group" aria-roledescription="carousel" aria-label="Ways to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()}">
+      </div>`;
+    body.innerHTML = shapes.length
+      ? `<div class="chord-stage">
+          <div class="chord-shapes" tabindex="0" role="group" aria-roledescription="carousel" aria-label="Ways to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()}">
             ${shapes.map((shape, index) => `<figure class="chord-shape chord-${instrument.id}" role="group" aria-roledescription="slide" aria-label="${index + 1} of ${shapes.length}: ${escapeHtml(instrument.shapeName(shape))}">
               ${instrument.draw(shape, chord)}
             </figure>`).join("")}
           </div>
-          <div class="chord-nav">
-            <button type="button" class="icon-button ghost" data-step="-1" aria-label="Previous way">${icon("prev")}</button>
-            <p class="chord-shape-name" aria-live="polite"></p>
-            <button type="button" class="icon-button ghost" data-step="1" aria-label="Next way">${icon("next")}</button>
-          </div>
+          <p class="chord-shape-name" aria-live="polite"></p>
+          <button type="button" class="icon-button ghost chord-step" data-step="-1" aria-label="Previous way">${icon("prev")}</button>
+          <button type="button" class="icon-button ghost chord-step" data-step="1" aria-label="Next way">${icon("next")}</button>
           ${shapes.length > 1 ? `<div class="chord-dots" aria-hidden="true">${shapes.map(() => "<span></span>").join("")}</div>` : ""}
-          <button type="button" class="button primary wide" id="chord-play">${icon("play")}Play</button>`
-        : `<p class="muted">No way to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()} was found.</p>`}`;
+          <button type="button" class="icon-button accent chord-play" id="chord-play" aria-label="Play the chord">${icon("play")}</button>
+        </div>`
+      : `<p class="muted">No way to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()} was found.</p>`;
     showCurrent();
   };
 
@@ -112,7 +120,7 @@ export function openChordSheet(name: string): void {
   const showCurrent = () => {
     const name = body.querySelector<HTMLElement>(".chord-shape-name");
     if (!name) return;
-    name.textContent = `${instrument.shapeName(shapes[current])} · ${current + 1} of ${shapes.length}`;
+    name.textContent = `${instrument.shapeName(shapes[current])} · ${current + 1}/${shapes.length}`;
     body.querySelectorAll<HTMLElement>(".chord-dots span").forEach((dot, index) => dot.classList.toggle("on", index === current));
     body.querySelector<HTMLButtonElement>("[data-step='-1']")!.disabled = current === 0;
     body.querySelector<HTMLButtonElement>("[data-step='1']")!.disabled = current === shapes.length - 1;
@@ -125,7 +133,9 @@ export function openChordSheet(name: string): void {
     showCurrent();
   };
 
-  body.addEventListener("click", (event) => {
+  // On the whole sheet, so the instrument switch in the head is heard too.
+  const root = sheet.querySelector<HTMLElement>(".sheet-body")!;
+  root.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
     const choice = target.closest<HTMLElement>("[data-instrument]");
     if (choice) {
@@ -134,18 +144,18 @@ export function openChordSheet(name: string): void {
       instrument = next;
       writePreference("instrument", next.id);
       render();
-      body.querySelector<HTMLElement>(`[data-instrument="${next.id}"]`)?.focus();
+      switcher.querySelector<HTMLElement>(`[data-instrument="${next.id}"]`)?.focus();
       return;
     }
     const step = target.closest<HTMLElement>("[data-step]");
     if (step) goTo(current + Number(step.dataset.step));
     if (target.closest("#chord-play")) playChord(instrument.notes(shapes[current]), instrument.sound);
   });
-  body.addEventListener("keydown", (event) => {
+  root.addEventListener("keydown", (event) => {
     const target = event.target as HTMLElement;
     if (target.closest("[role='radiogroup']") && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
       const index = INSTRUMENTS.indexOf(instrument) + (event.key === "ArrowRight" ? 1 : -1);
-      body.querySelector<HTMLElement>(`[data-instrument="${INSTRUMENTS[(index + INSTRUMENTS.length) % INSTRUMENTS.length].id}"]`)?.click();
+      switcher.querySelector<HTMLElement>(`[data-instrument="${INSTRUMENTS[(index + INSTRUMENTS.length) % INSTRUMENTS.length].id}"]`)?.click();
       event.preventDefault();
     } else if (target.closest(".chord-shapes") && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
       goTo(current + (event.key === "ArrowRight" ? 1 : -1));

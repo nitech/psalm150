@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
+* **Sheets swipe down to close (web)**: on phones every sheet (`openSheet`) follows a finger dragging it down and closes when let go far or fast enough; a grip at the top shows it. `openSheet(content, { closeButton: false })` leaves the × to screen readers; the chord sheet uses it. The chord sheet puts the chord, its notes and the instrument switch on one line and Play as ▷ inside the box with the shapes. Pages touched: web-client.
 * **How to play a chord (web)**: tapping a chord in a song opens a sheet showing how to play it on guitar or piano (remembered per device), the ways to play it to swipe through from the most common and easiest to barre chords and shapes up the neck (piano: root position and inversions), and Play, synthesised with Web Audio. `web/src/chord-viewer.ts`, `chord-shapes.ts` (tested), `chord-audio.ts`. Pages touched: web-client, index.
 * **Song keys in lists**: a revision without `{key}` gets the key its chords fit best (`chordpro::metadata`, the same rules as `guessKey`), and revisions stored before are filled in at startup (`api::backfill_song_keys`). Pages touched: none beyond this log.
 

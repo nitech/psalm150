@@ -292,17 +292,20 @@ are not affected.
   back on ⋮), a tap outside or Tab, and moves with the arrow keys.
 - **How to play a chord** (`chord-viewer.ts`): every chord in a song
   (`renderSongBody`, so the song page, service view, shared sets and the
-  editor previews) is a button; tapping it opens a sheet with the chord's
-  name, kind and notes ("Major · G B D"), a Guitar / Piano switch (the choice
-  is remembered in `localStorage["psa150-instrument"]`; more instruments are
-  added to `INSTRUMENTS`), the ways to play it side by side to swipe through
-  (scroll snap; ‹ › and the arrow keys too) and **Play**. Guitar shapes
+  editor previews) is a button; tapping it opens a sheet with, on one line,
+  the chord's name, kind and notes ("Major · G B D") and a Guitar / Piano
+  switch (the choice is remembered in `localStorage["psa150-instrument"]`;
+  more instruments are added to `INSTRUMENTS`), then one box with the ways
+  to play it side by side to swipe through (scroll snap; ‹ › and the arrow
+  keys too), their name ("Barre, fret 1 · 1/6"), dots and a round ▷ that
+  plays the one showing. It has no visible ×: a tap outside or a swipe down
+  closes it (the × stays for screen readers). Guitar shapes
   (`chord-shapes.ts`, tested) are found by searching the neck in standard
   tuning: the chord's bass lowest (a slash chord's bass too), every needed
   tone, at least four strings, four fingers with at most one barre, within
   four frets; ranked easiest first (open chords, then barre chords and
   shapes up the neck), with finger numbers. Piano shows root position and
-  the inversions near middle C, a slash bass in the left hand. Play
+  the inversions near middle C, a slash bass in the left hand just below. ▷
   synthesises the sound (`chord-audio.ts`: a plucked string strummed low to
   high, or a piano-like tone), no sound files.
 - **Chords from the web** (`#/songs/{id}/chords`, `views/find-chords.ts`):

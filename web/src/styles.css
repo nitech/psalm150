@@ -892,16 +892,28 @@ dialog.sheet::backdrop { background: var(--psa-bg-scrim); }
 .sheet-body h2 { margin: 0 56px var(--psa-space-3) 0; font-size: 20px; }
 .sheet-body .list { max-height: 55dvh; overflow-y: auto; }
 .sheet-close { position: absolute; top: var(--psa-space-3); right: var(--psa-space-3); }
+dialog.sheet { transition: transform var(--psa-dur-base) var(--psa-ease-standard); }
+dialog.sheet.dragging { transition: none; }
+/* The handle that says the sheet can be swiped down (phones only). */
+.sheet-grip { position: absolute; top: 8px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: var(--psa-radius-full); background: var(--psa-border-strong); }
+dialog.no-close .sheet-body h2 { margin-right: 0; }
+@media (min-width: 640px) { .sheet-grip { display: none; } }
+@media (prefers-reduced-motion: reduce) { dialog.sheet { transition: none; } }
 
-/* How to play a chord (chord-viewer.ts): the instrument, the ways to play
-   it side by side to swipe through, and Play. */
-.sheet-body h2.chord-title { margin-bottom: var(--psa-space-1); font-size: 28px; color: var(--psa-chord); }
-.chord-subtitle { margin: 0 0 var(--psa-space-4); }
-.chord-sheet { display: grid; gap: var(--psa-space-3); }
-.chord-shapes { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: var(--psa-radius-md); background: var(--psa-bg-sunken); }
+/* How to play a chord (chord-viewer.ts): the chord, what it is and the
+   instrument on one line, then one box with the ways to play it (swiped
+   sideways), their name, ‹ ›, dots and ▷. */
+.chord-head { display: flex; align-items: center; gap: var(--psa-space-3); margin-bottom: var(--psa-space-3); }
+.chord-name { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--psa-space-2); flex: 1; min-width: 0; }
+.sheet-body h2.chord-title { margin: 0; font-size: 28px; line-height: 1.2; color: var(--psa-chord); overflow-wrap: anywhere; }
+.chord-subtitle { margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
+.segmented.compact { flex: none; gap: 2px; padding: 3px; }
+.segmented.compact button { min-height: 32px; padding: 0 var(--psa-space-3); font-size: 13px; }
+.chord-stage { position: relative; border-radius: var(--psa-radius-md); background: var(--psa-bg-sunken); }
+.chord-shapes { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: inherit; }
 .chord-shapes::-webkit-scrollbar { display: none; }
-.chord-shape { display: grid; place-items: center; flex: 0 0 100%; min-height: 260px; margin: 0; padding: var(--psa-space-4); scroll-snap-align: center; scroll-snap-stop: always; }
-.chord-diagram { width: 100%; max-width: 240px; height: auto; max-height: 300px; color: var(--psa-text); }
+.chord-shape { display: grid; place-items: center; flex: 0 0 100%; min-height: 240px; margin: 0; padding: 40px 48px 52px; scroll-snap-align: center; scroll-snap-stop: always; }
+.chord-diagram { width: 100%; max-width: 220px; height: auto; max-height: 260px; color: var(--psa-text); }
 .chord-diagram.piano { max-width: 520px; }
 .chord-diagram .fret, .chord-diagram .string { stroke: var(--psa-text-secondary); stroke-width: 1.5; }
 .chord-diagram .nut { fill: var(--psa-text); }
@@ -915,12 +927,19 @@ dialog.sheet::backdrop { background: var(--psa-bg-scrim); }
 .chord-diagram .key.on { fill: var(--psa-accent); }
 .chord-diagram .key.black.on { stroke: #1a1a1a; }
 .chord-diagram .key-label { fill: var(--psa-on-accent); font-size: 11px; font-weight: 700; }
-.chord-nav { display: flex; align-items: center; gap: var(--psa-space-2); }
-.chord-shape-name { flex: 1; margin: 0; text-align: center; font-weight: 600; }
-.chord-nav .icon-button:disabled { opacity: 0.35; }
-.chord-dots { display: flex; justify-content: center; gap: 6px; margin-top: calc(-1 * var(--psa-space-2)); }
+/* A black key is narrow: its name is smaller to fit inside it. */
+.chord-diagram .key-label.on-black { font-size: 7.5px; }
+/* The controls float over the box; only the buttons take taps, so the rest swipes. */
+.chord-shape-name { position: absolute; top: var(--psa-space-3); left: var(--psa-space-4); right: var(--psa-space-4); margin: 0; text-align: center; font-size: 14px; font-weight: 600; pointer-events: none; }
+.chord-step { position: absolute; top: 50%; margin-top: -22px; }
+.chord-step[data-step="-1"] { left: var(--psa-space-1); }
+.chord-step[data-step="1"] { right: var(--psa-space-1); }
+.chord-step:disabled { opacity: 0.3; }
+.chord-dots { position: absolute; bottom: 24px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
 .chord-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--psa-border-strong); }
 .chord-dots span.on { background: var(--psa-text); }
+.chord-play { position: absolute; right: var(--psa-space-3); bottom: var(--psa-space-3); }
+.chord-play .icon { margin-left: 3px; }
 @media (min-width: 640px) {
   dialog.sheet { margin: auto; border-radius: var(--psa-radius-xl); }
 }

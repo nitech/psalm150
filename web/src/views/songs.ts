@@ -831,17 +831,19 @@ let sheetCount = 0;
 
 /**
  * A bottom sheet on phones, a centred dialog on wide screens: a modal
- * `<dialog>` named by its first heading. Escape closes it, and focus goes
- * back to the control that opened it (or the screen's heading, when a
- * redraw replaced that control).
+ * `<dialog>` named by its first heading. Escape, a tap outside it or (on
+ * phones) a swipe down closes it, and focus goes back to the control that
+ * opened it (or the screen's heading, when a redraw replaced that control).
+ * With `closeButton: false` the × is there only for screen readers.
  */
-export function openSheet(content: string): HTMLDialogElement {
+export function openSheet(content: string, { closeButton = true } = {}): HTMLDialogElement {
   const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
     ? document.activeElement
     : null;
   const dialog = document.createElement("dialog");
   dialog.className = "sheet";
-  dialog.innerHTML = `<div class="sheet-body"><button type="button" class="icon-button sheet-close" aria-label="Close">${icon("close")}</button>${content}</div>`;
+  dialog.innerHTML = `<div class="sheet-body"><span class="sheet-grip" aria-hidden="true"></span><button type="button" class="icon-button sheet-close${closeButton ? "" : " sr-only"}" aria-label="Close">${icon("close")}</button>${content}</div>`;
+  if (!closeButton) dialog.classList.add("no-close");
   const heading = dialog.querySelector("h2");
   if (heading) {
     heading.id ||= `sheet-title-${++sheetCount}`;
@@ -862,8 +864,79 @@ export function openSheet(content: string): HTMLDialogElement {
       else (document.querySelector<HTMLElement>("#page h1") ?? document.querySelector<HTMLElement>("#page"))?.focus({ preventScroll: true });
     }, 0);
   });
+  bindSwipeDown(dialog);
   dialog.showModal();
   return dialog;
+}
+
+/**
+ * On phones the sheet follows a finger dragging it down and closes when let
+ * go far or fast enough, else springs back. A drag starts only while what is
+ * under the finger is scrolled to its top, and never in a row that scrolls
+ * sideways (such as the chord shapes) or a field.
+ */
+function bindSwipeDown(dialog: HTMLDialogElement): void {
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let offset = 0;
+  let mode: "off" | "maybe" | "drag" = "off";
+  const atTop = (target: Element | null) => {
+    for (let node = target; node && node !== dialog.parentElement; node = node.parentElement) {
+      if (node.scrollTop > 0) return false;
+    }
+    return true;
+  };
+  dialog.addEventListener("touchstart", (event) => {
+    mode = "off";
+    const target = event.target as Element;
+    if (event.touches.length !== 1 || !matchMedia("(max-width: 639px)").matches) return;
+    if (target.closest("input, textarea, select, [contenteditable], .chord-shapes") || !atTop(target)) return;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    startTime = event.timeStamp;
+    offset = 0;
+    mode = "maybe";
+  }, { passive: true });
+  dialog.addEventListener("touchmove", (event) => {
+    if (mode === "off") return;
+    const dx = event.touches[0].clientX - startX;
+    const dy = event.touches[0].clientY - startY;
+    if (mode === "maybe") {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (dy <= 0 || Math.abs(dx) > dy) {
+        mode = "off";
+        return;
+      }
+      mode = "drag";
+      dialog.classList.add("dragging");
+    }
+    event.preventDefault();
+    offset = Math.max(0, dy);
+    dialog.style.transform = `translateY(${offset}px)`;
+  }, { passive: false });
+  const end = (event: TouchEvent) => {
+    if (mode !== "drag") {
+      mode = "off";
+      return;
+    }
+    mode = "off";
+    dialog.classList.remove("dragging");
+    const fast = offset / Math.max(1, event.timeStamp - startTime) > 0.5;
+    if (offset > Math.min(140, dialog.offsetHeight * 0.3) || (fast && offset > 30)) {
+      dialog.style.transform = `translateY(${dialog.offsetHeight}px)`;
+      const close = () => closeSheet(dialog);
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) close();
+      else {
+        dialog.addEventListener("transitionend", close, { once: true });
+        window.setTimeout(close, 300);
+      }
+    } else {
+      dialog.style.transform = "";
+    }
+  };
+  dialog.addEventListener("touchend", end);
+  dialog.addEventListener("touchcancel", end);
 }
 
 export function closeSheet(dialog: HTMLDialogElement): void {

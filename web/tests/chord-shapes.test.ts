@@ -79,6 +79,7 @@ describe("pianoShapes", () => {
   it("puts a slash chord's bass in the left hand", () => {
     const [shape] = pianoShapes(chord("D/F#"));
     expect(shape.bass! % 12).toBe(6);
-    expect(shape.bass!).toBeLessThan(shape.notes[0]);
+    expect(shape.bass!).toBeLessThan(shape.notes[0] - 2);
+    expect(shape.bass!).toBeGreaterThan(shape.notes[0] - 15);
   });
 });

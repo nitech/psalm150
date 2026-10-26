@@ -390,7 +390,7 @@ const INVERSIONS = ["Root position", "1st inversion", "2nd inversion", "3rd inve
 /**
  * The chord on a piano: in root position first, then its inversions, each
  * with the lowest note as near middle C as it goes. A slash chord's bass is
- * a left-hand note an octave or so below.
+ * a left-hand note just below (at least a minor third under the hand).
  */
 export function pianoShapes(chord: Chord): PianoShape[] {
   // Ninths and above stay above the root; the rest fit in one octave.
@@ -403,7 +403,9 @@ export function pianoShapes(chord: Chord): PianoShape[] {
     // Keep the hand around middle C.
     while (notes[0] > 66) notes = notes.map((note) => note - 12);
     while (notes[0] < 54) notes = notes.map((note) => note + 12);
-    const bass = chord.bass === null ? null : 36 + chord.bass + (chord.bass < 4 ? 12 : 0);
+    // The bass is the nearest note under the hand, so both fit one keyboard.
+    let bass = chord.bass === null ? null : notes[0] - 1 - ((notes[0] - 1 - chord.bass + 1200) % 12);
+    if (bass !== null && notes[0] - bass < 3) bass -= 12;
     shapes.push({ notes: [...notes], bass, label: INVERSIONS[inversion] });
     const [first, ...rest] = notes;
     let moved = first + 12;
