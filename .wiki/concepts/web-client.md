@@ -406,7 +406,7 @@ are not affected.
   On a touch screen the words are not editable and nothing in Chords can be
   selected (no long-press selection or callout), and while a finger places
   or drags a chord a magnifier above it shows a larger copy of the line,
-  centred on the box or the chord and its letter (`showLoupe`): an oval of
+  centred on the box or the chord and its letter (`showLoupe`): a capsule of
   glass like the phone's own text magnifier (soft shadow, light rim, a
   reflection along the top) with a point down to the finger.
   Unknown directives and `#` lines show as grey rows and are kept. The

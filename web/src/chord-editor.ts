@@ -690,7 +690,7 @@ export function mountChordEditor(
 
   /*
    * A magnifier above the finger while it places or moves a chord on a touch
-   * screen, so the letter under the finger can be seen: an oval lens like
+   * screen, so the letter under the finger can be seen: a capsule lens like
    * the phone's own text magnifier, with a copy of the line, larger, centred
    * on `focus` (the box or the chord and its letter), and a point under it
    * aimed at the finger.
