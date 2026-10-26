@@ -831,8 +831,9 @@ let sheetCount = 0;
 
 /**
  * A bottom sheet on phones, a centred dialog on wide screens: a modal
- * `<dialog>` named by its first heading. Escape, a tap outside it or (on
- * phones) a swipe down closes it, and focus goes back to the control that
+ * `<dialog>` named by its first heading. It slides up as it opens (fades in
+ * on wide screens), and Escape, a tap outside it or (on phones) a swipe down
+ * slides it away again (`closeSheet`). Focus goes back to the control that
  * opened it (or the screen's heading, when a redraw replaced that control).
  * With `closeButton: false` the × is there only for screen readers.
  */
@@ -853,6 +854,11 @@ export function openSheet(content: string, { closeButton = true } = {}): HTMLDia
   dialog.querySelector(".sheet-close")?.addEventListener("click", () => closeSheet(dialog));
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) closeSheet(dialog);
+  });
+  // Escape slides it away too, instead of the browser closing it at once.
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeSheet(dialog);
   });
   dialog.addEventListener("close", () => {
     dialog.remove();
@@ -923,15 +929,9 @@ function bindSwipeDown(dialog: HTMLDialogElement): void {
     mode = "off";
     dialog.classList.remove("dragging");
     const fast = offset / Math.max(1, event.timeStamp - startTime) > 0.5;
-    if (offset > Math.min(140, dialog.offsetHeight * 0.3) || (fast && offset > 30)) {
-      dialog.style.transform = `translateY(${dialog.offsetHeight}px)`;
-      const close = () => closeSheet(dialog);
-      if (matchMedia("(prefers-reduced-motion: reduce)").matches) close();
-      else {
-        dialog.addEventListener("transitionend", close, { once: true });
-        window.setTimeout(close, 300);
-      }
-    } else {
+    // Closing slides on down from where the finger let go.
+    if (offset > Math.min(140, dialog.offsetHeight * 0.3) || (fast && offset > 30)) closeSheet(dialog);
+    else {
       dialog.style.transform = "";
     }
   };
@@ -939,7 +939,25 @@ function bindSwipeDown(dialog: HTMLDialogElement): void {
   dialog.addEventListener("touchcancel", end);
 }
 
+/**
+ * Slides the sheet down (on wide screens, fades it) and then closes it, so
+ * every sheet leaves the way it came. Without motion it closes at once.
+ */
 export function closeSheet(dialog: HTMLDialogElement): void {
-  if (dialog.open) dialog.close();
-  else dialog.remove();
+  if (!dialog.open) {
+    dialog.remove();
+    return;
+  }
+  if (dialog.classList.contains("leaving")) return;
+  const close = () => {
+    if (dialog.open) dialog.close();
+  };
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return close();
+  dialog.classList.add("leaving");
+  // From where a swipe left it, if it did.
+  dialog.style.transform = "";
+  dialog.addEventListener("transitionend", (event) => {
+    if (event.target === dialog) close();
+  });
+  window.setTimeout(close, 400);
 }

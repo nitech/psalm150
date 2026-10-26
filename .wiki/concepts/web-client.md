@@ -299,7 +299,13 @@ are not affected.
   to play it side by side to swipe through (scroll snap; ‹ › and the arrow
   keys too), their name ("Barre, fret 1 · 1/6"), dots and a round ▷ that
   plays the one showing. It has no visible ×: a tap outside or a swipe down
-  closes it (the × stays for screen readers). Guitar shapes
+  closes it (the × stays for screen readers).
+- **Sheets** (`openSheet`/`closeSheet` in `views/songs.ts`, used by every
+  sheet in the app): on phones a bottom sheet that slides up as it opens
+  and down as it closes, whether by a tap outside, Escape, × or a swipe
+  down (it follows the finger and closes when let go far or fast enough);
+  on wide screens a centred dialog that rises a little and fades. No motion
+  with reduced motion. Guitar shapes
   (`chord-shapes.ts`, tested) are found by searching the neck in standard
   tuning: the chord's bass lowest (a slash chord's bass too), every needed
   tone, at least four strings, four fingers with at most one barre, within
