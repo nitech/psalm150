@@ -311,7 +311,8 @@ are not affected.
   tuning: the chord's bass lowest (a slash chord's bass too), every needed
   tone, at least four strings, four fingers with at most one barre, within
   four frets; ranked easiest first (open chords, then barre chords and
-  shapes up the neck), with finger numbers. Piano shows root position and
+  shapes up the neck), with finger numbers and each string's name under it
+  from the tuning (EADGBE, `GUITAR_TUNING`; dim when not played). Piano shows root position and
   the inversions near middle C, a slash bass in the left hand just below. ▷
   plays the shape from recordings of the real instruments (`chord-audio.ts`,
   `web/public/sounds/`: Salamander Grand Piano every third semitone C2–C6,

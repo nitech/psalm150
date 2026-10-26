@@ -207,7 +207,10 @@ export function noteName(pitch: number, flats: boolean): string {
 
 /* ── Guitar ───────────────────────────────────────────────────────────── */
 
-/** Standard tuning, low E to high E, as MIDI notes. */
+/**
+ * Standard tuning, EADGBE, low E to high E, as MIDI notes. Shapes, drawings
+ * and sounds all read it, so another tuning is a change here.
+ */
 export const GUITAR_TUNING = [40, 45, 50, 55, 59, 64];
 
 export interface GuitarShape {

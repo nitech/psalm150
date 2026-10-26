@@ -963,6 +963,7 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 .chord-diagram .open { fill: none; stroke: var(--psa-text); stroke-width: 2; }
 .chord-diagram .mute { fill: var(--psa-text-secondary); font-size: 20px; }
 .chord-diagram .note, .chord-diagram .fret-number { fill: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
+.chord-diagram .note.unplayed { opacity: 0.45; }
 .chord-diagram .key.white { fill: #f4f4f1; stroke: #737373; stroke-width: 1; }
 .chord-diagram .key.black { fill: #1a1a1a; stroke: #1a1a1a; }
 .chord-diagram .key.on { fill: var(--psa-accent); }

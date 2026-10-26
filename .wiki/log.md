@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
+* **String names under the guitar diagram (web)**: the letters under the strings are the tuning, E A D G B E (dim when not played), instead of the note each string sounds, which read like a tuning. The tuning is one list (`GUITAR_TUNING`) that shapes, drawings and sounds use, ready for other tunings. Pages touched: web-client.
 * **Real piano and guitar sounds; tap a string or key (web)**: chords play from recordings (Salamander Grand Piano, tonejs-instruments acoustic guitar, CC BY 3.0, credited under More → About) in `web/public/sounds/`, loaded when the chord sheet opens and kept offline by the service worker (`psa150-sounds-v1`); the synthesised sound stays as a stand-in. Tapping a string or key in the drawing plays that note. Pages touched: web-client.
 * **Capsule magnifier (web)**: the Chords-mode magnifier is a capsule (straight top and bottom, fully round ends) instead of an oval. Pages touched: web-client.
 * **Oval magnifier (web)**: the Chords-mode magnifier is an oval of glass like the phone's text magnifier, with a point down to the finger. Pages touched: web-client.

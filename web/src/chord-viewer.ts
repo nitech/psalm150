@@ -246,8 +246,11 @@ const FRET_GAP = 34;
 const LEFT = 36;
 const TOP = 44;
 
-/** A chord box: strings left to right low to high, the nut or the first fret at the top. */
-function drawGuitar(shape: GuitarShape, chord: Chord): string {
+/**
+ * A chord box: strings left to right low to high, named under it from the
+ * tuning, the nut or the first fret at the top.
+ */
+function drawGuitar(shape: GuitarShape): string {
   const pressed = shape.frets.filter((fret) => fret > 0);
   const highest = pressed.length ? Math.max(...pressed) : 0;
   const first = highest <= 4 ? 1 : Math.min(...pressed);
@@ -256,7 +259,6 @@ function drawGuitar(shape: GuitarShape, chord: Chord): string {
   const bottom = TOP + FRET_GAP * rows;
   const y = (fret: number) => TOP + (fret - first + 0.5) * FRET_GAP;
   const x = (string: number) => LEFT + string * STRING_GAP;
-  const flats = /b/.test(chord.rootName) || /b/.test(chord.bassName ?? "");
   const parts: string[] = [];
   for (let row = 0; row <= rows; row++) parts.push(`<line class="fret" x1="${LEFT}" x2="${right}" y1="${TOP + row * FRET_GAP}" y2="${TOP + row * FRET_GAP}"/>`);
   if (first === 1) parts.push(`<rect class="nut" x="${LEFT - 1}" y="${TOP - 5}" width="${right - LEFT + 2}" height="6" rx="1"/>`);
@@ -274,13 +276,16 @@ function drawGuitar(shape: GuitarShape, chord: Chord): string {
       parts.push(`<circle class="dot" cx="${x(string)}" cy="${y(fret)}" r="11"/>`);
       if (shape.fingers[string]) parts.push(`<text class="finger" x="${x(string)}" y="${y(fret) + 5}" text-anchor="middle">${shape.fingers[string]}</text>`);
     }
-    if (fret >= 0) parts.push(`<text class="note" x="${x(string)}" y="${bottom + 22}" text-anchor="middle">${noteNameFor(chord, 40 + [0, 5, 10, 15, 19, 24][string] + fret, flats)}</text>`);
+  });
+  // Under each string its name, from the tuning (E A D G B E), dim where it is not played.
+  GUITAR_TUNING.forEach((open, string) => {
+    parts.push(`<text class="note${shape.frets[string] < 0 ? " unplayed" : ""}" x="${x(string)}" y="${bottom + 22}" text-anchor="middle">${noteName(open, false)}</text>`);
   });
   // Over everything, a strip per string that is played, to tap it alone.
   shape.frets.forEach((fret, string) => {
     if (fret >= 0) parts.push(`<rect class="hit" data-string="${string}" data-midi="${GUITAR_TUNING[string] + fret}" x="${x(string) - STRING_GAP / 2}" y="${TOP - 30}" width="${STRING_GAP}" height="${bottom - TOP + 64}"/>`);
   });
-  const spoken = shape.frets.map((fret, string) => `${["low E", "A", "D", "G", "B", "high E"][string]} ${fret < 0 ? "not played" : fret === 0 ? "open" : `fret ${fret}`}`).join(", ");
+  const spoken = shape.frets.map((fret, string) => `${noteName(GUITAR_TUNING[string], false)} string ${fret < 0 ? "not played" : fret === 0 ? "open" : `fret ${fret}`}`).join(", ");
   return `<svg class="chord-diagram" viewBox="0 0 ${right + 30} ${bottom + 34}" role="img" aria-label="${escapeHtml(spoken)}">${parts.join("")}</svg>`;
 }
 
