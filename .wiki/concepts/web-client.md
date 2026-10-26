@@ -409,11 +409,14 @@ are not affected.
   the pointer shows, reaching down over its letter, and clicking it opens
   the chord bubble there. On a touch screen, pressing a line shows the same
   box at the letter under the finger; sliding sideways moves it along the
-  line (moving up or down scrolls), and letting go (or Enter, `[` or Ctrl+K
+  line, and from then on up and down to other lines too, the page holding
+  still and scrolling by itself near the screen's top or bottom (moving up
+  or down first scrolls as usual), and letting go (or Enter, `[` or Ctrl+K
   at the caret) opens a bubble just under that letter with the chords of
   the song's key, "…" for any other chord and, on an existing chord, a
   remove button; a dashed box shows where the chord goes, and tapping a
-  chord puts it in and closes the bubble. Drag a chord or use ←/→ to move it.
+  chord puts it in and closes the bubble. Drag a chord (along its line or to
+  another line; the page does not scroll from a chord) or use ←/→ to move it.
   On a touch screen the words are not editable and nothing in Chords can be
   selected (no long-press selection or callout), and while a finger places
   or drags a chord a magnifier above it shows a larger copy of the line,

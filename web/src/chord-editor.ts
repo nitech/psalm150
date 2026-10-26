@@ -624,44 +624,110 @@ export function mountChordEditor(
     el.classList.toggle("end", pos === length);
     el.style.cssText = `left:${left - 1}px;top:${box.top - origin.top - 24}px;width:${width + 2}px;height:${box.h + 26}px`;
   }
+  /** The line under a point, or the nearest one above or below it (within reach). */
+  function lineWrapAt(x: number, y: number): HTMLElement | null {
+    let nearest: HTMLElement | null = null;
+    let distance = 80;
+    for (const wrap of sectionsEl.querySelectorAll<HTMLElement>(".ce-line")) {
+      const rect = wrap.getBoundingClientRect();
+      if (x < rect.left - 40 || x > rect.right + 40) continue;
+      const away = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+      if (away < distance) {
+        distance = away;
+        nearest = wrap;
+      }
+    }
+    return nearest;
+  }
+  /*
+   * While a finger places or moves a chord: the page does not scroll under
+   * it (so it can go up and down between lines), but scrolls by itself when
+   * the finger is near the top or bottom of the screen. `follow` redoes the
+   * move at the finger's last place after the page has scrolled.
+   */
+  function holdPage(follow: () => void): { at(y: number): void; release(): void } {
+    let y = -1;
+    let frame = 0;
+    const still = (event: TouchEvent) => event.preventDefault();
+    window.addEventListener("touchmove", still, { passive: false });
+    const step = () => {
+      frame = 0;
+      const edge = 72;
+      const speed = y < edge ? -(edge - y) / 6 : y > innerHeight - edge ? (y - innerHeight + edge) / 6 : 0;
+      if (y < 0 || !speed) return;
+      const before = scrollY;
+      scrollBy(0, speed);
+      if (scrollY !== before) follow();
+      frame = requestAnimationFrame(step);
+    };
+    return {
+      at(next: number) {
+        y = next;
+        if (!frame) frame = requestAnimationFrame(step);
+      },
+      release() {
+        window.removeEventListener("touchmove", still);
+        cancelAnimationFrame(frame);
+      },
+    };
+  }
   /*
    * On a touch screen: pressing a line shows the box at the letter under
-   * the finger, sliding sideways moves it along the line, and letting go
-   * opens the chord bubble there. Moving up or down scrolls the page as
-   * usual (the browser cancels the press) and the box goes away.
+   * the finger, sliding moves it along the line and up or down to other
+   * lines, and letting go opens the chord bubble there. Moving up or down
+   * first scrolls the page as usual (the browser cancels the press) and the
+   * box goes away; once sliding, the page holds still and follows the
+   * finger at the screen's edges.
    */
-  function slideBox(event: PointerEvent, wrap: HTMLElement): void {
-    const text = wrap.querySelector<HTMLElement>(".ce-text")!;
-    let pos = letterAt(text, event.clientX, event.clientY);
-    const row = event.clientY;
+  function slideBox(event: PointerEvent, first: HTMLElement): void {
+    let wrap = first;
+    const text = () => wrap.querySelector<HTMLElement>(".ce-text")!;
+    let pos = letterAt(text(), event.clientX, event.clientY);
+    let x = event.clientX;
+    let y = event.clientY;
+    let page: ReturnType<typeof holdPage> | null = null;
     drawSlideBox(wrap, pos);
-    const magnify = (x: number) => {
-      const slide = wrap.querySelector<HTMLElement>(".ce-slide");
-      if (slide) showLoupe(wrap, slide.getBoundingClientRect(), x, row);
-    };
-    magnify(event.clientX);
-    const move = (next: PointerEvent) => {
-      if (next.pointerId !== event.pointerId) return;
-      // Stay on the row the press started on, wherever the finger drifts up or down.
-      const at = letterAt(text, next.clientX, row);
+    const place = () => {
+      const target = lineWrapAt(x, y);
+      if (target && target !== wrap) {
+        wrap.querySelector(".ce-slide")?.remove();
+        wrap = target;
+        pos = -1;
+      }
+      const at = letterAt(text(), x, y);
       if (at !== pos) {
         pos = at;
         drawSlideBox(wrap, pos);
       }
-      magnify(next.clientX);
+      const slide = wrap.querySelector<HTMLElement>(".ce-slide");
+      if (slide) showLoupe(wrap, slide.getBoundingClientRect(), x, y);
+    };
+    place();
+    const move = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
+      x = next.clientX;
+      y = next.clientY;
+      // Sideways first: from here the finger places, and may go up and down.
+      if (!page) {
+        if (Math.abs(x - event.clientX) < 6) return;
+        page = holdPage(place);
+      }
+      page.at(y);
+      place();
     };
     const end = (next: PointerEvent) => {
       if (next.pointerId !== event.pointerId) return;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
+      page?.release();
       wrap.querySelector(".ce-slide")?.remove();
       hideLoupe();
       if (next.type !== "pointerup") return;
       // Selecting words (a long press) is not a place for a chord.
       const selection = getSelection();
-      if (selection && !selection.isCollapsed && text.contains(selection.anchorNode)) return;
-      openLineBubble(text.dataset.line!, pos);
+      if (selection && !selection.isCollapsed && text().contains(selection.anchorNode)) return;
+      openLineBubble(wrap.dataset.line!, pos);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
@@ -737,60 +803,91 @@ export function mountChordEditor(
     sectionsEl.querySelector(".ce-loupe")?.remove();
   }
 
-  /* Dragging a chord along its line. */
+  /* Dragging a chord along its line, or to another line. */
   function dragChord(event: PointerEvent, chip: HTMLElement): void {
     if (event.button > 0) return;
     event.preventDefault();
-    const wrap = chip.closest<HTMLElement>(".ce-line")!;
-    const id = wrap.dataset.line!;
-    const text = wrap.querySelector<HTMLElement>(".ce-text")!;
-    const found = lyric(id)!;
+    let wrap = chip.closest<HTMLElement>(".ce-line")!;
+    const startLine = wrap.dataset.line!;
+    let found = lyric(startLine)!;
+    const text = () => wrap.querySelector<HTMLElement>(".ce-text")!;
     const chord = found.line.chords.find((candidate) => candidate.id === chip.dataset.chord)!;
     const start = chord.pos;
     const rect = chip.getBoundingClientRect();
-    const box = charBox(text, chord.pos);
+    const box = charBox(text(), chord.pos);
     // Aim at the text under the chord, from the point where it was picked up.
     const dy = box.top + box.h / 2 - event.clientY;
     const grabX = event.clientX - rect.left - 7;
     let moved = false;
-    chip.setPointerCapture(event.pointerId);
-    const move = (next: PointerEvent) => {
-      if (!moved && Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) < 5) return;
-      if (!moved) closeBubble(false);
-      moved = true;
-      chip.classList.add("dragging");
-      const off = offsetAt(text, next.clientX - grabX, next.clientY + dy);
+    let fingerX = event.clientX;
+    let fingerY = event.clientY;
+    let page: ReturnType<typeof holdPage> | null = null;
+    const place = () => {
+      const x = fingerX - grabX;
+      const y = fingerY + dy;
+      // Over another line: the chord goes there, the same chip with it.
+      const target = lineWrapAt(x, y);
+      if (target && target !== wrap) {
+        const from = wrap.dataset.line!;
+        found.line.chords = found.line.chords.filter((candidate) => candidate !== chord);
+        found = lyric(target.dataset.line!)!;
+        found.line.chords.push(chord);
+        target.querySelector(".ce-chips")!.append(chip);
+        wrap = target;
+        layoutChips(from);
+        chord.pos = -1;
+      }
+      const off = offsetAt(text(), x, y);
       if (off !== chord.pos) {
         chord.pos = off;
-        layoutChips(id);
+        layoutChips(wrap.dataset.line!);
       }
-      if (next.pointerType !== "mouse") {
+      if (event.pointerType !== "mouse") {
         // The chord and the letter it is on, from the chord's top to the letter's foot.
         const chipBox = chip.getBoundingClientRect();
-        const letter = charBox(text, chord.pos);
+        const letter = charBox(text(), chord.pos);
         const span = new DOMRect(chipBox.left, chipBox.top, chipBox.width, letter.top + letter.h - chipBox.top);
-        showLoupe(wrap, span, next.clientX, next.clientY);
+        showLoupe(wrap, span, fingerX, fingerY);
       }
     };
-    const end = () => {
-      chip.removeEventListener("pointermove", move);
-      chip.removeEventListener("pointerup", end);
-      chip.removeEventListener("pointercancel", end);
+    const move = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
+      if (!moved && Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) < 5) return;
+      if (!moved) {
+        closeBubble(false);
+        page = holdPage(place);
+      }
+      moved = true;
+      chip.classList.add("dragging");
+      fingerX = next.clientX;
+      fingerY = next.clientY;
+      page?.at(fingerY);
+      place();
+    };
+    const end = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      page?.release();
       chip.classList.remove("dragging");
       hideLoupe();
+      const id = wrap.dataset.line!;
       if (!moved) {
         openLineBubble(id, chord.pos, false, chord.id);
         return;
       }
-      if (chord.pos !== start) {
+      if (chord.pos !== start || id !== startLine) {
         sortChords(found.line);
         renderChips(id);
+        if (id !== startLine) renderChips(startLine);
         remember();
       }
     };
-    chip.addEventListener("pointermove", move);
-    chip.addEventListener("pointerup", end);
-    chip.addEventListener("pointercancel", end);
+    // Window listeners: the chip moves to another line's element on the way.
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
   }
   function removeChord(line: LyricLine, chord: Chord): void {
     line.chords = line.chords.filter((candidate) => candidate !== chord);
