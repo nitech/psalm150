@@ -755,8 +755,21 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 @media (hover: none), (pointer: coarse) {
   .ce[data-mode="chords"] .ce-sections { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 }
-/* The magnifier over the finger (chord-editor.ts showLoupe). */
-.ce-loupe { position: fixed; z-index: 70; width: 200px; height: 84px; overflow: hidden; border: 1px solid var(--psa-border-strong); border-radius: 16px; background: var(--psa-bg-canvas); box-shadow: var(--psa-shadow-lg); pointer-events: none; }
+/* The magnifier over the finger (chord-editor.ts showLoupe): an oval of
+   glass like the phone's own text magnifier, a soft shadow under it, a
+   light rim and a reflection along its top, and a point down to the finger. */
+.ce-loupe { --loupe-rim: rgb(255 255 255 / 0.22); --loupe-glint: rgb(255 255 255 / 0.1); position: fixed; z-index: 70; width: 190px; height: 92px; pointer-events: none; filter: drop-shadow(0 10px 18px rgb(0 0 0 / 0.22)) drop-shadow(0 2px 4px rgb(0 0 0 / 0.12)); }
+:root[data-theme="light"] .ce-loupe { --loupe-rim: rgb(255 255 255 / 0.7); --loupe-glint: rgb(255 255 255 / 0.6); }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .ce-loupe { --loupe-rim: rgb(255 255 255 / 0.7); --loupe-glint: rgb(255 255 255 / 0.6); } }
+/* clip-path, not just the rounded corners: the line's chords and box sit on
+   their own layers and would show past the oval. */
+.ce-loupe-lens { position: absolute; inset: 0; clip-path: ellipse(50% 50% at 50% 50%); border-radius: 50%; background: var(--psa-bg-canvas); }
+/* The glass: a light rim and a faint edge, drawn over the words. */
+.ce-loupe-lens::before { content: ""; position: absolute; z-index: 1; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--loupe-rim), inset 0 0 0 2.5px rgb(0 0 0 / 0.1), inset 0 -8px 16px rgb(0 0 0 / 0.06); }
+/* The reflection: a soft pill of light along the top of the glass. */
+.ce-loupe-lens::after { content: ""; position: absolute; z-index: 1; top: 7px; left: 50%; width: 44%; height: 12px; margin-left: -22%; border-radius: var(--psa-radius-full); background: linear-gradient(var(--loupe-glint), transparent); }
+/* The point, under the lens, over the finger. */
+.ce-loupe::after { content: ""; position: absolute; z-index: -1; top: calc(100% - 9px); left: var(--point-x, 50%); width: 14px; height: 14px; margin-left: -7px; border-radius: 0 0 3px 0; background: var(--psa-bg-canvas); box-shadow: inset -1.5px -1.5px 0 var(--loupe-rim); transform: rotate(45deg); }
 .ce-loupe-copy { position: absolute; top: 0; left: 0; box-sizing: border-box; margin: 0; transform-origin: 0 0; }
 .ce-comment { display: flex; align-items: baseline; gap: 10px; padding: 8px 0 6px; }
 .ce-tag { flex: none; padding: 1px 8px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); color: var(--psa-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }

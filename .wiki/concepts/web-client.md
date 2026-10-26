@@ -406,7 +406,9 @@ are not affected.
   On a touch screen the words are not editable and nothing in Chords can be
   selected (no long-press selection or callout), and while a finger places
   or drags a chord a magnifier above it shows a larger copy of the line,
-  centred on the box or the chord and its letter (`showLoupe`).
+  centred on the box or the chord and its letter (`showLoupe`): an oval of
+  glass like the phone's own text magnifier (soft shadow, light rim, a
+  reflection along the top) with a point down to the finger.
   Unknown directives and `#` lines show as grey rows and are kept. The
   ChordPro side is the source with colours, a list of problems by line and
   a preview (on wide screens beside it, half each, the same height, each

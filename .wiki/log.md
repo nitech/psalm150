@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
+* **Oval magnifier (web)**: the Chords-mode magnifier is an oval of glass like the phone's text magnifier, with a point down to the finger. Pages touched: web-client.
 * **Chords mode on touch screens (web)**: the words are not editable and cannot be selected (a long press selected words while placing a chord), and a magnifier above the finger shows a larger copy of the line where a chord is being placed or dragged. Pages touched: web-client.
 * **Chord sheet: instrument back in the head (web)**: the instrument button moved into the shapes box was taken back out; it sits again beside ▷ on the chord's line, the shape's name top centre in the box. Pages touched: none beyond this log.
 * **Chord sheet head (web)**: the chord's name sits over its kind and notes, and the instrument button and ▷ are both a touch target high, centred on those two lines. Pages touched: none beyond this log.

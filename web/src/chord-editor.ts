@@ -690,8 +690,10 @@ export function mountChordEditor(
 
   /*
    * A magnifier above the finger while it places or moves a chord on a touch
-   * screen, so the letter under the finger can be seen: a copy of the line,
-   * larger, centred on `focus` (the box or the chord and its letter).
+   * screen, so the letter under the finger can be seen: an oval lens like
+   * the phone's own text magnifier, with a copy of the line, larger, centred
+   * on `focus` (the box or the chord and its letter), and a point under it
+   * aimed at the finger.
    */
   const LOUPE_SCALE = 1.7;
   function showLoupe(wrap: HTMLElement, focus: DOMRect, fingerX: number, fingerY: number): void {
@@ -701,8 +703,10 @@ export function mountChordEditor(
       loupe.className = "ce-loupe";
       loupe.setAttribute("aria-hidden", "true");
       loupe.inert = true;
+      loupe.innerHTML = `<div class="ce-loupe-lens"></div>`;
       sectionsEl.append(loupe);
     }
+    const lens = loupe.querySelector<HTMLElement>(".ce-loupe-lens")!;
     const copy = wrap.cloneNode(true) as HTMLElement;
     // Only the original is looked up by its line and chords.
     copy.querySelectorAll("[data-line], [data-chord], [id], [contenteditable]").forEach((node) => {
@@ -720,12 +724,14 @@ export function mountChordEditor(
     copy.classList.add("ce-loupe-copy");
     copy.style.width = `${origin.width}px`;
     copy.style.transform = `translate(${width / 2 - cx * LOUPE_SCALE}px, ${height / 2 - cy * LOUPE_SCALE}px) scale(${LOUPE_SCALE})`;
-    loupe.replaceChildren(copy);
-    // Above the finger, clear of it, and inside the screen.
+    lens.replaceChildren(copy);
+    // Above the finger, clear of it, and inside the screen; the point stays
+    // over the finger when the lens meets the screen's edge.
     const left = Math.min(Math.max(8, fingerX - width / 2), innerWidth - width - 8);
-    const top = Math.max(8, Math.min(fingerY, focus.top) - height - 28);
+    const top = Math.max(8, Math.min(fingerY, focus.top) - height - 34);
     loupe.style.left = `${left}px`;
     loupe.style.top = `${top}px`;
+    loupe.style.setProperty("--point-x", `${Math.min(Math.max(28, fingerX - left), width - 28)}px`);
   }
   function hideLoupe(): void {
     sectionsEl.querySelector(".ce-loupe")?.remove();
