@@ -407,8 +407,10 @@ are not affected.
   phone shows no keyboard. With a mouse, the space above a line is split
   into unseen boxes, one per letter (as wide as the letter); the one under
   the pointer shows, reaching down over its letter, and clicking it opens
-  the chord bubble there. On a touch screen, pressing a line shows the same
-  box at the letter under the finger; sliding sideways moves it along the
+  the chord bubble there. On a touch screen, holding a place in the words
+  for 300 ms (or sliding sideways from it) shows the same box at the letter
+  under the finger, while a quick tap only closes the bubble; sliding
+  sideways moves it along the
   line, and from then on up and down to other lines too, the page holding
   still and scrolling by itself near the screen's top or bottom (moving up
   or down first scrolls as usual), and letting go (or Enter, `[` or Ctrl+K

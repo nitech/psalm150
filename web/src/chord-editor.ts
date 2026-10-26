@@ -93,7 +93,7 @@ export function mountChordEditor(
       <input class="ce-title" data-meta="title" autocomplete="off" placeholder="Song title" aria-label="Title" />
       <div class="ce-flow"></div>
       <div class="ce-sections"></div>
-      <p class="hint ce-hint ce-hint-chords">${mouse ? "Point at a line and click a box above a letter" : "Tap a place in the words"} to put a chord there, and drag a chord to move it. The words are changed in Visual.</p>
+      <p class="hint ce-hint ce-hint-chords">${mouse ? "Point at a line and click a box above a letter" : "Press and hold a place in the words"} to put a chord there, and drag a chord to move it. The words are changed in Visual.</p>
     </div>
     <div class="ce-code" hidden>
       <div class="ce-code-main">
@@ -671,22 +671,33 @@ export function mountChordEditor(
       },
     };
   }
+  /** How long a finger holds a place in the words before the box shows. */
+  const HOLD_MS = 300;
   /*
-   * On a touch screen: pressing a line shows the box at the letter under
-   * the finger, sliding moves it along the line and up or down to other
-   * lines, and letting go opens the chord bubble there. Moving up or down
-   * first scrolls the page as usual (the browser cancels the press) and the
-   * box goes away; once sliding, the page holds still and follows the
-   * finger at the screen's edges.
+   * On a touch screen: holding a place in the words a moment (or sliding
+   * sideways from it) shows the box at the letter under the finger; sliding
+   * moves it along the line and up or down to other lines, and letting go
+   * opens the chord bubble there. A quick tap only closes the bubble (the
+   * document's pointerdown does). Moving up or down first scrolls the page
+   * as usual (the browser cancels the press); once the box shows, the page
+   * holds still and follows the finger at the screen's edges.
    */
   function slideBox(event: PointerEvent, first: HTMLElement): void {
     let wrap = first;
     const text = () => wrap.querySelector<HTMLElement>(".ce-text")!;
-    let pos = letterAt(text(), event.clientX, event.clientY);
+    let pos = -1;
     let x = event.clientX;
     let y = event.clientY;
     let page: ReturnType<typeof holdPage> | null = null;
-    drawSlideBox(wrap, pos);
+    let shown = false;
+    const show = () => {
+      if (shown) return;
+      shown = true;
+      window.clearTimeout(hold);
+      page = holdPage(place);
+      place();
+    };
+    const hold = window.setTimeout(show, HOLD_MS);
     const place = () => {
       const target = lineWrapAt(x, y);
       if (target && target !== wrap) {
@@ -702,17 +713,16 @@ export function mountChordEditor(
       const slide = wrap.querySelector<HTMLElement>(".ce-slide");
       if (slide) showLoupe(wrap, slide.getBoundingClientRect(), x, y);
     };
-    place();
     const move = (next: PointerEvent) => {
       if (next.pointerId !== event.pointerId) return;
       x = next.clientX;
       y = next.clientY;
       // Sideways first: from here the finger places, and may go up and down.
-      if (!page) {
+      if (!shown) {
         if (Math.abs(x - event.clientX) < 6) return;
-        page = holdPage(place);
+        show();
       }
-      page.at(y);
+      page?.at(y);
       place();
     };
     const end = (next: PointerEvent) => {
@@ -720,10 +730,12 @@ export function mountChordEditor(
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
+      window.clearTimeout(hold);
       page?.release();
       wrap.querySelector(".ce-slide")?.remove();
       hideLoupe();
-      if (next.type !== "pointerup") return;
+      // A quick tap: the bubble is closed, and nothing opens.
+      if (next.type !== "pointerup" || !shown) return;
       // Selecting words (a long press) is not a place for a chord.
       const selection = getSelection();
       if (selection && !selection.isCollapsed && text().contains(selection.anchorNode)) return;

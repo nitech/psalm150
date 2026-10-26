@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-26
+* **Chords mode: hold to place (web)**: on a touch screen a quick tap in the words only closes the chord bubble; holding a place for 300 ms, or sliding sideways from it, shows the box and letting go opens the bubble. The hint says "Press and hold". Pages touched: web-client.
 * **Chords mode: move between lines (web)**: on a touch screen, the box for placing a chord follows the finger to other lines once it has slid sideways, and a chord can be dragged to another line; the page holds still meanwhile and scrolls by itself near the screen's edges. Pages touched: web-client.
 * **String names under the guitar diagram (web)**: the letters under the strings are the tuning, E A D G B E (dim when not played), instead of the note each string sounds, which read like a tuning. The tuning is one list (`GUITAR_TUNING`) that shapes, drawings and sounds use, ready for other tunings. Pages touched: web-client.
 * **Real piano and guitar sounds; tap a string or key (web)**: chords play from recordings (Salamander Grand Piano, tonejs-instruments acoustic guitar, CC BY 3.0, credited under More → About) in `web/public/sounds/`, loaded when the chord sheet opens and kept offline by the service worker (`psa150-sounds-v1`); the synthesised sound stays as a stand-in. Tapping a string or key in the drawing plays that note. Pages touched: web-client.
