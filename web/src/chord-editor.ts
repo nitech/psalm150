@@ -8,7 +8,8 @@
  * whole song as one text, as it reads (words-editor.ts). Chords: the same
  * sections with the chords over the words, which cannot be changed there;
  * tapping a place in them (or Enter, `[` or Ctrl+K at the caret) opens a
- * bubble of chords under that letter, and a chord is moved by dragging it
+ * bubble of chords under that letter, which stays open to try one chord
+ * after another until a tap elsewhere; a chord is moved by dragging it
  * (or ←/→ when it has focus). ChordPro: the source with colours, a list of
  * problems and a preview, typed as it is; Ctrl+K opens the same bubble at
  * the cursor.
@@ -959,8 +960,10 @@ export function mountChordEditor(
   /**
    * Tapping a place in the words (or in the ChordPro) opens a bubble just
    * under that letter, so the word stays in view, with the chords of the
-   * key. Tapping one puts it there and closes the bubble. In the visual
-   * editor a dashed box shows where the chord goes.
+   * key. Tapping one puts it there (and sounds it); the bubble stays, so
+   * another can be tried in its place, until a tap elsewhere or Escape. A
+   * chord typed in the field closes it. In the visual editor a dashed box
+   * shows where the chord goes.
    */
   function openBubble(next: Bubble, typing = false): void {
     closeBubble(false);
@@ -1037,12 +1040,32 @@ export function mountChordEditor(
     bubbleEl.style.top = `${top + scrollY}px`;
     bubbleEl.style.setProperty("--arrow", `${Math.min(Math.max(14, anchor.x - left), width - 14)}px`);
   }
+  /**
+   * While the field is in use (a phone's keyboard up), scrolls the page so
+   * the place, the field and the chords under it are in view, under the bar
+   * at the top. The words get room below them for that (`.ce-typing`).
+   */
+  function revealBubble(): void {
+    if (!bubble || document.activeElement !== bubbleInput) return placeBubble();
+    root.classList.add("ce-typing");
+    const anchor = bubbleAnchor();
+    if (!anchor) return closeBubble(false);
+    const viewport = window.visualViewport;
+    const viewTop = viewport?.offsetTop ?? 0;
+    const viewBottom = viewTop + (viewport?.height ?? innerHeight);
+    const barBottom = Math.max(viewTop, document.querySelector(".app-bar")?.getBoundingClientRect().bottom ?? viewTop);
+    const short = anchor.bottom + 10 + bubbleEl.offsetHeight + 8 - viewBottom;
+    const by = Math.min(short, anchor.top - barBottom - 8);
+    if (by > 0) window.scrollBy(0, by);
+    placeBubble();
+  }
   function closeBubble(refocus: boolean): void {
     if (!bubble) return;
     const was = bubble;
     markLine(false);
     bubble = null;
     bubbleEl.hidden = true;
+    root.classList.remove("ce-typing");
     if (!refocus) return;
     if (was.kind === "code") codeBox.focus({ preventScroll: true });
     else {
@@ -1071,11 +1094,23 @@ export function mountChordEditor(
     sortChords(line);
     return id;
   }
-  /** Puts the chosen chord in, or takes the chord out when `name` is empty. */
-  function choose(name: string): void {
+  /**
+   * Puts the chosen chord in, or takes the chord out when `name` is empty.
+   * With `keepOpen` the bubble opens again on the chord just put in, so the
+   * next one tapped takes its place.
+   */
+  function choose(name: string, keepOpen = false): void {
     const target = bubble;
     if (!target) return;
     const value = name.trim();
+    const more = !q(".ce-bubble-more", bubbleEl).hidden;
+    const reopen = (next: Bubble) => {
+      openBubble(next);
+      if (more) {
+        showMore(true);
+        placeBubble();
+      }
+    };
     if (target.kind === "code") {
       closeBubble(false);
       if (!value && target.end === target.start) return;
@@ -1084,7 +1119,9 @@ export function mountChordEditor(
       const insert = value ? `[${value}]` : "";
       if (!document.execCommand("insertText", false, insert)) codeBox.setRangeText(insert, target.start, target.end, "end");
       refreshCode();
-      if (value) sound(value);
+      if (!value) return;
+      sound(value);
+      if (keepOpen) reopen({ kind: "code", start: target.start, end: target.start + insert.length, chord: value });
       return;
     }
     const text = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${target.lineId}"]`);
@@ -1100,6 +1137,7 @@ export function mountChordEditor(
     remember();
     renderChips(target.lineId, undefined, id);
     sound(value);
+    if (keepOpen) return reopen({ kind: "line", lineId: target.lineId, pos: target.pos, chordId: id });
     // The caret stays at the place, for the next chord from the keyboard.
     if (typing && text) setCaret(text, target.pos);
   }
@@ -1117,7 +1155,7 @@ export function mountChordEditor(
   bubbleEl.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
     const pick = target.closest<HTMLElement>("[data-pick]");
-    if (pick) choose(pick.dataset.pick!);
+    if (pick) choose(pick.dataset.pick!, true);
     else if (target.closest(".ce-bubble-ok")) choose(bubbleInput.value);
     else if (target.closest(".ce-bubble-remove")) choose("");
     else if (target.closest(".ce-bubble-more-toggle")) {
@@ -1127,7 +1165,13 @@ export function mountChordEditor(
       if (open) bubbleInput.focus({ preventScroll: true });
     }
   });
-  bubbleInput.addEventListener("input", fillVariants);
+  bubbleInput.addEventListener("input", () => {
+    fillVariants();
+    revealBubble();
+  });
+  // The keyboard takes a moment to come up; the viewport's resize below reveals again.
+  bubbleInput.addEventListener("focus", () => requestAnimationFrame(revealBubble));
+  bubbleInput.addEventListener("blur", () => root.classList.remove("ce-typing"));
   bubbleInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -1138,7 +1182,7 @@ export function mountChordEditor(
       if (text && document.activeElement !== text) setCaret(text, target.pos);
     }
   });
-  const reposition = () => { if (bubble) placeBubble(); };
+  const reposition = () => { if (bubble) revealBubble(); };
   window.visualViewport?.addEventListener("resize", reposition);
   window.addEventListener("resize", reposition);
   cleanups.push(() => {

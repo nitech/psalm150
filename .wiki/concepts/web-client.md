@@ -417,7 +417,11 @@ are not affected.
   at the caret) opens a bubble just under that letter with the chords of
   the song's key, "…" for any other chord and, on an existing chord, a
   remove button; a dashed box shows where the chord goes, and tapping a
-  chord puts it in and closes the bubble. Drag a chord (along its line or to
+  chord puts it in and keeps the bubble open on it, so another tapped
+  replaces it, until a tap elsewhere or Escape (a chord typed in the field
+  closes it). While the field has focus the page scrolls so the line, the
+  field and the chords under it are in view below the top bar, the song
+  getting room below it (`revealBubble`, `.ce-typing`). Drag a chord (along its line or to
   another line; the page does not scroll from a chord) or use ←/→ to move it.
   On a touch screen the words are not editable and nothing in Chords can be
   selected (no long-press selection or callout), and while a finger places
@@ -431,7 +435,8 @@ are not affected.
   **Chord sound** in the cog's panel turns this on or off
   (`localStorage["psa150-chord-sound"]` = `off`; on by default) and chooses
   Guitar or Piano, the same `psa150-instrument` as the chord sheet; each
-  change plays the chord of the song's key.
+  change plays the chord of the song's key. The same chord still ringing
+  (2.5 s) is not started again (`playChord(…, unlessRinging)`).
   Unknown directives and `#` lines show as grey rows and are kept. The
   ChordPro side is the source with colours, a list of problems by line and
   a preview (on wide screens beside it, half each, the same height, each

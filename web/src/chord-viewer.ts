@@ -80,13 +80,17 @@ export function preloadChosenSound(): void {
   preloadSound(chosenInstrument().sound);
 }
 
-/** Sounds a chord by its name on the chosen instrument, the easiest way first; a name the app cannot read is silent. */
+/**
+ * Sounds a chord by its name on the chosen instrument, the easiest way
+ * first; a name the app cannot read is silent, and the same chord still
+ * ringing rings on.
+ */
 export function soundChord(name: string): void {
   const chord = parseChord(name);
   if (!chord) return;
   const instrument = chosenInstrument();
   const [shape] = instrument.shapes(chord);
-  if (shape !== undefined) playChord(instrument.notes(shape), instrument.sound);
+  if (shape !== undefined) playChord(instrument.notes(shape), instrument.sound, true);
 }
 
 /** Opens the sheet for a chord a person taps in any song (`.ch` buttons from `renderSongBody`). */

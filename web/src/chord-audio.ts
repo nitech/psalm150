@@ -9,7 +9,8 @@
  * when the chord sheet opens) and the service worker keeps them for offline.
  * Until they are there, or if they cannot load, a synthesised plucked string
  * or struck tone plays instead. Starting a chord stops the one before; a
- * single note lets what is sounding ring on.
+ * single note lets what is sounding ring on. The song editor asks for a
+ * chord that is still ringing to be left alone (`unlessRinging`).
  */
 
 export type Sound = "guitar" | "piano";
@@ -38,6 +39,9 @@ export function recordingMidi(name: string): number {
 let context: AudioContext | null = null;
 let output: GainNode | null = null;
 let playing: GainNode | null = null;
+/** The chord last started (its instrument and notes) and until when it is heard well. */
+let ringing = { chord: "", until: 0 };
+const RING_MS = 2500;
 
 function audio(): { context: AudioContext; output: GainNode } {
   if (!context || !output) {
@@ -94,9 +98,15 @@ async function ready(sound: Sound, wait: number): Promise<Map<number, AudioBuffe
   return loaded?.size ? loaded : null;
 }
 
-/** Plays a chord's MIDI notes, low first; it stops the chord before it. */
-export function playChord(notes: number[], sound: Sound): void {
+/**
+ * Plays a chord's MIDI notes, low first; it stops the chord before it. With
+ * `unlessRinging`, the same chord still ringing rings on instead of starting again.
+ */
+export function playChord(notes: number[], sound: Sound, unlessRinging = false): void {
   if (!notes.length) return;
+  const chord = `${sound}:${notes.join(",")}`;
+  if (unlessRinging && chord === ringing.chord && performance.now() < ringing.until) return;
+  ringing = { chord, until: performance.now() + RING_MS };
   const { context } = audio();
   // Within the tap, so iOS lets the sound start.
   void context.resume();

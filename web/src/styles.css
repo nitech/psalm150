@@ -809,6 +809,8 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-bubble-type input { flex: 1; min-width: 0; min-height: 40px; color: var(--psa-chord); font-family: var(--psa-font-mono); font-weight: 600; }
 .ce-bubble-type .button { min-height: 40px; }
 .ce-bubble-warn { margin: 0; color: var(--psa-warning); font-size: 13px; }
+/* Room under the song to scroll the last lines up over a phone's keyboard while a chord is typed. */
+.ce.ce-typing { padding-bottom: 70vh; }
 
 /* ChordPro: coloured text under a transparent textarea, in the same font and size. */
 .ce-code { display: grid; gap: var(--psa-space-4); }
