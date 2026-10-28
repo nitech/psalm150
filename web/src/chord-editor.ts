@@ -968,7 +968,6 @@ export function mountChordEditor(
     line.chords = line.chords.filter((candidate) => candidate !== chord);
     remember();
     renderChips(line.id);
-    showToast(`Removed ${chord.name}.`, { action: { label: "Undo", run: undo } });
   }
 
   /* ── The chord bubble ───────────────────────────────────────────────── */
