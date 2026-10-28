@@ -733,8 +733,14 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-text { min-height: 46.8px; padding-top: 12px; font-family: var(--psa-font-lyrics); font-size: 18px; line-height: 2.6; white-space: pre-wrap; overflow-wrap: anywhere; caret-color: var(--psa-accent-text); outline: none; cursor: default; }
 .ce-text:focus-visible { box-shadow: none; }
 .ce-chips { position: absolute; inset: 0; pointer-events: none; }
-/* Shifted left by its border and padding, so the chord's first letter starts exactly over the letter it is played on. */
-.ce-chip { --ce-shift: -7px; position: absolute; z-index: 1; top: 0; left: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--psa-accent-soft); color: var(--psa-chord); font-size: 14px; font-weight: 700; line-height: 16px; white-space: nowrap; pointer-events: auto; touch-action: none; cursor: grab; transform: translateX(var(--ce-shift)); -webkit-user-select: none; user-select: none; }
+/* A small speech bubble centred over the place the chord is played, its tail pointing down at it. */
+.ce-chip { --ce-shift: -50%; position: absolute; z-index: 1; top: 0; left: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--psa-accent-soft); color: var(--psa-chord); font-size: 14px; font-weight: 700; line-height: 16px; white-space: nowrap; pointer-events: auto; touch-action: none; cursor: grab; transform: translateX(var(--ce-shift)); transform-origin: 50% 100%; -webkit-user-select: none; user-select: none; }
+/* The tail: a turned square cut to its lower half, in the chip's own fill and border.
+   It starts just under the chip so the see-through fill does not darken where they meet;
+   with a border it reaches up over it, so the border opens into the tail. */
+.ce-chip::after { content: ""; position: absolute; top: 100%; left: clamp(6px, calc(50% + var(--ce-tail, 0px)), calc(100% - 6px)); box-sizing: border-box; width: 8px; height: 8px; margin: -4px 0 0 -4px; border: inherit; border-top-color: transparent; border-left-color: transparent; border-bottom-right-radius: 2px; background: inherit; transform: rotate(45deg); clip-path: polygon(100% var(--ce-cut), 100% 100%, var(--ce-cut) 100%); pointer-events: none; --ce-cut: 1.42px; }
+.ce-chip:is(.editing, .dragging)::after { --ce-cut: 0px; }
+@media (hover: hover) { .ce-chip:hover::after { --ce-cut: 0px; } }
 /* A chord is dragged, also up and down to another line, so the page does not scroll from it. */
 .ce-chip { touch-action: none; }
 /* A bigger target for fingers than the chord looks. */
@@ -745,7 +751,7 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-chip.editing { border-color: var(--psa-accent-text); background: var(--psa-accent); color: var(--psa-on-accent); }
 @keyframes ce-pop { from { transform: translateX(var(--ce-shift)) scale(0.6); } }
 /* Where a new chord goes while the bubble is open. */
-.ce-ghost { position: absolute; width: 26px; height: 22px; border: 2px dashed var(--psa-accent-text); border-radius: 6px; background: var(--psa-accent-soft); transform: translateX(-7px); pointer-events: none; }
+.ce-ghost { position: absolute; width: 26px; height: 22px; border: 2px dashed var(--psa-accent-text); border-radius: 6px; background: var(--psa-accent-soft); transform: translateX(-50%); pointer-events: none; }
 .ce-ghost[hidden] { display: none; }
 /* With a mouse: an unseen box per letter in the space above the line; the
    one under the pointer shows, reaching down over its letter. */

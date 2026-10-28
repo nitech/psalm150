@@ -401,18 +401,22 @@ export function mountChordEditor(
       const box = charBox(text, chord?.pos ?? 0);
       return { chip, x: box.x - origin.left, top: box.top - origin.top };
     }).sort((a, b) => a.top - b.top || a.x - b.x);
-    // Chords close together are nudged apart so each can be read and tapped.
+    // Each chord sits centred over its place, its tail pointing down at it.
+    // Chords close together are nudged apart so each can be read and tapped;
+    // the tail of a nudged chord still points at its place.
     let rowTop: number | null = null;
-    let right = -Infinity;
+    let right = 0;
     for (const item of placed) {
       if (rowTop === null || Math.abs(item.top - rowTop) > 4) {
         rowTop = item.top;
-        right = -Infinity;
+        right = 0;
       }
-      const x = Math.max(item.x, right + 4);
-      item.chip.style.left = `${x}px`;
-      item.chip.style.top = `${item.top - item.chip.offsetHeight - 1}px`;
-      right = x + item.chip.offsetWidth - 7;
+      const width = item.chip.offsetWidth;
+      const left = Math.max(item.x - width / 2, right + 4);
+      item.chip.style.left = `${left + width / 2}px`;
+      item.chip.style.top = `${item.top - item.chip.offsetHeight - 5}px`;
+      item.chip.style.setProperty("--ce-tail", `${item.x - left - width / 2}px`);
+      right = left + width;
     }
   }
   function layoutAll(): void {
@@ -884,11 +888,10 @@ export function mountChordEditor(
     const text = () => wrap.querySelector<HTMLElement>(".ce-text")!;
     const chord = found.line.chords.find((candidate) => candidate.id === chip.dataset.chord)!;
     const start = chord.pos;
-    const rect = chip.getBoundingClientRect();
     const box = charBox(text(), chord.pos);
     // Aim at the text under the chord, from the point where it was picked up.
     const dy = box.top + box.h / 2 - event.clientY;
-    const grabX = event.clientX - rect.left - 7;
+    const grabX = event.clientX - box.x;
     let moved = false;
     let fingerX = event.clientX;
     let fingerY = event.clientY;
@@ -1044,7 +1047,7 @@ export function mountChordEditor(
     const origin = wrap.getBoundingClientRect();
     ghost.hidden = false;
     ghost.style.left = `${box.x - origin.left}px`;
-    ghost.style.top = `${box.top - origin.top - ghost.offsetHeight - 1}px`;
+    ghost.style.top = `${box.top - origin.top - ghost.offsetHeight - 5}px`;
   }
   /** Where the bubble points: the bottom of the letter at the place. */
   function bubbleAnchor(): { x: number; top: number; bottom: number } | null {
