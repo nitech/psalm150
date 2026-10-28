@@ -795,13 +795,23 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 @media (hover: hover) { .ce-pick:hover { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); } }
 .ce-pick:active { background: var(--psa-accent-medium); }
 .ce-pick.on { border-color: var(--psa-accent-text); background: var(--psa-accent-medium); }
+.ce-pick[aria-expanded="true"] { border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
 
 /* The chord bubble: under the letter that was tapped, pointing at it. */
 .ce-bubble { position: absolute; z-index: 71; width: max-content; max-width: min(372px, calc(100vw - 16px)); padding: var(--psa-space-2); border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); box-shadow: var(--psa-shadow-lg); }
-.ce-bubble[hidden], .ce-bubble-more[hidden], .ce-bubble-warn[hidden] { display: none; }
+.ce-bubble[hidden], .ce-bubble [hidden] { display: none; }
 .ce-bubble::before { content: ""; position: absolute; top: -7px; left: calc(var(--arrow, 24px) - 6px); width: 12px; height: 12px; border-top: 1px solid var(--psa-border-strong); border-left: 1px solid var(--psa-border-strong); background: var(--psa-bg-elevated); transform: rotate(45deg); }
 .ce-bubble.above::before { top: auto; bottom: -7px; transform: rotate(225deg); }
-.ce-bubble-chords, .ce-bubble-variants { position: relative; display: flex; flex-wrap: wrap; gap: 6px; }
+.ce-bubble-suggest, .ce-bubble-chords { position: relative; display: flex; flex-wrap: wrap; gap: 6px; }
+.ce-bubble-suggest { margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--psa-border); }
+/* A suggestion says why it is offered ("Verse 1", "Next", "In song") over the chord. */
+.ce-suggest { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 46px; line-height: 1.1; border-style: dashed; }
+.ce-suggest small { color: var(--psa-text-tertiary); font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
+/* The twelve roots and the bass notes six to a row, the key's notes stronger; the kinds and "/" four to a row. */
+.ce-bubble-roots, .ce-bubble-basses { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.ce-bubble-forms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ce-bubble-roots .ce-pick, .ce-bubble-basses .ce-pick, .ce-bubble-forms .ce-pick { min-width: 0; padding: 0 4px; }
+.ce-root:not(.in-key):not(.on) { border-color: var(--psa-border); background: transparent; color: var(--psa-text-tertiary); font-weight: 600; }
 .ce-bubble-remove { color: var(--psa-danger); }
 .ce-bubble-remove .icon { width: 18px; height: 18px; vertical-align: middle; }
 .ce-bubble-more { display: grid; gap: var(--psa-space-2); margin-top: var(--psa-space-2); padding-top: var(--psa-space-2); border-top: 1px solid var(--psa-border); }
@@ -809,6 +819,7 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-bubble-type input { flex: 1; min-width: 0; min-height: 40px; color: var(--psa-chord); font-family: var(--psa-font-mono); font-weight: 600; }
 .ce-bubble-type .button { min-height: 40px; }
 .ce-bubble-warn { margin: 0; color: var(--psa-warning); font-size: 13px; }
+.ce-bubble-warn.ok { color: var(--psa-text-secondary); }
 /* Room under the song to scroll the last lines up over a phone's keyboard while a chord is typed. */
 .ce.ce-typing { padding-bottom: 70vh; }
 

@@ -573,7 +573,7 @@ export function piecesText(pieces: Piece[]): string {
 
 /* ── Chords and keys ──────────────────────────────────────────────────── */
 
-const NOTE_INDEX: Record<string, number> = { C: 0, "B#": 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, Fb: 4, "E#": 5, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11, Cb: 11 };
+export const NOTE_INDEX: Record<string, number> = { C: 0, "B#": 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, Fb: 4, "E#": 5, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11, Cb: 11 };
 const SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 export const MAJOR_KEYS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
@@ -582,8 +582,8 @@ export const MINOR_KEYS = ["Cm", "C#m", "Dm", "Ebm", "Em", "Fm", "F#m", "Gm", "G
 /** What a chord can look like; anything else still saves, with a warning. */
 export const CHORD_PATTERN = /^(?:[A-G](?:#|b)?(?:maj|min|m|dim|aug|sus|add|M|\d|\+|-|\(|\)|#|b|°|ø)*(?:\/[A-G](?:#|b)?)?|N\.?C\.?)$/;
 
-const mod12 = (value: number) => ((value % 12) + 12) % 12;
-const noteName = (index: number, flat: boolean) => (flat ? FLATS : SHARPS)[mod12(index)];
+export const mod12 = (value: number) => ((value % 12) + 12) % 12;
+export const noteName = (index: number, flat: boolean) => (flat ? FLATS : SHARPS)[mod12(index)];
 
 export function parseChordName(chord: string): { root: string; quality: string; bass: string } | null {
   const match = /^([A-G](?:#|b)?)(.*?)(?:\/([A-G](?:#|b)?))?$/.exec(chord.trim());
@@ -650,11 +650,6 @@ export function chordsInKey(key: string): string[] {
   const chords = steps.map(([step, quality]) => noteName(root + step, flat) + quality);
   if (!isMinorKey(key)) chords.push(`${noteName(root + 7, flat)}/${noteName(root + 11, flat)}`);
   return [...new Set(chords)];
-}
-
-export function chordVariants(root: string, key: string): string[] {
-  const flat = keyUsesFlats(key) ?? root.includes("b");
-  return [root, `${root}m`, `${root}7`, `${root}maj7`, `${root}sus4`, `${root}sus2`, `${root}add9`, `${root}/${noteName(NOTE_INDEX[root] + 4, flat)}`];
 }
 
 /* ── Pasted text with chords over the lyrics ──────────────────────────── */

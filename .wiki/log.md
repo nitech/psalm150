@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-28
+* **Smarter chord bubble (web)**: suggestions from the song (the chord at the same place in an earlier verse or chorus, the usual next chord, the song's chords outside the key) over the key's chords; "…" opens a builder of root, kind and bass with no keyboard, and a field that reads chords typed loosely ("fiss moll", "H7"). New `chord-picker.ts` with tests; `chordVariants` removed. Pages touched: web-client.
 * **Chord bubble stays open; field scrolled into view (web)**: tapping a chord in the bubble puts it in and keeps the bubble open on it, so the next tap replaces it; the same chord still ringing is not played again; with the field focused the page scrolls so the line, field and chords show above a phone's keyboard. Pages touched: web-client.
 * **Chords sound as they are placed (web)**: in the song editor a chord plays when it is put in or tapped, on guitar or piano; **Chord sound** in the cog's panel turns it off and picks the instrument (shared with the chord sheet). Pages touched: web-client.
 
