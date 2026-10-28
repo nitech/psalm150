@@ -309,8 +309,8 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 /* An on/off setting in the menu: a light switch, flipped in place. */
 .switch-track { position: relative; flex: none; width: 40px; height: 24px; margin-left: 8px; border-radius: var(--psa-radius-full); background: var(--psa-border-strong); transition: background-color 160ms var(--psa-ease-standard); }
 .switch-thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 200ms cubic-bezier(0.3, 1.4, 0.5, 1); }
-.bar-menu-switch[aria-checked="true"] .switch-track { background: var(--psa-accent); }
-.bar-menu-switch[aria-checked="true"] .switch-thumb { transform: translateX(16px); }
+:is(.bar-menu-switch, .ce-sound-switch)[aria-checked="true"] .switch-track { background: var(--psa-accent); }
+:is(.bar-menu-switch, .ce-sound-switch)[aria-checked="true"] .switch-thumb { transform: translateX(16px); }
 .bar-menu-switch[aria-checked="true"] > .icon { color: var(--psa-accent-text); }
 @media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }
 /* Transpose: − key +, in the bar as one pill and in the menu as one row
@@ -714,6 +714,12 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-well-row.action .ce-well-check { color: var(--psa-text-secondary); }
 .ce-well-row.danger .ce-well-check { color: inherit; }
 .ce-well-rule { height: 1px; margin: 6px 18px; background: var(--psa-border); }
+/* Chord sound, under the song's details: a switch across the panel, then the instruments. */
+.ce-sound-switch { grid-column: 1 / -1; }
+.ce-sound-switch[aria-checked] { font-weight: inherit; }
+.ce-sound-switch > span:nth-child(2) { flex: 1; }
+.ce-sound-switch .ce-well-check { color: var(--psa-text-secondary); }
+.ce-sound-switch[aria-checked="true"] .ce-well-check { color: var(--psa-accent-text); }
 .ce-well-field { display: flex; align-items: center; gap: var(--psa-space-2); padding: 0 12px 4px 18px; }
 .ce-well-field input { flex: 1; min-width: 0; }
 

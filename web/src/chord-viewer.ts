@@ -63,6 +63,32 @@ function chosenInstrument(): Instrument<unknown> {
   return INSTRUMENTS.find((instrument) => instrument.id === id) ?? INSTRUMENTS[0];
 }
 
+/** The instruments, for the song editor's chord sound: the same choice as this sheet's. */
+export const instruments = (): Array<{ id: string; label: string; chosen: boolean }> => {
+  const chosen = chosenInstrument();
+  return INSTRUMENTS.map((instrument) => ({ id: instrument.id, label: instrument.label, chosen: instrument === chosen }));
+};
+
+export function chooseInstrument(id: string): void {
+  const next = INSTRUMENTS.find((instrument) => instrument.id === id);
+  if (!next) return;
+  writePreference("instrument", next.id);
+  preloadSound(next.sound);
+}
+
+export function preloadChosenSound(): void {
+  preloadSound(chosenInstrument().sound);
+}
+
+/** Sounds a chord by its name on the chosen instrument, the easiest way first; a name the app cannot read is silent. */
+export function soundChord(name: string): void {
+  const chord = parseChord(name);
+  if (!chord) return;
+  const instrument = chosenInstrument();
+  const [shape] = instrument.shapes(chord);
+  if (shape !== undefined) playChord(instrument.notes(shape), instrument.sound);
+}
+
 /** Opens the sheet for a chord a person taps in any song (`.ch` buttons from `renderSongBody`). */
 export function installChordViewer(): void {
   document.addEventListener("click", (event) => {

@@ -8,7 +8,7 @@
  * (over a phone's keyboard, or above Save) shows the type of the section
  * the caret is in; tapping it opens a panel to change the type, name,
  * move, copy or delete the section and add notes. Its cog opens the song's
- * key, capo and other details. The bar serves ChordPro too, through the
+ * key, capo and other details, and whether chords sound as they are put in. The bar serves ChordPro too, through the
  * host, which reads the song from the source and writes it back. Typing within a line is left to the browser and read back;
  * everything that crosses lines is done on the model and drawn again.
  */
@@ -61,8 +61,8 @@ export interface WordsHost {
   codePlace(): Point | null;
   /** In ChordPro: writes the song back to the source after the panel changed it. */
   codeChanged(): void;
-  /** The song's key, capo and other details, shown in the panel behind the cog. */
-  settings: HTMLElement;
+  /** The song's key, capo and other details, and how chords sound, shown in the panel behind the cog. */
+  settings: HTMLElement[];
 }
 
 export interface WordsEditor {
@@ -109,7 +109,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   bar.className = "ce-bar";
   bar.innerHTML = `
     <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
-    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="Key, capo and details" title="Key, capo and details">${icon("settings")}</button>
+    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="Key, capo, details and chord sound" title="Key, capo, details and chord sound">${icon("settings")}</button>
     <button type="button" class="ce-bar-save">${icon("save")}Save</button>`;
   const wellEl = document.createElement("div");
   wellEl.className = "ce-well";
@@ -147,7 +147,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   const settingsWell = wellEl.querySelector<HTMLElement>(".ce-well-settings")!;
   const nameWell = wellEl.querySelector<HTMLElement>(".ce-well-name")!;
   const fieldInput = nameWell.querySelector("input")!;
-  settingsWell.append(host.settings);
+  settingsWell.append(...host.settings);
   // Opening More details makes the panel taller: it grows upwards from the bar.
   wellEl.addEventListener("toggle", () => placeBar(), true);
 
@@ -505,7 +505,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     nameWell.hidden = kind !== "field";
     sectionButton.setAttribute("aria-expanded", String(kind === "section"));
     cogButton.setAttribute("aria-expanded", String(kind === "settings"));
-    wellEl.setAttribute("aria-label", kind === "settings" ? "Key, capo and details" : "Section");
+    wellEl.setAttribute("aria-label", kind === "settings" ? "Key, capo, details and chord sound" : "Section");
     wellEl.hidden = false;
     wellEl.classList.remove("open");
     placeBar();

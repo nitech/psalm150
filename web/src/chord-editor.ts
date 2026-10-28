@@ -12,6 +12,10 @@
  * (or ←/→ when it has focus). ChordPro: the source with colours, a list of
  * problems and a preview, typed as it is; Ctrl+K opens the same bubble at
  * the cursor.
+ *
+ * A chord sounds as it is put in, and when a chord is tapped, on the
+ * instrument chosen under Chord sound behind the cog (the same choice as the
+ * chord sheet's, chord-viewer.ts); the sound can be turned off there.
  */
 import {
   CHORD_PATTERN,
@@ -40,9 +44,10 @@ import {
   type Section,
   type SongDoc,
 } from "./chord-doc.ts";
+import { chooseInstrument, instruments, preloadChosenSound, soundChord } from "./chord-viewer.ts";
 import { icon } from "./icons.ts";
 import { prepareSong, renderSongBody } from "./song-render.ts";
-import { escapeHtml, showToast } from "./ui.ts";
+import { escapeHtml, readPreference, showToast, writePreference } from "./ui.ts";
 import { editable, mountWordsEditor } from "./words-editor.ts";
 
 export interface ChordEditor {
@@ -137,6 +142,41 @@ export function mountChordEditor(
       </div>
       <p class="ce-extras" hidden></p>
     </details>`;
+  // Chord sound: on or off, and the instrument; remembered on this device.
+  const soundEl = document.createElement("div");
+  soundEl.className = "ce-sound";
+  const soundOn = () => readPreference("chord-sound") !== "off";
+  const drawSound = () => {
+    soundEl.innerHTML = `
+      <div class="ce-well-rule"></div>
+      <p class="ce-well-title">Chord sound</p>
+      <div class="ce-well-grid">
+        <button type="button" class="ce-well-row ce-sound-switch" role="switch" aria-checked="${soundOn()}"><span class="ce-well-check" aria-hidden="true">${icon("play")}</span><span>Play chords</span><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button>
+      </div>
+      <div class="ce-well-grid" role="radiogroup" aria-label="Instrument">${instruments().map((item) =>
+        `<button type="button" class="ce-well-row" role="radio" aria-checked="${item.chosen}" data-instrument="${item.id}"><span class="ce-well-check" aria-hidden="true">${item.chosen ? icon("check") : ""}</span>${escapeHtml(item.label)}</button>`).join("")}</div>`;
+  };
+  drawSound();
+  /** The chord of the song's key, to hear the instrument chosen. */
+  const sample = () => soundChord(chordsInKey(metaValue(doc, "key") || "C")[0]);
+  soundEl.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    if (target.closest(".ce-sound-switch")) {
+      writePreference("chord-sound", soundOn() ? "off" : null);
+      drawSound();
+      if (soundOn()) sample();
+      return;
+    }
+    const choice = target.closest<HTMLElement>("[data-instrument]");
+    if (!choice) return;
+    chooseInstrument(choice.dataset.instrument!);
+    drawSound();
+    sample();
+  });
+  /** Sounds a chord put in or tapped, unless the sound is off. */
+  const sound = (name: string) => {
+    if (soundOn()) soundChord(name);
+  };
   const keySelect = q<HTMLSelectElement>(".ce-key", settingsEl);
   const keyPrompt = q(".ce-key-prompt", settingsEl);
   const metaFields = () => [root, settingsEl].flatMap((scope) => [...scope.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-meta]")]);
@@ -755,7 +795,12 @@ export function mountChordEditor(
     const chip = target.closest<HTMLElement>(".ce-chip");
     // A pointer opens the bubble on release (dragChord); Enter or Space comes here.
     if (chip) {
-      if (event.detail === 0) openLineBubble(chip.closest<HTMLElement>(".ce-line")!.dataset.line!, 0, false, chip.dataset.chord);
+      if (event.detail === 0) {
+        const lineId = chip.closest<HTMLElement>(".ce-line")!.dataset.line!;
+        const name = lyric(lineId)?.line.chords.find((chord) => chord.id === chip.dataset.chord)?.name;
+        if (name) sound(name);
+        openLineBubble(lineId, 0, false, chip.dataset.chord);
+      }
       return;
     }
   });
@@ -886,6 +931,7 @@ export function mountChordEditor(
       hideLoupe();
       const id = wrap.dataset.line!;
       if (!moved) {
+        sound(chord.name);
         openLineBubble(id, chord.pos, false, chord.id);
         return;
       }
@@ -919,6 +965,7 @@ export function mountChordEditor(
   function openBubble(next: Bubble, typing = false): void {
     closeBubble(false);
     bubble = next;
+    if (soundOn()) preloadChosenSound();
     const key = metaValue(doc, "key");
     const current = bubbleChord();
     const chords = chordsInKey(key || "C");
@@ -1037,6 +1084,7 @@ export function mountChordEditor(
       const insert = value ? `[${value}]` : "";
       if (!document.execCommand("insertText", false, insert)) codeBox.setRangeText(insert, target.start, target.end, "end");
       refreshCode();
+      if (value) sound(value);
       return;
     }
     const text = sectionsEl.querySelector<HTMLElement>(`.ce-text[data-line="${target.lineId}"]`);
@@ -1051,6 +1099,7 @@ export function mountChordEditor(
     const id = placeChord(target.lineId, target.pos, value, target.chordId);
     remember();
     renderChips(target.lineId, undefined, id);
+    sound(value);
     // The caret stays at the place, for the next chord from the keyboard.
     if (typing && text) setCaret(text, target.pos);
   }
@@ -1357,7 +1406,7 @@ export function mountChordEditor(
     remember,
     rememberSoon: () => rememberSoon(),
     undo,
-    settings: settingsEl,
+    settings: [settingsEl, soundEl],
     save: parts.save,
     dock: parts.dock,
     codePlace: () => {

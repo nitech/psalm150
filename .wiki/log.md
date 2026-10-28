@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-28
+* **Chords sound as they are placed (web)**: in the song editor a chord plays when it is put in or tapped, on guitar or piano; **Chord sound** in the cog's panel turns it off and picks the instrument (shared with the chord sheet). Pages touched: web-client.
+
 ## 2026-10-26
 * **Chords mode: hold to place (web)**: on a touch screen a quick tap in the words only closes the chord bubble; holding a place for 300 ms, or sliding sideways from it, shows the box and letting go opens the bubble. The hint says "Press and hold". Pages touched: web-client.
 * **Chords mode: move between lines (web)**: on a touch screen, the box for placing a chord follows the finger to other lines once it has slid sideways, and a chord can be dragged to another line; the page holds still meanwhile and scrolls by itself near the screen's edges. Pages touched: web-client.

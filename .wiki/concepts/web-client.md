@@ -425,6 +425,13 @@ are not affected.
   centred on the box or the chord and its letter (`showLoupe`): a capsule of
   glass like the phone's own text magnifier (soft shadow, light rim, a
   reflection along the top) with a point down to the finger.
+  A chord sounds when it is put in (from the bubble, in Chords or
+  ChordPro) and when a chord is tapped (or Enter on it), its easiest shape
+  on the chord sheet's instrument (`soundChord` in `chord-viewer.ts`).
+  **Chord sound** in the cog's panel turns this on or off
+  (`localStorage["psa150-chord-sound"]` = `off`; on by default) and chooses
+  Guitar or Piano, the same `psa150-instrument` as the chord sheet; each
+  change plays the chord of the song's key.
   Unknown directives and `#` lines show as grey rows and are kept. The
   ChordPro side is the source with colours, a list of problems by line and
   a preview (on wide screens beside it, half each, the same height, each
