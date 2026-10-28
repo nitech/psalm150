@@ -414,19 +414,21 @@ are not affected.
   line, and from then on up and down to other lines too, the page holding
   still and scrolling by itself near the screen's top or bottom (moving up
   or down first scrolls as usual), and letting go (or Enter, `[` or Ctrl+K
-  at the caret) opens a bubble just under that letter. First, dashed,
-  up to four suggestions from the song (`chord-picker.ts`, tested): the
-  chord at the same place (same line, same chord in it) in the nearest
-  earlier section of the same kind ("Verse 1"), what usually follows the
-  chord before in the key ("Next"), and the song's most used chords
-  outside the key ("In song"). Then the chords of the song's key, "…" and,
-  on an existing chord, a remove button. "…" opens a builder needing no
-  keyboard: the twelve roots spelled for the key (its scale notes
-  stronger), the kinds on the root in use (m, 7, maj7, m7, sus2, sus4,
-  add9, 6, dim, aug), and behind "/" the bass notes; each tap puts the
-  chord in. Under it a field reads a chord typed loosely (`readChord`:
-  "fiss moll", "f#m", "F sharp minor", H for B, "c / e") and shows what
-  it puts in; a dashed box shows where the chord goes, and tapping a
+  at the caret) opens a bubble just under that letter with one row: the
+  song's chords in the order they first come, then the rest of the key's,
+  each once (`bubbleRow` in `chord-picker.ts`, tested). The chord suggested
+  at the place has a dot: the one at the same place (same line, same chord
+  in it) in the nearest earlier section of the same kind, else what
+  usually follows the chord before. The row keeps its order while chords
+  are tried in turn. Then "…" and, on an existing chord, a remove button.
+  "…" shows a builder instead of the row, as OnSong's Chord Builder and
+  Logic's chord editor do: ‹ back, the chord at the place large, remove;
+  the twelve roots spelled for the key (its scale notes stronger), the
+  kinds (Major, m, 7, maj7, m7, sus2, sus4, add9, 6, dim, aug) and behind
+  "/" the bass notes; each tap puts the chord in and sounds it. With a
+  keyboard (not on touch screens) a field reads a chord typed loosely
+  (`readChord`: "fiss moll", "f#m", H for B, "c / e") and shows what it
+  puts in; a dashed box shows where the chord goes, and tapping a
   chord puts it in and keeps the bubble open on it, so another tapped
   replaces it, until a tap elsewhere or Escape (a chord typed in the field
   closes it). While the field has focus the page scrolls so the line, the

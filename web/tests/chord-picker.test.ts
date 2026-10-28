@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseDoc } from "../src/chord-doc.ts";
-import { nextChords, placeInSong, readChord, rootsFor, songChords, suggestions } from "../src/chord-picker.ts";
+import { bubbleRow, nextChords, placeInSong, readChord, rootsFor, songChords } from "../src/chord-picker.ts";
 
 describe("readChord", () => {
   it("reads chords typed loosely", () => {
@@ -68,13 +68,14 @@ How sweet again
     expect(nextChords("D", "G")).toEqual(["G", "Em"]);
     expect(nextChords("Am", "Am")).toEqual(["F", "Dm"]);
   });
-  it("puts it together without the chord already there", () => {
+  it("puts the song's chords first, then the key's, with one hint", () => {
     const used = songChords(song);
-    expect(used.slice(0, 1)).toEqual(["G"]);
-    expect(suggestions({ key: "G", current: "", previous: "D", earlier: { chord: "G", why: "Verse 1" }, used })).toEqual([
-      { chord: "G", why: "Verse 1" },
-      { chord: "Em", why: "Next" },
-      { chord: "B7", why: "In song" },
-    ]);
+    expect(used).toEqual(["G", "C", "D", "Em", "B7"]);
+    expect(bubbleRow({ key: "G", used, previous: "D", earlier: { chord: "G", why: "Verse 1" } })).toEqual({
+      chords: ["G", "C", "D", "Em", "B7", "Am", "Bm", "D7", "D/F#"],
+      hint: { chord: "G", why: "Verse 1" },
+    });
+    expect(bubbleRow({ key: "G", used: [], previous: "D", earlier: null }).hint).toEqual({ chord: "G", why: "usually next" });
+    expect(bubbleRow({ key: "G", used: [], previous: "", earlier: { chord: "Bb", why: "Verse 1" } }).chords[0]).toBe("Bb");
   });
 });

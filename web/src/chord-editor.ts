@@ -45,7 +45,7 @@ import {
   type SongDoc,
 } from "./chord-doc.ts";
 import { chooseInstrument, instruments, preloadChosenSound, soundChord } from "./chord-viewer.ts";
-import { QUALITIES, placeInSong, readChord, rootsFor, songChords, suggestions, type Suggestion } from "./chord-picker.ts";
+import { QUALITIES, bubbleRow, placeInSong, readChord, rootsFor, songChords } from "./chord-picker.ts";
 import { icon } from "./icons.ts";
 import { prepareSong, renderSongBody } from "./song-render.ts";
 import { escapeHtml, readPreference, showToast, writePreference } from "./ui.ts";
@@ -64,6 +64,9 @@ interface Focus { id: string; off?: number; scroll?: boolean }
 type Bubble =
   | { kind: "line"; lineId: string; pos: number; chordId?: string }
   | { kind: "code"; start: number; end: number; chord?: string };
+type Row = ReturnType<typeof bubbleRow>;
+/** What stays as the bubble opens again on a chord just put in. */
+interface Keep { more: boolean; bass: boolean; row: Row }
 
 const coarse = matchMedia("(pointer: coarse)").matches;
 /** A mouse: chords are placed from boxes above the letters, not by clicking the words. */
@@ -87,6 +90,8 @@ export function mountChordEditor(
   let bubble: Bubble | null = null;
   /** Whether the bubble shows the bass notes. */
   let bassOpen = false;
+  /** The bubble's row, kept while it reopens on each chord tried. */
+  let row: Row = { chords: [], hint: null };
   let keyShift = 0;
   const cleanups: Array<() => void> = [];
   const listen = <K extends keyof DocumentEventMap>(target: Document, type: K, handler: (event: DocumentEventMap[K]) => void, options?: AddEventListenerOptions) => {
@@ -192,9 +197,12 @@ export function mountChordEditor(
   bubbleEl.setAttribute("role", "dialog");
   bubbleEl.hidden = true;
   bubbleEl.innerHTML = `
-    <div class="ce-bubble-suggest" role="group" aria-label="Suggested"></div>
-    <div class="ce-bubble-chords" role="group" aria-label="In the key"></div>
+    <div class="ce-bubble-chords"></div>
     <div class="ce-bubble-more" hidden>
+      <div class="ce-bubble-head">
+        <button type="button" class="ce-pick ce-bubble-back" aria-label="Back to the song's chords">${icon("prev")}</button>
+        <span class="ce-bubble-name" aria-live="polite"></span>
+      </div>
       <div class="ce-bubble-roots" role="group" aria-label="Root"></div>
       <div class="ce-bubble-forms" role="group" aria-label="Kind"></div>
       <div class="ce-bubble-basses" role="group" aria-label="Bass" hidden></div>
@@ -965,32 +973,30 @@ export function mountChordEditor(
   /**
    * Tapping a place in the words (or in the ChordPro) opens a bubble just
    * under that letter, so the word stays in view, with the chords of the
-   * key. Tapping one puts it there (and sounds it); the bubble stays, so
-   * another can be tried in its place, until a tap elsewhere or Escape. A
-   * chord typed in the field closes it. In the visual editor a dashed box
-   * shows where the chord goes.
+   * song and the key, the one suggested there marked (`bubbleRow`). Tapping
+   * one puts it there (and sounds it); the bubble stays, so another can be
+   * tried in its place, until a tap elsewhere or Escape. "…" shows a
+   * builder instead of the row (`fillBuilder`). A chord typed in the field
+   * closes it. In the visual editor a dashed box shows where the chord goes.
    */
-  function openBubble(next: Bubble, typing = false, keep?: { more: boolean; bass: boolean }): void {
+  function openBubble(next: Bubble, typing = false, keep?: Keep): void {
     closeBubble(false);
     bubble = next;
     if (soundOn()) preloadChosenSound();
-    const key = metaValue(doc, "key");
     const current = bubbleChord();
-    const chords = chordsInKey(key || "C");
-    const offered = suggested(next, current, key);
-    const suggestEl = q(".ce-bubble-suggest", bubbleEl);
-    suggestEl.innerHTML = offered.map((item) =>
-      `<button type="button" class="ce-pick ce-suggest" data-pick="${escapeHtml(item.chord)}" aria-label="${escapeHtml(`${item.chord}, ${item.why}`)}"><small aria-hidden="true">${escapeHtml(item.why)}</small>${escapeHtml(item.chord)}</button>`).join("");
-    suggestEl.hidden = !offered.length;
-    q(".ce-bubble-chords", bubbleEl).innerHTML = chords.map((name) => chordButton(name, name === current)).join("")
-      + `<button type="button" class="ce-pick ce-bubble-more-toggle" aria-expanded="false" aria-label="Other chords">…</button>`
-      + (current ? `<button type="button" class="ce-pick ce-bubble-remove" aria-label="Remove ${escapeHtml(current)}">${icon("trash")}</button>` : "");
+    // The row stays as it was while chords are tried in turn, so nothing moves under the finger.
+    row = keep?.row ?? bubbleRowFor(next);
+    q(".ce-bubble-chords", bubbleEl).innerHTML = row.chords.map((name) => {
+      const hint = row.hint?.chord === name && name !== current;
+      return `<button type="button" class="ce-pick${name === current ? " on" : ""}${hint ? " hint" : ""}" data-pick="${escapeHtml(name)}"${hint ? ` aria-label="${escapeHtml(`${name}, ${row.hint!.why === "usually next" ? "usually next" : `as in ${row.hint!.why}`}`)}"` : ""}>${escapeHtml(name)}</button>`;
+    }).join("")
+      + `<button type="button" class="ce-pick ce-bubble-more-toggle" aria-label="Other chords">…</button>`
+      + (current ? removeButton(current) : "");
     // A chord the builder cannot show (not a chord name) is in the field to change.
     bubbleInput.value = current && !parseChordName(current) ? current : "";
     bassOpen = keep?.bass ?? Boolean(parseChordName(current)?.bass);
     bubbleEl.setAttribute("aria-label", current ? `Change ${current}` : "Add a chord");
-    const elsewhere = Boolean(current) && !chords.includes(current) && !offered.some((item) => item.chord === current);
-    showMore(Boolean(keep?.more) || typing || elsewhere);
+    showMore(Boolean(keep?.more) || (typing && !coarse) || Boolean(bubbleInput.value && !coarse));
     if (next.kind === "line") markLine(true);
     bubbleEl.hidden = false;
     placeBubble();
@@ -1003,22 +1009,23 @@ export function mountChordEditor(
     if (target.kind === "code") return target.chord ?? "";
     return lyric(target.lineId)?.line.chords.find((chord) => chord.id === target.chordId)?.name ?? "";
   }
+  /** The builder in place of the row ("…"), or the row again (‹). */
   function showMore(open: boolean): void {
+    q(".ce-bubble-chords", bubbleEl).hidden = open;
     q(".ce-bubble-more", bubbleEl).hidden = !open;
-    bubbleEl.querySelector(".ce-bubble-more-toggle")?.setAttribute("aria-expanded", String(open));
     if (open) fillBuilder();
   }
-  /** The first row: from an earlier section, what usually follows the chord before, the song's chords outside the key. */
-  function suggested(target: Bubble, current: string, key: string): Suggestion[] {
+  const removeButton = (name: string) => `<button type="button" class="ce-pick ce-bubble-remove" aria-label="Remove ${escapeHtml(name)}">${icon("trash")}</button>`;
+  /** The song's chords and the key's, and the one to suggest at this place. */
+  function bubbleRowFor(target: Bubble): Row {
+    const key = metaValue(doc, "key");
     if (target.kind === "line") {
       const place = placeInSong(doc, target.lineId, target.pos, target.chordId);
-      return suggestions({ key, current, previous: place.previous, earlier: place.earlier, used: songChords(doc) });
+      return bubbleRow({ key, used: songChords(doc), previous: place.previous, earlier: place.earlier });
     }
-    const names = (text: string) => [...text.matchAll(/\[([^\]]+)\]/g)].map((match) => match[1]);
-    const counts = new Map<string, number>();
-    for (const name of names(codeBox.value)) counts.set(name, (counts.get(name) ?? 0) + 1);
-    const used = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
-    return suggestions({ key, current, previous: names(codeBox.value.slice(0, target.start)).at(-1) ?? "", earlier: null, used });
+    const names = [...codeBox.value.matchAll(/\[([^\]]+)\]/g)].map((match) => match[1]);
+    const before = [...codeBox.value.slice(0, target.start).matchAll(/\[([^\]]+)\]/g)].map((match) => match[1]);
+    return bubbleRow({ key, used: [...new Set(names)], previous: before.at(-1) ?? "", earlier: null });
   }
   /** The dashed box where a new chord goes, or the chord being changed. */
   function markLine(on: boolean): void {
@@ -1098,12 +1105,12 @@ export function mountChordEditor(
       if (text) setCaret(text, was.pos);
     }
   }
-  const chordButton = (name: string, on = false) => `<button type="button" class="ce-pick${on ? " on" : ""}" data-pick="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
   /**
-   * Behind "…": the twelve roots (the key's notes stronger), the kinds of
-   * chord on the root in use, and behind "/" a bass note; each tap puts the
-   * chord in, so one can be heard after another. Then a field for a chord
-   * typed any common way (`readChord`).
+   * Behind "…", in place of the row: the chord at the place, the twelve
+   * roots (the key's notes stronger), the kinds of chord, and behind "/" a
+   * bass note. Each tap puts the chord in and sounds it, so one can be
+   * heard after another. With a keyboard, a field for a chord typed any
+   * common way (`readChord`).
    */
   function fillBuilder(): void {
     const key = metaValue(doc, "key");
@@ -1113,12 +1120,17 @@ export function mountChordEditor(
     const quality = known?.quality ?? "";
     const pitch = (name: string) => NOTE_INDEX[name];
     const notes = rootsFor(key || "C");
+    const name = bubbleChord();
+    q(".ce-bubble-name", bubbleEl).textContent = name || "No chord yet";
+    q(".ce-bubble-name", bubbleEl).classList.toggle("empty", !name);
+    q(".ce-bubble-head", bubbleEl).querySelector(".ce-bubble-remove")?.remove();
+    if (name) q(".ce-bubble-head", bubbleEl).insertAdjacentHTML("beforeend", removeButton(name));
     q(".ce-bubble-roots", bubbleEl).innerHTML = notes.map((note) => {
       const on = Boolean(known) && pitch(note.name) === pitch(root);
       const label = on ? root : note.name;
       return `<button type="button" class="ce-pick ce-root${note.inKey ? " in-key" : ""}${on ? " on" : ""}" data-pick="${escapeHtml(label + quality)}" aria-label="${escapeHtml(label + quality)}">${escapeHtml(label)}</button>`;
     }).join("");
-    q(".ce-bubble-forms", bubbleEl).innerHTML = QUALITIES.map((kind) => chordButton(root + kind, Boolean(known) && kind === quality)).join("")
+    q(".ce-bubble-forms", bubbleEl).innerHTML = QUALITIES.map((kind) => `<button type="button" class="ce-pick${known && kind === quality ? " on" : ""}" data-pick="${escapeHtml(root + kind)}" aria-label="${escapeHtml(root + kind)}">${kind ? escapeHtml(kind) : "Major"}</button>`).join("")
       + `<button type="button" class="ce-pick ce-bubble-bass-toggle" aria-expanded="${bassOpen}" aria-label="Bass note">/</button>`;
     const basses = q(".ce-bubble-basses", bubbleEl);
     basses.hidden = !bassOpen;
@@ -1161,7 +1173,7 @@ export function mountChordEditor(
     const target = bubble;
     if (!target) return;
     const value = name.trim();
-    const keep = { more: !q(".ce-bubble-more", bubbleEl).hidden, bass: bassOpen };
+    const keep: Keep = { more: !q(".ce-bubble-more", bubbleEl).hidden, bass: bassOpen, row };
     const reopen = (next: Bubble) => openBubble(next, false, keep);
     if (target.kind === "code") {
       closeBubble(false);
@@ -1210,7 +1222,7 @@ export function mountChordEditor(
     if (pick) choose(pick.dataset.pick!, true);
     else if (target.closest(".ce-bubble-ok")) choose(typedChord());
     else if (target.closest(".ce-bubble-remove")) choose("");
-    else if (target.closest(".ce-bubble-more-toggle")) {
+    else if (target.closest(".ce-bubble-more-toggle, .ce-bubble-back")) {
       showMore(q(".ce-bubble-more", bubbleEl).hidden);
       placeBubble();
     } else if (target.closest(".ce-bubble-bass-toggle")) {

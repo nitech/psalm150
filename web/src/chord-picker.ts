@@ -2,9 +2,9 @@
  * What the chord bubble offers (chord-editor.ts), apart from drawing it:
  * the twelve roots spelled for the key, the forms of a root, a name typed
  * loosely ("fiss moll", "f#m", "H7") read as a chord, and suggestions from
- * the song itself: the chord at the same place in an earlier verse (or
- * chorus …), the chords that usually follow the one before, and the song's
- * other chords outside the key.
+ * the song itself: its chords, and the one to suggest at a place (from the
+ * same place in an earlier verse or chorus, else what usually follows the
+ * chord before).
  */
 import {
   CHORD_PATTERN,
@@ -102,7 +102,7 @@ function readRoot(text: string): { root: string; rest: string } | null {
 
 export interface Suggestion {
   chord: string;
-  /** Why it is offered: "Verse 1", "Next", "In song". */
+  /** Why it is offered: the section it is from ("Verse 1"), or "usually next". */
   why: string;
 }
 
@@ -121,14 +121,14 @@ export function nextChords(previous: string, key: string): string[] {
   return (FOLLOWS[step] ?? []).slice(0, 2).map((next) => inKey.find((name) => mod12(NOTE_INDEX[parseChordName(name)!.root] - tonic) === next && !name.includes("/"))!).filter(Boolean);
 }
 
-/** The song's chords, the most used first. */
+/** The song's chords, each once, in the order they first come. */
 export function songChords(doc: SongDoc): string[] {
-  const counts = new Map<string, number>();
+  const seen = new Set<string>();
   for (const item of doc.items) {
     if (item.kind !== "section") continue;
-    for (const line of item.lines) if (line.kind === "lyric") for (const chord of line.chords) counts.set(chord.name, (counts.get(chord.name) ?? 0) + 1);
+    for (const line of item.lines) if (line.kind === "lyric") for (const chord of line.chords) seen.add(chord.name);
   }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  return [...seen];
 }
 
 /**
@@ -162,18 +162,14 @@ export function placeInSong(doc: SongDoc, lineId: string, pos: number, chordId?:
 }
 
 /**
- * The bubble's first row: the chord from an earlier section, what usually
- * follows the chord before, and the song's chords outside the key; never
- * the chord already there, at most four.
+ * The bubble's row: the song's chords in the order they come, then the rest
+ * of the key's, each once; and the one to suggest here, from an earlier
+ * section or, failing that, what usually follows the chord before.
  */
-export function suggestions(options: { key: string; current: string; previous: string; earlier: Suggestion | null; used: string[] }): Suggestion[] {
-  const inKey = chordsInKey(options.key || "C");
-  const all: Suggestion[] = [
-    ...(options.earlier ? [options.earlier] : []),
-    ...(options.previous ? nextChords(options.previous, options.key || "C").map((chord) => ({ chord, why: "Next" })) : []),
-    ...options.used.filter((chord) => !inKey.includes(chord)).slice(0, 2).map((chord) => ({ chord, why: "In song" })),
-  ];
-  const out: Suggestion[] = [];
-  for (const item of all) if (item.chord !== options.current && !out.some((taken) => taken.chord === item.chord)) out.push(item);
-  return out.slice(0, 4);
+export function bubbleRow(options: { key: string; used: string[]; previous: string; earlier: Suggestion | null }): { chords: string[]; hint: Suggestion | null } {
+  const next = options.previous ? nextChords(options.previous, options.key || "C")[0] : undefined;
+  const hint = options.earlier ?? (next ? { chord: next, why: "usually next" } : null);
+  const chords = [...new Set([...options.used, ...chordsInKey(options.key || "C")])];
+  if (hint && !chords.includes(hint.chord)) chords.unshift(hint.chord);
+  return { chords, hint };
 }
