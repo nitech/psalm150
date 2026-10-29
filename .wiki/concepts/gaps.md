@@ -146,3 +146,7 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
   `POST /songs/{id}/restore`, `GET /sets/deleted` and
   `POST /sets/{id}/restore`, renaming the church and choosing a church at
   sign-in. They are there for API clients.
+- Song recordings and videos are not in the ZIP export, not shown in the
+  public library, on shared set pages or in the service view, and the
+  desktop does not show or sync them yet. Recording needs HTTPS (or
+  localhost) for the microphone.

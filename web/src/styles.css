@@ -1179,6 +1179,24 @@ body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px 
 .swipe-peek .page-titles { margin-top: 0; }
 /* A list's songs, one after another: phones swipe, mice step with these
    (under the song, clear of the current set's card). */
+.song-media { margin: var(--psa-space-6) 0 0; }
+.song-media .list-heading { margin-top: 0; }
+.song-media > .muted { margin: 0 0 var(--psa-space-3); }
+.song-media > .list { margin-bottom: var(--psa-space-3); }
+.media-item > .list-row { min-height: 56px; }
+.media-link { padding: 0; min-height: 0; }
+.media-icon { display: grid; flex: none; place-items: center; width: 36px; height: 36px; color: var(--psa-text-secondary); }
+.media-player { display: block; width: calc(100% - 2 * var(--psa-space-4)); margin: 0 var(--psa-space-4) var(--psa-space-3); }
+.recorder .media-player { width: 100%; margin: 0; }
+.recorder [hidden] { display: none !important; }
+.recorder-time { margin: 0; font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
+.recorder-time.live::before {
+  content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 10px; border-radius: 50%;
+  background: var(--psa-danger); vertical-align: middle; animation: recording-pulse 1.2s ease-in-out infinite;
+}
+@keyframes recording-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .recorder-time.live::before { animation: none; } }
+.button.primary.recording, .button.primary.recording:hover:not(:disabled) { background: var(--psa-danger); color: var(--psa-on-danger); }
 .song-nav { display: grid; grid-template-columns: 1fr 1fr; gap: var(--psa-space-2); margin: var(--psa-space-6) 0 var(--psa-space-4); }
 @media (pointer: coarse) { .song-nav { display: none; } }
 

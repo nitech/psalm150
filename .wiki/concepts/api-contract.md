@@ -103,6 +103,12 @@ the lower of its own `role` and its person's
 | GET | `/songs/deleted?limit=&offset=` | any token | 200 `DeletedSong[]` | `{id, revision_id, title, song_number, authors, language, deleted_at}`, most recently deleted first; `limit` 1–200, default 100 | **no** | – |
 | POST | `/songs/{id}/restore` | editor or desktop | 200 `SongDetail` | Clears `deleted_at` and the deleting person or device; a live song is returned unchanged; 404 when missing | **no** | – |
 | GET | `/songs/{id}/revisions` | any token | 200 `RevisionSummary[]` | Newest first | **no** | – |
+| GET | `/songs/{id}/media` | any token | 200 `SongMedia` | `{recordings: SongRecording[], videos: SongVideo[]}`, oldest first, without the audio; 404 when the song is missing, deleted or in another church | yes (song page) | – |
+| POST | `/songs/{id}/recordings?title=&duration_ms=` | editor | 201 `SongRecording` | The body is the audio, with an `audio/*` `Content-Type` (kept and sent back); `title` defaults to "Recording" (at most 120 characters); 400 for an empty body or a type that is not audio; 409 when the song has 20 recordings; 413 over 40 MB (the route's `DefaultBodyLimit`) | yes (Record) | – |
+| GET | `/songs/{id}/recordings/{recording_id}/audio` | any token | 200 audio | The bytes as recorded, `Cache-Control: private, max-age=31536000, immutable`; 404 when the song is deleted | yes (played from a `blob:` URL) | – |
+| DELETE | `/songs/{id}/recordings/{recording_id}` | editor | 204 | Gone for good | yes | – |
+| POST | `/songs/{id}/videos` | editor | 201 `SongVideo` | Body `{url, title?}`; `url` a YouTube link (`watch?v=`, `youtu.be/`, `/shorts/`, `/live/`, `/embed/`, also `m.`, `music.` and `youtube-nocookie.com`); its `t` or `start` is kept as `start_seconds`; the answer's `url` is the canonical `https://www.youtube.com/watch?v=…`; 400 for other links; 409 at 20 videos | yes | – |
+| DELETE | `/songs/{id}/videos/{video_id}` | editor | 204 | | yes | – |
 | GET | `/songs/{id}/revisions/{revision_id}` | any token | 200 `RevisionDetail` | Any revision with its full ChordPro; 404 when the revision is not this song's or the song is deleted or in another church | **no** | – |
 | POST | `/songs/import` | editor or desktop | 201 `{songs, skipped_existing}` | 1–500 songs; 64 MB body limit | yes | yes |
 | GET | `/songs/export` | any token | 200 `application/zip` | `psa150-library.zip`, with `psa150-manifest.json` | yes | yes |
@@ -143,8 +149,8 @@ the lower of its own `role` and its person's
 - ChordPro source must not be blank and must be at most 1,000,000 bytes
   (`validate_chordpro`). Otherwise the server returns 400.
 - Import accepts 1–500 songs per request (400 otherwise). The route raises the
-  body limit to 64 MB (`DefaultBodyLimit::max`). All other routes keep Axum's
-  2 MB default.
+  body limit to 64 MB (`DefaultBodyLimit::max`), and a song recording's to
+  40 MB. All other routes keep Axum's 2 MB default.
 - Sets hold at most 200 items; name 1–200 characters; `transpose` −11 to 11;
   note at most 500 characters ([sets](sets.md)).
 - Remote commands expire after 30 s, at most 20 are queued per desktop, and

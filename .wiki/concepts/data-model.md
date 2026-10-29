@@ -59,6 +59,8 @@ exist yet ([gaps](gaps.md)).
 | `desktop_auth_codes` | `code_hash CHAR(64)` | One-time desktop sign-in codes: `church_id`, `user_id` (the approver), `device_name`, `code_challenge` (S256), `created_at`, `expires_at` (5 minutes), `used_at` |
 | `songs` | `id` | `church_id`, `current_revision_id`, `deleted_at`, `deleted_by`, `deleted_by_device` |
 | `song_revisions` | `id` | `song_id`, `parent_revision_id`, the extracted `title` / `song_number` / `authors` / `language` / `song_key`, the generated `key_root SMALLINT` and `key_minor BOOLEAN`, the full `chordpro`, `content_hash CHAR(64)`, `created_by`, `created_by_device` |
+| `song_recordings` | `id` | Recordings of how a song is played: `church_id`, `song_id` (with `church_id`, a foreign key to `songs(id, church_id)`, cascading), `title`, `content_type` as recorded, `duration_ms`, `byte_size`, the `audio BYTEA` itself, `created_by`, `created_at` |
+| `song_videos` | `id` | YouTube videos of a song: `church_id`, `song_id` (as above), `title` (may be empty), `video_id` (11 characters), `start_seconds`, `created_by`, `created_at` |
 | `song_sets` | `id` (may be client-chosen) | `church_id`, `name` (not blank), `service_date DATE`, `version INTEGER` (starts at 1), `created_by` / `created_by_device`, `updated_by` / `updated_by_device`, `created_at`, `updated_at`, `deleted_at`, `share_key` (null unless shared; unique server-wide), `share_editable BOOLEAN` (default false), `shared_at` |
 | `song_set_items` | `id` | `set_id`, `position` (≥ 0, `UNIQUE (set_id, position)`), `kind` in `song` / `blank`, `song_id`, `transpose SMALLINT` (−11 to 11), `note` (at most 500 characters) |
 
@@ -74,6 +76,10 @@ from the desktop's `{meta: song_num=N}` where it was empty; it changes only
 the extracted column, never the ChordPro source
 ([songs and revisions](songs-and-revisions.md)). Migration `0007_api_tokens.sql`
 added `api_tokens` ([auth and roles](auth-and-roles.md#api-tokens)).
+Migration `0014_song_media.sql` added `song_recordings` and `song_videos`
+([songs and revisions](songs-and-revisions.md#recordings-and-videos)). The
+audio lives in PostgreSQL so the server needs nothing else and a database
+backup holds it; the ZIP export does not include it.
 Migration `0013_account_links.sql` added `account_links`
 ([auth and roles](auth-and-roles.md#invite-and-reset-links)).
 Migration `0012_song_keys.sql` added `song_revisions.song_key`, filled it from

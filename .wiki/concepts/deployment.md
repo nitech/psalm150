@@ -63,7 +63,8 @@ connections ([gaps](gaps.md)).
 ## Security headers
 
 Every response, the web files included, carries `Content-Security-Policy`
-(only this origin for scripts, styles, images, fonts and requests; inline
+(only this origin for scripts, styles, images, fonts and requests; audio
+also from `blob:`, where the web client plays song recordings; inline
 `style` attributes allowed; no frames, objects or `<base>`; never framed),
 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and
 `Referrer-Policy: no-referrer` (`security_headers` in `lib.rs`). A header a

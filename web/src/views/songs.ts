@@ -9,6 +9,7 @@ import { appGoesBack, bindItemSwipe } from "../transitions.ts";
 import { mountChordEditor } from "../chord-editor.ts";
 import { hasChords, type DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
+import { mountSongMedia } from "../song-media.ts";
 import {
   keyLabel,
   onReaderAction,
@@ -597,6 +598,16 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     return `<span class="bar-set-actions" id="set-actions">${setToggle()}</span>${barActions("song", bar, ctx.canEdit ? 1 : 2)}`;
   };
 
+  /**
+   * Recordings and videos, read once; redrawing the song (transposing) keeps
+   * the section as it is, so a recording playing goes on playing.
+   */
+  const media = document.createElement("section");
+  media.className = "song-media";
+  media.hidden = true;
+  media.setAttribute("aria-labelledby", "song-media-heading");
+  const unmountMedia = ctx.session ? mountSongMedia(ctx, song, media) : () => undefined;
+
   const render = () => {
     const display = prepareSong(song.chordpro, transpose);
     const meta = [song.song_number ? `No. ${song.song_number}` : "", song.authors, keyLabel(display, transpose)]
@@ -609,8 +620,10 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
     ${renderSongBody(display, options)}
+    <div id="song-media-slot"></div>
     ${songNav()}
     ${revisionNote(song, ctx.canEdit)}</div>`;
+    ctx.main.querySelector("#song-media-slot")?.replaceWith(media);
   };
 
   /** Previous and Next under the song, for a mouse; phones swipe instead. */
@@ -704,6 +717,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const releaseScreen = holdScreen();
   return () => {
     releaseScreen();
+    unmountMedia();
     unbindSwipe();
     document.removeEventListener("keydown", onKeys);
     ctx.main.removeEventListener("click", onSetAction);

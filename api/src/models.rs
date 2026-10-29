@@ -884,3 +884,59 @@ pub struct RoomView {
     pub slide_index: Option<u32>,
     pub slides: Vec<RoomSlide>,
 }
+
+/// A recording of how a song is played, without its audio
+/// (`GET /songs/{song_id}/recordings/{recording_id}/audio`).
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct SongRecording {
+    pub id: Uuid,
+    pub song_id: Uuid,
+    pub title: String,
+    /// As the browser recorded it, such as `audio/webm;codecs=opus`.
+    pub content_type: String,
+    pub duration_ms: Option<i32>,
+    pub byte_size: i32,
+    /// Who recorded it, while they have an account.
+    pub created_by_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, IntoParams, ToSchema)]
+pub struct RecordingQuery {
+    /// What the recording is, such as "Piano intro"; "Recording" when left out.
+    pub title: Option<String>,
+    /// Its length, when the recorder knows it.
+    pub duration_ms: Option<i32>,
+}
+
+/// A YouTube video of a song.
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct SongVideo {
+    pub id: Uuid,
+    pub song_id: Uuid,
+    /// May be empty.
+    pub title: String,
+    /// The 11-character YouTube id.
+    pub video_id: String,
+    pub start_seconds: Option<i32>,
+    /// The video on YouTube, from `start_seconds` when there is one.
+    #[sqlx(skip)]
+    pub url: String,
+    pub created_by_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AddSongVideoRequest {
+    /// A YouTube link: `youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`,
+    /// `/live/…` or `/embed/…`. A `t` or `start` in it is kept.
+    pub url: String,
+    pub title: Option<String>,
+}
+
+/// A song's recordings and videos, oldest first.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SongMedia {
+    pub recordings: Vec<SongRecording>,
+    pub videos: Vec<SongVideo>,
+}

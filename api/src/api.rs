@@ -108,6 +108,12 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         list_revisions,
         get_revision,
         list_song_keys,
+        crate::song_media::list_song_media,
+        crate::song_media::add_recording,
+        crate::song_media::get_recording_audio,
+        crate::song_media::delete_recording,
+        crate::song_media::add_video,
+        crate::song_media::delete_video,
         crate::online::search_online,
         list_public_songs,
         list_public_song_keys,
@@ -149,6 +155,11 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
     components(schemas(
         ErrorBody,
         crate::online::OnlineSong,
+        crate::models::SongMedia,
+        crate::models::SongRecording,
+        crate::models::SongVideo,
+        crate::models::RecordingQuery,
+        crate::models::AddSongVideoRequest,
         HealthResponse,
         ServerInfo,
         SetupStatus,
@@ -274,7 +285,7 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     ("Church", "The church's name and settings.", &["church"]),
     (
         "Songs",
-        "The church's song library: ChordPro songs with every revision kept.",
+        "The church's song library: ChordPro songs with every revision kept, and recordings and videos of how they are played.",
         &["songs"],
     ),
     (
@@ -395,6 +406,7 @@ pub fn router() -> Router<AppState> {
         .merge(crate::account_links::router())
         .merge(crate::online::router())
         .merge(crate::sets::router())
+        .merge(crate::song_media::router())
         .merge(crate::shared_sets::router())
         .merge(crate::live_sets::router())
         .merge(crate::remote::router())

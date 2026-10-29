@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-29
+* **Song recordings and YouTube videos**: leaders and owners record how a song is played from the song page (the phone's microphone, `MediaRecorder`, up to 30 minutes, no echo cancelling or levelling) and link YouTube videos of it; everyone signed in sees them under the song ("How it is played"), plays recordings in the page and opens videos on YouTube. New `song_media.rs` with `GET /songs/{id}/media`, `POST /songs/{id}/recordings` (raw audio body, 40 MB), `GET …/recordings/{rid}/audio`, `DELETE …/recordings/{rid}`, `POST /songs/{id}/videos`, `DELETE …/videos/{vid}`; migration `0014_song_media.sql` (`song_recordings` with the audio as `BYTEA`, `song_videos`). CSP gains `media-src 'self' blob:`. New icons `mic`, `video`, `stop` in `shared/icons.ts`. Pages touched: api-contract, data-model, songs-and-revisions, web-client, deployment, gaps, index. `/docs/api.md` updated.
+
 ## 2026-10-28
 * **Chord bubble simplified (web)**: one row again (the song's chords, then the key's, the suggested one marked with a dot) instead of stacked suggestion, key and builder rows; "…" swaps the row for the builder (back, chord name, roots, kinds, bass), each tap putting the chord in; the typing field shows only with a keyboard. Pages touched: web-client.
 * **Smarter chord bubble (web)**: suggestions from the song (the chord at the same place in an earlier verse or chorus, the usual next chord, the song's chords outside the key) over the key's chords; "…" opens a builder of root, kind and bass with no keyboard, and a field that reads chords typed loosely ("fiss moll", "H7"). New `chord-picker.ts` with tests; `chordVariants` removed. Pages touched: web-client.

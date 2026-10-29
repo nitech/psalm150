@@ -3542,3 +3542,233 @@ async fn invite_and_reset_links(pool: PgPool) {
         StatusCode::CONFLICT
     );
 }
+
+/// Sends `body` as it is, with `content_type`, and returns the answer's
+/// status, `Content-Type` and bytes.
+async fn send_bytes(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    token: Option<&str>,
+    content_type: &str,
+    body: Vec<u8>,
+) -> (StatusCode, String, Vec<u8>) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, content_type);
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::from(body)).expect("request"))
+        .await
+        .expect("response");
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    let bytes = to_bytes(response.into_body(), 64 * 1024 * 1024)
+        .await
+        .expect("response body");
+    (status, content_type, bytes.to_vec())
+}
+
+/// Leaders and owners record a song and link YouTube videos of it; everyone
+/// in the church lists them and plays the recordings.
+#[sqlx::test(migrations = "./migrations")]
+async fn song_recordings_and_videos(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+    let (song_id, _) = create_song(&app, &owner, "Amazing Grace").await;
+    let media = format!("/api/v1/songs/{song_id}/media");
+    let recordings = format!("/api/v1/songs/{song_id}/recordings");
+    let audio = vec![26u8, 69, 223, 163, 1, 2, 3, 4];
+
+    let empty = send(&app, "GET", &media, Some(&viewer), None).await;
+    assert_eq!(empty.0, StatusCode::OK);
+    assert_eq!(empty.1, json!({ "recordings": [], "videos": [] }));
+
+    // Only leaders and owners record.
+    for token in [&viewer, &desktop] {
+        let refused = send_bytes(
+            &app,
+            "POST",
+            &recordings,
+            Some(token),
+            "audio/webm",
+            audio.clone(),
+        )
+        .await;
+        assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    }
+    let not_audio = send_bytes(
+        &app,
+        "POST",
+        &recordings,
+        Some(&owner),
+        "text/html",
+        audio.clone(),
+    )
+    .await;
+    assert_eq!(not_audio.0, StatusCode::BAD_REQUEST);
+    let nothing = send_bytes(
+        &app,
+        "POST",
+        &recordings,
+        Some(&owner),
+        "audio/webm",
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(nothing.0, StatusCode::BAD_REQUEST);
+
+    let saved = send_bytes(
+        &app,
+        "POST",
+        &format!("{recordings}?title=Piano%20intro&duration_ms=4200"),
+        Some(&owner),
+        "audio/webm;codecs=opus",
+        audio.clone(),
+    )
+    .await;
+    assert_eq!(saved.0, StatusCode::CREATED);
+    let saved: Value = serde_json::from_slice(&saved.2).expect("json");
+    assert_eq!(saved["title"], "Piano intro");
+    assert_eq!(saved["content_type"], "audio/webm;codecs=opus");
+    assert_eq!(saved["duration_ms"], 4200);
+    assert_eq!(saved["byte_size"], audio.len());
+    assert_eq!(saved["created_by_name"], "Test Owner");
+    let recording_id = saved["id"].as_str().expect("id");
+
+    // Everyone in the church plays it back, as it was recorded.
+    let audio_path = format!("{recordings}/{recording_id}/audio");
+    for token in [&viewer, &desktop] {
+        let played = send_bytes(
+            &app,
+            "GET",
+            &audio_path,
+            Some(token),
+            "audio/webm",
+            Vec::new(),
+        )
+        .await;
+        assert_eq!(played.0, StatusCode::OK);
+        assert_eq!(played.1, "audio/webm;codecs=opus");
+        assert_eq!(played.2, audio);
+    }
+    let anonymous = send(&app, "GET", &audio_path, None, None).await;
+    assert_eq!(anonymous.0, StatusCode::UNAUTHORIZED);
+
+    // YouTube links in any usual form, kept as the video and its start.
+    let videos = format!("/api/v1/songs/{song_id}/videos");
+    let not_youtube = send(
+        &app,
+        "POST",
+        &videos,
+        Some(&owner),
+        Some(json!({ "url": "https://vimeo.com/1" })),
+    )
+    .await;
+    assert_eq!(not_youtube.0, StatusCode::BAD_REQUEST);
+    let refused = send(
+        &app,
+        "POST",
+        &videos,
+        Some(&viewer),
+        Some(json!({ "url": "https://youtu.be/dQw4w9WgXcQ" })),
+    )
+    .await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    let linked = send(
+        &app,
+        "POST",
+        &videos,
+        Some(&owner),
+        Some(json!({ "url": "https://youtu.be/dQw4w9WgXcQ?t=1m5s", "title": " Live in Oslo " })),
+    )
+    .await;
+    assert_eq!(linked.0, StatusCode::CREATED);
+    assert_eq!(linked.1["title"], "Live in Oslo");
+    assert_eq!(linked.1["video_id"], "dQw4w9WgXcQ");
+    assert_eq!(linked.1["start_seconds"], 65);
+    assert_eq!(
+        linked.1["url"],
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=65s"
+    );
+    let video_id = linked.1["id"].as_str().expect("id").to_string();
+
+    let listed = send(&app, "GET", &media, Some(&desktop), None).await;
+    assert_eq!(listed.0, StatusCode::OK);
+    assert_eq!(listed.1["recordings"][0]["id"], recording_id);
+    assert!(listed.1["recordings"][0].get("audio").is_none());
+    assert_eq!(listed.1["videos"][0]["id"], video_id.as_str());
+
+    // A song that is not in the church has none.
+    let other = send(
+        &app,
+        "GET",
+        "/api/v1/songs/00000000-0000-0000-0000-000000000000/media",
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(other.0, StatusCode::NOT_FOUND);
+
+    // Removing is for leaders and owners too.
+    let recording_path = format!("{recordings}/{recording_id}");
+    let refused = send(&app, "DELETE", &recording_path, Some(&viewer), None).await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    let removed = send(&app, "DELETE", &recording_path, Some(&owner), None).await;
+    assert_eq!(removed.0, StatusCode::NO_CONTENT);
+    let again = send(&app, "DELETE", &recording_path, Some(&owner), None).await;
+    assert_eq!(again.0, StatusCode::NOT_FOUND);
+    let removed = send(
+        &app,
+        "DELETE",
+        &format!("{videos}/{video_id}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(removed.0, StatusCode::NO_CONTENT);
+    let empty = send(&app, "GET", &media, Some(&viewer), None).await;
+    assert_eq!(empty.1, json!({ "recordings": [], "videos": [] }));
+
+    // A deleted song's recordings are not played.
+    let saved = send_bytes(
+        &app,
+        "POST",
+        &recordings,
+        Some(&owner),
+        "audio/mp4",
+        audio.clone(),
+    )
+    .await;
+    assert_eq!(saved.0, StatusCode::CREATED);
+    let saved: Value = serde_json::from_slice(&saved.2).expect("json");
+    assert_eq!(saved["title"], "Recording");
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{song_id}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    let gone = send(
+        &app,
+        "GET",
+        &format!("{recordings}/{}/audio", saved["id"].as_str().expect("id")),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(gone.0, StatusCode::NOT_FOUND);
+}

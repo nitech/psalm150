@@ -13,6 +13,7 @@ pub mod remote;
 pub mod rooms;
 pub mod sets;
 pub mod shared_sets;
+pub mod song_media;
 pub mod throttle;
 
 use std::{path::PathBuf, sync::Arc};
@@ -119,10 +120,11 @@ pub fn app(state: AppState, web_dist: PathBuf) -> Router {
 
 /// On every response, the files included: the app loads nothing from other
 /// sites and is never shown inside another site's frame. Styles allow inline
-/// `style` attributes, which the reader's text size uses.
+/// `style` attributes, which the reader's text size uses. Recordings play
+/// from `blob:` URLs, since the app reads them with its token.
 fn security_headers(router: Router) -> Router {
     const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
-        img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; \
+        img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; \
         base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
     let headers = [
         (header::CONTENT_SECURITY_POLICY, POLICY),

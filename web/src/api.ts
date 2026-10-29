@@ -30,6 +30,9 @@ import type {
   SetupStatus,
   SongDetail,
   SongKeyCount,
+  SongMedia,
+  SongRecording,
+  SongVideo,
   SongSort,
   SongSummary,
   SortDirection,
@@ -486,6 +489,45 @@ export class SongServerApi {
       method: "POST",
       body: JSON.stringify({ code, code_verifier: codeVerifier }),
     });
+  }
+
+  songMedia(songId: string): Promise<SongMedia> {
+    return this.request(`/songs/${songId}/media`);
+  }
+
+  /** Leaders and owners: `audio` as recorded, with its own type. */
+  async addRecording(songId: string, audio: Blob, title: string, durationMs: number | null): Promise<SongRecording> {
+    this.remembered.clear();
+    const query = new URLSearchParams({ title });
+    if (durationMs !== null) query.set("duration_ms", String(Math.round(durationMs)));
+    const response = await send(`${API_ROOT}/songs/${songId}/recordings?${query}`, {
+      method: "POST",
+      headers: { ...this.headers(false), "Content-Type": audio.type || "audio/webm" },
+      body: audio,
+    });
+    if (!response.ok) throw await this.error(response);
+    return response.json() as Promise<SongRecording>;
+  }
+
+  /** The audio, read with the token, to play from a `blob:` URL. */
+  async recordingAudio(songId: string, recordingId: string): Promise<Blob> {
+    const response = await send(`${API_ROOT}/songs/${songId}/recordings/${recordingId}/audio`, {
+      headers: this.headers(false),
+    });
+    if (!response.ok) throw await this.error(response);
+    return response.blob();
+  }
+
+  async deleteRecording(songId: string, recordingId: string): Promise<void> {
+    await this.requestEmpty(`/songs/${songId}/recordings/${recordingId}`, { method: "DELETE" });
+  }
+
+  addVideo(songId: string, url: string, title: string): Promise<SongVideo> {
+    return this.request(`/songs/${songId}/videos`, { method: "POST", body: JSON.stringify({ url, title }) });
+  }
+
+  async deleteVideo(songId: string, videoId: string): Promise<void> {
+    await this.requestEmpty(`/songs/${songId}/videos/${videoId}`, { method: "DELETE" });
   }
 
   async exportSongs(): Promise<Blob> {

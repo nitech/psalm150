@@ -230,6 +230,19 @@ are not affected.
 
 ## Songs
 
+- **How it is played** (`song-media.ts`): under a song, for anyone signed in,
+  its recordings (play in the page; the audio is read with the token and
+  played from a `blob:` URL, one at a time, and keeps playing when the song
+  is transposed) and YouTube videos (open on YouTube in a new tab). Readers
+  see the section only when it has something; leaders and owners always see
+  it, with **Record** and **YouTube video** and a remove button on each row.
+  **Record** opens a sheet: Start/Stop with a running clock (the screen is
+  kept on), then listen, name it and **Save**, or **Record again**. It asks
+  the microphone for music (no echo cancelling, noise removal or levelling),
+  records WebM/Opus or, in Safari, MP4 at 128 kbit/s, and stops by itself
+  after 30 minutes. Closing the sheet lets go of the microphone. Not shown to
+  public library visitors, and not kept offline.
+
 - **List**: search as you type (250 ms pause) over title, number, author or a
   line; the search field stays right under the bar while scrolling (the list
   always has the bar, which shows "Songs" once scrolled). Songs come 100 at
