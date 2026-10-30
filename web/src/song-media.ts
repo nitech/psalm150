@@ -3,8 +3,9 @@
  * lists them and plays the recordings; leaders and owners record one with
  * the phone's microphone and link YouTube videos.
  *
- * Recordings are read with the token and played from a `blob:` URL, since
- * an `<audio>` element cannot send the bearer token itself.
+ * An `<audio>` element cannot send the bearer token, so a recording plays
+ * from a play link the server hands out (six hours, no token), streamed:
+ * it starts at once and seeks without reading the whole file.
  */
 import { announce } from "./a11y.ts";
 import type { LibraryContext } from "./context.ts";
@@ -44,7 +45,7 @@ export function canRecord(): boolean {
  */
 export function mountSongMedia(ctx: LibraryContext, song: Song, holder: HTMLElement): () => void {
   let media: SongMedia = { recordings: [], videos: [] };
-  /** Audio read this visit, by recording id. */
+  /** Play links asked for this visit, by recording id. */
   const urls = new Map<string, string>();
   let gone = false;
 
@@ -115,7 +116,7 @@ export function mountSongMedia(ctx: LibraryContext, song: Song, holder: HTMLElem
     try {
       let url = urls.get(recordingId);
       if (!url) {
-        url = URL.createObjectURL(await ctx.api.recordingAudio(song.id, recordingId));
+        url = (await ctx.api.recordingLink(song.id, recordingId)).url;
         urls.set(recordingId, url);
       }
       if (gone || !item.isConnected) return;
@@ -124,6 +125,18 @@ export function mountSongMedia(ctx: LibraryContext, song: Song, holder: HTMLElem
       audio.preload = "auto";
       audio.src = url;
       audio.className = "media-player";
+      showLength(audio);
+      // The link ran out (six hours, or the server restarted): ask once for a new one.
+      let renewed = false;
+      audio.addEventListener("error", () => {
+        if (renewed || gone) return;
+        renewed = true;
+        void ctx.api.recordingLink(song.id, recordingId).then((link) => {
+          urls.set(recordingId, link.url);
+          audio.src = link.url;
+          void audio.play().catch(() => undefined);
+        }).catch(() => showToast("The recording could not be played.", true));
+      });
       // One at a time: starting one pauses the others.
       audio.addEventListener("play", () => {
         holder.querySelectorAll("audio").forEach((other) => { if (other !== audio) other.pause(); });
@@ -190,8 +203,26 @@ export function mountSongMedia(ctx: LibraryContext, song: Song, holder: HTMLElem
     gone = true;
     holder.removeEventListener("click", onClick);
     holder.querySelectorAll("audio").forEach((audio) => audio.pause());
-    for (const url of urls.values()) URL.revokeObjectURL(url);
   };
+}
+
+/**
+ * Chrome and Firefox record WebM without its length in it, so a player
+ * streaming one shows no length and cannot seek. Seeking far past the end
+ * makes it read the end and learn the length; then it goes back to the
+ * start (unless it was already playing on).
+ */
+function showLength(audio: HTMLAudioElement): void {
+  audio.addEventListener("loadedmetadata", () => {
+    if (Number.isFinite(audio.duration)) return;
+    const found = () => {
+      if (!Number.isFinite(audio.duration)) return;
+      audio.removeEventListener("durationchange", found);
+      audio.currentTime = 0;
+    };
+    audio.addEventListener("durationchange", found);
+    audio.currentTime = Number.MAX_SAFE_INTEGER;
+  }, { once: true });
 }
 
 /**

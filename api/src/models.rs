@@ -909,6 +909,14 @@ pub struct RecordingQuery {
     pub duration_ms: Option<i32>,
 }
 
+/// A token-free URL that plays one recording for a while.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RecordingLink {
+    /// `/api/v1/public/recordings/{key}`, on this server.
+    pub url: String,
+    pub expires_at: DateTime<Utc>,
+}
+
 /// A YouTube video of a song.
 #[derive(Debug, Serialize, FromRow, ToSchema)]
 pub struct SongVideo {

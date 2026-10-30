@@ -134,13 +134,17 @@ A song can carry recordings of how it is played and links to YouTube videos
 of it (`api/src/song_media.rs`, migration `0014_song_media.sql`). Anyone
 signed in to the church, desktops included, lists them
 (`GET /songs/{id}/media`) and plays the recordings
-(`GET /songs/{id}/recordings/{recording_id}/audio`); only leaders and owners
+(`GET /songs/{id}/recordings/{recording_id}/audio`, or a six-hour play link
+from `POST …/link` for an `<audio>` element); only leaders and owners
 (`require_editor`, so not desktops) record, link and remove them.
 
 * A recording is the audio exactly as the browser made it (WebM/Opus in
-  Chrome and Firefox, MP4/AAC in Safari), at most 40 MB, kept in
-  `song_recordings.audio` with its `Content-Type`. The server never decodes
-  or converts it.
+  Chrome and Firefox, MP4/AAC in Safari), at most 40 MB, kept as a file
+  under the media directory (`PSA150_MEDIA_DIR`), with its `Content-Type`
+  and size in `song_recordings`. Uploads stream to disk through a `.part`
+  file that is renamed when whole; reads stream from disk and answer
+  `Range`, so playing starts at once and seeking works. The server never
+  decodes or converts the audio. Removing a recording removes its file.
 * A video is kept as its YouTube id and start time, so every form of link
   opens the same way; the server builds the `watch?v=` URL in answers.
 * A song keeps at most 20 of each. They are not revisions: adding or

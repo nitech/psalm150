@@ -25,11 +25,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!(filled, "Song keys guessed from chords");
     }
 
+    let state = AppState::new(pool, config.session_hours)
+        .with_client_ip_header(config.client_ip_header)
+        .with_media_dir(config.media_dir.clone());
+    let moved = psa150_server::song_media::prepare_media(&state.pool, &state.media).await?;
+    if moved > 0 {
+        tracing::info!(moved, "Recordings moved from the database to files");
+    }
+    tracing::info!(path = %config.media_dir.display(), "Recordings are kept here");
+
     let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(address = %config.bind, "PSA150 Song Server listening");
 
-    let state =
-        AppState::new(pool, config.session_hours).with_client_ip_header(config.client_ip_header);
     // The peer address limits failed sign-ins per client.
     axum::serve(
         listener,

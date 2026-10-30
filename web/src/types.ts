@@ -103,6 +103,13 @@ export interface SongRecording {
   created_at: string;
 }
 
+/** A token-free URL that plays one recording for a while. */
+export interface RecordingLink {
+  /** `/api/v1/public/recordings/{key}`, on this server. */
+  url: string;
+  expires_at: string;
+}
+
 /** A YouTube video of a song. */
 export interface SongVideo {
   id: string;

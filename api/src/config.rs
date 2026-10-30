@@ -8,6 +8,8 @@ pub struct Config {
     pub database_url: String,
     pub web_dist: PathBuf,
     pub session_hours: i64,
+    /// Where song recordings are kept as files.
+    pub media_dir: PathBuf,
     /// A header the reverse proxy sets to the client's address, such as
     /// `X-Forwarded-For`, for limiting failed sign-ins per client.
     pub client_ip_header: Option<HeaderName>,
@@ -24,6 +26,9 @@ impl Config {
         let web_dist = env::var("PSA150_WEB_DIST")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../web/dist"));
+        let media_dir = env::var("PSA150_MEDIA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("data/media"));
         let session_hours = env::var("PSA150_SESSION_HOURS")
             .unwrap_or_else(|_| "168".to_string())
             .parse::<i64>()
@@ -45,6 +50,7 @@ impl Config {
             database_url,
             web_dist,
             session_hours,
+            media_dir,
             client_ip_header,
         })
     }

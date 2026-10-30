@@ -64,7 +64,7 @@ connections ([gaps](gaps.md)).
 
 Every response, the web files included, carries `Content-Security-Policy`
 (only this origin for scripts, styles, images, fonts and requests; audio
-also from `blob:`, where the web client plays song recordings; inline
+also from `blob:`, where the recorder plays back what it just recorded; inline
 `style` attributes allowed; no frames, objects or `<base>`; never framed),
 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and
 `Referrer-Policy: no-referrer` (`security_headers` in `lib.rs`). A header a
@@ -79,6 +79,7 @@ may be reached over plain HTTP on a LAN.
 | `PSA150_BIND` | `0.0.0.0:8080` | `Config` | Listen address. Startup fails if it cannot be parsed |
 | `PSA150_WEB_DIST` | `<crate>/../web/dist` (`/app/web/dist` in the image) | `Config` | Built web client. If it is not a directory, the server runs headless |
 | `PSA150_SESSION_HOURS` | `168` | `Config` | Session lifetime. Must be at least 1 |
+| `PSA150_MEDIA_DIR` | `data/media` (relative to the working directory; Compose sets `/app/data/media`) | `Config` | Where song recordings are kept as files. Made at startup; the server will not start if it cannot write there |
 | `PSA150_CLIENT_IP_HEADER` | unset | `Config` | A header the reverse proxy sets to the client's address, such as `X-Forwarded-For` (its last entry counts) or `CF-Connecting-IP`. Failed sign-ins are limited per client by this address; unset, by the connection's peer, which behind a proxy is the proxy for everyone ([auth and roles](auth-and-roles.md#limits-on-wrong-passwords)). Startup fails if it is not a valid header name. Set it only behind a proxy that sets the header, since clients can send it themselves |
 | `RUST_LOG` | `psa150_server=info,tower_http=info` | `main` | `tracing` filter. `TraceLayer` logs each request |
 | `POSTGRES_PASSWORD` | **required** by Compose | `compose.yaml` | Used to build both the DB service and `DATABASE_URL` |
@@ -127,7 +128,8 @@ unchanged, and the app says the link is gone.
 `docker compose up --build` after copying `.env.example` to `.env` and setting
 `POSTGRES_PASSWORD`. The `server` service waits for `database` to report
 healthy (`pg_isready`). PostgreSQL has no host port. Its data is in the named
-volume `psa150-postgres`. Open `http://localhost:8080` for first-run setup
+volume `psa150-postgres`; song recordings are in `psa150-media`, mounted at
+`/app/data/media`. A backup needs both: the database and that volume. Open `http://localhost:8080` for first-run setup
 ([auth and roles](auth-and-roles.md)).
 
 ## Image
@@ -138,7 +140,8 @@ volume `psa150-postgres`. Open `http://localhost:8080` for first-run setup
 2. `rust:1.94-bookworm` copies `shared/lyrics/` (the online search crate, a
    path dependency of the API) and runs `cargo build --locked --release`.
 3. `debian:bookworm-slim` with CA certificates, running as `65532:65532`, entry
-   point `psa150-server`, exposing 8080.
+   point `psa150-server`, exposing 8080. It makes `/app/data/media` owned by
+   that user, so a new volume mounted there is writable.
 
 The inputs work for both `linux/amd64` and `linux/arm64`. CI builds the image
 but does not push it, and does not build more than one architecture

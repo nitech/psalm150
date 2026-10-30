@@ -1516,7 +1516,7 @@ dependencies = [
 
 [[package]]
 name = "psa150-server"
-version = "0.1.82"
+version = "0.1.83"
 dependencies = [
  "argon2",
  "axum",
@@ -1524,6 +1524,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "hex",
+ "mime",
  "psa150-lyrics",
  "serde",
  "serde_json",

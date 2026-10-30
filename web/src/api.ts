@@ -32,6 +32,7 @@ import type {
   SongKeyCount,
   SongMedia,
   SongRecording,
+  RecordingLink,
   SongVideo,
   SongSort,
   SongSummary,
@@ -509,13 +510,9 @@ export class SongServerApi {
     return response.json() as Promise<SongRecording>;
   }
 
-  /** The audio, read with the token, to play from a `blob:` URL. */
-  async recordingAudio(songId: string, recordingId: string): Promise<Blob> {
-    const response = await send(`${API_ROOT}/songs/${songId}/recordings/${recordingId}/audio`, {
-      headers: this.headers(false),
-    });
-    if (!response.ok) throw await this.error(response);
-    return response.blob();
+  /** A URL an `<audio>` element plays without the token, streamed, for six hours. */
+  recordingLink(songId: string, recordingId: string): Promise<RecordingLink> {
+    return this.request(`/songs/${songId}/recordings/${recordingId}/link`, { method: "POST" });
   }
 
   async deleteRecording(songId: string, recordingId: string): Promise<void> {

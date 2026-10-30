@@ -40,6 +40,8 @@ pub struct AppState {
     pub live_sets: Arc<live_sets::LiveSets>,
     /// In-memory counts of wrong passwords.
     pub throttle: Arc<throttle::Throttle>,
+    /// Where recordings are kept, and their play links.
+    pub media: Arc<song_media::MediaStore>,
     /// Online song lookup with its memory of recent answers.
     pub online: Arc<online::OnlineSearch>,
     /// Where the reverse proxy puts the client's address
@@ -56,8 +58,15 @@ impl AppState {
             live_sets: Arc::default(),
             throttle: Arc::default(),
             online: Arc::default(),
+            media: Arc::new(song_media::MediaStore::new(PathBuf::from("data/media"))),
             client_ip_header: None,
         }
+    }
+
+    /// Keeps recordings under `dir` (`PSA150_MEDIA_DIR`).
+    pub fn with_media_dir(mut self, dir: PathBuf) -> Self {
+        self.media = Arc::new(song_media::MediaStore::new(dir));
+        self
     }
 
     pub fn with_client_ip_header(mut self, header: Option<HeaderName>) -> Self {
@@ -120,8 +129,8 @@ pub fn app(state: AppState, web_dist: PathBuf) -> Router {
 
 /// On every response, the files included: the app loads nothing from other
 /// sites and is never shown inside another site's frame. Styles allow inline
-/// `style` attributes, which the reader's text size uses. Recordings play
-/// from `blob:` URLs, since the app reads them with its token.
+/// `style` attributes, which the reader's text size uses. The recorder
+/// plays back what it just recorded from a `blob:` URL.
 fn security_headers(router: Router) -> Router {
     const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
         img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; \

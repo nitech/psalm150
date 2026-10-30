@@ -19,6 +19,8 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=api-builder /source/api/target/release/psa150-server /usr/local/bin/psa150-server
 COPY --from=web-builder /source/web/dist /app/web/dist
+# Song recordings; a new volume mounted here starts out owned by the server.
+RUN mkdir -p /app/data/media && chown -R 65532:65532 /app/data
 ENV PSA150_BIND=0.0.0.0:8080
 ENV PSA150_WEB_DIST=/app/web/dist
 EXPOSE 8080

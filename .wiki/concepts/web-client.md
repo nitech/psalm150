@@ -231,8 +231,10 @@ are not affected.
 ## Songs
 
 - **How it is played** (`song-media.ts`): under a song, for anyone signed in,
-  its recordings (play in the page; the audio is read with the token and
-  played from a `blob:` URL, one at a time, and keeps playing when the song
+  its recordings (play in the page from a play link, streamed, one at a
+  time; a WebM recording without its length is sought to the end once so
+  the player shows its length; a run-out link is renewed once; it keeps
+  playing when the song
   is transposed) and YouTube videos (open on YouTube in a new tab). Readers
   see the section only when it has something; leaders and owners always see
   it, with **Record** and **YouTube video** and a remove button on each row.

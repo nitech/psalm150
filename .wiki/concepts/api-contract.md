@@ -104,8 +104,10 @@ the lower of its own `role` and its person's
 | POST | `/songs/{id}/restore` | editor or desktop | 200 `SongDetail` | Clears `deleted_at` and the deleting person or device; a live song is returned unchanged; 404 when missing | **no** | – |
 | GET | `/songs/{id}/revisions` | any token | 200 `RevisionSummary[]` | Newest first | **no** | – |
 | GET | `/songs/{id}/media` | any token | 200 `SongMedia` | `{recordings: SongRecording[], videos: SongVideo[]}`, oldest first, without the audio; 404 when the song is missing, deleted or in another church | yes (song page) | – |
-| POST | `/songs/{id}/recordings?title=&duration_ms=` | editor | 201 `SongRecording` | The body is the audio, with an `audio/*` `Content-Type` (kept and sent back); `title` defaults to "Recording" (at most 120 characters); 400 for an empty body or a type that is not audio; 409 when the song has 20 recordings; 413 over 40 MB (the route's `DefaultBodyLimit`) | yes (Record) | – |
-| GET | `/songs/{id}/recordings/{recording_id}/audio` | any token | 200 audio | The bytes as recorded, `Cache-Control: private, max-age=31536000, immutable`; 404 when the song is deleted | yes (played from a `blob:` URL) | – |
+| POST | `/songs/{id}/recordings?title=&duration_ms=` | editor | 201 `SongRecording` | The body is the audio, with an `audio/*` `Content-Type` (kept and sent back); `title` defaults to "Recording" (at most 120 characters); 400 for an empty body or a type that is not audio; 409 when the song has 20 recordings; 413 over 40 MB. The body is streamed to a file under the media directory (never held in memory), and the row is written only once the file is whole | yes (Record) | – |
+| GET | `/songs/{id}/recordings/{recording_id}/audio` | any token | 200 or 206 audio | The file as recorded, streamed; answers `Range` (206); `Cache-Control: private, max-age=31536000, immutable`; 404 when the song is deleted | – | – |
+| POST | `/songs/{id}/recordings/{recording_id}/link` | any token | 200 `RecordingLink` | `{url, expires_at}`: a play link `/api/v1/public/recordings/{key}` for an `<audio>` element, which cannot send a token; it opens only that recording, for 6 hours, and is kept in memory (as a SHA-256 hash) so a restart ends it | yes (Play) | – |
+| GET | `/public/recordings/{key}` | none | 200 or 206 audio | Plays a play link's recording, streamed, answering `Range`; `Cache-Control: private, max-age=21600`; 404 once the link has run out or the server restarted, or the recording or its song is gone | yes (`<audio>`) | – |
 | DELETE | `/songs/{id}/recordings/{recording_id}` | editor | 204 | Gone for good | yes | – |
 | POST | `/songs/{id}/videos` | editor | 201 `SongVideo` | Body `{url, title?}`; `url` a YouTube link (`watch?v=`, `youtu.be/`, `/shorts/`, `/live/`, `/embed/`, also `m.`, `music.` and `youtube-nocookie.com`); its `t` or `start` is kept as `start_seconds`; the answer's `url` is the canonical `https://www.youtube.com/watch?v=…`; 400 for other links; 409 at 20 videos | yes | – |
 | DELETE | `/songs/{id}/videos/{video_id}` | editor | 204 | | yes | – |
@@ -149,8 +151,9 @@ the lower of its own `role` and its person's
 - ChordPro source must not be blank and must be at most 1,000,000 bytes
   (`validate_chordpro`). Otherwise the server returns 400.
 - Import accepts 1–500 songs per request (400 otherwise). The route raises the
-  body limit to 64 MB (`DefaultBodyLimit::max`), and a song recording's to
-  40 MB. All other routes keep Axum's 2 MB default.
+  body limit to 64 MB (`DefaultBodyLimit::max`). A song recording is
+  streamed to disk and stopped at 40 MB (413). All other routes keep Axum's
+  2 MB default.
 - Sets hold at most 200 items; name 1–200 characters; `transpose` −11 to 11;
   note at most 500 characters ([sets](sets.md)).
 - Remote commands expire after 30 s, at most 20 are queued per desktop, and

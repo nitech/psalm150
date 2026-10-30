@@ -112,6 +112,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::song_media::add_recording,
         crate::song_media::get_recording_audio,
         crate::song_media::delete_recording,
+        crate::song_media::link_recording,
+        crate::song_media::play_recording,
         crate::song_media::add_video,
         crate::song_media::delete_video,
         crate::online::search_online,
@@ -159,6 +161,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::models::SongRecording,
         crate::models::SongVideo,
         crate::models::RecordingQuery,
+        crate::models::RecordingLink,
         crate::models::AddSongVideoRequest,
         HealthResponse,
         ServerInfo,
@@ -286,7 +289,7 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     (
         "Songs",
         "The church's song library: ChordPro songs with every revision kept, and recordings and videos of how they are played.",
-        &["songs"],
+        &["songs", "public/recordings"],
     ),
     (
         "Sets",

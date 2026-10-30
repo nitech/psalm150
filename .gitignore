@@ -3,3 +3,6 @@
 /web/node_modules/
 .env
 *.local
+# Song recordings from a local run (PSA150_MEDIA_DIR)
+/data/
+/api/data/

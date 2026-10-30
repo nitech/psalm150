@@ -2934,6 +2934,7 @@ async fn openapi_describes_every_operation(pool: PgPool) {
         "GET /api/v1/public/sets/{share_key}/live/events",
         "POST /api/v1/desktop-auth/token",
         "GET /api/v1/public/account-links/{token}",
+        "GET /api/v1/public/recordings/{key}",
         "POST /api/v1/public/account-links/{token}",
     ];
     let mut operations = 0;
@@ -3133,9 +3134,14 @@ async fn send_raw(app: &Router, uri: &str, token: &str) -> StatusCode {
 
 fn test_app(pool: PgPool) -> Router {
     app(
-        AppState::new(pool, 1),
+        AppState::new(pool, 1).with_media_dir(test_media_dir()),
         PathBuf::from("directory-that-does-not-exist"),
     )
+}
+
+/// A media directory of the test's own.
+fn test_media_dir() -> PathBuf {
+    std::env::temp_dir().join(format!("psa150-media-{}", uuid::Uuid::new_v4()))
 }
 
 async fn send(
@@ -3565,6 +3571,11 @@ async fn send_bytes(
         .oneshot(builder.body(Body::from(body)).expect("request"))
         .await
         .expect("response");
+    read_bytes(response).await
+}
+
+/// The answer's status, `Content-Type` and bytes.
+async fn read_bytes(response: axum::response::Response) -> (StatusCode, String, Vec<u8>) {
     let status = response.status();
     let content_type = response
         .headers()
@@ -3665,6 +3676,48 @@ async fn song_recordings_and_videos(pool: PgPool) {
     let anonymous = send(&app, "GET", &audio_path, None, None).await;
     assert_eq!(anonymous.0, StatusCode::UNAUTHORIZED);
 
+    // Players read a part at a time.
+    let part = app
+        .clone()
+        .oneshot(
+            Request::get(&audio_path)
+                .header(header::AUTHORIZATION, format!("Bearer {viewer}"))
+                .header(header::RANGE, "bytes=2-4")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let part = read_bytes(part).await;
+    assert_eq!(part.0, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(part.2, audio[2..=4]);
+
+    // A play link works without a token, for that one recording.
+    let link = send(
+        &app,
+        "POST",
+        &format!("{recordings}/{recording_id}/link"),
+        Some(&viewer),
+        None,
+    )
+    .await;
+    assert_eq!(link.0, StatusCode::OK);
+    let link_url = link.1["url"].as_str().expect("url").to_string();
+    assert!(link_url.starts_with("/api/v1/public/recordings/"));
+    let played = send_bytes(&app, "GET", &link_url, None, "audio/webm", Vec::new()).await;
+    assert_eq!(played.0, StatusCode::OK);
+    assert_eq!(played.1, "audio/webm;codecs=opus");
+    assert_eq!(played.2, audio);
+    let made_up = send(
+        &app,
+        "GET",
+        "/api/v1/public/recordings/not-a-link",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(made_up.0, StatusCode::NOT_FOUND);
+
     // YouTube links in any usual form, kept as the video and its start.
     let videos = format!("/api/v1/songs/{song_id}/videos");
     let not_youtube = send(
@@ -3728,6 +3781,8 @@ async fn song_recordings_and_videos(pool: PgPool) {
     assert_eq!(removed.0, StatusCode::NO_CONTENT);
     let again = send(&app, "DELETE", &recording_path, Some(&owner), None).await;
     assert_eq!(again.0, StatusCode::NOT_FOUND);
+    let unlinked = send(&app, "GET", &link_url, None, None).await;
+    assert_eq!(unlinked.0, StatusCode::NOT_FOUND);
     let removed = send(
         &app,
         "DELETE",
@@ -3771,4 +3826,53 @@ async fn song_recordings_and_videos(pool: PgPool) {
     )
     .await;
     assert_eq!(gone.0, StatusCode::NOT_FOUND);
+}
+
+/// Recordings saved in the database before recordings went to disk are moved
+/// out to files at startup, and play as before.
+#[sqlx::test(migrations = "./migrations")]
+async fn recordings_in_the_database_move_to_files(pool: PgPool) {
+    let media_dir = test_media_dir();
+    let app = app(
+        AppState::new(pool.clone(), 1).with_media_dir(media_dir.clone()),
+        PathBuf::from("directory-that-does-not-exist"),
+    );
+    let (owner, _) = owner_and_desktop(&app).await;
+    let (song_id, _) = create_song(&app, &owner, "Amazing Grace").await;
+    let recording_id = uuid::Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO song_recordings (id, church_id, song_id, title, content_type, byte_size, audio)
+         SELECT $1, church_id, id, 'Old', 'audio/mp4', 3, decode('010203', 'hex') FROM songs WHERE id = $2::uuid",
+    )
+    .bind(recording_id)
+    .bind(&song_id)
+    .execute(&pool)
+    .await
+    .expect("old recording");
+
+    let store = psa150_server::song_media::MediaStore::new(media_dir);
+    let moved = psa150_server::song_media::prepare_media(&pool, &store)
+        .await
+        .expect("prepared");
+    assert_eq!(moved, 1);
+    let left = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM song_recordings WHERE audio IS NOT NULL",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("count");
+    assert_eq!(left, 0);
+
+    let played = send_bytes(
+        &app,
+        "GET",
+        &format!("/api/v1/songs/{song_id}/recordings/{recording_id}/audio"),
+        Some(&owner),
+        "audio/mp4",
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(played.0, StatusCode::OK);
+    assert_eq!(played.1, "audio/mp4");
+    assert_eq!(played.2, vec![1, 2, 3]);
 }

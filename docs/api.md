@@ -126,7 +126,9 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `POST` | `/api/v1/songs/{id}/restore` | Bring a deleted song back with its history |
 | `GET` | `/api/v1/songs/{id}/media` | A song's recordings and YouTube videos |
 | `POST` | `/api/v1/songs/{id}/recordings?title=&duration_ms=` | Leaders and owners: save a recording; the body is the audio (`audio/*`, at most 40 MB) |
-| `GET` | `/api/v1/songs/{id}/recordings/{recording_id}/audio` | A recording's audio, as recorded |
+| `GET` | `/api/v1/songs/{id}/recordings/{recording_id}/audio` | A recording's audio, as recorded, streamed (answers `Range`) |
+| `POST` | `/api/v1/songs/{id}/recordings/{recording_id}/link` | A six-hour play link without a token, for an `<audio>` element |
+| `GET` | `/api/v1/public/recordings/{key}` | Play a recording through a play link (no token; answers `Range`) |
 | `DELETE` | `/api/v1/songs/{id}/recordings/{recording_id}` | Leaders and owners: remove a recording |
 | `POST` | `/api/v1/songs/{id}/videos` | Leaders and owners: link a YouTube video (`{url, title?}`) |
 | `DELETE` | `/api/v1/songs/{id}/videos/{video_id}` | Leaders and owners: remove a video link |
