@@ -496,9 +496,10 @@ export class SongServerApi {
   }
 
   /** Leaders and owners: `audio` as recorded, with its own type. */
-  async addRecording(songId: string, audio: Blob, title: string, durationMs: number | null): Promise<SongRecording> {
+  async addRecording(songId: string, audio: Blob, durationMs: number | null, title?: string): Promise<SongRecording> {
     this.remembered.clear();
-    const query = new URLSearchParams({ title });
+    const query = new URLSearchParams();
+    if (title) query.set("title", title);
     if (durationMs !== null) query.set("duration_ms", String(Math.round(durationMs)));
     const response = await send(`${API_ROOT}/songs/${songId}/recordings?${query}`, {
       method: "POST",

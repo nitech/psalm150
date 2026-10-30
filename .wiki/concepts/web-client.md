@@ -242,9 +242,12 @@ are not affected.
   sought to the end once so the player shows its length; a run-out link is
   renewed once; playing goes on when the song is transposed. Leaders and
   owners record from ⋮ (**Record how it is played**) while the song has no
-  recording, then from the **+ 🎤** pill. The recorder is a sheet: Start/Stop
-  with a running clock (the screen is kept on), then listen, name it and
-  **Save**, or **Record again**. It asks the microphone for music (no echo
+  recording, then from the **+ 🎤** pill. The recorder is a sheet: **Start
+  recording** opens the microphone and counts 3, 2, 1 (with **Cancel**),
+  then records with a running clock until **Stop** (the screen is kept on);
+  a waveform of the microphone's loudness scrolls by from the count on, red
+  while recording. Then listen to it and **Save** (no title to fill in; it
+  is "Recording"), or **Record again**. It asks the microphone for music (no echo
   cancelling, noise removal or levelling), records WebM/Opus or, in Safari,
   MP4 at 128 kbit/s, and stops by itself after 30 minutes. Recordings are not
   kept offline.

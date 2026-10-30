@@ -260,20 +260,70 @@ function showLength(audio: HTMLAudioElement): void {
   });
 }
 
+/** Bars in the recorder's waveform, newest on the right. */
+const WAVE_BARS = 40;
+/** How often a new bar comes in. */
+const WAVE_STEP_MS = 70;
+/** The count before recording starts: 3, 2, 1, this long each. */
+const COUNT_FROM = 3;
+const COUNT_STEP_MS = 800;
+
 /**
- * The recorder: Start and Stop, then listen to it, name it and save it, or
- * record again. The microphone is let go as soon as the recording stops or
- * the sheet closes.
+ * The microphone's loudness as a scrolling row of bars, so whoever records
+ * sees that it hears them, during the count and while recording. Returns a
+ * stop function that lets go of the audio context.
+ */
+function showWave(stream: MediaStream, wave: HTMLElement): () => void {
+  const bars = [...wave.children] as HTMLElement[];
+  const AudioContextType = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextType) return () => undefined;
+  const context = new AudioContextType();
+  void context.resume().catch(() => undefined);
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  context.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Uint8Array(analyser.fftSize);
+  const levels: number[] = Array(bars.length).fill(0);
+  let frame = 0;
+  let last = 0;
+  const tick = (now: number) => {
+    frame = requestAnimationFrame(tick);
+    if (now - last < WAVE_STEP_MS) return;
+    last = now;
+    analyser.getByteTimeDomainData(samples);
+    let sum = 0;
+    for (const sample of samples) sum += ((sample - 128) / 128) ** 2;
+    // Loudness, lifted so quiet playing still shows, at most 1.
+    levels.push(Math.min(1, Math.sqrt(Math.sqrt(sum / samples.length)) * 1.6));
+    levels.shift();
+    bars.forEach((bar, index) => { bar.style.transform = `scaleY(${Math.max(0.12, levels[index])})`; });
+  };
+  frame = requestAnimationFrame(tick);
+  return () => {
+    cancelAnimationFrame(frame);
+    bars.forEach((bar) => { bar.style.transform = ""; });
+    void context.close().catch(() => undefined);
+  };
+}
+
+/**
+ * The recorder: Start, a count of 3, 2, 1 with the microphone already
+ * showing in the waveform, then recording with the waveform and a clock
+ * until Stop; then listen to it and Save, or Record again. The microphone is
+ * let go as soon as the recording stops or the sheet closes.
  */
 export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title">, saved: (recording: SongRecording) => void): void {
   const sheet = openSheet(`<h2>Record how it is played</h2>
     <p class="muted">${escapeHtml(song.title)}. Everyone in the church can listen to it afterwards.</p>
     <div class="recorder stack">
-      <p class="recorder-time" id="rec-time" role="timer" aria-label="Recorded time">0:00</p>
+      <div class="recorder-stage">
+        <p class="recorder-count" id="rec-count" aria-hidden="true" hidden></p>
+        <div class="recorder-wave" id="rec-wave" aria-hidden="true">${"<span></span>".repeat(WAVE_BARS)}</div>
+        <p class="recorder-time" id="rec-time" role="timer" aria-label="Recorded time">0:00</p>
+      </div>
       <button type="button" class="button primary wide" id="rec-toggle">${icon("mic")}Start recording</button>
       <audio class="recorder-preview" id="rec-preview" controls hidden></audio>
       <form id="rec-form" class="stack" hidden>
-        <label>Title<input name="title" maxlength="120" value="Recording" autocomplete="off" required /></label>
         <p class="form-message" role="status"></p>
         <div class="inline-actions wrap">
           <button class="button primary grow" type="submit">${icon("save")}Save</button>
@@ -282,10 +332,14 @@ export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title
       </form>
     </div>`);
   const toggle = sheet.querySelector<HTMLButtonElement>("#rec-toggle")!;
+  const stage = sheet.querySelector<HTMLElement>(".recorder-stage")!;
+  const count = sheet.querySelector<HTMLElement>("#rec-count")!;
+  const wave = sheet.querySelector<HTMLElement>("#rec-wave")!;
   const time = sheet.querySelector<HTMLElement>("#rec-time")!;
   const preview = sheet.querySelector<HTMLAudioElement>("#rec-preview")!;
   const form = sheet.querySelector<HTMLFormElement>("#rec-form")!;
 
+  let state: "idle" | "counting" | "recording" | "done" = "idle";
   let stream: MediaStream | null = null;
   let recorder: MediaRecorder | null = null;
   let recording: Blob | null = null;
@@ -294,35 +348,39 @@ export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title
   let durationMs = 0;
   let ticker = 0;
   let limit = 0;
+  let counting = 0;
+  let stopWave: (() => void) | null = null;
   let releaseScreen: (() => void) | null = null;
+
+  const setStage = (next: typeof state) => {
+    state = next;
+    stage.dataset.state = next;
+    count.hidden = next !== "counting";
+    time.hidden = next === "counting";
+    time.classList.toggle("live", next === "recording");
+  };
 
   const letGo = () => {
     window.clearInterval(ticker);
     window.clearTimeout(limit);
+    window.clearTimeout(counting);
+    stopWave?.();
+    stopWave = null;
     stream?.getTracks().forEach((track) => track.stop());
     stream = null;
     releaseScreen?.();
     releaseScreen = null;
   };
 
-  const showStart = (label: string) => {
-    toggle.innerHTML = `${icon("mic")}${label}`;
+  const showStart = () => {
+    toggle.innerHTML = `${icon("mic")}Start recording`;
     toggle.classList.remove("recording");
+    toggle.disabled = false;
   };
 
-  const start = async () => {
-    toggle.disabled = true;
-    try {
-      // Music, not speech: no echo cancelling, noise removal or levelling.
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
-    } catch (error) {
-      toggle.disabled = false;
-      const denied = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
-      showToast(denied ? "The microphone is blocked. Allow it for this site in the browser's settings." : "No microphone was found.", true);
-      return;
-    }
+  /** Records from the microphone already open. */
+  const record = () => {
+    if (!stream) return;
     const mimeType = RECORDING_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
     recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 128_000 });
     const chunks: Blob[] = [];
@@ -332,6 +390,7 @@ export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title
       letGo();
       recording = new Blob(chunks, { type: recorder?.mimeType || mimeType || "audio/webm" });
       if (!sheet.open) return;
+      setStage("done");
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       previewUrl = URL.createObjectURL(recording);
       preview.src = previewUrl;
@@ -339,28 +398,68 @@ export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title
       form.hidden = false;
       toggle.hidden = true;
       announce(`Recorded ${clock(durationMs)}. Listen to it, then save it.`);
-      form.querySelector<HTMLInputElement>("[name='title']")?.focus();
+      form.querySelector<HTMLButtonElement>("[type='submit']")?.focus();
     });
     recorder.start(1000);
     startedAt = Date.now();
-    releaseScreen = holdScreen();
     ticker = window.setInterval(() => { time.textContent = clock(Date.now() - startedAt); }, 250);
     limit = window.setTimeout(() => recorder?.state === "recording" && recorder.stop(), MAX_RECORDING_MS);
     time.textContent = "0:00";
-    time.classList.add("live");
+    setStage("recording");
     toggle.innerHTML = `${icon("stop")}Stop`;
     toggle.classList.add("recording");
-    toggle.disabled = false;
     announce("Recording");
   };
 
-  toggle.addEventListener("click", () => {
-    if (recorder?.state === "recording") {
-      time.classList.remove("live");
-      recorder.stop();
-    } else {
-      void start();
+  /** Opens the microphone, shows it in the waveform, and counts 3, 2, 1. */
+  const start = async () => {
+    toggle.disabled = true;
+    try {
+      // Music, not speech: no echo cancelling, noise removal or levelling.
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+    } catch (error) {
+      showStart();
+      const denied = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
+      showToast(denied ? "The microphone is blocked. Allow it for this site in the browser's settings." : "No microphone was found.", true);
+      return;
     }
+    if (!sheet.open) {
+      letGo();
+      return;
+    }
+    stopWave = showWave(stream, wave);
+    releaseScreen = holdScreen();
+    toggle.innerHTML = `${icon("close")}Cancel`;
+    toggle.disabled = false;
+    setStage("counting");
+    let left = COUNT_FROM;
+    const step = () => {
+      if (state !== "counting") return;
+      if (left === 0) {
+        record();
+        return;
+      }
+      count.textContent = String(left);
+      // Restart the number's pop each time.
+      count.classList.remove("pop");
+      void count.offsetWidth;
+      count.classList.add("pop");
+      announce(String(left));
+      left -= 1;
+      counting = window.setTimeout(step, COUNT_STEP_MS);
+    };
+    step();
+  };
+
+  toggle.addEventListener("click", () => {
+    if (state === "recording") recorder?.stop();
+    else if (state === "counting") {
+      letGo();
+      setStage("idle");
+      showStart();
+    } else void start();
   });
 
   sheet.querySelector("#rec-again")?.addEventListener("click", () => {
@@ -369,17 +468,16 @@ export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title
     form.hidden = true;
     recording = null;
     toggle.hidden = false;
-    showStart("Start recording");
+    time.textContent = "0:00";
     void start();
   });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!recording) return;
-    const title = String(new FormData(form).get("title")).trim() || "Recording";
     setFormBusy(form, true);
     try {
-      const result = await ctx.api.addRecording(song.id, recording, title, durationMs);
+      const result = await ctx.api.addRecording(song.id, recording, durationMs);
       recording = null;
       closeSheet(sheet);
       saved(result);
@@ -396,4 +494,5 @@ export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title
     preview.pause();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   });
+  setStage("idle");
 }
