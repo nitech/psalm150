@@ -110,26 +110,6 @@ export interface RecordingLink {
   expires_at: string;
 }
 
-/** A YouTube video of a song. */
-export interface SongVideo {
-  id: string;
-  song_id: string;
-  /** May be empty. */
-  title: string;
-  video_id: string;
-  start_seconds: number | null;
-  /** The video on YouTube, from `start_seconds` when there is one. */
-  url: string;
-  created_by_name: string | null;
-  created_at: string;
-}
-
-/** `GET /songs/{id}/media`: a song's recordings and videos, oldest first. */
-export interface SongMedia {
-  recordings: SongRecording[];
-  videos: SongVideo[];
-}
-
 export interface SongSummary {
   id: string;
   revision_id: string;

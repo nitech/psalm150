@@ -128,15 +128,14 @@ language-aware search, purging deleted songs, and a one-step revert to a past
 revision. Revisions do not say who saved them, though `created_by` and
 `created_by_device` are stored. See [gaps](gaps.md) and `/TODO.md`.
 
-## Recordings and videos
+## Recordings
 
-A song can carry recordings of how it is played and links to YouTube videos
-of it (`api/src/song_media.rs`, migration `0014_song_media.sql`). Anyone
-signed in to the church, desktops included, lists them
-(`GET /songs/{id}/media`) and plays the recordings
+A song can carry recordings of how it is played (`api/src/song_media.rs`).
+Anyone signed in to the church, desktops included, lists them
+(`GET /songs/{id}/recordings`) and plays them
 (`GET /songs/{id}/recordings/{recording_id}/audio`, or a six-hour play link
 from `POST …/link` for an `<audio>` element); only leaders and owners
-(`require_editor`, so not desktops) record, link and remove them.
+(`require_editor`, so not desktops) record and remove them.
 
 * A recording is the audio exactly as the browser made it (WebM/Opus in
   Chrome and Firefox, MP4/AAC in Safari), at most 40 MB, kept as a file
@@ -145,11 +144,15 @@ from `POST …/link` for an `<audio>` element); only leaders and owners
   file that is renamed when whole; reads stream from disk and answer
   `Range`, so playing starts at once and seeking works. The server never
   decodes or converts the audio. Removing a recording removes its file.
-* A video is kept as its YouTube id and start time, so every form of link
-  opens the same way; the server builds the `watch?v=` URL in answers.
-* A song keeps at most 20 of each. They are not revisions: adding or
+* A song keeps at most 20. They are not revisions: adding or
   removing one does not change the song's revision or content hash, so it
   never touches desktop sync.
 * Soft-deleting a song hides its recordings (their audio answers 404) and
   restoring brings them back; purging the song removes them (cascade).
 * Not in the ZIP export or the public library ([gaps](gaps.md)).
+
+A song's YouTube video is not a recording but song metadata:
+`{meta: youtube <link>}` in its ChordPro, set in the editor's details. It is
+part of the revision, so it goes with the song in exports and to desktops.
+The server does not read it; the web client shows it only when it is a
+YouTube link.

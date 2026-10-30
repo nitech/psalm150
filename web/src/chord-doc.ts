@@ -348,7 +348,11 @@ export function setMeta(doc: SongDoc, key: string, value: string): void {
   if (!value) return;
   let at = 0;
   doc.items.forEach((candidate, index) => { if (candidate.kind === "meta") at = index + 1; });
-  doc.items.splice(at, 0, { id: newId(), kind: "meta", key, value, orig: null, tag: key, form: "direct", blankBefore: 0 });
+  // A detail ChordPro has no directive of its own for goes in `{meta: key value}`.
+  const added: MetaItem = META_KEYS.has(key)
+    ? { id: newId(), kind: "meta", key, value, orig: null, tag: key, form: "direct", blankBefore: 0 }
+    : { id: newId(), kind: "meta", key, value, orig: null, tag: "meta", form: "meta", sep: " ", blankBefore: 0 };
+  doc.items.splice(at, 0, added);
 }
 
 /* ── Editing a line ───────────────────────────────────────────────────── */

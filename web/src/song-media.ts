@@ -1,7 +1,11 @@
 /**
- * Recordings and videos under a song: how it is played. Everyone signed in
- * lists them and plays the recordings; leaders and owners record one with
- * the phone's microphone and link YouTube videos.
+ * How a song is played, at the top of its page: a pill per recording (who
+ * made it, Play/Pause, its length) and a pill to its YouTube video. Everyone
+ * signed in plays the recordings; leaders and owners record more (⋮ until
+ * there is one, then the + pill) and remove them.
+ *
+ * The video is song metadata, `{meta: youtube <link>}`, set in the editor's
+ * details, so public library visitors see it too.
  *
  * An `<audio>` element cannot send the bearer token, so a recording plays
  * from a play link the server hands out (six hours, no token), streamed:
@@ -10,10 +14,11 @@
 import { announce } from "./a11y.ts";
 import type { LibraryContext } from "./context.ts";
 import { icon } from "./icons.ts";
-import type { SongMedia, SongRecording, SongVideo } from "./types.ts";
+import type { SongRecording } from "./types.ts";
 import { closeSheet, openSheet } from "./views/songs.ts";
-import { errorMessage, escapeHtml, relativeDate, setFormBusy, showToast } from "./ui.ts";
+import { clock, errorMessage, escapeHtml, initials, relativeDate, setFormBusy, showToast } from "./ui.ts";
 import { holdScreen } from "./wake-lock.ts";
+import { songVideo } from "./youtube.ts";
 
 /** A recording stops by itself after this long, well inside the server's 40 MB. */
 const MAX_RECORDING_MS = 30 * 60 * 1000;
@@ -23,15 +28,7 @@ const RECORDING_TYPES = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codec
 interface Song {
   id: string;
   title: string;
-}
-
-/** `m:ss`, or `h:mm:ss` from an hour. */
-export function clock(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = String(total % 60).padStart(2, "0");
-  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
+  chordpro: string;
 }
 
 /** Whether this browser can record from a microphone at all (HTTPS only). */
@@ -39,170 +36,208 @@ export function canRecord(): boolean {
   return typeof MediaRecorder !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
 }
 
+export interface SongMedia {
+  /** Opens the recorder (⋮ → Record). */
+  record(): void;
+  /** Stops playing and lets go of what it holds. */
+  cleanup(): void;
+}
+
 /**
- * Fills `holder` with the song's recordings and videos, and keeps it up to
- * date as leaders add and remove them. Returns a cleanup that stops playback.
+ * Fills `holder` with the song's pills, and keeps them up to date as leaders
+ * record and remove. `changed` hears whether the song now has recordings, so
+ * the page can show Record in ⋮ only while it has none.
  */
-export function mountSongMedia(ctx: LibraryContext, song: Song, holder: HTMLElement): () => void {
-  let media: SongMedia = { recordings: [], videos: [] };
+export function mountSongMedia(
+  ctx: LibraryContext,
+  song: Song,
+  holder: HTMLElement,
+  changed: (hasRecordings: boolean) => void,
+): SongMedia {
+  const video = songVideo(song.chordpro);
+  let recordings: SongRecording[] = [];
+  /** The recording in the player under the pills, if any. */
+  let selected: string | null = null;
   /** Play links asked for this visit, by recording id. */
   const urls = new Map<string, string>();
   let gone = false;
 
-  const recordingRow = (recording: SongRecording) => {
-    const details = [recording.duration_ms !== null ? clock(recording.duration_ms) : "", recording.created_by_name ?? "", relativeDate(recording.created_at)]
-      .filter(Boolean).map(escapeHtml).join(" · ");
-    return `<li class="media-item" data-recording="${recording.id}">
-      <div class="list-row">
-        <button type="button" class="icon-button small accent" data-media-act="play" aria-label="${escapeHtml(`Play ${recording.title}`)}">${icon("play")}</button>
-        <span class="row-main"><strong>${escapeHtml(recording.title)}</strong><small>${details}</small></span>
-        ${ctx.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(`Remove ${recording.title}`)}">${icon("trash")}</button>` : ""}
-      </div>
-    </li>`;
+  const audio = document.createElement("audio");
+  audio.preload = "metadata";
+  audio.controls = true;
+  audio.className = "media-audio";
+  showLength(audio);
+
+  const who = (recording: SongRecording) => recording.created_by_name ?? "Someone";
+
+  const pillTime = (recording: SongRecording) => {
+    if (recording.id === selected && audio.currentTime > 0) return clock(audio.currentTime * 1000);
+    return recording.duration_ms !== null ? clock(recording.duration_ms) : "";
   };
 
-  const videoRow = (video: SongVideo) => {
-    const title = video.title || "YouTube video";
-    const details = ["YouTube", video.start_seconds ? `from ${clock(video.start_seconds * 1000)}` : "", video.created_by_name ?? ""]
-      .filter(Boolean).map(escapeHtml).join(" · ");
-    return `<li class="media-item" data-video="${video.id}">
-      <div class="list-row">
-        <a class="row-link media-link" href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer">
-          <span class="media-icon">${icon("video")}</span>
-          <span class="row-main"><strong>${escapeHtml(title)}</strong><small>${details}</small></span>
-          <span class="sr-only">(opens YouTube)</span>
-        </a>
-        ${ctx.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(`Remove ${title}`)}">${icon("trash")}</button>` : ""}
-      </div>
-    </li>`;
+  const pillLabel = (recording: SongRecording, playing: boolean) => `${playing ? "Pause" : "Play"} ${recording.title}, by ${who(recording)}`;
+
+  const recordingPill = (recording: SongRecording) => {
+    const playing = recording.id === selected && !audio.paused;
+    return `<button type="button" class="media-pill${recording.id === selected ? " selected" : ""}" data-pill="${recording.id}" aria-pressed="${playing}" aria-label="${escapeHtml(pillLabel(recording, playing))}" title="${escapeHtml(`${recording.title} · ${who(recording)}`)}">
+      <span class="pill-avatar" aria-hidden="true">${escapeHtml(initials(who(recording)) || "?")}</span>
+      ${icon(playing ? "pause" : "play")}
+      <span class="pill-time">${escapeHtml(pillTime(recording))}</span>
+    </button>`;
+  };
+
+  /** The player under the pills, for the selected recording. */
+  const playerHead = (recording: SongRecording) => {
+    const details = [recording.created_by_name ?? "", relativeDate(recording.created_at)].filter(Boolean).map(escapeHtml).join(" · ");
+    return `<span class="row-main"><strong>${escapeHtml(recording.title)}</strong><small>${details}</small></span>
+      ${ctx.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(`Delete ${recording.title}`)}" title="Delete">${icon("trash")}</button>` : ""}
+      <button type="button" class="icon-button small ghost" data-media-act="close" aria-label="Close the player" title="Close">${icon("close")}</button>`;
   };
 
   const draw = () => {
-    const empty = !media.recordings.length && !media.videos.length;
-    // Readers see the section only when there is something in it.
-    if (empty && !ctx.canEdit) {
-      holder.hidden = true;
-      holder.innerHTML = "";
-      return;
+    const current = recordings.find((recording) => recording.id === selected);
+    const addPill = ctx.canEdit && canRecord() && recordings.length
+      ? `<button type="button" class="media-pill add" data-media-act="record" aria-label="Record another" title="Record another">${icon("plus")}${icon("mic")}</button>`
+      : "";
+    const videoPill = video
+      ? `<a class="media-pill video" href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube (opens YouTube)">${icon("video")}<span>YouTube</span></a>`
+      : "";
+    holder.hidden = !recordings.length && !video;
+    const html = `${videoPill}${recordings.map(recordingPill).join("")}${addPill}`;
+    const pills = holder.querySelector(".media-pills");
+    if (pills) pills.innerHTML = html;
+    else holder.innerHTML = `<div class="media-pills" role="group" aria-label="How it is played">${html}</div><div class="media-player" hidden><div class="media-player-head"></div></div>`;
+    const player = holder.querySelector<HTMLElement>(".media-player")!;
+    player.hidden = !current;
+    if (current) {
+      player.querySelector(".media-player-head")!.innerHTML = playerHead(current);
+      if (audio.parentElement !== player) player.append(audio);
     }
-    holder.hidden = false;
-    holder.innerHTML = `<h2 class="list-heading" id="song-media-heading">How it is played</h2>
-      ${empty ? `<p class="muted">Record how you play it, or link a video of it, for whoever plays it next.</p>` : `<ul class="list">${media.recordings.map(recordingRow).join("")}${media.videos.map(videoRow).join("")}</ul>`}
-      ${ctx.canEdit ? `<div class="inline-actions wrap">
-        ${canRecord() ? `<button type="button" class="button secondary" data-media-act="record">${icon("mic")}Record</button>` : ""}
-        <button type="button" class="button secondary" data-media-act="add-video">${icon("video")}YouTube video</button>
-      </div>` : ""}`;
+    drawPill();
   };
+
+  /** Only the selected pill's icon, time and progress change while it plays. */
+  function drawPill(): void {
+    const recording = recordings.find((candidate) => candidate.id === selected);
+    const pill = recording && holder.querySelector<HTMLElement>(`[data-pill="${recording.id}"]`);
+    if (!recording || !pill) return;
+    const playing = !audio.paused;
+    pill.setAttribute("aria-pressed", String(playing));
+    pill.setAttribute("aria-label", pillLabel(recording, playing));
+    pill.querySelector(".icon")!.outerHTML = icon(playing ? "pause" : "play");
+    pill.querySelector(".pill-time")!.textContent = pillTime(recording);
+    const length = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (recording.duration_ms ?? 0) / 1000;
+    pill.style.setProperty("--progress", length ? `${Math.min(100, (audio.currentTime / length) * 100)}%` : "0%");
+  }
+  for (const event of ["play", "pause", "timeupdate", "ended", "durationchange"]) audio.addEventListener(event, drawPill);
+
+  const report = () => changed(recordings.length > 0);
 
   const load = async () => {
     try {
-      media = await ctx.api.songMedia(song.id);
+      recordings = await ctx.api.songRecordings(song.id);
     } catch {
-      // The song reads well without it; a reader offline just sees no recordings.
+      // The song reads well without them; a reader offline just sees none.
       return;
     }
-    if (!gone) draw();
+    if (gone) return;
+    draw();
+    report();
   };
 
-  const play = async (item: HTMLElement, recordingId: string) => {
-    const open = item.querySelector("audio");
-    if (open) {
-      if (open.paused) void open.play();
-      else open.pause();
+  const play = async (recordingId: string) => {
+    if (selected === recordingId) {
+      if (audio.paused) void audio.play().catch(() => undefined);
+      else audio.pause();
       return;
     }
-    const button = item.querySelector<HTMLButtonElement>("[data-media-act='play']")!;
-    button.disabled = true;
+    audio.pause();
+    selected = recordingId;
+    draw();
     try {
       let url = urls.get(recordingId);
       if (!url) {
         url = (await ctx.api.recordingLink(song.id, recordingId)).url;
         urls.set(recordingId, url);
       }
-      if (gone || !item.isConnected) return;
-      const audio = document.createElement("audio");
-      audio.controls = true;
-      audio.preload = "auto";
+      if (gone || selected !== recordingId) return;
       audio.src = url;
-      audio.className = "media-player";
-      showLength(audio);
-      // The link ran out (six hours, or the server restarted): ask once for a new one.
-      let renewed = false;
-      audio.addEventListener("error", () => {
-        if (renewed || gone) return;
-        renewed = true;
-        void ctx.api.recordingLink(song.id, recordingId).then((link) => {
-          urls.set(recordingId, link.url);
-          audio.src = link.url;
-          void audio.play().catch(() => undefined);
-        }).catch(() => showToast("The recording could not be played.", true));
-      });
-      // One at a time: starting one pauses the others.
-      audio.addEventListener("play", () => {
-        holder.querySelectorAll("audio").forEach((other) => { if (other !== audio) other.pause(); });
-      });
-      item.append(audio);
       await audio.play().catch(() => undefined);
-      audio.focus();
     } catch (error) {
       showToast(errorMessage(error), true);
-    } finally {
-      button.disabled = false;
     }
   };
 
-  const remove = (item: HTMLElement) => {
-    const recordingId = item.dataset.recording;
-    const videoId = item.dataset.video;
-    const title = item.querySelector(".row-main strong")?.textContent ?? "it";
-    if (!confirm(recordingId ? `Remove the recording “${title}”? It cannot be brought back.` : `Remove the link to “${title}”?`)) return;
+  // The link ran out (six hours, or the server restarted): ask once for a new one.
+  let renewed = "";
+  audio.addEventListener("error", () => {
+    const recordingId = selected;
+    if (!recordingId || renewed === recordingId || gone || !audio.getAttribute("src")) return;
+    renewed = recordingId;
+    void ctx.api.recordingLink(song.id, recordingId).then((link) => {
+      urls.set(recordingId, link.url);
+      if (selected !== recordingId) return;
+      audio.src = link.url;
+      void audio.play().catch(() => undefined);
+    }).catch(() => showToast("The recording could not be played.", true));
+  });
+
+  const close = () => {
+    audio.pause();
+    const was = selected;
+    selected = null;
+    draw();
+    if (was) holder.querySelector<HTMLElement>(`[data-pill="${was}"]`)?.focus();
+  };
+
+  const remove = () => {
+    const recording = recordings.find((candidate) => candidate.id === selected);
+    if (!recording || !confirm(`Delete the recording “${recording.title}”? It cannot be brought back.`)) return;
     void ctx.run(async () => {
-      if (recordingId) {
-        await ctx.api.deleteRecording(song.id, recordingId);
-        media.recordings = media.recordings.filter((recording) => recording.id !== recordingId);
-      } else if (videoId) {
-        await ctx.api.deleteVideo(song.id, videoId);
-        media.videos = media.videos.filter((video) => video.id !== videoId);
-      }
+      await ctx.api.deleteRecording(song.id, recording.id);
+      audio.pause();
+      audio.removeAttribute("src");
+      selected = null;
+      recordings = recordings.filter((candidate) => candidate.id !== recording.id);
       draw();
-      holder.querySelector<HTMLElement>("#song-media-heading")?.setAttribute("tabindex", "-1");
-      holder.querySelector<HTMLElement>("#song-media-heading")?.focus();
-      showToast(recordingId ? "Recording removed." : "Video link removed.");
+      report();
+      holder.querySelector<HTMLElement>(".media-pill")?.focus();
+      showToast("Recording deleted.");
     });
   };
 
+  const record = () => openRecorder(ctx, song, (recording) => {
+    recordings.push(recording);
+    draw();
+    report();
+    holder.querySelector<HTMLElement>(`[data-pill="${recording.id}"]`)?.focus();
+  });
+
   const onClick = (event: Event) => {
-    const button = (event.target as HTMLElement).closest<HTMLElement>("[data-media-act]");
-    if (!button) return;
-    const item = button.closest<HTMLElement>(".media-item");
-    switch (button.dataset.mediaAct) {
-      case "play":
-        if (item?.dataset.recording) void play(item, item.dataset.recording);
-        break;
-      case "remove":
-        if (item) remove(item);
-        break;
-      case "record":
-        openRecorder(ctx, song, (recording) => {
-          media.recordings.push(recording);
-          draw();
-        });
-        break;
-      case "add-video":
-        openVideoSheet(ctx, song, (video) => {
-          media.videos.push(video);
-          draw();
-        });
-        break;
+    const target = event.target as HTMLElement;
+    const pill = target.closest<HTMLElement>("[data-pill]");
+    if (pill) {
+      void play(String(pill.dataset.pill));
+      return;
+    }
+    switch (target.closest<HTMLElement>("[data-media-act]")?.dataset.mediaAct) {
+      case "record": record(); break;
+      case "remove": remove(); break;
+      case "close": close(); break;
     }
   };
   holder.addEventListener("click", onClick);
-  void load();
+  draw();
+  if (ctx.session) void load();
 
-  return () => {
-    gone = true;
-    holder.removeEventListener("click", onClick);
-    holder.querySelectorAll("audio").forEach((audio) => audio.pause());
+  return {
+    record,
+    cleanup() {
+      gone = true;
+      holder.removeEventListener("click", onClick);
+      audio.pause();
+      audio.removeAttribute("src");
+    },
   };
 }
 
@@ -210,7 +245,7 @@ export function mountSongMedia(ctx: LibraryContext, song: Song, holder: HTMLElem
  * Chrome and Firefox record WebM without its length in it, so a player
  * streaming one shows no length and cannot seek. Seeking far past the end
  * makes it read the end and learn the length; then it goes back to the
- * start (unless it was already playing on).
+ * start.
  */
 function showLength(audio: HTMLAudioElement): void {
   audio.addEventListener("loadedmetadata", () => {
@@ -222,7 +257,7 @@ function showLength(audio: HTMLAudioElement): void {
     };
     audio.addEventListener("durationchange", found);
     audio.currentTime = Number.MAX_SAFE_INTEGER;
-  }, { once: true });
+  });
 }
 
 /**
@@ -230,13 +265,13 @@ function showLength(audio: HTMLAudioElement): void {
  * record again. The microphone is let go as soon as the recording stops or
  * the sheet closes.
  */
-export function openRecorder(ctx: LibraryContext, song: Song, saved: (recording: SongRecording) => void): void {
+export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title">, saved: (recording: SongRecording) => void): void {
   const sheet = openSheet(`<h2>Record how it is played</h2>
     <p class="muted">${escapeHtml(song.title)}. Everyone in the church can listen to it afterwards.</p>
     <div class="recorder stack">
       <p class="recorder-time" id="rec-time" role="timer" aria-label="Recorded time">0:00</p>
       <button type="button" class="button primary wide" id="rec-toggle">${icon("mic")}Start recording</button>
-      <audio class="media-player" id="rec-preview" controls hidden></audio>
+      <audio class="recorder-preview" id="rec-preview" controls hidden></audio>
       <form id="rec-form" class="stack" hidden>
         <label>Title<input name="title" maxlength="120" value="Recording" autocomplete="off" required /></label>
         <p class="form-message" role="status"></p>
@@ -360,35 +395,5 @@ export function openRecorder(ctx: LibraryContext, song: Song, saved: (recording:
     letGo();
     preview.pause();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-  });
-}
-
-/** Links a YouTube video: its link and, if wanted, a title. */
-export function openVideoSheet(ctx: LibraryContext, song: Song, saved: (video: SongVideo) => void): void {
-  const sheet = openSheet(`<h2>Link a YouTube video</h2>
-    <p class="muted">${escapeHtml(song.title)}. Paste the link from YouTube's Share button; a start time in it is kept.</p>
-    <form id="video-form" class="stack">
-      <label>Link<input name="url" type="url" inputmode="url" required placeholder="https://youtu.be/…" autocomplete="off" /></label>
-      <label>Title (optional)<input name="title" maxlength="120" placeholder="Such as: Live, in D" autocomplete="off" /></label>
-      <p class="form-message" role="status"></p>
-      <button class="button primary wide" type="submit">${icon("link")}Add the video</button>
-    </form>`);
-  const form = sheet.querySelector<HTMLFormElement>("#video-form")!;
-  const field = form.querySelector<HTMLInputElement>("[name='url']")!;
-  field.focus();
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const data = new FormData(form);
-    setFormBusy(form, true);
-    try {
-      const video = await ctx.api.addVideo(song.id, String(data.get("url")).trim(), String(data.get("title")).trim());
-      closeSheet(sheet);
-      saved(video);
-      showToast("Video linked.");
-    } catch (error) {
-      setFormBusy(form, false);
-      form.querySelector<HTMLElement>(".form-message")!.textContent = errorMessage(error);
-      field.focus();
-    }
   });
 }

@@ -9,7 +9,7 @@ import { appGoesBack, bindItemSwipe } from "../transitions.ts";
 import { mountChordEditor } from "../chord-editor.ts";
 import { hasChords, type DisplaySong } from "../chordpro.ts";
 import { icon } from "../icons.ts";
-import { mountSongMedia } from "../song-media.ts";
+import { canRecord, mountSongMedia } from "../song-media.ts";
 import {
   keyLabel,
   onReaderAction,
@@ -588,6 +588,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const actions = (display: DisplaySong) => {
     const bar: BarAction[] = readerBarActions(display, options, transpose);
     if (ctx.canEdit) bar.push({ id: "add-to-set", label: ctx.currentSet.value ? "Add to another set" : "Add to a set", icon: "sets" });
+    if (ctx.canEdit && canRecord() && !hasRecordings) bar.push({ id: "record", label: "Record how it is played", icon: "mic", menuOnly: true });
     // A song without chords can borrow them from a version found online.
     if (ctx.canEdit && !hasChords(display)) bar.push({ id: "find-chords", label: "Chords from the web", icon: "chords", href: `#/songs/${song.id}/chords` });
     bar.push({ id: "copy", label: "Copy the words", icon: "copy" });
@@ -599,14 +600,20 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   };
 
   /**
-   * Recordings and videos, read once; redrawing the song (transposing) keeps
-   * the section as it is, so a recording playing goes on playing.
+   * Recordings and the YouTube video, as pills under the title, read once;
+   * redrawing the song (transposing) keeps them, so a recording playing goes
+   * on playing. Record sits in ⋮ until the song has a recording; then the
+   * pills have a + of their own.
    */
-  const media = document.createElement("section");
-  media.className = "song-media";
-  media.hidden = true;
-  media.setAttribute("aria-labelledby", "song-media-heading");
-  const unmountMedia = ctx.session ? mountSongMedia(ctx, song, media) : () => undefined;
+  const mediaHolder = document.createElement("div");
+  mediaHolder.className = "song-media";
+  mediaHolder.hidden = true;
+  let hasRecordings = true;
+  const media = mountSongMedia(ctx, song, mediaHolder, (has) => {
+    if (has === hasRecordings) return;
+    hasRecordings = has;
+    render();
+  });
 
   const render = () => {
     const display = prepareSong(song.chordpro, transpose);
@@ -619,11 +626,11 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       actions: actions(display),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
-    ${renderSongBody(display, options)}
     <div id="song-media-slot"></div>
+    ${renderSongBody(display, options)}
     ${songNav()}
     ${revisionNote(song, ctx.canEdit)}</div>`;
-    ctx.main.querySelector("#song-media-slot")?.replaceWith(media);
+    ctx.main.querySelector("#song-media-slot")?.replaceWith(mediaHolder);
   };
 
   /** Previous and Next under the song, for a mouse; phones swipe instead. */
@@ -704,6 +711,9 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       case "share":
         void shareSong(ctx, song);
         break;
+      case "record":
+        media.record();
+        break;
     }
   }
 
@@ -717,7 +727,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const releaseScreen = holdScreen();
   return () => {
     releaseScreen();
-    unmountMedia();
+    media.cleanup();
     unbindSwipe();
     document.removeEventListener("keydown", onKeys);
     ctx.main.removeEventListener("click", onSetAction);

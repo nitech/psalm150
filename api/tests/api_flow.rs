@@ -3589,21 +3589,21 @@ async fn read_bytes(response: axum::response::Response) -> (StatusCode, String, 
     (status, content_type, bytes.to_vec())
 }
 
-/// Leaders and owners record a song and link YouTube videos of it; everyone
-/// in the church lists them and plays the recordings.
+/// Leaders and owners record a song; everyone in the church lists and plays
+/// the recordings.
 #[sqlx::test(migrations = "./migrations")]
-async fn song_recordings_and_videos(pool: PgPool) {
+async fn song_recordings(pool: PgPool) {
     let app = test_app(pool.clone());
     let (owner, desktop) = owner_and_desktop(&app).await;
     let viewer = viewer_session(&app, &pool).await;
     let (song_id, _) = create_song(&app, &owner, "Amazing Grace").await;
-    let media = format!("/api/v1/songs/{song_id}/media");
+    let media = format!("/api/v1/songs/{song_id}/recordings");
     let recordings = format!("/api/v1/songs/{song_id}/recordings");
     let audio = vec![26u8, 69, 223, 163, 1, 2, 3, 4];
 
     let empty = send(&app, "GET", &media, Some(&viewer), None).await;
     assert_eq!(empty.0, StatusCode::OK);
-    assert_eq!(empty.1, json!({ "recordings": [], "videos": [] }));
+    assert_eq!(empty.1, json!([]));
 
     // Only leaders and owners record.
     for token in [&viewer, &desktop] {
@@ -3718,55 +3718,16 @@ async fn song_recordings_and_videos(pool: PgPool) {
     .await;
     assert_eq!(made_up.0, StatusCode::NOT_FOUND);
 
-    // YouTube links in any usual form, kept as the video and its start.
-    let videos = format!("/api/v1/songs/{song_id}/videos");
-    let not_youtube = send(
-        &app,
-        "POST",
-        &videos,
-        Some(&owner),
-        Some(json!({ "url": "https://vimeo.com/1" })),
-    )
-    .await;
-    assert_eq!(not_youtube.0, StatusCode::BAD_REQUEST);
-    let refused = send(
-        &app,
-        "POST",
-        &videos,
-        Some(&viewer),
-        Some(json!({ "url": "https://youtu.be/dQw4w9WgXcQ" })),
-    )
-    .await;
-    assert_eq!(refused.0, StatusCode::FORBIDDEN);
-    let linked = send(
-        &app,
-        "POST",
-        &videos,
-        Some(&owner),
-        Some(json!({ "url": "https://youtu.be/dQw4w9WgXcQ?t=1m5s", "title": " Live in Oslo " })),
-    )
-    .await;
-    assert_eq!(linked.0, StatusCode::CREATED);
-    assert_eq!(linked.1["title"], "Live in Oslo");
-    assert_eq!(linked.1["video_id"], "dQw4w9WgXcQ");
-    assert_eq!(linked.1["start_seconds"], 65);
-    assert_eq!(
-        linked.1["url"],
-        "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=65s"
-    );
-    let video_id = linked.1["id"].as_str().expect("id").to_string();
-
     let listed = send(&app, "GET", &media, Some(&desktop), None).await;
     assert_eq!(listed.0, StatusCode::OK);
-    assert_eq!(listed.1["recordings"][0]["id"], recording_id);
-    assert!(listed.1["recordings"][0].get("audio").is_none());
-    assert_eq!(listed.1["videos"][0]["id"], video_id.as_str());
+    assert_eq!(listed.1[0]["id"], recording_id);
+    assert!(listed.1[0].get("audio").is_none());
 
     // A song that is not in the church has none.
     let other = send(
         &app,
         "GET",
-        "/api/v1/songs/00000000-0000-0000-0000-000000000000/media",
+        "/api/v1/songs/00000000-0000-0000-0000-000000000000/recordings",
         Some(&owner),
         None,
     )
@@ -3783,17 +3744,8 @@ async fn song_recordings_and_videos(pool: PgPool) {
     assert_eq!(again.0, StatusCode::NOT_FOUND);
     let unlinked = send(&app, "GET", &link_url, None, None).await;
     assert_eq!(unlinked.0, StatusCode::NOT_FOUND);
-    let removed = send(
-        &app,
-        "DELETE",
-        &format!("{videos}/{video_id}"),
-        Some(&owner),
-        None,
-    )
-    .await;
-    assert_eq!(removed.0, StatusCode::NO_CONTENT);
     let empty = send(&app, "GET", &media, Some(&viewer), None).await;
-    assert_eq!(empty.1, json!({ "recordings": [], "videos": [] }));
+    assert_eq!(empty.1, json!([]));
 
     // A deleted song's recordings are not played.
     let saved = send_bytes(

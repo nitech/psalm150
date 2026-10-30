@@ -30,10 +30,8 @@ import type {
   SetupStatus,
   SongDetail,
   SongKeyCount,
-  SongMedia,
   SongRecording,
   RecordingLink,
-  SongVideo,
   SongSort,
   SongSummary,
   SortDirection,
@@ -492,8 +490,9 @@ export class SongServerApi {
     });
   }
 
-  songMedia(songId: string): Promise<SongMedia> {
-    return this.request(`/songs/${songId}/media`);
+  /** A song's recordings, oldest first. */
+  songRecordings(songId: string): Promise<SongRecording[]> {
+    return this.request(`/songs/${songId}/recordings`);
   }
 
   /** Leaders and owners: `audio` as recorded, with its own type. */
@@ -517,14 +516,6 @@ export class SongServerApi {
 
   async deleteRecording(songId: string, recordingId: string): Promise<void> {
     await this.requestEmpty(`/songs/${songId}/recordings/${recordingId}`, { method: "DELETE" });
-  }
-
-  addVideo(songId: string, url: string, title: string): Promise<SongVideo> {
-    return this.request(`/songs/${songId}/videos`, { method: "POST", body: JSON.stringify({ url, title }) });
-  }
-
-  async deleteVideo(songId: string, videoId: string): Promise<void> {
-    await this.requestEmpty(`/songs/${songId}/videos/${videoId}`, { method: "DELETE" });
   }
 
   async exportSongs(): Promise<Blob> {

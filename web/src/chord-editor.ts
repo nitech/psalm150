@@ -72,7 +72,7 @@ const coarse = matchMedia("(pointer: coarse)").matches;
 /** A mouse: chords are placed from boxes above the letters, not by clicking the words. */
 const mouse = matchMedia("(hover: hover) and (pointer: fine)").matches;
 /** Fields with their own control; other details show as read-only text. */
-const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "song_num", "copyright", "ccli", "tempo", "time"];
+const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "song_num", "copyright", "ccli", "tempo", "time", "youtube"];
 
 export function mountChordEditor(
   root: HTMLElement,
@@ -147,6 +147,7 @@ export function mountChordEditor(
         <label>Tempo<input data-meta="tempo" autocomplete="off" inputmode="numeric" placeholder="BPM" /></label>
         <label>Time<input data-meta="time" autocomplete="off" placeholder="4/4" /></label>
         <label class="ce-span">Copyright<input data-meta="copyright" autocomplete="off" /></label>
+        <label class="ce-span">YouTube<input data-meta="youtube" type="url" inputmode="url" autocomplete="off" placeholder="https://youtu.be/…" /></label>
       </div>
       <p class="ce-extras" hidden></p>
     </details>`;

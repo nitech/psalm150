@@ -92,6 +92,14 @@ describe("parseDoc and serializeDoc", () => {
     expect(serializeDoc(doc).text).toBe("{title: X}\n\n{sov}\nHi\n{eov}\n");
   });
 
+  it("write a detail ChordPro has no directive for as {meta}", () => {
+    const { doc } = parseDoc("{title: X}\n\n{sov}\nHi\n{eov}\n");
+    setMeta(doc, "youtube", "https://youtu.be/dQw4w9WgXcQ");
+    const text = serializeDoc(doc).text;
+    expect(text).toBe("{title: X}\n{meta: youtube https://youtu.be/dQw4w9WgXcQ}\n\n{sov}\nHi\n{eov}\n");
+    expect(metaValue(parseDoc(text).doc, "youtube")).toBe("https://youtu.be/dQw4w9WgXcQ");
+  });
+
   it("report unfinished sections and broken chords", () => {
     const { issues } = parseDoc("{title: X}\n{sov}\n[G Hello\n");
     expect(issues.map((issue) => issue.line)).toEqual([2, 3]);

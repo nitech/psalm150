@@ -230,20 +230,27 @@ are not affected.
 
 ## Songs
 
-- **How it is played** (`song-media.ts`): under a song, for anyone signed in,
-  its recordings (play in the page from a play link, streamed, one at a
-  time; a WebM recording without its length is sought to the end once so
-  the player shows its length; a run-out link is renewed once; it keeps
-  playing when the song
-  is transposed) and YouTube videos (open on YouTube in a new tab). Readers
-  see the section only when it has something; leaders and owners always see
-  it, with **Record** and **YouTube video** and a remove button on each row.
-  **Record** opens a sheet: Start/Stop with a running clock (the screen is
-  kept on), then listen, name it and **Save**, or **Record again**. It asks
-  the microphone for music (no echo cancelling, noise removal or levelling),
-  records WebM/Opus or, in Safari, MP4 at 128 kbit/s, and stops by itself
-  after 30 minutes. Closing the sheet lets go of the microphone. Not shown to
-  public library visitors, and not kept offline.
+- **How it is played** (`song-media.ts`, `youtube.ts`): pills under a
+  song's title. A **YouTube** pill when the song's `{meta: youtube}` is a
+  YouTube link (any usual form, opened as `watch?v=` in a new tab; public
+  visitors see it too). For anyone signed in, a pill per recording with its
+  maker's initials, Play/Pause and its length (the time played while it
+  plays, the pill filling up as it goes). Tapping a pill plays it and opens
+  a player under the pills: title, maker and day, the browser's controls to
+  seek, Close, and for leaders and owners **Delete**. Recordings play from a
+  play link, streamed, one at a time; a WebM recording without its length is
+  sought to the end once so the player shows its length; a run-out link is
+  renewed once; playing goes on when the song is transposed. Leaders and
+  owners record from ⋮ (**Record how it is played**) while the song has no
+  recording, then from the **+ 🎤** pill. The recorder is a sheet: Start/Stop
+  with a running clock (the screen is kept on), then listen, name it and
+  **Save**, or **Record again**. It asks the microphone for music (no echo
+  cancelling, noise removal or levelling), records WebM/Opus or, in Safari,
+  MP4 at 128 kbit/s, and stops by itself after 30 minutes. Recordings are not
+  kept offline.
+- **Song editor details**: **YouTube** sits with Author, Number and the
+  rest; a detail ChordPro has no directive of its own for is written as
+  `{meta: key value}`.
 
 - **List**: search as you type (250 ms pause) over title, number, author or a
   line; the search field stays right under the bar while scrolling (the list

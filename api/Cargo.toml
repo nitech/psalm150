@@ -1,6 +1,6 @@
 [package]
 name = "psa150-server"
-version = "0.1.83"
+version = "0.1.84"
 edition = "2024"
 description = "Self-hostable, API-first song library for PSA150"
 publish = false
@@ -25,7 +25,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
 uuid = { version = "1", features = ["serde", "v4"] }
-url = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 # Online song lookup, shared with the desktop (`shared/lyrics/`).
 psa150-lyrics = { path = "../shared/lyrics" }
