@@ -350,6 +350,17 @@ choosing another song, asks first when the text changed (compared with the
 editor's own first output, since it tidies the file a little). Escape is the
 editor's own (chord bubble).
 
+## Song history
+
+For a [server library](server-library.md) song, the history button (title
+row, "Song history"; not the activity bar's History of recently used songs)
+opens the shared history sheet: every saved version on the song server,
+newest first, with who saved it; for the one chosen, the lines that differ
+from the current version or from the version before it; and Restore (for
+those who may edit), which saves the earlier text as a new version through
+`save_song`, so the current one stays in the history. `list_song_revisions`
+and `get_song_revision` read them with the device token.
+
 ## Chords, recordings and the words
 
 The chords button (title row, songs with chords) shows chords over the

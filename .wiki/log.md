@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-01
+* **Song history**: a history button on a server library song opens the shared history sheet (every version with who saved it, the lines that differ from the current version or the one before, and Restore, saved as a new version through `save_song`). New commands `list_song_revisions`, `get_song_revision`. Pages touched: operator-console, ipc-contract.
+
 ## 2026-10-31
 * **Active set in the title bar; button groups**: the active set is chosen from a button group in the title bar (its name, or "Choose a set"; the list, "No active set", or a new set); + on a song only adds it to or removes it from the active set, and with none active opens that list ("Add to which set?") so the song goes in the set chosen. The room ("Room · Lily" chip) is now an icon and its name, and the update and changed-library chips are button groups with icons too. Toasts float at the bottom of the window. The song pane's left margin matches the song list (20 px) and its title is smaller. Pages touched: operator-console, setlists, index.
 * **Updates reached no server-library desktop since 0.1.13**: the recording commands built their path from pieces (`recordings{rest}`), so `scripts/server-endpoints.mjs` listed `/api/v1/songs/{}/recordings{}` in `latest.json`, a path no server has, and every desktop on a song server refused 0.1.13 and 0.1.14 (`server_can_serve`). The paths are written out whole now (`recordings_path`, `recording_path`, `recording_link_path`), and a test fails when a listed path has a partial segment. The version moved from the foot of the Settings menu to under the dialog's title. Pages touched: operator-console, build-and-release.

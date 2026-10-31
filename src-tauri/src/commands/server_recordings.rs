@@ -221,6 +221,51 @@ pub async fn delete_song_recording(
     answer(response).await.map(|_| ())
 }
 
+/// Every saved revision of a server song, newest first, as the song server
+/// lists them (with who saved each).
+#[tauri::command]
+pub async fn list_song_revisions(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    song_id: String,
+) -> Result<Vec<Value>, String> {
+    let server = server_url(&state)?;
+    let token = read_token(&app)?;
+    let song = song_uuid(&song_id)?;
+    let response = client(30)?
+        .get(endpoint(&server, &format!("api/v1/songs/{song}/revisions"))?)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(unreachable)?;
+    serde_json::from_str(&answer(response).await?).map_err(|error| error.to_string())
+}
+
+/// One revision's ChordPro text.
+#[tauri::command]
+pub async fn get_song_revision(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    song_id: String,
+    revision_id: String,
+) -> Result<String, String> {
+    let server = server_url(&state)?;
+    let token = read_token(&app)?;
+    let song = song_uuid(&song_id)?;
+    let revision = uuid::Uuid::parse_str(&revision_id).map_err(|_| "Invalid revision id".to_string())?;
+    let response = client(30)?
+        .get(endpoint(&server, &format!("api/v1/songs/{song}/revisions/{revision}"))?)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(unreachable)?;
+    let detail: Value = serde_json::from_str(&answer(response).await?).map_err(|error| error.to_string())?;
+    detail["chordpro"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "The song server returned a revision without text".into())
+}
+
 /// A server library takes its favourites from the song server: those of the
 /// person who connected this desktop, the same star as in the web client.
 /// Songs the offline copy does not have are left out. Returns the file

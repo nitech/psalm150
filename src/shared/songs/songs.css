@@ -416,3 +416,32 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 .recorder-card .recorder-wave span { flex-basis: 3px; }
 .recorder-card #rec-toggle { display: inline-flex; width: auto; flex: none; min-height: 40px; padding: 0 16px; }
 .recorder-card-open .icon { transform: none; }
+
+/* A song's history (song-history.ts): the versions on the left (on top on
+   a phone), and the lines that differ for the one chosen. */
+dialog.sheet.history-sheet { max-width: 960px; }
+.history { display: grid; gap: var(--psa-space-3); }
+.history-list { display: grid; gap: 4px; max-height: 28dvh; overflow-y: auto; overscroll-behavior: contain; }
+.history-row { display: flex; align-items: center; gap: var(--psa-space-2); width: 100%; min-height: 52px; padding: 8px 12px; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); color: var(--psa-text); font: inherit; text-align: left; }
+.history-row.on { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.history-row .row-main small { white-space: normal; }
+.history-badge { flex: none; padding: 1px 8px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); color: var(--psa-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.history-view { display: grid; gap: var(--psa-space-3); min-width: 0; }
+.history-compare { justify-self: start; }
+.history-compare button { padding: 0 var(--psa-space-3); }
+.history-caption { margin: 0; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
+.history-diff { max-height: 46dvh; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-sm); background: var(--psa-bg-sunken); }
+.history-diff > p { margin: 0; padding: var(--psa-space-3); }
+.history-lines { margin: 0; padding: 8px 0; font-family: var(--psa-font-mono); font-size: 13px; line-height: 1.55; }
+.history-line, .history-fold { display: block; padding: 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-line.added { background: color-mix(in srgb, var(--psa-accent) 24%, transparent); }
+.history-line.removed { background: color-mix(in srgb, var(--psa-danger) 18%, transparent); color: var(--psa-text-secondary); }
+.history-sign { display: inline-block; width: 1.4em; color: var(--psa-text-tertiary); -webkit-user-select: none; user-select: none; }
+.history-line.added .history-sign { color: var(--psa-accent-text); }
+.history-line.removed .history-sign { color: var(--psa-danger); }
+.history-fold { color: var(--psa-text-tertiary); font-style: italic; }
+@media (min-width: 900px) {
+  .history { grid-template-columns: 280px minmax(0, 1fr); align-items: start; }
+  .history-list { max-height: 62dvh; }
+  .history-diff { max-height: 52dvh; }
+}

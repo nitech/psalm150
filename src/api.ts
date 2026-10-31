@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { RecordingLink, SongRecording } from "./shared/songs/song-media.ts";
+import type { RevisionSummary } from "./shared/songs/song-history.ts";
 
 /** A new version, downloaded and verified, waiting to be installed. */
 export interface UpdateInfo {
@@ -446,6 +447,8 @@ export const api = {
     }),
   deleteSongRecording: (songId: string, recordingId: string) =>
     invoke<void>("delete_song_recording", { songId, recordingId }),
+  listSongRevisions: (songId: string) => invoke<RevisionSummary[]>("list_song_revisions", { songId }),
+  getSongRevision: (songId: string, revisionId: string) => invoke<string>("get_song_revision", { songId, revisionId }),
   /** Opens a web page in the browser. */
   openLink: (url: string) => invoke<void>("open_link", { url }),
   deleteSong: (filename: string) => invoke<RecoveryItem>("delete_song", { filename }),

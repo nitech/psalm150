@@ -101,6 +101,7 @@ import { desktopRecordings, installSongModules } from "../song-host";
 import { NEW_SONG_TEMPLATE } from "../shared/songs/chord-editor.ts";
 import { copyText, readPreference, writePreference } from "../shared/songs/format.ts";
 import { canRecord, mountSongMedia, type SongMedia } from "../shared/songs/song-media.ts";
+import { openSongHistory } from "../shared/songs/song-history.ts";
 import { prepareSong, songText } from "../shared/songs/song-preview.ts";
 import { transposeChord } from "../shared/songs/chordpro.ts";
 import type { ToastOptions } from "../shared/songs/host.ts";
@@ -3734,6 +3735,15 @@ export class Psa150App extends Psa150Element {
               @click=${() => this.songMedia?.record()}
             >${icon("mic")}</button>`
           : nothing}
+        ${this.serverSong
+          ? html`<button
+              type="button"
+              class="song-action-btn"
+              title="Song history: every saved version, what changed, and restore"
+              aria-label="Song history"
+              @click=${() => this.openHistory()}
+            >${icon("history")}</button>`
+          : nothing}
         <button
           type="button"
           class="song-action-btn"
@@ -3829,6 +3839,33 @@ export class Psa150App extends Psa150Element {
       <span class="transpose-value" aria-live="polite" aria-label=${spoken}>${value}</span>
       <button type="button" class="song-action-btn" title="Up a semitone" aria-label="Transpose up" @click=${() => void this.stepTranspose(1)}>${icon("plus")}</button>
     </div>`;
+  }
+
+  /**
+   * The song's history on the song server (the shared history sheet):
+   * every version, what differs, and Restore, which saves the earlier text
+   * as a new version through the usual save.
+   */
+  private openHistory() {
+    const server = this.serverSong;
+    const filename = this.currentFilename;
+    const song = this.currentSong;
+    if (!server || !filename || !song) return;
+    openSongHistory(
+      {
+        canRestore: this.canAdhocEdit(),
+        list: (songId) => api.listSongRevisions(songId),
+        source: (songId, revisionId) => api.getSongRevision(songId, revisionId),
+        restore: async (_songId, _currentRevisionId, chordpro) => {
+          const current = this.currentFilename === filename ? this.currentSong : null;
+          if (!current) throw new Error("Another song is open now; open this one again to restore it.");
+          this.currentSong = await api.saveSong(filename, chordpro, current.content_hash);
+          await this.refreshSongs();
+        },
+      },
+      { id: server.song_id, title: (song.parsed.meta.title as string) || "Untitled" },
+      () => undefined,
+    );
   }
 
   /** The words alone, as the song server's Copy does: no labels, chords or comments. */
