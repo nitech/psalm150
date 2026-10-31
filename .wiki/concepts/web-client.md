@@ -527,16 +527,15 @@ are not affected.
   title it leads to; at either end of the set that button is left out, and a
   set of one item has no bar), a horizontal swipe, or
   the arrow keys. It asks for a screen wake lock where the browser supports
-  it. Leaders get **Lead** in the bar: on, every page that has the set open
-  through its shared link moves to the item this phone shows, whenever it
-  moves; a pill on the button counts those pages (also while off). It stays on
-  from item to item while the app is open (`leadingSet`), reports every 5 s
-  (`PUT /sets/{id}/live` leading, `GET` otherwise) and lets go a minute after
-  the phone goes quiet ([shared sets](shared-sets.md#leading-live)). The page
+  it. Leaders get a **Live** button in the bar that opens the Live sheet (see
+  [Live](#live-follow-lead-control)); a pill on it counts the shared-link
+  pages that have the set open. Moving through the set tells `live.ts`
+  (`showItem`), so while leading the shared-link pages move with it, and while
+  controlling the projector projects the item. The page
   also polls `GET /remote/desktops` every 15 s and redraws only when the
   **Project this on <desktop>** button changes ([remote control](remote-control.md)).
-  That button is an icon in the bar beside Lead (leaders, when a desktop
-  accepts commands; its label and tooltip name the room), so nothing but the
+  That button is an icon in the bar beside Live (leaders, when a desktop
+  accepts commands and none is under control; its label and tooltip name the room), so nothing but the
   key and the item's note sits between the title and the song.
 
 The service view's polling stops while the page is hidden, such as a locked
@@ -689,19 +688,43 @@ to More with the new role. The server's refusals, such as the last owner or a
 person who also belongs to another church, show in the sheet
 ([auth and roles](auth-and-roles.md#members)).
 
+## Live: follow, lead, control
+
+`live.ts` puts what this phone does with the projector and the people around
+it in one place. The dock's card holds, beside the current set, a **Live**
+button that says it in words: "Live · Lupin · Amazing Grace" (idle, with the
+red dot while words are on screen), "Following · Lupin", "Leading · 1.11"
+(red edge and dot, with how many follow), "Controlling · Lupin", or "Leading ·
+controlling" with both names. It shows while a desktop is online, a mode is
+on, or a leader has a set to lead. Tapping it opens the Live sheet:
+
+- **Watch: Follow the projector** (everyone signed in), with the desktops as
+  chips when there are several. It stands alone: turning it on stops leading
+  and controlling, and a toast says so.
+- **Lead** (owners and leaders): **Lead <set>** for the set open in the
+  service view, else the current set; everyone with the set's shared link
+  moves to the item this phone shows. It reports every 5 s
+  (`PUT /sets/{id}/live`) from any screen while the app is open, and lets go
+  a minute after the phone goes quiet ([shared sets](shared-sets.md#leading-live)).
+  **Control the projector**: the chosen desktop (online, accepting commands)
+  projects the item this phone opens in a set's service view
+  (`project_set_item`, once per item), with a link to the remote. Leading and
+  controlling go together or apart; either turns following off.
+- **Turn everything off** while anything is on.
+
+Leading and controlling last while the app is open; signing out ends all.
+
 ## Following the projector
 
 `follow.ts`: signed in, the shell reads the church's desktops from the live
 stream Remote uses (`GET /remote/desktops/events`), while the app is in
-view. While a desktop projects, the dock's card shows a switch
-(`role="switch"`) with a dot (red while words are on screen), "Projector" and
-its room name. Switched on, the words that desktop projects fill the screen
+view. Turned on from the Live sheet (above), the words that desktop projects fill the screen
 above the dock in large text, as in the [room reader](#following-a-room): the
 song's title, every slide with the one on screen marked and scrolled to the
 middle, text size − and + (the same `room-size` preference as `/join`), a
 status (Live, Screen is blank, Waiting, Not connected) and ✕. The view lies
 over the page, which is inert meanwhile and stays where it was, so switching
-off (the switch, ✕ or Escape) shows the set or song as you left it.
+off (the Live sheet, ✕ or Escape) shows the set or song as you left it.
 Following stays on between songs; it ends when every desktop goes away, on
 going somewhere with a link or tab, and on sign-out. The desktop followed is
 the one followed last if it projects (`follow-desktop` preference), else the

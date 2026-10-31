@@ -885,7 +885,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   let renderedTarget = "";
   /** Who leads this set and how many shared-link pages have it open. */
   let live: SetLive | null = null;
-  const leading = () => leadingSet === set.id;
+  const leading = () => ctx.live.leading(set.id);
 
   const render = () => {
     const prev = set.items[index - 1];
@@ -904,7 +904,7 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
         autohide: true,
         // Projecting sits in the bar with leading, not as a button under the title.
         actions: ctx.canEdit
-          ? `${target ? `<button class="icon-button ghost" id="project-here" aria-label="Project this on ${escapeHtml(target.room_name)}" title="Project this on ${escapeHtml(target.room_name)}">${icon("project")}</button>` : ""}<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>`
+          ? `${target && !ctx.live.controlled ? `<button class="icon-button ghost" id="project-here" aria-label="Project this on ${escapeHtml(target.room_name)}" title="Project this on ${escapeHtml(target.room_name)}">${icon("project")}</button>` : ""}<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>`
           : "",
       })}
       ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
@@ -918,29 +918,8 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     if (active instanceof HTMLElement && active.id && !active.isConnected) ctx.main.querySelector<HTMLElement>(`#${active.id}`)?.focus({ preventScroll: true });
     ctx.main.querySelector("#play-prev")?.addEventListener("click", () => prev && go(index - 1));
     ctx.main.querySelector("#play-next")?.addEventListener("click", () => next && go(index + 1));
-    ctx.main.querySelector("#lead")?.addEventListener("click", () => void ctx.run(async () => {
-      if (leading()) {
-        leadingSet = null;
-        drawLead();
-        await ctx.api.stopLeadingSet(set.id);
-        showToast("You no longer lead this set.");
-        return;
-      }
-      // Pressed at once; let go again if the server refuses.
-      leadingSet = set.id;
-      drawLead();
-      try {
-        live = await ctx.api.leadSet(set.id, item.id);
-      } catch (error) {
-        leadingSet = null;
-        drawLead();
-        throw error;
-      }
-      drawLead();
-      showToast(!set.shared
-        ? "Leading. Share the set on a link so others can follow you."
-        : `People with the shared link now follow you${live.viewers ? ` (${live.viewers} watching)` : ""}.`);
-    }));
+    // Leading and controlling the projector are chosen in the Live sheet (live.ts).
+    ctx.main.querySelector("#lead")?.addEventListener("click", () => ctx.live.open());
     ctx.main.querySelector("#project-here")?.addEventListener("click", () => void ctx.run(async () => {
       const desktop = pickDesktop(desktops);
       if (!desktop) throw new Error("No desktop accepts remote control right now.");
@@ -964,15 +943,17 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     button.innerHTML = leadButton();
     button.classList.toggle("on", leading());
     button.setAttribute("aria-pressed", String(leading()));
-    button.setAttribute("aria-label", `Lead the shared link${watching}`);
-    button.title = `${leading() ? "Leading: people with the shared link follow you" : "Lead: move everyone with the shared link to the song you show"}${watching}.${other}`;
+    button.setAttribute("aria-label", `Live: lead the shared link or control the projector${watching}`);
+    button.setAttribute("aria-haspopup", "dialog");
+    button.title = `${leading() ? "Leading: people with the shared link follow you" : "Lead the shared link, or control the projector"}${watching}.${other}`;
   };
 
   // Leading: tell the server where this phone is now, and keep telling it
   // (it lets go a minute after the last word). Not leading: read the count.
   const liveTick = async () => {
     try {
-      live = leading() ? await ctx.api.leadSet(set.id, item.id) : await ctx.api.getSetLive(set.id);
+      // Leading, live.ts reports where this phone is; otherwise read who leads.
+      live = leading() ? ctx.live.liveInfo(set.id) : await ctx.api.getSetLive(set.id);
     } catch {
       return;
     }
@@ -1011,23 +992,28 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const releaseScreen = holdScreen();
 
   render();
+  ctx.live.showItem(set, index);
+  // Leading or controlling changed in the Live sheet: the bar's buttons follow.
+  const unsubscribeLive = ctx.live.subscribe(() => {
+    live = ctx.live.liveInfo(set.id) ?? live;
+    const projectShown = Boolean(ctx.main.querySelector("#project-here"));
+    if (projectShown === Boolean(ctx.live.controlled) && pickDesktop(desktops)) render();
+    else drawLead();
+  });
   const poller = startPolling(poll, () => 15000);
   const livePoller = ctx.canEdit ? startPolling(liveTick, () => 5000) : null;
 
   return () => {
     poller.stop();
     livePoller?.stop();
+    unsubscribeLive();
+    ctx.live.leaveSet(set);
     unbindSwipe();
     document.removeEventListener("keydown", keys);
     releaseScreen();
   };
 }
 
-/**
- * The set this phone leads, if any. It lasts while the app is open, so going
- * from item to item (each its own screen) keeps leading.
- */
-let leadingSet: string | null = null;
 
 /**
  * The step bar at the bottom of a service view: Previous and Next with the

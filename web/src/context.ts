@@ -1,6 +1,7 @@
 import type { SongServerApi } from "./api.ts";
 import type { CurrentSet } from "./current-set.ts";
 import type { Favorites } from "./favorites.ts";
+import type { Live } from "./live.ts";
 import { icon } from "./icons.ts";
 import type { Session } from "./types.ts";
 import { escapeHtml } from "./ui.ts";
@@ -24,6 +25,8 @@ export interface LibraryContext {
   currentSet: CurrentSet;
   /** The signed-in person's favourite songs (none for a visitor). */
   favorites: Favorites;
+  /** Following, leading and controlling the projector (live.ts). */
+  live: Live;
   /** The screen's container; a view owns its contents. */
   main: HTMLElement;
   /** Go to a route such as `#/sets/…`; `replace` keeps history short. */

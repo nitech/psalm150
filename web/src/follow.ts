@@ -6,8 +6,8 @@ import { escapeHtml, readPreference, writePreference } from "./ui.ts";
 import { SIZES, slideHtml } from "./views/room.ts";
 
 /**
- * Following the projector from the app: while a church desktop projects, the
- * dock's card shows a switch. Switched on, the words the desktop shows fill
+ * Following the projector from the app, one of the modes in the dock's Live
+ * card (live.ts). Switched on, the words the desktop shows fill
  * the screen in large text, as in `/join`, and follow along; switched off,
  * the screen underneath (a set, a song) is back where it was, since the
  * words lie over it rather than replacing it.
@@ -24,7 +24,13 @@ export interface Follow {
   stop(): void;
   /** Back to the screen underneath. */
   off(): void;
+  /** Follows a desktop (the one given, else the one followed last), or stops. */
+  setOn(value: boolean, deviceId?: string): void;
   readonly on: boolean;
+  /** The church's desktops, as the live stream last told. */
+  readonly desktops: RemoteDesktop[];
+  /** The desktop followed now, or the one that would be. */
+  readonly target: RemoteDesktop | null;
 }
 
 export function installFollow(api: SongServerApi, changed: () => void): Follow {
@@ -70,8 +76,12 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
 
   const view = (): HTMLElement | null => document.querySelector("#follow-view");
 
-  const setOn = (value: boolean) => {
-    if (on === value) return;
+  const setOn = (value: boolean, deviceId?: string) => {
+    if (deviceId) writePreference("follow-desktop", deviceId);
+    if (on === value) {
+      draw();
+      return;
+    }
     on = value;
     const desktop = target();
     if (on && desktop) writePreference("follow-desktop", desktop.device_id);
@@ -89,26 +99,6 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
     }
   };
 
-  /** The switch in the dock's card. */
-  const drawSwitch = (desktop: RemoteDesktop | null) => {
-    const button = document.querySelector<HTMLButtonElement>("#follow-switch");
-    if (!button) return;
-    const show = Boolean(desktop) || on;
-    button.hidden = !show;
-    if (!show) return;
-    const state = desktop?.state;
-    const what = !desktop ? "Not connected"
-      : !state?.projecting ? "Not projecting"
-        : state.blanked ? "Blank screen"
-          : state.song_title ?? "Projecting";
-    button.setAttribute("aria-checked", String(on));
-    button.setAttribute("aria-label", `Follow ${desktop?.room_name ?? "the projector"}: ${what}`);
-    button.title = on ? "Back to your own screen" : "Show the words the projector shows";
-    button.innerHTML = `<span class="follow-live${state?.projecting && !state.blanked ? " live" : ""}" aria-hidden="true"></span>
-      <span class="follow-text"><small>${on ? "Following" : "Projector"}</small><strong>${escapeHtml(desktop?.room_name ?? "Projector")}</strong></span>
-      <span class="follow-track" aria-hidden="true"><span class="follow-thumb"></span></span>`;
-  };
-
   const draw = () => {
     const desktop = target();
     if (on && !desktop && !desktops.some((entry) => entry.online)) {
@@ -116,7 +106,6 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
       setOn(false);
       return;
     }
-    drawSwitch(desktop);
     changed();
     const root = view();
     if (!root) return;
@@ -196,18 +185,13 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
     root.querySelector("#follow-larger")?.addEventListener("click", () => resize(1));
     root.querySelector("#follow-close")?.addEventListener("click", () => {
       setOn(false);
-      document.querySelector<HTMLElement>("#follow-switch")?.focus({ preventScroll: true });
+      document.querySelector<HTMLElement>("#live-button")?.focus({ preventScroll: true });
     });
     root.addEventListener("keydown", (event) => {
       if (event.key === "Escape") root.querySelector<HTMLElement>("#follow-close")?.click();
     });
     applySize();
   };
-
-  // The switch is redrawn with the shell; listen once on the document.
-  document.addEventListener("click", (event) => {
-    if ((event.target as HTMLElement).closest("#follow-switch")) setOn(!on);
-  });
 
   return {
     start() {
@@ -228,8 +212,15 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
     off() {
       setOn(false);
     },
+    setOn,
     get on() {
       return on;
+    },
+    get desktops() {
+      return desktops;
+    },
+    get target() {
+      return target();
     },
   };
 }

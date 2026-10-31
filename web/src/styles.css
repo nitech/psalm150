@@ -453,7 +453,8 @@ body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-s
 .current-bar .row-main small { color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; }
 .current-bar.noted { border-color: var(--psa-accent); }
 .current-bar.noted .current-label { color: var(--psa-accent-text); }
-/* Following the projector: a switch in the card, beside the set (follow.ts). */
+/* The Live card beside the set (live.ts): what this phone does with the
+   projector, in words; it opens the Live sheet. */
 .follow-switch {
   flex: none; display: flex; align-items: center; gap: var(--psa-space-2); max-width: 52%; min-height: 40px;
   padding: 4px 8px 4px 10px; border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-md);
@@ -471,6 +472,31 @@ body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-s
 .follow-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--psa-text-secondary); transition: transform var(--psa-dur-base) var(--psa-ease-standard); }
 .follow-switch[aria-checked="true"] .follow-track { border-color: var(--psa-accent); background: var(--psa-accent); }
 .follow-switch[aria-checked="true"] .follow-thumb { transform: translateX(14px); background: var(--psa-on-accent); }
+/* Live modes: following is accent, leading has the red on-air dot and edge,
+   controlling an accent edge. The count is how many follow the leader. */
+.live-button { position: relative; }
+.live-button > .icon { flex: none; width: 16px; height: 16px; color: var(--psa-text-secondary); }
+.live-button[data-mode="follow"] { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.live-button[data-mode="lead"] { border-color: #e5484d; background: color-mix(in srgb, #e5484d 8%, var(--psa-bg-surface)); }
+.live-button[data-mode="control"] { border-color: var(--psa-accent-text); }
+.live-button .count-pill { position: static; flex: none; background: #e5484d; color: #fff; }
+/* The Live sheet: Watch (one choice) and Lead (two switches). */
+.live-group { display: grid; gap: var(--psa-space-2); margin-bottom: var(--psa-space-4); }
+.live-group h3 { margin: 0; color: var(--psa-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.live-row { display: flex; align-items: center; gap: var(--psa-space-3); width: 100%; min-height: 60px; padding: 10px 14px; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); color: var(--psa-text); font: inherit; text-align: left; }
+.live-row:disabled { opacity: 0.5; }
+.live-row[aria-checked="true"] { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.live-row[data-live="lead"][aria-checked="true"] { border-color: #e5484d; background: color-mix(in srgb, #e5484d 8%, var(--psa-bg-surface)); }
+.live-row .row-main strong { white-space: normal; }
+.live-row .row-main small { white-space: normal; }
+.live-mark { display: grid; flex: none; width: 22px; height: 22px; place-items: center; border: 2px solid var(--psa-border-strong); border-radius: 50%; color: var(--psa-accent-text); }
+.live-row[aria-checked="true"] .live-mark { border-color: var(--psa-accent-text); }
+.live-mark .icon { width: 14px; height: 14px; }
+.live-row[role="switch"][aria-checked="true"] .switch-track { background: var(--psa-accent); }
+.live-row[role="switch"][aria-checked="true"] .switch-thumb { transform: translateX(16px); }
+.live-row[data-live="lead"][aria-checked="true"] .switch-track { background: #e5484d; }
+.live-desktops { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
+.live-remote { justify-self: start; }
 /* The projector's words lie over the page, which stays where it was. */
 .follow-view { position: fixed; inset: 0 0 calc(var(--tabbar-h) + var(--dock-h)) 0; z-index: 22; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .follow-view[hidden] { display: none; }
