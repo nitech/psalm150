@@ -351,62 +351,53 @@ impl ProjectionState {
     }
 }
 
-/// Chorus2 sections are alternate-chorus templates. When a song defines chorus2,
-/// the main chorus block before it is also a template; performance slots after
-/// chorus2 alternate between main and alternate content.
+/// The sections as written, the way the song server's web client shows them:
+/// a second chorus (`{start_of_chorus2}`) is a chorus of its own where it is
+/// written, and so is every chorus before it. An empty chorus (a slot) repeats
+/// the last chorus of its kind with words, the first one when none came yet; an
+/// empty chorus2 falls back to the chorus.
 fn expand_chorus_sections(
     sections: &[crate::library::chordpro::SongSection],
 ) -> Vec<crate::library::chordpro::SongSection> {
     use crate::library::chordpro::{SectionKind, SongSection};
 
-    let chorus2_idx = sections.iter().position(|s| s.kind == SectionKind::Chorus2);
-    let Some(alt_idx) = chorus2_idx else {
-        return sections.to_vec();
+    let has_words = |section: &SongSection| section.lines.iter().any(|l| !l.text.is_empty());
+    let first = |kind: SectionKind| {
+        sections
+            .iter()
+            .find(|section| section.kind == kind && has_words(section))
     };
+    let mut last_chorus: Option<&SongSection> = None;
+    let mut last_alt: Option<&SongSection> = None;
 
-    let main_chorus = sections
+    sections
         .iter()
-        .take(alt_idx)
-        .find(|s| s.kind == SectionKind::Chorus)
-        .cloned();
-    let alt_chorus = sections.get(alt_idx).cloned();
-
-    let mut use_alt = false;
-    let mut result = Vec::new();
-
-    for (idx, section) in sections.iter().enumerate() {
-        match section.kind {
-            SectionKind::Chorus2 => {}
-            SectionKind::Chorus if idx < alt_idx => {}
-            SectionKind::Chorus => {
-                let source = if use_alt {
-                    alt_chorus.as_ref().or(main_chorus.as_ref())
+        .map(|section| {
+            let is_alt = match section.kind {
+                SectionKind::Chorus => false,
+                SectionKind::Chorus2 => true,
+                _ => return section.clone(),
+            };
+            if has_words(section) {
+                if is_alt {
+                    last_alt = Some(section);
                 } else {
-                    main_chorus.as_ref()
-                };
-                if let Some(src) = source {
-                    let lines = if section.lines.iter().any(|l| !l.text.is_empty()) {
-                        section.lines.clone()
-                    } else {
-                        src.lines.clone()
-                    };
-                    result.push(SongSection {
-                        label: section.label.clone(),
-                        kind: if use_alt && alt_chorus.is_some() {
-                            SectionKind::Chorus2
-                        } else {
-                            SectionKind::Chorus
-                        },
-                        lines,
-                    });
+                    last_chorus = Some(section);
                 }
-                use_alt = !use_alt;
+                return section.clone();
             }
-            _ => result.push(section.clone()),
-        }
-    }
-
-    result
+            let chorus = last_chorus.or_else(|| first(SectionKind::Chorus));
+            let source = if is_alt {
+                last_alt.or_else(|| first(SectionKind::Chorus2)).or(chorus)
+            } else {
+                chorus
+            };
+            SongSection {
+                lines: source.map_or_else(|| section.lines.clone(), |s| s.lines.clone()),
+                ..section.clone()
+            }
+        })
+        .collect()
 }
 
 fn transpose_chord(chord: &str, semitones: i32) -> String {
@@ -504,52 +495,59 @@ Stanza three line
     }
 
     #[test]
-    fn expand_chorus_alternates_main_and_alt_after_chorus2_defined() {
-        let content = r#"{title: Alt Chorus Test}
+    fn every_chorus_shows_where_it_is_written() {
+        // As the song server shows it: the chorus and the second chorus both,
+        // in place (song 956 lost both while chorus2 was read as a template).
+        let content = r#"{title: Two Choruses}
 {start_of_verse}
 Verse one
+{end_of_verse}
 {start_of_chorus}
 Main chorus line
-{start_of_chorus2}
-Alt chorus line
+{end_of_chorus}
 {start_of_verse}
 Verse two
-{start_of_chorus}
-{start_of_chorus}
+{end_of_verse}
+{start_of_chorus2: Chorus2}
+Alt chorus line
+{end_of_chorus2}
 "#;
         let parsed = parse_chordpro(content, "test.pro");
         let slides = build_slides(&parsed, &SlideTheme::default(), 0);
-        let chorus_texts: Vec<String> = slides
-            .iter()
-            .filter(|s| s.section_label.starts_with("Chorus"))
-            .map(|s| s.lines[0].text.clone())
-            .collect();
-        assert_eq!(chorus_texts, vec!["Main chorus line", "Alt chorus line"]);
+        let texts: Vec<&str> = slides.iter().map(|s| s.lines[0].text.as_str()).collect();
+        assert_eq!(
+            texts,
+            vec!["Verse one", "Main chorus line", "Verse two", "Alt chorus line"]
+        );
     }
 
     #[test]
-    fn chorus2_definition_does_not_produce_slides() {
-        let content = r#"{title: Test}
+    fn an_empty_chorus_repeats_the_last_one() {
+        let content = r#"{title: Slots}
 {start_of_chorus}
-Main only
-{start_of_chorus2}
-Alt template only
+Main chorus line
 {start_of_verse}
 Verse
+{start_of_chorus}
+{start_of_chorus2}
+Alt chorus line
 "#;
         let parsed = parse_chordpro(content, "test.pro");
         let expanded = expand_chorus_sections(&parsed.sections);
-        assert!(
-            !expanded.iter().any(|s| s.kind == SectionKind::Chorus2 && s.lines.iter().any(|l| l.text.contains("Alt template")))
-                || expanded.len() < parsed.sections.len(),
-            "chorus2 template should not appear as its own performance section before a chorus slot"
-        );
-        let slides = build_slides(&parsed, &SlideTheme::default(), 0);
-        let texts: Vec<&str> = slides
+        let texts: Vec<&str> = expanded
             .iter()
-            .flat_map(|s| s.lines.iter().map(|l| l.text.as_str()))
+            .filter(|s| !s.lines.is_empty())
+            .map(|s| s.lines[0].text.as_str())
             .collect();
-        assert!(!texts.contains(&"Alt template only"));
+        assert_eq!(
+            texts,
+            vec![
+                "Main chorus line",
+                "Verse",
+                "Main chorus line",
+                "Alt chorus line"
+            ]
+        );
     }
 
     #[test]

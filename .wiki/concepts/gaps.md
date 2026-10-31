@@ -24,7 +24,7 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
 
 | Item (paraphrased) | Status |
 | --- | --- |
-| Choruses alternate during projection; support `chorus2` | Done: [slide pipeline](slide-pipeline.md) and [performance sections](performance-sections.md) |
+| Support `chorus2` (shown where written, as on the song server) | Done: [slide pipeline](slide-pipeline.md) and [performance sections](performance-sections.md) |
 | Colour choruses differently in the minimap | Obsolete: the minimap was removed |
 | Lines of song 227 wrap wrongly when projecting to the hall | Fixed 2026-08-29: [audience display](audience-display.md) |
 | Show 1/7, 2/7… with up/down arrows bottom-right | Done: stanza counter |

@@ -22,60 +22,37 @@ function provenanceForLines(sourceSectionIndex: number, lines: LyricLine[]): Lin
 }
 
 /**
- * Expands chorus2 templates into performance-order sections — mirrors
- * `expand_chorus_sections` in src-tauri/src/projection/mod.rs.
+ * The sections as written, the way the song server's web client shows them:
+ * a second chorus (`{start_of_chorus2}`) is a chorus of its own where it is
+ * written. An empty chorus (a slot) repeats the last chorus of its kind with
+ * words, the first one when none came yet; an empty chorus2 falls back to the
+ * chorus. Mirrors `expand_chorus_sections` in src-tauri/src/projection/mod.rs.
  */
 export function buildPerformanceSections(sections: SongSection[]): PerformanceSection[] {
-  const chorus2Idx = sections.findIndex((section) => section.kind === "chorus2");
-  if (chorus2Idx < 0) {
-    return sections.map((section, sectionIndex) => ({
-      label: section.label,
-      kind: section.kind,
-      lines: section.lines,
-      lineProvenance: provenanceForLines(sectionIndex, section.lines),
-    }));
-  }
-
-  const mainChorusIdx = sections.findIndex(
-    (section, index) => index < chorus2Idx && section.kind === "chorus",
-  );
-  const mainChorus = mainChorusIdx >= 0 ? sections[mainChorusIdx] : undefined;
-  const altChorus = sections[chorus2Idx];
-  let useAlt = false;
-  const result: PerformanceSection[] = [];
-
-  for (let idx = 0; idx < sections.length; idx++) {
-    const section = sections[idx];
-    if (section.kind === "chorus2") continue;
-    if (section.kind === "chorus" && idx < chorus2Idx) continue;
-
-    if (section.kind === "chorus") {
-      const source = useAlt ? altChorus ?? mainChorus : mainChorus;
-      if (!source) continue;
-
-      const fromSlot = sectionHasLyrics(section.lines);
-      const lines = fromSlot ? section.lines : source.lines;
-      const sourceIndex = fromSlot ? idx : useAlt ? chorus2Idx : mainChorusIdx;
-
-      result.push({
-        label: section.label,
-        kind: useAlt && altChorus ? "chorus2" : "chorus",
-        lines,
-        lineProvenance: provenanceForLines(sourceIndex, lines),
-      });
-      useAlt = !useAlt;
-      continue;
+  const first = (kind: SectionKind) =>
+    sections.findIndex((section) => section.kind === kind && sectionHasLyrics(section.lines));
+  let lastChorus = -1;
+  let lastAlt = -1;
+  return sections.map((section, sectionIndex) => {
+    const isChorus = section.kind === "chorus" || section.kind === "chorus2";
+    let sourceIndex = sectionIndex;
+    if (isChorus && sectionHasLyrics(section.lines)) {
+      if (section.kind === "chorus2") lastAlt = sectionIndex;
+      else lastChorus = sectionIndex;
+    } else if (isChorus) {
+      const chorus = lastChorus >= 0 ? lastChorus : first("chorus");
+      const alt = lastAlt >= 0 ? lastAlt : first("chorus2");
+      const source = section.kind === "chorus2" ? (alt >= 0 ? alt : chorus) : chorus;
+      if (source >= 0) sourceIndex = source;
     }
-
-    result.push({
+    const lines = sections[sourceIndex].lines;
+    return {
       label: section.label,
       kind: section.kind,
-      lines: section.lines,
-      lineProvenance: provenanceForLines(idx, section.lines),
-    });
-  }
-
-  return result;
+      lines,
+      lineProvenance: provenanceForLines(sourceIndex, lines),
+    };
+  });
 }
 
 /** Stable key for a stanza block within performance sections. */

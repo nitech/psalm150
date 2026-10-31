@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Slide pipeline
-description: How a parsed song becomes ProjectionState slides — chorus2 expansion, stanza blocks, word-wrap and height budgets, transposition, overlays.
+description: How a parsed song becomes ProjectionState slides — chorus filling, stanza blocks, word-wrap and height budgets, transposition, overlays.
 tags: [projection, slides, rust]
 status: stable
 sources:
@@ -29,10 +29,13 @@ save and transpose rebuild the same session. The result is stored in
 
 ## Steps
 
-1. **Expand choruses** (`expand_chorus_sections`). If the song has a `chorus2`
-   section, the first `chorus` before it is a template too. Every later `chorus`
-   slot alternates main, alt, main…; a slot with its own lyrics keeps them. The
-   template sections themselves produce no slides.
+1. **Fill empty choruses** (`expand_chorus_sections`). Sections stay as
+   written, as on the song server: a `chorus2` is a second chorus in its place,
+   and the chorus before it shows too. An empty `chorus` (a slot) takes the
+   words of the last chorus with words (the first one when none came yet); an
+   empty `chorus2` the last `chorus2`, else the chorus. (Until 2026-10-31
+   `chorus2` was an alternate-chorus template: it and the chorus before it
+   showed only in later empty slots, so songs without slots lost both.)
 2. **Drop non-projectable kinds**: `Intro` and `Interlude` never become slides
    (`is_projectable_section`). `PreChorus` projects like a verse.
 3. **Split each section into stanzas**: blank lines (`text.is_empty()`) mark

@@ -4,7 +4,7 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 
 # Projection
 
-* [Slide pipeline](concepts/slide-pipeline.md) - ChordPro sections to slides: stanza blocks, wrap and height budgets, chorus2 alternation, transposition, overlays
+* [Slide pipeline](concepts/slide-pipeline.md) - ChordPro sections to slides: stanza blocks, wrap and height budgets, chorus filling (as on the song server), transposition, overlays
 * [Projection windows](concepts/projection-windows.md) - Pre-created audience/stage webviews, monitors vs simulated display, Escape, lock-free frame delivery
 * [Audience display](concepts/audience-display.md) - White on black, one font size per song as large as every stanza fits (never breaking a lyric line), overlay pill with a large song number, stanza counter
 * [Stage display](concepts/stage-display.md) - Musician view with chord rows, next section, key
@@ -23,7 +23,7 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 # Operator console
 
 * [Operator console](concepts/operator-console.md) - Main window state, toolbar groups, the room chip, #key search, History/Favourites/Setlist views, setlist heart, song list columns and sorting, number-key stanza shortcuts, projecting mode, settings (including the room name and sharing)
-* [Performance sections](concepts/performance-sections.md) - Console-side mirror of chorus2 expansion; stanza markers that tie the song view to slides
+* [Performance sections](concepts/performance-sections.md) - Console-side mirror of chorus filling; stanza markers that tie the song view to slides
 * [Ad hoc editing](concepts/adhoc-editing.md) - Fix a lyric while projecting; patch raw ChordPro without touching chords
 * [Setlists](concepts/setlists.md) - JSON setlists per library (local, or mirrors of the server's sets), the add-to-setlist menu, the Setlist view and Next song with the item's transpose
 * [Accessibility](concepts/accessibility.md) - WCAG 2.2 AA for the console and the LAN remote page: names and landmarks, dialogs and keyboard model, focus ring, contrast and state cues, live-region toasts, reduced motion, zoom and reflow, how to test, exceptions (projection windows, song language, ad hoc editing)

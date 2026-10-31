@@ -20,37 +20,30 @@ describe("buildPerformanceSections", () => {
     expect(performance[1].lines[0].text).toBe("Chorus line");
   });
 
-  it("alternates main and alt chorus after chorus2 is defined", () => {
+  it("shows every chorus where it is written, as the song server does", () => {
     const sections: SongSection[] = [
       { label: "Verse", kind: "verse", lines: [{ text: "Verse one", chords: [] }] },
       { label: "Chorus", kind: "chorus", lines: [{ text: "Main chorus", chords: [] }] },
-      { label: "Chorus 2", kind: "chorus2", lines: [{ text: "Alt chorus", chords: [] }] },
       { label: "Verse", kind: "verse", lines: [{ text: "Verse two", chords: [] }] },
-      { label: "Chorus", kind: "chorus", lines: [] },
-      { label: "Chorus", kind: "chorus", lines: [] },
+      { label: "Chorus2", kind: "chorus2", lines: [{ text: "Alt chorus", chords: [] }] },
     ];
-    const performance = buildPerformanceSections(sections);
-    const chorusTexts = performance
-      .filter((section) => section.kind === "chorus" || section.kind === "chorus2")
-      .map((section) => section.lines[0]?.text);
-    expect(chorusTexts).toEqual(["Main chorus", "Alt chorus"]);
-    expect(performance.some((section) => section.label === "Chorus 2")).toBe(false);
+    expect(buildPerformanceSections(sections).map((section) => section.lines[0]?.text)).toEqual([
+      "Verse one",
+      "Main chorus",
+      "Verse two",
+      "Alt chorus",
+    ]);
   });
 
-  it("maps chorus edits to the shared template provenance", () => {
+  it("fills an empty chorus with the last one and maps edits to it", () => {
     const sections: SongSection[] = [
       { label: "Chorus", kind: "chorus", lines: [{ text: "Main chorus", chords: [] }] },
-      { label: "Chorus 2", kind: "chorus2", lines: [{ text: "Alt chorus", chords: [] }] },
       { label: "Verse", kind: "verse", lines: [{ text: "Verse", chords: [] }] },
-      { label: "Chorus", kind: "chorus", lines: [] },
       { label: "Chorus", kind: "chorus", lines: [] },
     ];
     const performance = buildPerformanceSections(sections);
-    const chorusBlocks = buildPreviewStanzaBlocksFromSections(performance).filter(
-      (block) => performance[block.sectionIndex]?.kind !== "verse",
-    );
-    expect(chorusBlocks[0].lineProvenance[0]).toEqual({ sectionIndex: 0, lineIndex: 0 });
-    expect(chorusBlocks[1].lineProvenance[0]).toEqual({ sectionIndex: 1, lineIndex: 0 });
+    expect(performance[2].lines[0].text).toBe("Main chorus");
+    expect(performance[2].lineProvenance[0]).toEqual({ sectionIndex: 0, lineIndex: 0 });
   });
 });
 

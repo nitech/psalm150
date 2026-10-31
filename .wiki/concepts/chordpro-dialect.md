@@ -50,7 +50,7 @@ match).
   their kind. So a chorus is one stanza and the paragraph after it is a verse.
   Blank lines directly before a directive are kept, then trimmed at flush.
 - An **empty chorus is kept** (`flush_section` pushes a `Chorus` even with no
-  lines): that is how chorus2 slots are expressed
+  lines): such a slot repeats the last chorus
   ([slide pipeline](slide-pipeline.md)).
 - With no sections at all, the whole body becomes one `Other` section labeled
   `Song`.

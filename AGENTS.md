@@ -35,7 +35,8 @@ bun x tsc --noEmit -p .
 - `src/shared/` and `src-tauri/crates/psa150-lyrics/` are mirrors of the
   song server's `shared/`; edit there and run `bun run sync:shared`.
 - Only ChordPro files are written to the songs folder.
-- The chorus2 alternation and blank-line stanza rule exist in both Rust
+- Chorus filling (sections as written, as the song server shows them) and
+  the blank-line stanza rule exist in both Rust
   (`projection/mod.rs`, `library/chordpro.rs`) and TypeScript
   (`performance-sections.ts`, `stanza-markers.ts`); change them together.
 - Components render into light DOM; all styling lives in `src/styles.css`.

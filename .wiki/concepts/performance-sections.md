@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Performance sections and stanza markers
-description: The console's client-side mirror of chorus2 expansion and blank-line stanzas, and the markers that map slides back to stanzas.
+description: The console's client-side mirror of chorus filling and blank-line stanzas, and the markers that map slides back to stanzas.
 tags: [console, projection, stanzas, sync]
 status: stable
 sources:
@@ -28,9 +28,9 @@ congregation sees it, so it recomputes what the Rust
 
 ## `buildPerformanceSections(sections)`
 
-A port of `expand_chorus_sections`: chorus2 templates are removed, later
-chorus slots alternate main/alt content, and slots with their own lyrics keep
-them. Each output section carries `lineProvenance[i] = {sectionIndex,
+A port of `expand_chorus_sections`: sections stay as written, as the song
+server's web client shows them (a `chorus2` is a chorus of its own in its
+place); an empty chorus repeats the last chorus of its kind with words. Each output section carries `lineProvenance[i] = {sectionIndex,
 lineIndex}` pointing back into `parsed.sections`, so a displayed chorus line
 can be traced to the template it came from; that is what
 [ad hoc editing](adhoc-editing.md) writes through. **Change both
