@@ -98,6 +98,45 @@ async fn private_library_flow(pool: PgPool) {
     assert_eq!(count("of").await, 0, "lyrics need three letters");
     assert_eq!(count("%25").await, 0);
     assert_eq!(count("_").await, 0);
+    // Case and punctuation do not matter, a line matches across its chords,
+    // and a misspelled word still finds the song.
+    let chords = send(
+        &app,
+        "POST",
+        "/api/v1/songs",
+        Some(token),
+        Some(json!({
+            "chordpro": "{title: It's Already Done}\n\n[G]It is al[D]ready done, the [Em]victory's won"
+        })),
+    )
+    .await;
+    assert_eq!(chords.0, StatusCode::CREATED);
+    assert_eq!(
+        count("It%E2%80%99s%20already%20done").await,
+        1,
+        "curly apostrophe"
+    );
+    assert_eq!(count("its%20ALREADY").await, 1, "no apostrophe");
+    assert_eq!(
+        count("already%20done,%20the%20victorys").await,
+        1,
+        "across chords"
+    );
+    assert_eq!(count("alredy%20done").await, 1, "misspelled");
+    assert_eq!(count("vison").await, 1, "misspelled title");
+    assert_eq!(count("zzqxw").await, 0);
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!(
+            "/api/v1/songs/{}",
+            chords.1["id"].as_str().expect("song id")
+        ),
+        Some(token),
+        None,
+    )
+    .await;
+    assert!(deleted.0.is_success(), "{:?}", deleted.1);
     let long = send(
         &app,
         "GET",

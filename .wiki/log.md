@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-31
+* **Search ignores punctuation and tolerates typos**: migration `0017_song_search_text.sql` adds the stored column `song_revisions.search_text` (lowercase words of title, authors, number and lyrics; apostrophes dropped, other punctuation a space, ChordPro chords and directives left out) with a trigram index. A search with a three-letter word is normalized the same way (`normalize_search`) and matched as a substring, so `It’s already done` (curly apostrophe from a phone) finds `It's Already Done`, and a line matches across its chords. When nothing matches, it falls back to pg_trgm word similarity at 0.5, best match first. Pages touched: songs-and-revisions, data-model, api-contract, gaps, index.
+
 ## 2026-10-30
 * **Recorder: count and waveform (web)**: Start counts 3, 2, 1 before recording (Cancel stops it) and a scrolling waveform of the microphone's loudness (Web Audio `AnalyserNode`) shows from the count on, red while recording. The title field is gone: recordings are saved as "Recording" (`addRecording` takes the title as an optional last argument). Pages touched: web-client.
 * **Recordings and video as pills at the top (web)**: the section under the song is gone. Pills under the title: YouTube (from the song's `{meta: youtube}`), one per recording (maker's initials, Play/Pause, length, filling as it plays) and, for leaders and owners with a recording already, **+ 🎤** to record another; ⋮ has **Record how it is played** while there is none. Tapping a recording opens a player under the pills with seeking, Close and Delete. The song editor's details gain **YouTube**; details without a directive of their own are written as `{meta: key value}`. New `youtube.ts`; `clock` moved to `ui.ts`. Icon `pause` added.

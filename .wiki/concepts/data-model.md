@@ -29,6 +29,9 @@ sources:
   - id: mig10
     resource: /api/migrations/0010_song_search_trigrams.sql
     title: Trigram indexes for song search
+  - id: mig17
+    resource: /api/migrations/0017_song_search_text.sql
+    title: Normalized song_revisions.search_text for search
   - id: main
     resource: /api/src/main.rs
     title: sqlx::migrate! at startup, pool size
@@ -156,6 +159,12 @@ null. `DELETE /songs/{id}` and `DELETE /sets/{id}` only set `deleted_at`, and
 - Migration `0011_shared_sets.sql` adds the share columns to `song_sets` and
   the partial unique index `song_sets_share_key_unique` on `share_key`
   ([shared sets](shared-sets.md)). The key is stored as it is, not hashed.
+- Migration `0017_song_search_text.sql` adds `song_search_text(text)`
+  (lowercase, apostrophes dropped, other punctuation a space) and the stored
+  generated column `song_revisions.search_text`: title, authors, number and
+  the ChordPro text with chords `[..]` and directives `{..}` removed, with
+  the GIN trigram index `song_revisions_search_text_trgm_idx`. Search with a
+  three-letter word now uses only this column.
 - Migration `0010_song_search_trigrams.sql` turns on `pg_trgm` and adds GIN
   trigram indexes on `song_revisions` `title`, `authors`, `song_number` and
   `chordpro` (`*_trgm_idx`), which serve search's `%q%` `ILIKE`, plus

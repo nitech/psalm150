@@ -93,16 +93,22 @@ conflict store does not exist yet. Today's 409 is the groundwork for it
 
 ## Search
 
-`GET /songs?q=` trims `q` (at most 200 characters, else 400) and matches
-`%q%` case-insensitively against the current revision's `title`, `authors`,
-`song_number` and the **full ChordPro source**. So a lyric line matches, but
-so does a chord name or a directive. The ChordPro source is searched only
-when `q` has a run of at least three letters or digits: that is what the
-trigram indexes (migration 0010) can look up, and a shorter search would
-match nearly every song's lyrics while reading all of them. `%`, `_` and
-`\` in the query match themselves (`escape_like`). Each of the three
-shapes (no search, with lyrics, without) is its own statement, so the
-database plans each separately. Results are unranked.
+`GET /songs?q=` trims `q` (at most 200 characters, else 400). When `q`,
+normalized by `normalize_search` (lowercase, apostrophes dropped so `It’s`
+and `It's` are `its`, other punctuation a space), has a run of at least three
+letters or digits, it is matched as a substring of the current revision's
+`search_text` (migration 0017): title, authors, number and the lyrics without
+chords or directives, normalized the same way by `song_search_text`. So a
+line matches across the chords in it, and a chord name or directive does not.
+When nothing matches, the search is retried with pg_trgm word similarity
+(`search_text %> q`, threshold 0.5 set per transaction) ordered by similarity,
+so `alredy done` or `vison` still find the song; an earlier page that matched
+as written keeps later pages exact. A shorter search matches `%q%`
+case-insensitively against `title`, `authors` and `song_number` only, since
+the trigram index cannot look it up and it would match nearly every song's
+lyrics; there `%`, `_` and `\` match themselves (`escape_like`). Each shape
+is its own statement, so the database plans each separately. Exact results
+are unranked.
 
 `sort=title` (default) orders by `lower(title)`; `sort=number` by
 the number's leading digits as an integer ("9" before "10", "12a" with 12),

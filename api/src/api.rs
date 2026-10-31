@@ -1244,40 +1244,128 @@ pub(crate) async fn search_songs(
         Some(KeyMode::Major) => "AND r.key_minor = false",
         Some(KeyMode::Minor) => "AND r.key_minor = true",
     };
-    // Each a separate statement, so the database plans each on its own: the
-    // trigram indexes (migration 0010) answer a search with a word of three
-    // letters or digits. Without one they cannot narrow anything down, so the
-    // ChordPro text, the large column, is left out; such a search would match
-    // nearly every song's lyrics anyway.
-    let matches = if search.is_empty() {
-        ""
-    } else if has_trigram(&search) {
-        "AND (r.title ILIKE $4 OR r.authors ILIKE $4 OR r.song_number ILIKE $4
-              OR r.chordpro ILIKE $4)"
+    // Each a separate statement, so the database plans each on its own. A
+    // search with a word of three letters or digits is matched against
+    // `search_text` (migration 0017), which ignores case and punctuation, from
+    // its trigram index. Without one the index cannot narrow anything down,
+    // so the lyrics are left out; such a search would match nearly every
+    // song's lyrics anyway.
+    let normalized = normalize_search(&search);
+    let words = has_trigram(&normalized);
+    let (matches, pattern) = if search.is_empty() {
+        ("", String::new())
+    } else if words {
+        ("AND r.search_text LIKE $4", format!("%{normalized}%"))
     } else {
-        "AND (r.title ILIKE $4 OR r.authors ILIKE $4 OR r.song_number ILIKE $4)"
+        (
+            "AND (r.title ILIKE $4 OR r.authors ILIKE $4 OR r.song_number ILIKE $4)",
+            format!("%{}%", escape_like(&search)),
+        )
+    };
+    let sql = |matches: &str, order: &str| {
+        format!(
+            "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors,
+                    r.language, r.song_key, r.created_at AS updated_at
+             FROM songs s
+             JOIN churches c ON c.id = s.church_id
+             JOIN song_revisions r ON r.id = s.current_revision_id
+             WHERE {LIBRARY_FILTER} {matches} {key_filter} {mode_filter}
+             ORDER BY {order}
+             LIMIT $2 OFFSET $3"
+        )
+    };
+    let page = |limit: i64, offset: i64, pattern: String| SongPage {
+        church_id: library.church_id(),
+        limit,
+        offset,
+        pattern,
+        keys: &keys,
     };
 
-    let sql = format!(
-        "SELECT s.id, r.id AS revision_id, r.title, r.song_number, r.authors,
-                r.language, r.song_key, r.created_at AS updated_at
-         FROM songs s
-         JOIN churches c ON c.id = s.church_id
-         JOIN song_revisions r ON r.id = s.current_revision_id
-         WHERE {LIBRARY_FILTER} {matches} {key_filter} {mode_filter}
-         ORDER BY {order}
-         LIMIT $2 OFFSET $3"
-    );
-    let mut songs = sqlx::query_as::<_, SongSummary>(&sql)
-        .bind(library.church_id())
-        .bind(limit)
-        .bind(offset);
-    // `$4` is bound even without a search, so the keys are always `$5`.
-    songs = songs.bind(format!("%{}%", escape_like(&search)));
-    if !keys.is_empty() {
-        songs = songs.bind(keys);
+    let mut conn = pool.acquire().await?;
+    let exact = sql(matches, &order);
+    let songs = page(limit, offset, pattern.clone())
+        .fetch(&exact, &mut conn)
+        .await?;
+    if !songs.is_empty() || !words {
+        return Ok(songs);
     }
-    Ok(songs.fetch_all(pool).await?)
+    // Nothing contains the search as written: look for a misspelling, best
+    // match first, unless an earlier page did find songs as written.
+    if offset > 0
+        && !page(1, 0, pattern)
+            .fetch(&exact, &mut conn)
+            .await?
+            .is_empty()
+    {
+        return Ok(songs);
+    }
+    // pg_trgm's default of 0.6 misses most one-letter slips in a short word;
+    // below 0.5 unrelated words start to match (`love` finds `lord`).
+    let mut tx = sqlx::Connection::begin(&mut *conn).await?;
+    sqlx::query("SET LOCAL pg_trgm.word_similarity_threshold = 0.5")
+        .execute(&mut *tx)
+        .await?;
+    let fuzzy = sql(
+        "AND r.search_text %> $4",
+        &format!("word_similarity($4, r.search_text) DESC, {order}"),
+    );
+    let songs = page(limit, offset, normalized)
+        .fetch(&fuzzy, &mut tx)
+        .await?;
+    tx.commit().await?;
+    Ok(songs)
+}
+
+/// The parameters of one song search statement.
+struct SongPage<'a> {
+    church_id: Option<Uuid>,
+    limit: i64,
+    offset: i64,
+    pattern: String,
+    keys: &'a [String],
+}
+
+impl SongPage<'_> {
+    async fn fetch(
+        self,
+        sql: &str,
+        conn: &mut sqlx::PgConnection,
+    ) -> Result<Vec<SongSummary>, sqlx::Error> {
+        let mut songs = sqlx::query_as::<_, SongSummary>(sql)
+            .bind(self.church_id)
+            .bind(self.limit)
+            .bind(self.offset)
+            // `$4` is bound even without a search, so the keys are always `$5`.
+            .bind(self.pattern);
+        if !self.keys.is_empty() {
+            songs = songs.bind(self.keys);
+        }
+        songs.fetch_all(conn).await
+    }
+}
+
+/// A search as `search_text` stores the songs: lowercase words separated by
+/// one space, apostrophes dropped and other punctuation made a space. Keep it
+/// in step with `song_search_text` (migration 0017).
+fn normalize_search(search: &str) -> String {
+    let mut normalized = String::with_capacity(search.len());
+    let mut space = false;
+    for c in search.chars() {
+        if matches!(c, '\'' | '’' | '‘' | '`' | '´' | 'ʼ') {
+            continue;
+        }
+        if c.is_alphanumeric() {
+            if space && !normalized.is_empty() {
+                normalized.push(' ');
+            }
+            space = false;
+            normalized.extend(c.to_lowercase());
+        } else {
+            space = true;
+        }
+    }
+    normalized
 }
 
 /// The longest song search accepted.
@@ -1957,7 +2045,15 @@ fn setup_complete() -> AppError {
 
 #[cfg(test)]
 mod search_tests {
-    use super::{escape_like, has_trigram};
+    use super::{escape_like, has_trigram, normalize_search};
+
+    #[test]
+    fn normalizes_case_and_punctuation() {
+        assert_eq!(normalize_search("It’s already done"), "its already done");
+        assert_eq!(normalize_search("It's  Already, done!"), "its already done");
+        assert_eq!(normalize_search(" «Blå» – himmel; "), "blå himmel");
+        assert_eq!(normalize_search("%_"), "");
+    }
 
     #[test]
     fn finds_a_word_the_index_can_look_up() {

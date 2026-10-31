@@ -164,7 +164,8 @@ the lower of its own `role` and its person's
   `X-Accel-Buffering: no` header; a reverse proxy must pass them through
   unbuffered ([deployment](deployment.md)). They are not rate-limited and the
   number of open streams is not capped ([gaps](gaps.md)).
-- Search `q` is trimmed and matched with `ILIKE '%q%'`
+- Search `q` ignores case and punctuation and falls back to typo-tolerant
+  matching when nothing matches as written
   ([songs and revisions](songs-and-revisions.md#search)).
 
 ## Errors

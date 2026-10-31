@@ -116,7 +116,7 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `PUT` | `/api/v1/device-tokens/{id}/room` | Leader renames a desktop's room (`{room_name}`; null picks a new flower) |
 | `POST` | `/api/v1/desktop-auth/codes` | Leader approves a desktop: one-time sign-in code for a PKCE challenge |
 | `POST` | `/api/v1/desktop-auth/token` | Desktop exchanges code and verifier for a desktop credential (no bearer) |
-| `GET` | `/api/v1/songs?q=&limit=&offset=&sort=&direction=&key=&key_mode=` | List or search current song revisions; `sort` `title` (default), `number` (numeric, songs without a number last) or `key` (C to B, major first, songs without a key last), `direction` `asc` or `desc`; `key=G,D` and `key_mode=major\|minor` keep only songs in those keys; page with `limit` (1–200, default 100) and `offset` |
+| `GET` | `/api/v1/songs?q=&limit=&offset=&sort=&direction=&key=&key_mode=` | List or search current song revisions (`q` ignores case and punctuation, matches lyrics across chords, and falls back to typo-tolerant matching when nothing matches as written); `sort` `title` (default), `number` (numeric, songs without a number last) or `key` (C to B, major first, songs without a key last), `direction` `asc` or `desc`; `key=G,D` and `key_mode=major\|minor` keep only songs in those keys; page with `limit` (1–200, default 100) and `offset` |
 | `GET` | `/api/v1/songs/keys` | The keys the church's songs are in: `{root, minor, songs}` with `root` the tonic as a pitch class (C = 0) |
 | `POST` | `/api/v1/songs` | Create a song and its first revision |
 | `GET` | `/api/v1/songs/{id}` | Read the current ChordPro source and metadata |

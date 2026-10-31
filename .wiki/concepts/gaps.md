@@ -115,8 +115,9 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
   password and hand it over, and only an owner can reset a forgotten one.
 - **Several churches**: sign-in can name the church (`church_id`), but no
   endpoint creates a second church or adds an account to one.
-- **Search** is unranked `ILIKE` over the full source (chords and directives
-  match). `%` and `_` are not escaped.
+- **Search** is unranked unless it falls back to typo matching. Accents are
+  not folded (`e` does not find `é`), and a typo in a word of a short search
+  may not reach the 0.5 word-similarity threshold.
 - **Import dedup** is by exact bytes against current revisions only.
   `filename` is ignored.
 - **Export** holds the whole ZIP in memory; beyond the id manifest it carries no metadata.
