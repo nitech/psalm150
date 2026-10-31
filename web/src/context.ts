@@ -1,5 +1,6 @@
 import type { SongServerApi } from "./api.ts";
 import type { CurrentSet } from "./current-set.ts";
+import type { Favorites } from "./favorites.ts";
 import { icon } from "./icons.ts";
 import type { Session } from "./types.ts";
 import { escapeHtml } from "./ui.ts";
@@ -21,6 +22,8 @@ export interface LibraryContext {
   canEdit: boolean;
   /** The set this phone adds songs to (see `current-set.ts`). */
   currentSet: CurrentSet;
+  /** The signed-in person's favourite songs (none for a visitor). */
+  favorites: Favorites;
   /** The screen's container; a view owns its contents. */
   main: HTMLElement;
   /** Go to a route such as `#/sets/…`; `replace` keeps history short. */

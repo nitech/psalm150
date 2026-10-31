@@ -115,6 +115,10 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::song_media::delete_recording,
         crate::song_media::link_recording,
         crate::song_media::play_recording,
+        crate::favorites::list_favorites,
+        crate::favorites::replace_favorites,
+        crate::favorites::add_favorite,
+        crate::favorites::remove_favorite,
         crate::online::search_online,
         list_public_songs,
         list_public_song_keys,
@@ -157,6 +161,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         ErrorBody,
         crate::online::OnlineSong,
         crate::models::SongRecording,
+        crate::models::FavoriteSongs,
         crate::models::RecordingQuery,
         crate::models::RecordingLink,
         HealthResponse,
@@ -284,8 +289,8 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     ("Church", "The church's name and settings.", &["church"]),
     (
         "Songs",
-        "The church's song library: ChordPro songs with every revision kept, and recordings of how they are played.",
-        &["songs", "public/recordings"],
+        "The church's song library: ChordPro songs with every revision kept, recordings of how they are played, and each person's favourites.",
+        &["songs", "public/recordings", "favorites"],
     ),
     (
         "Sets",
@@ -406,6 +411,7 @@ pub fn router() -> Router<AppState> {
         .merge(crate::online::router())
         .merge(crate::sets::router())
         .merge(crate::song_media::router())
+        .merge(crate::favorites::router())
         .merge(crate::shared_sets::router())
         .merge(crate::live_sets::router())
         .merge(crate::remote::router())
@@ -1020,7 +1026,8 @@ async fn revoke_device_token(
         ("sort" = Option<SongSort>, Query),
         ("direction" = Option<SortDirection>, Query),
         ("key" = Option<String>, Query),
-        ("key_mode" = Option<KeyMode>, Query)
+        ("key_mode" = Option<KeyMode>, Query),
+        ("favorites" = Option<bool>, Query, description = "true: only your favourites")
     ),
     responses((status = 200, body = [SongSummary]), (status = 401, body = ErrorBody))
 )]
@@ -1030,8 +1037,19 @@ async fn list_songs(
     Query(query): Query<SongQuery>,
 ) -> Result<Json<Vec<SongSummary>>, AppError> {
     let auth = authenticate(&headers, &state).await?;
+    let favorites_of = if query.favorites == Some(true) {
+        Some(crate::favorites::favorites_owner(&state.pool, &auth).await?)
+    } else {
+        None
+    };
     Ok(Json(
-        search_songs(&state.pool, Library::Church(auth.church_id), query).await?,
+        search_songs(
+            &state.pool,
+            Library::Church(auth.church_id),
+            query,
+            favorites_of,
+        )
+        .await?,
     ))
 }
 
@@ -1058,7 +1076,7 @@ async fn list_public_songs(
     Query(query): Query<SongQuery>,
 ) -> Result<Json<Vec<SongSummary>>, AppError> {
     Ok(Json(
-        search_songs(&state.pool, Library::Public, query).await?,
+        search_songs(&state.pool, Library::Public, query, None).await?,
     ))
 }
 
@@ -1206,6 +1224,7 @@ pub(crate) async fn search_songs(
     pool: &PgPool,
     library: Library,
     query: SongQuery,
+    favorites_of: Option<Uuid>,
 ) -> Result<Vec<SongSummary>, AppError> {
     let search = query.q.unwrap_or_default().trim().to_string();
     if search.chars().count() > MAX_SEARCH_CHARS {
@@ -1245,6 +1264,14 @@ pub(crate) async fn search_songs(
         Some(KeyMode::Major) => "AND r.key_minor = false",
         Some(KeyMode::Minor) => "AND r.key_minor = true",
     };
+    // The person's id comes after the keys, when there are keys.
+    let favorite_filter = match favorites_of {
+        None => String::new(),
+        Some(_) => format!(
+            "AND EXISTS (SELECT 1 FROM song_favorites f WHERE f.song_id = s.id AND f.user_id = ${})",
+            if keys.is_empty() { 5 } else { 6 }
+        ),
+    };
     // Each a separate statement, so the database plans each on its own. A
     // search with a word of three letters or digits is matched against
     // `search_text` (migration 0017), which ignores case and punctuation, from
@@ -1270,7 +1297,7 @@ pub(crate) async fn search_songs(
              FROM songs s
              JOIN churches c ON c.id = s.church_id
              JOIN song_revisions r ON r.id = s.current_revision_id
-             WHERE {LIBRARY_FILTER} {matches} {key_filter} {mode_filter}
+             WHERE {LIBRARY_FILTER} {matches} {key_filter} {mode_filter} {favorite_filter}
              ORDER BY {order}
              LIMIT $2 OFFSET $3"
         )
@@ -1281,6 +1308,7 @@ pub(crate) async fn search_songs(
         offset,
         pattern,
         keys: &keys,
+        favorites_of,
     };
 
     let mut conn = pool.acquire().await?;
@@ -1325,6 +1353,7 @@ struct SongPage<'a> {
     offset: i64,
     pattern: String,
     keys: &'a [String],
+    favorites_of: Option<Uuid>,
 }
 
 impl SongPage<'_> {
@@ -1341,6 +1370,9 @@ impl SongPage<'_> {
             .bind(self.pattern);
         if !self.keys.is_empty() {
             songs = songs.bind(self.keys);
+        }
+        if let Some(user_id) = self.favorites_of {
+            songs = songs.bind(user_id);
         }
         songs.fetch_all(conn).await
     }

@@ -376,3 +376,8 @@ export interface RoomView {
   slide_index: number | null;
   slides: RoomSlide[];
 }
+
+/** A person's favourite songs in the church, oldest first. */
+export interface FavoriteSongs {
+  song_ids: string[];
+}

@@ -69,6 +69,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   </div>
   <div class="list-sort" id="song-sort" hidden>
     <div class="sort-columns" id="sort-columns" role="group" aria-label="Sort songs"></div>
+    ${ctx.session ? `<button type="button" class="filter-toggle" id="fav-filter"></button>` : ""}
     <button type="button" class="filter-toggle" id="key-filter" aria-haspopup="dialog"></button>
   </div>
   <div class="filter-summary" id="filter-summary" hidden></div>
@@ -82,6 +83,9 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   const sortColumns = ctx.main.querySelector<HTMLElement>("#sort-columns")!;
   const filterButton = ctx.main.querySelector<HTMLButtonElement>("#key-filter")!;
   const filterSummary = ctx.main.querySelector<HTMLElement>("#filter-summary")!;
+  const favButton = ctx.main.querySelector<HTMLButtonElement>("#fav-filter");
+  /** Only the person's favourites (★), remembered on this device. */
+  let onlyFavorites = Boolean(ctx.session) && readPreference("song-favorites") === "on";
   let timer = 0;
   let request = 0;
   /** The online search for `lastSearch`: offered, running (with its abort) or done. */
@@ -102,6 +106,12 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     };
     sortBar.classList.toggle("has-numbers", numbered);
     sortColumns.innerHTML = `${numbered ? button("number", "No") : ""}${button("title", "Song")}${button("key", "Key")}`;
+    if (favButton) {
+      favButton.classList.toggle("on", onlyFavorites);
+      favButton.setAttribute("aria-pressed", String(onlyFavorites));
+      favButton.innerHTML = `${icon("favorites")}<span class="sr-only">Only favourites</span>`;
+      favButton.title = onlyFavorites ? "Showing your favourites. Tap to show all songs." : "Only your favourites";
+    }
     const active = filterActive(filter);
     filterButton.classList.toggle("on", active);
     filterButton.innerHTML = `${icon("filter")}Filter`;
@@ -116,14 +126,15 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     const main = `<span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
       <span class="row-main"><strong>${escapeHtml(song.title)}</strong></span>
       ${song.song_key ? `<span class="row-key" aria-label="Key ${escapeHtml(song.song_key)}">${escapeHtml(song.song_key)}</span>` : ""}`;
-    if (!ctx.canEdit) return `<li><a class="list-row" href="#/songs/${song.id}">${main}${icon("next")}</a></li>`;
+    const action = rowAction(ctx, { id: song.id, title: song.title });
+    if (!action) return `<li><a class="list-row" href="#/songs/${song.id}">${main}${icon("next")}</a></li>`;
     return `<li class="list-row song-row">
       <a class="row-link" href="#/songs/${song.id}">${main}</a>
-      ${addToggle(ctx, { id: song.id, title: song.title })}
+      ${action}
     </li>`;
   };
 
-  const listKey = () => JSON.stringify([ctx.isPublic, ctx.canEdit, lastSearch, sort, filter]);
+  const listKey = () => JSON.stringify([ctx.isPublic, ctx.canEdit, lastSearch, sort, filter, onlyFavorites]);
   const signature = (songs: SongSummary[]) => songs.map((song) => `${song.id}:${song.revision_id}`).join(",");
   const remember = (firstPage?: string) => {
     shownList = {
@@ -154,6 +165,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
         direction: sort.direction,
         keys: filter.roots.map((root) => KEY_NAMES[root]),
         keyMode: filter.mode === "all" ? undefined : filter.mode,
+        favorites: onlyFavorites,
       });
       if (mine !== request) return;
       if (quiet && shownList?.key === listKey() && shownList.firstPage === signature(songs)) return;
@@ -161,7 +173,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       numbered = (append && numbered) || songs.some((song) => song.song_number) || sort.column === "number";
       results.classList.toggle("has-numbers", numbered);
       // A filter that finds nothing keeps its button, to change or clear it.
-      sortBar.hidden = !append && !songs.length && !filterActive(filter);
+      sortBar.hidden = !append && !songs.length && !filterActive(filter) && !onlyFavorites;
       keepFocus(sortBar, renderSort);
       const html = songs.map(row).join("");
       if (append) results.insertAdjacentHTML("beforeend", html);
@@ -172,7 +184,12 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
         const filtered = filterActive(filter);
         results.innerHTML = songs.length
           ? html
-          : `<li>${emptyState(
+          : onlyFavorites
+            ? `<li>${emptyState(
+              lastSearch || filtered ? "None of your favourites match" : "No favourites yet",
+              lastSearch || filtered ? "Try another search, or show all songs with ★." : "Tap ☆ beside a song to make it a favourite. ★ above shows all songs again.",
+            )}</li>`
+            : `<li>${emptyState(
               lastSearch || filtered ? "No songs found" : "No songs yet",
               lastSearch
                 ? `Try another title or a line from the lyrics${filtered ? ", or clear the key filter" : ""}.`
@@ -200,7 +217,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   };
 
   /** Nothing in the library: an editor may look online (never by itself, it takes seconds). */
-  const offersOnline = () => ctx.canEdit && lastSearch.length >= ONLINE_MIN_CHARS && !filterActive(filter);
+  const offersOnline = () => ctx.canEdit && lastSearch.length >= ONLINE_MIN_CHARS && !filterActive(filter) && !onlyFavorites;
 
   const stopOnline = () => {
     online?.abort?.abort();
@@ -281,6 +298,8 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     const target = event.target as HTMLElement;
     const button = target.closest<HTMLButtonElement>("[data-add]");
     if (button) toggleInCurrentSet(ctx, { id: button.dataset.add!, title: button.dataset.title! });
+    const star = target.closest<HTMLButtonElement>("[data-fav]");
+    if (star) toggleFavorite(ctx, { id: star.dataset.fav!, title: star.dataset.title! });
     const action = target.closest<HTMLButtonElement>("[data-online]")?.dataset.online;
     if (action === "search") void searchOnline();
     if (action === "cancel" && online) {
@@ -330,6 +349,14 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   observer.observe(more);
 
   const unsubscribe = ctx.currentSet.subscribe(() => refreshToggles(ctx, results));
+  const unsubscribeFavorites = ctx.favorites.subscribe(() => refreshToggles(ctx, results));
+  favButton?.addEventListener("click", () => {
+    onlyFavorites = !onlyFavorites;
+    writePreference("song-favorites", onlyFavorites ? "on" : null);
+    keepFocus(sortBar, renderSort);
+    announce(onlyFavorites ? "Showing your favourites" : "Showing all songs");
+    void load(false, true);
+  });
   const memory = shownList?.key === listKey() ? shownList : null;
   if (memory) {
     // Drawn at once from memory (the screen keeps its place), then read again.
@@ -350,6 +377,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     online?.abort?.abort();
     observer.disconnect();
     unsubscribe();
+    unsubscribeFavorites();
   };
 }
 
@@ -481,6 +509,17 @@ async function openKeyFilter(ctx: LibraryContext, start: KeyFilter, apply: (filt
 }
 
 /**
+ * The button at the right of a song in a list: ＋ / ✓ for the current set
+ * while there is one (owners and leaders), else ☆ / ★ for the person's
+ * favourites. A visitor without a session gets neither.
+ */
+function rowAction(ctx: LibraryContext, song: SongRef): string {
+  if (ctx.canEdit && ctx.currentSet.value) return addToggle(ctx, song);
+  if (ctx.session) return favoriteToggle(ctx, song);
+  return "";
+}
+
+/**
  * The ＋ / ✓ button that puts a song in the current set or takes it out. Its
  * label says which ("Remove … from …"), so it is not also a pressed toggle.
  */
@@ -498,13 +537,32 @@ function toggleInner(ctx: LibraryContext, song: SongRef): string {
   return `${icon(inSet ? "check" : "plus")}<span class="sr-only">${escapeHtml(label)}</span>`;
 }
 
+/** ☆ / ★: one of the person's favourites, a pressed toggle. */
+function favoriteToggle(ctx: LibraryContext, song: SongRef): string {
+  const on = ctx.favorites.has(song.id);
+  return `<button type="button" class="icon-button small ghost fav-toggle${on ? " on" : ""}" data-fav="${song.id}" data-title="${escapeHtml(song.title)}" aria-pressed="${on}" aria-label="${escapeHtml(`Favourite: ${song.title}`)}" title="${on ? "A favourite. Tap to remove it." : "Make it a favourite"}">${icon("favorites")}</button>`;
+}
+
+/** The current set or the favourites changed: each row's button follows. */
 function refreshToggles(ctx: LibraryContext, root: HTMLElement): void {
-  root.querySelectorAll<HTMLButtonElement>("[data-add]").forEach((button) => {
-    const song = { id: button.dataset.add!, title: button.dataset.title! };
-    const inSet = ctx.currentSet.count(song.id) > 0;
-    button.classList.toggle("on", inSet);
-    button.innerHTML = toggleInner(ctx, song);
+  root.querySelectorAll<HTMLButtonElement>("[data-add], [data-fav]").forEach((button) => {
+    const song = { id: (button.dataset.add ?? button.dataset.fav)!, title: button.dataset.title! };
+    const focused = document.activeElement === button;
+    const template = document.createElement("template");
+    template.innerHTML = rowAction(ctx, song);
+    const next = template.content.firstElementChild as HTMLElement | null;
+    if (!next) return;
+    button.replaceWith(next);
+    if (focused) next.focus();
   });
+}
+
+/** One tap stars the song or takes the star away. */
+function toggleFavorite(ctx: LibraryContext, song: SongRef): void {
+  void ctx.run(async () => {
+    const on = await ctx.favorites.toggle(song.id);
+    announce(on ? `${song.title} is a favourite` : `${song.title} is no longer a favourite`);
+  }, { exclusive: false });
 }
 
 /**
@@ -570,10 +628,17 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     if (neighbour) void readSong(ctx, neighbour.id).catch(() => undefined);
   }
 
-  /** Fixed in the bar: + (or ✓) for the current set, when there is one. */
+  /**
+   * Fixed in the bar, as in the song list: + (or ✓) for the current set
+   * while there is one, else ☆ (or ★) for the person's favourites.
+   */
   const setToggle = () => {
     const set = ctx.currentSet.value;
-    if (!ctx.canEdit || !set) return "";
+    if (!ctx.canEdit || !set) {
+      if (!ctx.session) return "";
+      const on = ctx.favorites.has(song.id);
+      return `<button type="button" class="icon-button ghost fav-toggle${on ? " on" : ""}" data-set-act="fav" aria-pressed="${on}" aria-label="Favourite" title="${on ? "A favourite. Tap to remove it." : "Make it a favourite"}">${icon("favorites")}</button>`;
+    }
     const inSet = ctx.currentSet.count(song.id) > 0;
     const label = inSet ? `In ${set.name}. Tap to remove it.` : `Add to ${set.name}`;
     return `<button type="button" class="icon-button ghost${inSet ? " in-set" : ""}" data-set-act="toggle" aria-pressed="${inSet}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(inSet ? "check" : "plus")}</button>`;
@@ -681,6 +746,10 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       toggleInCurrentSet(ctx, song, transpose);
       return;
     }
+    if (target.closest("[data-set-act='fav']")) {
+      toggleFavorite(ctx, song);
+      return;
+    }
     const step = target.closest<HTMLElement>("[data-song-step]")?.dataset.songStep;
     if (step) {
       goTo(step === "next" ? 1 : -1);
@@ -716,11 +785,13 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     }
   }
 
-  // Only the buttons change when the current set does, so the reader keeps its place.
-  const unsubscribe = ctx.currentSet.subscribe(() => {
+  // Only the buttons change when the current set or the favourites do, so the reader keeps its place.
+  const redrawSetToggle = () => {
     const holder = ctx.main.querySelector<HTMLElement>("#set-actions");
     if (holder) keepFocus(holder, () => { holder.innerHTML = setToggle(); });
-  });
+  };
+  const unsubscribe = ctx.currentSet.subscribe(redrawSetToggle);
+  const unsubscribeFavorites = ctx.favorites.subscribe(redrawSetToggle);
   setTitle(song.title, "Songs");
   render();
   const releaseScreen = holdScreen();
@@ -732,6 +803,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     ctx.main.removeEventListener("click", onSetAction);
     unbindBar();
     unsubscribe();
+    unsubscribeFavorites();
   };
 }
 

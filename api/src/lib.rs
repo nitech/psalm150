@@ -5,6 +5,7 @@ pub mod auth;
 pub mod chordpro;
 pub mod config;
 pub mod error;
+pub mod favorites;
 pub mod live_sets;
 pub mod models;
 pub mod online;

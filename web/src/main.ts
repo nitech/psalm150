@@ -6,6 +6,7 @@ import { announce, refocus, selectorFor, setTitle } from "../../shared/songs/a11
 import { ApiError, SongServerApi } from "./api.ts";
 import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
+import { Favorites } from "./favorites.ts";
 import { installFollow } from "./follow.ts";
 import { icon, type IconName } from "./icons.ts";
 import { installLyricsCopy } from "./song-render.ts";
@@ -41,6 +42,7 @@ let busy = false;
 let lastSessionCheck = 0;
 const api = new SongServerApi(() => session?.token ?? null);
 const currentSet = new CurrentSet(api);
+const favorites = new Favorites(api);
 /** Following the projector from the dock's card (signed in only). */
 const follow = installFollow(api, () => syncCurrentBar());
 /** The first load of the current set, so the first screen can show it. */
@@ -440,6 +442,7 @@ function renderShell(): void {
     document.documentElement.style.setProperty("--dock-h", `${Math.round(entry.contentRect.height)}px`);
   }).observe(document.querySelector("#dock")!);
   currentReady = session ? currentSet.refresh().catch(() => undefined) : Promise.resolve();
+  if (session) void favorites.refresh().catch(() => undefined);
   if (session) follow.start();
   else follow.stop();
   if (!location.hash || location.hash === "#" || location.hash === "#/") {
@@ -831,6 +834,7 @@ function libraryContext(main: HTMLElement): LibraryContext {
       }
     },
     currentSet,
+    favorites,
     run,
     signOut,
     refreshSession,
@@ -1063,7 +1067,10 @@ function startShellListeners(): void {
   }, { passive: true });
 
   const refresh = () => {
-    if (session) void currentSet.refresh().catch(() => undefined);
+    if (session) {
+      void currentSet.refresh().catch(() => undefined);
+      void favorites.refresh().catch(() => undefined);
+    }
     void refreshSession();
   };
   window.addEventListener("online", () => {
@@ -1186,6 +1193,7 @@ function clearSession(): void {
   // Every way out (sign-out, an expired session, another account) leaves
   // nothing of this person's library on the phone.
   currentSet.clear();
+  favorites.clear();
   follow.stop();
   void clearCachedData();
 }

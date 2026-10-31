@@ -31,6 +31,7 @@ import type {
   SongDetail,
   SongKeyCount,
   SongRecording,
+  FavoriteSongs,
   RecordingLink,
   SongSort,
   SongSummary,
@@ -278,10 +279,13 @@ export class SongServerApi {
       /** Only songs in these keys, by tonic: `["G", "Bb"]`. */
       keys?: string[];
       keyMode?: KeyMode;
+      /** Only the signed-in person's favourites. */
+      favorites?: boolean;
     } = {},
   ): Promise<SongSummary[]> {
     const query = new URLSearchParams();
     if (search) query.set("q", search);
+    if (page.favorites) query.set("favorites", "true");
     if (page.keys?.length) query.set("key", page.keys.join(","));
     if (page.keyMode) query.set("key_mode", page.keyMode);
     if (page.limit) query.set("limit", String(page.limit));
@@ -290,6 +294,19 @@ export class SongServerApi {
     if (page.direction === "desc") query.set("direction", "desc");
     const text = query.toString();
     return this.request(`${this.songsRoot()}${text ? `?${text}` : ""}`);
+  }
+
+  /** Your favourite songs, oldest first (the desktop's star is the same). */
+  listFavorites(): Promise<FavoriteSongs> {
+    return this.request("/favorites");
+  }
+
+  async addFavorite(songId: string): Promise<void> {
+    await this.requestEmpty(`/favorites/${songId}`, { method: "PUT" });
+  }
+
+  async removeFavorite(songId: string): Promise<void> {
+    await this.requestEmpty(`/favorites/${songId}`, { method: "DELETE" });
   }
 
   /** The keys the songs are in, with how many songs each. Signed out, of the public library. */

@@ -135,6 +135,15 @@ language-aware search, purging deleted songs, and a one-step revert to a past
 revision. Revisions do not say who saved them, though `created_by` and
 `created_by_device` are stored. See [gaps](gaps.md) and `/TODO.md`.
 
+## Favourites
+
+Each person keeps their own favourite songs (`song_favorites`, migration
+0020; `api/src/favorites.rs`): `GET /favorites` lists them oldest first,
+`PUT /favorites` sets them all in order, `PUT`/`DELETE /favorites/{song_id}`
+change one, and `GET /songs?favorites=true` keeps only them. A desktop token
+acts for the person who connected the desktop (`device_tokens.created_by`).
+A deleted song drops out of the list; purging it removes the row.
+
 ## Recordings
 
 A song can carry recordings of how it is played (`api/src/song_media.rs`).

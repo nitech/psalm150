@@ -234,7 +234,7 @@ pub async fn list_shared_set_songs(
         return Err(read_only_link());
     }
     Ok(Json(
-        search_songs(&state.pool, Library::Church(link.church_id), query).await?,
+        search_songs(&state.pool, Library::Church(link.church_id), query, None).await?,
     ))
 }
 

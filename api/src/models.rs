@@ -338,6 +338,9 @@ pub struct SongQuery {
     pub key: Option<String>,
     /// With or without `key`: only `major` or only `minor` keys.
     pub key_mode: Option<KeyMode>,
+    /// `true`: only your favourite songs (`GET /favorites`). Ignored where
+    /// nobody is signed in.
+    pub favorites: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
@@ -915,4 +918,10 @@ pub struct RecordingLink {
     /// `/api/v1/public/recordings/{key}`, on this server.
     pub url: String,
     pub expires_at: DateTime<Utc>,
+}
+
+/// A person's favourite songs in the church, oldest first.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct FavoriteSongs {
+    pub song_ids: Vec<Uuid>,
 }

@@ -3916,3 +3916,111 @@ async fn recordings_in_the_database_move_to_files(pool: PgPool) {
     assert_eq!(played.1, "audio/mp4");
     assert_eq!(played.2, vec![1, 2, 3]);
 }
+
+/// Each person keeps favourites; a desktop shares those of the person who
+/// connected it, and `GET /songs?favorites=true` lists only them.
+#[sqlx::test(migrations = "./migrations")]
+async fn song_favorites(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+    let (first, _) = create_song(&app, &owner, "Amazing Grace").await;
+    let (second, _) = create_song(&app, &owner, "Be Thou My Vision").await;
+    let (third, _) = create_song(&app, &owner, "Cornerstone").await;
+
+    let empty = send(&app, "GET", "/api/v1/favorites", Some(&owner), None).await;
+    assert_eq!(empty.0, StatusCode::OK);
+    assert_eq!(empty.1, json!({ "song_ids": [] }));
+
+    for song in [&second, &first, &first] {
+        let added = send(
+            &app,
+            "PUT",
+            &format!("/api/v1/favorites/{song}"),
+            Some(&owner),
+            None,
+        )
+        .await;
+        assert_eq!(added.0, StatusCode::NO_CONTENT);
+    }
+    let missing = send(
+        &app,
+        "PUT",
+        "/api/v1/favorites/00000000-0000-0000-0000-000000000000",
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(missing.0, StatusCode::NOT_FOUND);
+
+    // The desktop sees and changes its person's (the owner's) favourites.
+    let seen = send(&app, "GET", "/api/v1/favorites", Some(&desktop), None).await;
+    assert_eq!(seen.1, json!({ "song_ids": [second, first] }));
+    let removed = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/favorites/{second}"),
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(removed.0, StatusCode::NO_CONTENT);
+
+    // Others keep their own.
+    let theirs = send(&app, "GET", "/api/v1/favorites", Some(&viewer), None).await;
+    assert_eq!(theirs.1, json!({ "song_ids": [] }));
+
+    let listed = send(
+        &app,
+        "GET",
+        "/api/v1/songs?favorites=true",
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(listed.0, StatusCode::OK);
+    let titles: Vec<&str> = listed
+        .1
+        .as_array()
+        .expect("songs")
+        .iter()
+        .map(|s| s["title"].as_str().unwrap())
+        .collect();
+    assert_eq!(titles, vec!["Amazing Grace"]);
+    let with_search = send(
+        &app,
+        "GET",
+        "/api/v1/songs?favorites=true&q=vision",
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(with_search.1, json!([]));
+    let all = send(&app, "GET", "/api/v1/songs", Some(&owner), None).await;
+    assert_eq!(all.1.as_array().expect("songs").len(), 3);
+
+    // Replacing keeps the order given and leaves out unknown songs.
+    let replaced = send(
+        &app,
+        "PUT",
+        "/api/v1/favorites",
+        Some(&owner),
+        Some(json!({ "song_ids": [third, "00000000-0000-0000-0000-000000000000", first] })),
+    )
+    .await;
+    assert_eq!(replaced.0, StatusCode::OK);
+    assert_eq!(replaced.1, json!({ "song_ids": [third, first] }));
+
+    // A deleted song leaves the list.
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{third}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert!(deleted.0.is_success());
+    let after = send(&app, "GET", "/api/v1/favorites", Some(&owner), None).await;
+    assert_eq!(after.1, json!({ "song_ids": [first] }));
+}

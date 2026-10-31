@@ -116,7 +116,7 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `PUT` | `/api/v1/device-tokens/{id}/room` | Leader renames a desktop's room (`{room_name}`; null picks a new flower) |
 | `POST` | `/api/v1/desktop-auth/codes` | Leader approves a desktop: one-time sign-in code for a PKCE challenge |
 | `POST` | `/api/v1/desktop-auth/token` | Desktop exchanges code and verifier for a desktop credential (no bearer) |
-| `GET` | `/api/v1/songs?q=&limit=&offset=&sort=&direction=&key=&key_mode=` | List or search current song revisions (`q` ignores case, accents and punctuation, matches lyrics across chords, and falls back to typo-tolerant matching when nothing matches as written); `sort` `title` (default), `number` (numeric, songs without a number last) or `key` (C to B, major first, songs without a key last), `direction` `asc` or `desc`; `key=G,D` and `key_mode=major\|minor` keep only songs in those keys; page with `limit` (1–200, default 100) and `offset` |
+| `GET` | `/api/v1/songs?q=&limit=&offset=&sort=&direction=&key=&key_mode=&favorites=` | List or search current song revisions (`q` ignores case, accents and punctuation, matches lyrics across chords, and falls back to typo-tolerant matching when nothing matches as written); `sort` `title` (default), `number` (numeric, songs without a number last) or `key` (C to B, major first, songs without a key last), `direction` `asc` or `desc`; `key=G,D` and `key_mode=major\|minor` keep only songs in those keys; page with `limit` (1–200, default 100) and `offset`; `favorites=true` keeps only your favourites |
 | `GET` | `/api/v1/songs/keys` | The keys the church's songs are in: `{root, minor, songs}` with `root` the tonic as a pitch class (C = 0) |
 | `POST` | `/api/v1/songs` | Create a song and its first revision |
 | `GET` | `/api/v1/songs/{id}` | Read the current ChordPro source and metadata |
@@ -130,6 +130,10 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `POST` | `/api/v1/songs/{id}/recordings/{recording_id}/link` | A six-hour play link without a token, for an `<audio>` element |
 | `GET` | `/api/v1/public/recordings/{key}` | Play a recording through a play link (no token; answers `Range`) |
 | `DELETE` | `/api/v1/songs/{id}/recordings/{recording_id}` | Leaders, owners and desktops: remove a recording |
+| `GET` | `/api/v1/favorites` | Your favourite songs, `{song_ids}`, oldest first; a desktop gets those of the person who connected it |
+| `PUT` | `/api/v1/favorites` | Set all your favourites at once (`{song_ids}`, at most 5000, in order); unknown or deleted songs are left out |
+| `PUT` | `/api/v1/favorites/{song_id}` | Make a song a favourite (204; 404 when the song is not in the church) |
+| `DELETE` | `/api/v1/favorites/{song_id}` | No longer a favourite (204) |
 | `GET` | `/api/v1/songs/{id}/revisions` | List immutable revision metadata |
 | `GET` | `/api/v1/songs/{id}/revisions/{revision_id}` | Read any revision, current or earlier, with its ChordPro source |
 | `POST` | `/api/v1/songs/import` | Import up to 500 ChordPro songs, skipping exact content matches |
