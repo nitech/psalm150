@@ -1,6 +1,6 @@
 [package]
 name = "psa150-server"
-version = "0.1.86"
+version = "0.1.87"
 edition = "2024"
 description = "Self-hostable, API-first song library for PSA150"
 publish = false
@@ -23,6 +23,7 @@ tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["compression-gzip", "fs", "set-header", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+unicode-normalization = "0.1"
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }

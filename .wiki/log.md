@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-31
+* **Search ignores accents**: migration `0018_song_search_accents.sql` makes `song_search_text` decompose letters (NFD) and drop their accent marks, keeping `å` as a Norwegian letter (`æ` and `ø` do not decompose), and recomputes `search_text`; `normalize_search` does the same (new direct dependency `unicode-normalization`). `e` finds `é` and `cafe` finds `Café`, either way round. Pages touched: songs-and-revisions, data-model, gaps, index.
 * **Search ignores punctuation and tolerates typos**: migration `0017_song_search_text.sql` adds the stored column `song_revisions.search_text` (lowercase words of title, authors, number and lyrics; apostrophes dropped, other punctuation a space, ChordPro chords and directives left out) with a trigram index. A search with a three-letter word is normalized the same way (`normalize_search`) and matched as a substring, so `It’s already done` (curly apostrophe from a phone) finds `It's Already Done`, and a line matches across its chords. When nothing matches, it falls back to pg_trgm word similarity at 0.5, best match first. Pages touched: songs-and-revisions, data-model, api-contract, gaps, index.
 
 ## 2026-10-30

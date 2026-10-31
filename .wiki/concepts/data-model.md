@@ -32,6 +32,9 @@ sources:
   - id: mig17
     resource: /api/migrations/0017_song_search_text.sql
     title: Normalized song_revisions.search_text for search
+  - id: mig18
+    resource: /api/migrations/0018_song_search_accents.sql
+    title: Search ignores accents
   - id: main
     resource: /api/src/main.rs
     title: sqlx::migrate! at startup, pool size
@@ -164,7 +167,9 @@ null. `DELETE /songs/{id}` and `DELETE /sets/{id}` only set `deleted_at`, and
   generated column `song_revisions.search_text`: title, authors, number and
   the ChordPro text with chords `[..]` and directives `{..}` removed, with
   the GIN trigram index `song_revisions_search_text_trgm_idx`. Search with a
-  three-letter word now uses only this column.
+  three-letter word now uses only this column. Migration
+  `0018_song_search_accents.sql` makes the function drop accents too (NFD,
+  marks U+0300–U+036F removed, `å` kept) and recomputes the column.
 - Migration `0010_song_search_trigrams.sql` turns on `pg_trgm` and adds GIN
   trigram indexes on `song_revisions` `title`, `authors`, `song_number` and
   `chordpro` (`*_trgm_idx`), which serve search's `%q%` `ILIKE`, plus

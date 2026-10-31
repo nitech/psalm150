@@ -94,10 +94,11 @@ conflict store does not exist yet. Today's 409 is the groundwork for it
 ## Search
 
 `GET /songs?q=` trims `q` (at most 200 characters, else 400). When `q`,
-normalized by `normalize_search` (lowercase, apostrophes dropped so `It’s`
+normalized by `normalize_search` (lowercase, accents dropped so `e` and `é`
+match while `å` stays a letter of its own, apostrophes dropped so `It’s`
 and `It's` are `its`, other punctuation a space), has a run of at least three
 letters or digits, it is matched as a substring of the current revision's
-`search_text` (migration 0017): title, authors, number and the lyrics without
+`search_text` (migrations 0017 and 0018): title, authors, number and the lyrics without
 chords or directives, normalized the same way by `song_search_text`. So a
 line matches across the chords in it, and a chord name or directive does not.
 When nothing matches, the search is retried with pg_trgm word similarity

@@ -125,12 +125,39 @@ async fn private_library_flow(pool: PgPool) {
     assert_eq!(count("alredy%20done").await, 1, "misspelled");
     assert_eq!(count("vison").await, 1, "misspelled title");
     assert_eq!(count("zzqxw").await, 0);
+    // Accents do not matter either way, but `å` is a letter of its own.
+    let accents = send(
+        &app,
+        "POST",
+        "/api/v1/songs",
+        Some(token),
+        Some(json!({ "chordpro": "{title: Café Señor}
+
+Blå [C]himmel" })),
+    )
+    .await;
+    assert_eq!(accents.0, StatusCode::CREATED);
+    assert_eq!(count("cafe%20senor").await, 1, "accents in the song");
+    assert_eq!(count("s%C3%A9%C3%B1or").await, 1, "accents in the search");
+    assert_eq!(count("bl%C3%A5%20himmel").await, 1, "å");
     let deleted = send(
         &app,
         "DELETE",
         &format!(
             "/api/v1/songs/{}",
             chords.1["id"].as_str().expect("song id")
+        ),
+        Some(token),
+        None,
+    )
+    .await;
+    assert!(deleted.0.is_success(), "{:?}", deleted.1);
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!(
+            "/api/v1/songs/{}",
+            accents.1["id"].as_str().expect("song id")
         ),
         Some(token),
         None,

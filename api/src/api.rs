@@ -16,6 +16,7 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
+use unicode_normalization::{UnicodeNormalization, char::decompose_canonical};
 use utoipa::{
     Modify, OpenApi,
     openapi::{
@@ -1346,12 +1347,25 @@ impl SongPage<'_> {
 }
 
 /// A search as `search_text` stores the songs: lowercase words separated by
-/// one space, apostrophes dropped and other punctuation made a space. Keep it
-/// in step with `song_search_text` (migration 0017).
+/// one space, accents dropped (but `å` kept), apostrophes dropped and other
+/// punctuation made a space. Keep it in step with `song_search_text`
+/// (migration 0018).
 fn normalize_search(search: &str) -> String {
-    let mut normalized = String::with_capacity(search.len());
+    let mut letters = String::with_capacity(search.len());
+    for c in search.to_lowercase().nfc() {
+        if c == 'å' {
+            letters.push(c);
+        } else {
+            decompose_canonical(c, |d| {
+                if !('\u{300}'..='\u{36f}').contains(&d) {
+                    letters.push(d);
+                }
+            });
+        }
+    }
+    let mut normalized = String::with_capacity(letters.len());
     let mut space = false;
-    for c in search.chars() {
+    for c in letters.chars() {
         if matches!(c, '\'' | '’' | '‘' | '`' | '´' | 'ʼ') {
             continue;
         }
@@ -1360,7 +1374,7 @@ fn normalize_search(search: &str) -> String {
                 normalized.push(' ');
             }
             space = false;
-            normalized.extend(c.to_lowercase());
+            normalized.push(c);
         } else {
             space = true;
         }
@@ -2053,6 +2067,13 @@ mod search_tests {
         assert_eq!(normalize_search("It's  Already, done!"), "its already done");
         assert_eq!(normalize_search(" «Blå» – himmel; "), "blå himmel");
         assert_eq!(normalize_search("%_"), "");
+        assert_eq!(normalize_search("Café Señor Über"), "cafe senor uber");
+        assert_eq!(normalize_search("Blå Ære Ø"), "blå ære ø");
+        assert_eq!(
+            normalize_search("Bla\u{30a}"),
+            "blå",
+            "å written as a and a ring"
+        );
     }
 
     #[test]

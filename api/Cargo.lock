@@ -1516,7 +1516,7 @@ dependencies = [
 
 [[package]]
 name = "psa150-server"
-version = "0.1.86"
+version = "0.1.87"
 dependencies = [
  "argon2",
  "axum",
@@ -1536,6 +1536,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "unicode-normalization",
  "utoipa",
  "uuid",
  "zip",
