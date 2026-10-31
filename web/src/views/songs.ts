@@ -11,6 +11,7 @@ import { hasChords, type DisplaySong } from "../../../shared/songs/chordpro.ts";
 import { icon } from "../icons.ts";
 import { canRecord, mountSongMedia, type Recordings } from "../../../shared/songs/song-media.ts";
 import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
+import { openSongHistory, type SongHistory } from "../../../shared/songs/song-history.ts";
 import {
   keyLabel,
   onReaderAction,
@@ -656,6 +657,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     // A song without chords can borrow them from a version found online.
     if (ctx.canEdit && !hasChords(display)) bar.push({ id: "find-chords", label: "Chords from the web", icon: "chords", href: `#/songs/${song.id}/chords` });
     bar.push({ id: "copy", label: "Copy the words", icon: "copy" });
+    if (ctx.session) bar.push({ id: "history", label: "History", icon: "history", menuOnly: true });
     if (canKeepScreenOn()) bar.push({ id: "keep-awake", label: "Keep screen on", icon: "sun", checked: keepScreenOn(), switch: true, className: keepScreenOn() ? "on" : "" });
     bar.push({ id: "share", label: "Share song", icon: "share", fixed: true });
     if (ctx.canEdit) bar.push({ id: "edit", label: "Edit song", icon: "edit", href: `#/songs/${song.id}/edit`, fixed: true });
@@ -781,6 +783,9 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
         break;
       case "record":
         media.record();
+        break;
+      case "history":
+        openSongHistory(songHistory(ctx), song, () => ctx.navigate(`#/songs/${song.id}`, true));
         break;
     }
   }
@@ -930,5 +935,17 @@ function songRecordings(ctx: LibraryContext): Recordings {
     add: (songId, audio, durationMs) => ctx.api.addRecording(songId, audio, durationMs),
     link: (songId, recordingId) => ctx.api.recordingLink(songId, recordingId),
     remove: (songId, recordingId) => ctx.api.deleteRecording(songId, recordingId),
+  };
+}
+
+/** The song's revisions through this session; owners and leaders restore. */
+function songHistory(ctx: LibraryContext): SongHistory {
+  return {
+    canRestore: ctx.canEdit,
+    list: (songId) => ctx.api.listRevisions(songId),
+    source: async (songId, revisionId) => (await ctx.api.getRevision(songId, revisionId)).chordpro,
+    restore: async (songId, currentRevisionId, chordpro) => {
+      await ctx.api.updateSong(songId, currentRevisionId, chordpro);
+    },
   };
 }

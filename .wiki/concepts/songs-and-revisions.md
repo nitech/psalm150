@@ -135,6 +135,17 @@ language-aware search, purging deleted songs, and a one-step revert to a past
 revision. Revisions do not say who saved them, though `created_by` and
 `created_by_device` are stored. See [gaps](gaps.md) and `/TODO.md`.
 
+## History
+
+`GET /songs/{id}/revisions` lists every revision newest first with
+`created_by_name` (the person, or the desktop, that saved it; none for an
+import). The shared `song-history.ts` (web: ⋮ → History on a song; desktop:
+the history button for a server library song) lists them, shows for the one
+chosen the lines that differ (`line-diff.ts`) from the current version ("what
+restoring would change") or from the version before it ("what this save
+changed"), and **Restore this version** saves that text again as a new
+revision on top of the current one (`PUT /songs/{id}`), so nothing is lost.
+
 ## Favourites
 
 Each person keeps their own favourite songs (`song_favorites`, migration

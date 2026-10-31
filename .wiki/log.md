@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-01
+* **Song history**: `RevisionSummary` gains `created_by_name`. New shared `song-history.ts` and `line-diff.ts`: every version newest first with who saved it, the lines that differ from the current version or from the version before, and Restore (saved as a new revision). Web: ⋮ → History on a song page (Restore for owners and leaders). Pages touched: songs-and-revisions, api-contract.
+
 ## 2026-10-31
 * **Live as an icon in the top bar**: the Live card in the dock is gone; a Live icon button sits in every screen's top bar instead, its icon by mode (screen with a red dot while words are on, eye following, red broadcast sign leading with the count, screen with ▶ controlling). The service view's own lead button is gone too. New shared icon `eye`. Pages touched: web-client.
 * **Live: follow, lead and control in one place (web)**: `live.ts` replaces the dock's follow switch and the service view's Lead toggle with a Live card in the dock (the mode in words, coloured by mode) that opens the Live sheet: Watch (Follow the projector, which stands alone) and Lead (Lead <set> and Control the projector, together or apart), plus Turn everything off. Leading reports from any screen while the app is open; controlling projects the item opened in a set's service view (`project_set_item`). `follow.ts` exposes `setOn`, `desktops` and `target`. Pages touched: web-client.

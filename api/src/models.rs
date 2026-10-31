@@ -414,6 +414,9 @@ pub struct RevisionSummary {
     pub title: String,
     pub content_hash: String,
     pub created_at: DateTime<Utc>,
+    /// The person, or the desktop, that saved it; none for an import or a
+    /// removed account.
+    pub created_by_name: Option<String>,
 }
 
 /// One revision of a song, current or earlier, with its full source.

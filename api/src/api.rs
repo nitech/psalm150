@@ -1624,8 +1624,12 @@ async fn list_revisions(
     }
 
     let revisions = sqlx::query_as::<_, RevisionSummary>(
-        "SELECT id, parent_revision_id, title, content_hash, created_at
-         FROM song_revisions WHERE song_id = $1 ORDER BY created_at DESC",
+        "SELECT r.id, r.parent_revision_id, r.title, r.content_hash, r.created_at,
+                COALESCE(u.display_name, d.name) AS created_by_name
+         FROM song_revisions r
+         LEFT JOIN users u ON u.id = r.created_by
+         LEFT JOIN device_tokens d ON d.id = r.created_by_device
+         WHERE r.song_id = $1 ORDER BY r.created_at DESC, r.id",
     )
     .bind(song_id)
     .fetch_all(&state.pool)

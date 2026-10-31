@@ -381,3 +381,5 @@ export interface RoomView {
 export interface FavoriteSongs {
   song_ids: string[];
 }
+
+export type { RevisionSummary } from "../../shared/songs/song-history.ts";

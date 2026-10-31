@@ -32,6 +32,7 @@ import type {
   SongKeyCount,
   SongRecording,
   FavoriteSongs,
+  RevisionSummary,
   RecordingLink,
   SongSort,
   SongSummary,
@@ -333,6 +334,16 @@ export class SongServerApi {
       method: "POST",
       body: JSON.stringify({ chordpro }),
     });
+  }
+
+  /** Every saved revision of a song, newest first. */
+  listRevisions(songId: string): Promise<RevisionSummary[]> {
+    return this.request(`/songs/${songId}/revisions`, { cache: "no-store" });
+  }
+
+  /** One revision with its ChordPro text. */
+  getRevision(songId: string, revisionId: string): Promise<{ chordpro: string }> {
+    return this.request(`/songs/${songId}/revisions/${revisionId}`);
   }
 
   updateSong(id: string, baseRevisionId: string, chordpro: string): Promise<SongDetail> {

@@ -2763,6 +2763,9 @@ async fn deleted_songs_and_sets_come_back(pool: PgPool) {
     )
     .await;
     assert_eq!(history.1.as_array().map(Vec::len), Some(2));
+    // Newest first, each with who saved it.
+    assert_eq!(history.1[0]["id"], second);
+    assert_eq!(history.1[0]["created_by_name"], "Test Owner");
     let trash = send(&app, "GET", "/api/v1/songs/deleted", Some(&owner), None).await;
     assert_eq!(trash.1, json!([]));
     let missing = send(
