@@ -5,7 +5,9 @@
    this folder at src/shared/songs/ with `bun run sync:shared`; edit it here,
    never in the mirror. Colours, type and radii come from psa150-tokens.css. */
 
-.icon { width: 20px; height: 20px; flex: none; }
+/* Icons drawn here (icon.ts) have no size of their own; the desktop's own
+   icons carry width and height and keep them. */
+.icon:not([width]) { width: 20px; height: 20px; flex: none; }
 /* No margin: a hidden <p> after the shell would otherwise make the page taller than its content. */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .muted { color: var(--psa-text-secondary); }

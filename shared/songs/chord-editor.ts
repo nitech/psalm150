@@ -52,6 +52,9 @@ import { escapeHtml, readPreference, writePreference } from "./format.ts";
 import { showToast } from "./host.ts";
 import { editable, mountWordsEditor } from "./words-editor.ts";
 
+/** What a new song starts as. */
+export const NEW_SONG_TEMPLATE = "{title: }\n{author: }\n{key: }\n\n{start_of_verse}\n\n{end_of_verse}\n";
+
 export interface ChordEditor {
   /** The ChordPro source as it is now. */
   source(): string;
@@ -217,6 +220,11 @@ export function mountChordEditor(
   document.body.append(bubbleEl);
   cleanups.push(() => bubbleEl.remove());
   const bubbleInput = q<HTMLInputElement>(".ce-bubble-input", bubbleEl);
+  // The bubble sits on the page; when the editor scrolls inside a panel of
+  // its own (the desktop's song pane), it is placed again at its letter.
+  listen(document, "scroll", (event) => {
+    if (bubble && event.target !== document && (event.target as Node).contains?.(root)) placeBubble();
+  }, { capture: true, passive: true });
 
   /* ── History ────────────────────────────────────────────────────────── */
 

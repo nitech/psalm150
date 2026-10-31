@@ -6,7 +6,7 @@ import { barActions, bindBarActions, setSwitch, type BarAction } from "../bar-me
 import { canKeepScreenOn, holdScreen, keepScreenOn, setKeepScreenOn } from "../wake-lock.ts";
 import { endSequence, songNeighbours, stepSequence } from "../song-sequence.ts";
 import { appGoesBack, bindItemSwipe } from "../transitions.ts";
-import { mountChordEditor } from "../../../shared/songs/chord-editor.ts";
+import { NEW_SONG_TEMPLATE, mountChordEditor } from "../../../shared/songs/chord-editor.ts";
 import { hasChords, type DisplaySong } from "../../../shared/songs/chordpro.ts";
 import { icon } from "../icons.ts";
 import { canRecord, mountSongMedia, type Recordings } from "../../../shared/songs/song-media.ts";
@@ -46,8 +46,6 @@ let shownList: {
 
 /** Songs per request; the list asks for the next page as you reach the end. */
 const PAGE_SIZE = 100;
-
-const NEW_SONG_TEMPLATE = "{title: }\n{author: }\n{key: }\n\n{start_of_verse}\n\n{end_of_verse}\n";
 
 /** Searches at least this long may look online when the library has nothing. */
 const ONLINE_MIN_CHARS = 3;
