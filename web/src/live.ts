@@ -9,8 +9,8 @@ import { errorMessage, escapeHtml, readPreference, showToast, writePreference } 
 
 /**
  * What this phone does with the projector and the people around it, in one
- * place: the Live card in the dock shows it, and tapping it opens a sheet to
- * change it.
+ * place: a Live button in every screen's top bar shows it by its icon, and
+ * tapping it opens a sheet to change it.
  *
  * - **Follow** the projector: its words fill this screen (follow.ts).
  * - **Lead** a set: everyone with its shared link moves to the item this
@@ -30,8 +30,6 @@ export interface Live {
   /** The service view is closed. */
   leaveSet(set: SetDetail): void;
   leading(setId: string): boolean;
-  /** Who leads the set and how many follow, as the server last said. */
-  liveInfo(setId: string): SetLive | null;
   /** The desktop under control, if any. */
   readonly controlled: RemoteDesktop | null;
   /** Opens the sheet. */
@@ -54,10 +52,8 @@ export function installLive(options: {
   currentSet: CurrentSet;
   /** Owners and leaders lead and control; everyone signed in follows. */
   canLead: () => boolean;
-  /** The card was shown, hidden or changed (the dock fits around it). */
-  cardChanged: () => void;
 }): Live {
-  const { api, follow, currentSet, canLead, cardChanged } = options;
+  const { api, follow, currentSet, canLead } = options;
   let lead: Lead | null = null;
   let controlId: string | null = null;
   /** The set's service view open now, and its item. */
@@ -174,40 +170,64 @@ export function installLive(options: {
     follow.setOn(true, deviceId);
   };
 
-  /* ── The card ────────────────────────────────────────────────────────── */
+  /* ── The button in the top bar ─────────────────────────────────────── */
 
-  const draw = () => {
-    const button = document.querySelector<HTMLButtonElement>("#live-button");
-    if (!button) return;
+  /** Whether the Live button shows at all. */
+  const visible = () => follow.on || Boolean(lead) || Boolean(controlId) || online().length > 0 || (canLead() && Boolean(leadable()));
+
+  /**
+   * One icon button in every screen's top bar, its icon by mode: a screen
+   * (with a red dot while the projector shows words), an eye while
+   * following, the broadcast sign in red while leading (with how many
+   * follow), a screen with ▶ while controlling.
+   */
+  const drawButton = (button: HTMLButtonElement) => {
     const desktop = controlled() ?? follow.target;
-    const leadSet = lead?.set;
-    const active = follow.on || Boolean(lead) || Boolean(controlId);
-    const show = active || online().length > 0 || (canLead() && Boolean(leadable()));
-    button.hidden = !show;
-    cardChanged();
-    if (!show) return;
     const state = desktop?.state;
-    let label: string;
-    let name: string;
-    if (follow.on) {
-      label = "Following";
-      name = follow.target?.room_name ?? "Projector";
-    } else if (lead || controlId) {
-      label = [lead && "Leading", controlId && (lead ? "controlling" : "Controlling")].filter(Boolean).join(" · ");
-      name = [leadSet?.name, controlId && controlled()?.room_name].filter(Boolean).join(" · ");
-    } else {
-      label = "Live";
-      name = !desktop ? "Not projecting" : !state?.projecting ? `${desktop.room_name} · not projecting` : state.blanked ? `${desktop.room_name} · blank` : `${desktop.room_name} · ${state.song_title ?? "projecting"}`;
-    }
+    const onAir = Boolean(state?.projecting && !state.blanked);
+    const mode = follow.on ? "follow" : lead && controlId ? "both" : lead ? "lead" : controlId ? "control" : "idle";
     const viewers = lead?.info?.viewers ?? 0;
-    const onAir = Boolean(lead) || (follow.on && Boolean(state?.projecting && !state.blanked)) || (!active && Boolean(state?.projecting && !state.blanked));
-    button.dataset.mode = follow.on ? "follow" : lead ? "lead" : controlId ? "control" : "idle";
-    button.setAttribute("aria-label", `${label}: ${name}${viewers ? `, ${viewers} following you` : ""}. Change what this phone does with the projector`);
-    button.innerHTML = `<span class="follow-live${onAir ? " live" : ""}" aria-hidden="true"></span>
-      <span class="follow-text"><small>${escapeHtml(label)}</small><strong>${escapeHtml(name)}</strong></span>
-      ${viewers ? `<span class="count-pill" aria-hidden="true">${viewers}</span>` : ""}
-      ${icon("up")}`;
+    const words = {
+      follow: `Following ${follow.target?.room_name ?? "the projector"}`,
+      both: `Leading ${lead?.set.name ?? "a set"} and controlling ${controlled()?.room_name ?? "the projector"}`,
+      lead: `Leading ${lead?.set.name ?? "a set"}`,
+      control: `Controlling ${controlled()?.room_name ?? "the projector"}`,
+      idle: !desktop ? "Live: no projector" : !state?.projecting ? `Live: ${desktop.room_name} is not projecting` : `Live: ${desktop.room_name} shows ${state.blanked ? "a blank screen" : state.song_title ?? "words"}`,
+    }[mode];
+    const glyph = mode === "follow" ? "eye" : mode === "lead" || mode === "both" ? "follow" : mode === "control" ? "project" : "remote";
+    const key = `${mode}:${glyph}:${onAir}:${viewers}:${words}`;
+    if (button.dataset.key === key) return;
+    button.dataset.key = key;
+    button.dataset.mode = mode;
+    button.setAttribute("aria-label", `${words}${viewers ? `, ${viewers} following you` : ""}. Change what this phone does with the projector`);
+    button.title = words;
+    button.innerHTML = `${icon(glyph)}${mode === "idle" && onAir ? `<span class="live-dot" aria-hidden="true"></span>` : ""}${mode === "both" ? `<span class="live-dot control" aria-hidden="true"></span>` : ""}${viewers ? `<span class="count-pill" aria-hidden="true">${viewers}</span>` : ""}`;
   };
+
+  /** Where the button goes on the screen shown now: its top bar's actions, or the song list's search bar. */
+  const ensureButton = (): void => {
+    const page = document.querySelector<HTMLElement>("#page");
+    if (!page) return;
+    const show = visible();
+    const host = page.querySelector<HTMLElement>(".app-bar .page-actions") ?? page.querySelector<HTMLElement>(".search-bar");
+    page.querySelectorAll<HTMLButtonElement>(".live-icon").forEach((button) => {
+      if (!show || button.parentElement !== host) button.remove();
+    });
+    if (!show || !host) return;
+    let button = host.querySelector<HTMLButtonElement>(".live-icon");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "icon-button ghost live-icon";
+      button.setAttribute("aria-haspopup", "dialog");
+      // In the search bar it goes before New; in a top bar, first.
+      const before = host.classList.contains("search-bar") ? host.querySelector(":scope > a.icon-button") : host.firstChild;
+      host.insertBefore(button, before);
+    }
+    drawButton(button);
+  };
+
+  const draw = () => ensureButton();
 
   /* ── The sheet ───────────────────────────────────────────────────────── */
 
@@ -318,8 +338,18 @@ export function installLive(options: {
   };
 
   document.addEventListener("click", (event) => {
-    if ((event.target as HTMLElement).closest("#live-button")) open();
+    if ((event.target as HTMLElement).closest(".live-icon")) open();
   });
+  // Every screen draws its own top bar (and redraws it): the button goes back in.
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      ensureButton();
+    });
+  }).observe(document.body, { childList: true, subtree: true });
   currentSet.subscribe(() => changed());
 
   return {
@@ -339,7 +369,6 @@ export function installLive(options: {
       if (shown?.set.id === set.id) shown = null;
     },
     leading: (setId) => lead?.set.id === setId,
-    liveInfo: (setId) => (lead?.set.id === setId ? lead.info : null),
     get controlled() {
       return controlled();
     },

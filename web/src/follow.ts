@@ -6,8 +6,8 @@ import { escapeHtml, readPreference, writePreference } from "./ui.ts";
 import { SIZES, slideHtml } from "./views/room.ts";
 
 /**
- * Following the projector from the app, one of the modes in the dock's Live
- * card (live.ts). Switched on, the words the desktop shows fill
+ * Following the projector from the app, one of the modes behind the Live
+ * button in the top bar (live.ts). Switched on, the words the desktop shows fill
  * the screen in large text, as in `/join`, and follow along; switched off,
  * the screen underneath (a set, a song) is back where it was, since the
  * words lie over it rather than replacing it.
@@ -185,7 +185,7 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
     root.querySelector("#follow-larger")?.addEventListener("click", () => resize(1));
     root.querySelector("#follow-close")?.addEventListener("click", () => {
       setOn(false);
-      document.querySelector<HTMLElement>("#live-button")?.focus({ preventScroll: true });
+      document.querySelector<HTMLElement>(".live-icon")?.focus({ preventScroll: true });
     });
     root.addEventListener("keydown", (event) => {
       if (event.key === "Escape") root.querySelector<HTMLElement>("#follow-close")?.click();

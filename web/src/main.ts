@@ -53,7 +53,6 @@ live = installLive({
   follow,
   currentSet,
   canLead: () => Boolean(session && canEditSets()),
-  cardChanged: () => syncCurrentBar(),
 });
 /** The first load of the current set, so the first screen can show it. */
 let currentReady: Promise<unknown> = Promise.resolve();
@@ -418,7 +417,6 @@ function renderShell(): void {
     <p class="offline-bar" id="offline-bar" role="status" hidden>${icon("offline")}<span>Offline. Showing the songs and sets saved on this phone.</span></p>
     <div class="current-bar" id="current-bar" hidden>
       <a class="current-link" id="current-link" hidden></a>
-      <button type="button" class="follow-switch live-button" id="live-button" aria-haspopup="dialog" hidden></button>
       <button type="button" class="icon-button ghost current-close" id="current-close" aria-label="Put the current set away" title="No current set" hidden>${icon("close")}</button>
     </div>
   </aside>
@@ -930,8 +928,7 @@ function canEditSets(): boolean {
 function syncCurrentBar(): void {
   const bar = document.querySelector<HTMLElement>("#current-bar");
   if (!bar) return;
-  bar.hidden = Boolean(document.querySelector("#current-link")?.hasAttribute("hidden"))
-    && Boolean(document.querySelector("#live-button")?.hasAttribute("hidden"));
+  bar.hidden = Boolean(document.querySelector("#current-link")?.hasAttribute("hidden"));
 }
 
 function renderCurrentBar(set: SetDetail | null): void {

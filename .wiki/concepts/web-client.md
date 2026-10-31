@@ -527,9 +527,8 @@ are not affected.
   title it leads to; at either end of the set that button is left out, and a
   set of one item has no bar), a horizontal swipe, or
   the arrow keys. It asks for a screen wake lock where the browser supports
-  it. Leaders get a **Live** button in the bar that opens the Live sheet (see
-  [Live](#live-follow-lead-control)); a pill on it counts the shared-link
-  pages that have the set open. Moving through the set tells `live.ts`
+  it. The Live button is in its bar like on every screen (see
+  [Live](#live-follow-lead-control)). Moving through the set tells `live.ts`
   (`showItem`), so while leading the shared-link pages move with it, and while
   controlling the projector projects the item. The page
   also polls `GET /remote/desktops` every 15 s and redraws only when the
@@ -691,12 +690,14 @@ person who also belongs to another church, show in the sheet
 ## Live: follow, lead, control
 
 `live.ts` puts what this phone does with the projector and the people around
-it in one place. The dock's card holds, beside the current set, a **Live**
-button that says it in words: "Live · Lupin · Amazing Grace" (idle, with the
-red dot while words are on screen), "Following · Lupin", "Leading · 1.11"
-(red edge and dot, with how many follow), "Controlling · Lupin", or "Leading ·
-controlling" with both names. It shows while a desktop is online, a mode is
-on, or a leader has a set to lead. Tapping it opens the Live sheet:
+it in one place: a **Live** icon button in every screen's top bar (put into
+the bar's actions, or the song list's search bar before New, and put back
+whenever a screen redraws its bar; a `MutationObserver` watches). Its icon
+says the mode: a screen when nothing is on (with a red dot while the
+projector shows words), an eye while following (accent), the broadcast sign
+in red while leading (with how many follow), a screen with ▶ while
+controlling (accent), and the broadcast sign with an accent dot for both. Its
+label says it in words. It shows while a desktop is online, a mode is Tapping it opens the Live sheet:
 
 - **Watch: Follow the projector** (everyone signed in), with the desktops as
   chips when there are several. It stands alone: turning it on stops leading

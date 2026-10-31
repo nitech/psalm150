@@ -453,33 +453,18 @@ body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-s
 .current-bar .row-main small { color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; }
 .current-bar.noted { border-color: var(--psa-accent); }
 .current-bar.noted .current-label { color: var(--psa-accent-text); }
-/* The Live card beside the set (live.ts): what this phone does with the
-   projector, in words; it opens the Live sheet. */
-.follow-switch {
-  flex: none; display: flex; align-items: center; gap: var(--psa-space-2); max-width: 52%; min-height: 40px;
-  padding: 4px 8px 4px 10px; border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-md);
-  background: var(--psa-bg-surface); color: var(--psa-text); font: inherit; text-align: left; cursor: pointer;
-}
-.current-link[hidden] + .follow-switch { flex: 1; max-width: none; }
-.follow-switch[aria-checked="true"] { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); }
-.follow-text { display: grid; flex: 1; min-width: 0; line-height: 1.15; }
-.follow-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.follow-text small { color: var(--psa-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-.follow-text strong { font-size: 14px; font-weight: 600; }
 .follow-live { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--psa-text-tertiary); }
 .follow-live.live { background: #e5484d; box-shadow: 0 0 0 3px rgb(229 72 77 / 0.25); }
-.follow-track { position: relative; flex: none; width: 36px; height: 22px; border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); transition: background var(--psa-dur-base) var(--psa-ease-standard); }
-.follow-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--psa-text-secondary); transition: transform var(--psa-dur-base) var(--psa-ease-standard); }
-.follow-switch[aria-checked="true"] .follow-track { border-color: var(--psa-accent); background: var(--psa-accent); }
-.follow-switch[aria-checked="true"] .follow-thumb { transform: translateX(14px); background: var(--psa-on-accent); }
-/* Live modes: following is accent, leading has the red on-air dot and edge,
-   controlling an accent edge. The count is how many follow the leader. */
-.live-button { position: relative; }
-.live-button > .icon { flex: none; width: 16px; height: 16px; color: var(--psa-text-secondary); }
-.live-button[data-mode="follow"] { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); }
-.live-button[data-mode="lead"] { border-color: #e5484d; background: color-mix(in srgb, #e5484d 8%, var(--psa-bg-surface)); }
-.live-button[data-mode="control"] { border-color: var(--psa-accent-text); }
-.live-button .count-pill { position: static; flex: none; background: #e5484d; color: #fff; }
+/* The Live button in every top bar (live.ts): its icon says the mode. Idle
+   it is quiet, with a red dot while the projector shows words; following is
+   accent, leading red (the count is how many follow), controlling accent. */
+.live-icon { position: relative; color: var(--psa-text-secondary); }
+.live-icon[data-mode="follow"], .live-icon[data-mode="control"] { color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.live-icon:is([data-mode="lead"], [data-mode="both"]) { color: #e5484d; background: color-mix(in srgb, #e5484d 12%, transparent); }
+.live-dot { position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border: 2px solid var(--psa-bg-canvas); border-radius: 50%; background: #e5484d; box-sizing: content-box; }
+.live-dot.control { background: var(--psa-accent); }
+.live-icon .count-pill { background: #e5484d; color: #fff; }
+.search-bar .live-icon { flex: none; }
 /* The Live sheet: Watch (one choice) and Lead (two switches). */
 .live-group { display: grid; gap: var(--psa-space-2); margin-bottom: var(--psa-space-4); }
 .live-group h3 { margin: 0; color: var(--psa-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
@@ -504,7 +489,6 @@ body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-s
 .follow-bar .follow-live { width: 10px; height: 10px; }
 .follow-view:not([data-status="live"]) .follow-bar .follow-live { background: var(--psa-text-tertiary); box-shadow: none; }
 body.following { overflow: hidden; }
-@media (prefers-reduced-motion: reduce) { .follow-track, .follow-thumb { transition: none; } }
 .current-bar.bump { animation: bump 420ms var(--psa-ease-standard); }
 @keyframes bump { 40% { transform: scale(1.03); border-color: var(--psa-accent); } }
 /* Forms have their own bottom bars. */
@@ -513,9 +497,8 @@ body[data-route$="/edit"] .dock, body[data-route$="/new"] .dock { display: none;
    the projector switch and an offline notice still show. In the service view
    the dock sits on its step bar. */
 body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) :is(.current-link, .current-close) { display: none; }
-body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .current-bar:has(> .follow-switch[hidden]) { display: none; }
-body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .follow-switch { flex: 1; max-width: none; }
-body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .dock:not(:has(> .offline-bar:not([hidden]))):has(.follow-switch[hidden]) { padding: 0; }
+body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .current-bar { display: none; }
+body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .dock:not(:has(> .offline-bar:not([hidden]))) { padding: 0; }
 body[data-route^="/sets/id/play"]:has(.play-nav) .dock { bottom: calc(66px + env(safe-area-inset-bottom)); }
 body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66px + env(safe-area-inset-bottom) + var(--dock-h)); }
 @media (min-width: 900px) {

@@ -10,7 +10,7 @@ import {
   type ReaderOptions,
   renderSongBody,
 } from "../song-render.ts";
-import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetLive, SetShare, SetSummary, SongDetail, SongSummary } from "../types.ts";
+import type { RemoteDesktop, SetDetail, SetItem, SetItemInput, SetShare, SetSummary, SongDetail, SongSummary } from "../types.ts";
 import {
   copyText,
   dateBadge,
@@ -883,9 +883,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   announce(`${itemTitle(item)}, ${index + 1} of ${set.items.length}`);
   let desktops: RemoteDesktop[] = [];
   let renderedTarget = "";
-  /** Who leads this set and how many shared-link pages have it open. */
-  let live: SetLive | null = null;
-  const leading = () => ctx.live.leading(set.id);
 
   const render = () => {
     const prev = set.items[index - 1];
@@ -902,9 +899,9 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
         subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
         back: `#/sets/${set.id}`,
         autohide: true,
-        // Projecting sits in the bar with leading, not as a button under the title.
+        // Projecting sits in the bar beside Live (live.ts), not as a button under the title.
         actions: ctx.canEdit
-          ? `${target && !ctx.live.controlled ? `<button class="icon-button ghost" id="project-here" aria-label="Project this on ${escapeHtml(target.room_name)}" title="Project this on ${escapeHtml(target.room_name)}">${icon("project")}</button>` : ""}<button class="icon-button ghost lead-button" id="lead">${leadButton()}</button>`
+          ? `${target && !ctx.live.controlled ? `<button class="icon-button ghost" id="project-here" aria-label="Project this on ${escapeHtml(target.room_name)}" title="Project this on ${escapeHtml(target.room_name)}">${icon("project")}</button>` : ""}`
           : "",
       })}
       ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
@@ -913,51 +910,16 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
       ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
     </div>`;
 
-    drawLead();
     // A redraw (a desktop appearing, a reader setting) keeps focus where it was.
     if (active instanceof HTMLElement && active.id && !active.isConnected) ctx.main.querySelector<HTMLElement>(`#${active.id}`)?.focus({ preventScroll: true });
     ctx.main.querySelector("#play-prev")?.addEventListener("click", () => prev && go(index - 1));
     ctx.main.querySelector("#play-next")?.addEventListener("click", () => next && go(index + 1));
-    // Leading and controlling the projector are chosen in the Live sheet (live.ts).
-    ctx.main.querySelector("#lead")?.addEventListener("click", () => ctx.live.open());
     ctx.main.querySelector("#project-here")?.addEventListener("click", () => void ctx.run(async () => {
       const desktop = pickDesktop(desktops);
       if (!desktop) throw new Error("No desktop accepts remote control right now.");
       await ctx.api.sendRemoteCommand(desktop.device_id, { action: "project_set_item", set_id: set.id, item_index: index });
       showToast(`Sent to ${desktop.room_name}.`);
     }));
-  };
-
-  /** The lead button's inside: the icon and, when anyone watches, how many. */
-  function leadButton(): string {
-    const viewers = live?.viewers ?? 0;
-    return `${icon("follow")}${viewers ? `<span class="count-pill" aria-hidden="true">${viewers}</span>` : ""}`;
-  }
-  /** Redraws the lead button in place, so a count update never moves focus. */
-  const drawLead = () => {
-    const button = ctx.main.querySelector<HTMLButtonElement>("#lead");
-    if (!button) return;
-    const viewers = live?.viewers ?? 0;
-    const watching = viewers ? `, ${viewers} watching` : "";
-    const other = !leading() && live?.leading && live.leader_name ? ` ${live.leader_name} leads it now.` : "";
-    button.innerHTML = leadButton();
-    button.classList.toggle("on", leading());
-    button.setAttribute("aria-pressed", String(leading()));
-    button.setAttribute("aria-label", `Live: lead the shared link or control the projector${watching}`);
-    button.setAttribute("aria-haspopup", "dialog");
-    button.title = `${leading() ? "Leading: people with the shared link follow you" : "Lead the shared link, or control the projector"}${watching}.${other}`;
-  };
-
-  // Leading: tell the server where this phone is now, and keep telling it
-  // (it lets go a minute after the last word). Not leading: read the count.
-  const liveTick = async () => {
-    try {
-      // Leading, live.ts reports where this phone is; otherwise read who leads.
-      live = leading() ? ctx.live.liveInfo(set.id) : await ctx.api.getSetLive(set.id);
-    } catch {
-      return;
-    }
-    drawLead();
   };
 
   const poll = async () => {
@@ -993,19 +955,15 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
 
   render();
   ctx.live.showItem(set, index);
-  // Leading or controlling changed in the Live sheet: the bar's buttons follow.
+  // Controlling turned on or off in the Live sheet: "Project this" goes or comes back.
   const unsubscribeLive = ctx.live.subscribe(() => {
-    live = ctx.live.liveInfo(set.id) ?? live;
     const projectShown = Boolean(ctx.main.querySelector("#project-here"));
     if (projectShown === Boolean(ctx.live.controlled) && pickDesktop(desktops)) render();
-    else drawLead();
   });
   const poller = startPolling(poll, () => 15000);
-  const livePoller = ctx.canEdit ? startPolling(liveTick, () => 5000) : null;
 
   return () => {
     poller.stop();
-    livePoller?.stop();
     unsubscribeLive();
     ctx.live.leaveSet(set);
     unbindSwipe();
