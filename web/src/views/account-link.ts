@@ -1,4 +1,4 @@
-import { setTitle } from "../a11y.ts";
+import { setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError, type SongServerApi } from "../api.ts";
 import type { AccountLinkKind, PublicAccountLink, Session } from "../types.ts";
 import { errorMessage, escapeHtml, roleName, setFormBusy, showFormError } from "../ui.ts";

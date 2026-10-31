@@ -1,4 +1,4 @@
-import { announce, setTitle } from "../a11y.ts";
+import { announce, setTitle } from "../../../shared/songs/a11y.ts";
 import { emptyState, pageHead, type LibraryContext } from "../context.ts";
 import { icon } from "../icons.ts";
 import { escapeHtml, searchClear, showToast } from "../ui.ts";

@@ -37,8 +37,9 @@ import {
   type Section,
   type SongDoc,
 } from "./chord-doc.ts";
-import { icon, type IconName } from "./icons.ts";
-import { escapeHtml, showToast } from "./ui.ts";
+import { icon, type IconName } from "./icon.ts";
+import { escapeHtml } from "./format.ts";
+import { showToast } from "./host.ts";
 
 /** Where the editor's bar moves into the header: wide enough for Back, the mode switch and the bar. */
 export const DOCKED = "(min-width: 1100px)";

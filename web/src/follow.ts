@@ -1,4 +1,4 @@
-import { announce } from "./a11y.ts";
+import { announce } from "../../shared/songs/a11y.ts";
 import type { SongServerApi } from "./api.ts";
 import { icon } from "./icons.ts";
 import type { RemoteDesktop } from "./types.ts";

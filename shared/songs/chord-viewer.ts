@@ -20,9 +20,9 @@ import {
   type PianoShape,
 } from "./chord-shapes.ts";
 import { announce } from "./a11y.ts";
-import { icon } from "./icons.ts";
-import { escapeHtml, readPreference, writePreference } from "./ui.ts";
-import { openSheet } from "./views/songs.ts";
+import { icon } from "./icon.ts";
+import { escapeHtml, readPreference, writePreference } from "./format.ts";
+import { openSheet } from "./sheet.ts";
 
 interface Instrument<Shape> {
   id: string;

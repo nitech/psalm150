@@ -12,13 +12,46 @@
  * it starts at once and seeks without reading the whole file.
  */
 import { announce } from "./a11y.ts";
-import type { LibraryContext } from "./context.ts";
-import { icon } from "./icons.ts";
-import type { SongRecording } from "./types.ts";
-import { closeSheet, openSheet } from "./views/songs.ts";
-import { clock, errorMessage, escapeHtml, initials, relativeDate, setFormBusy, showToast } from "./ui.ts";
-import { holdScreen } from "./wake-lock.ts";
+import { clock, errorMessage, escapeHtml, initials, relativeDate, setFormBusy } from "./format.ts";
+import { confirmAction, holdScreen, showToast } from "./host.ts";
+import { icon } from "./icon.ts";
+import { closeSheet, openSheet } from "./sheet.ts";
 import { songVideo } from "./youtube.ts";
+
+/** A recording of how a song is played; its audio is read on its own. */
+export interface SongRecording {
+  id: string;
+  song_id: string;
+  title: string;
+  /** As the browser recorded it, such as `audio/webm;codecs=opus`. */
+  content_type: string;
+  duration_ms: number | null;
+  byte_size: number;
+  /** The person, or the desktop, that recorded it. */
+  created_by_name: string | null;
+  created_at: string;
+}
+
+/** A token-free URL that plays one recording for a while. */
+export interface RecordingLink {
+  url: string;
+  expires_at: string;
+}
+
+/**
+ * A song's recordings on the song server, reached the app's own way (the
+ * web client with its session, the desktop through its device token).
+ */
+export interface Recordings {
+  /** Whether this viewer may record and delete. */
+  canEdit: boolean;
+  /** Oldest first; empty when this viewer cannot list them. */
+  list(songId: string): Promise<SongRecording[]>;
+  add(songId: string, audio: Blob, durationMs: number | null): Promise<SongRecording>;
+  /** A URL the page's `<audio>` can play without a token. */
+  link(songId: string, recordingId: string): Promise<RecordingLink>;
+  remove(songId: string, recordingId: string): Promise<void>;
+}
 
 /** A recording stops by itself after this long, well inside the server's 40 MB. */
 const MAX_RECORDING_MS = 30 * 60 * 1000;
@@ -49,7 +82,7 @@ export interface SongMedia {
  * the page can show Record in ⋮ only while it has none.
  */
 export function mountSongMedia(
-  ctx: LibraryContext,
+  store: Recordings,
   song: Song,
   holder: HTMLElement,
   changed: (hasRecordings: boolean) => void,
@@ -90,13 +123,13 @@ export function mountSongMedia(
   const playerHead = (recording: SongRecording) => {
     const details = [recording.created_by_name ?? "", relativeDate(recording.created_at)].filter(Boolean).map(escapeHtml).join(" · ");
     return `<span class="row-main"><strong>${escapeHtml(recording.title)}</strong><small>${details}</small></span>
-      ${ctx.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(`Delete ${recording.title}`)}" title="Delete">${icon("trash")}</button>` : ""}
+      ${store.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(`Delete ${recording.title}`)}" title="Delete">${icon("trash")}</button>` : ""}
       <button type="button" class="icon-button small ghost" data-media-act="close" aria-label="Close the player" title="Close">${icon("close")}</button>`;
   };
 
   const draw = () => {
     const current = recordings.find((recording) => recording.id === selected);
-    const addPill = ctx.canEdit && canRecord() && recordings.length
+    const addPill = store.canEdit && canRecord() && recordings.length
       ? `<button type="button" class="media-pill add" data-media-act="record" aria-label="Record another" title="Record another">${icon("plus")}${icon("mic")}</button>`
       : "";
     const videoPill = video
@@ -135,7 +168,7 @@ export function mountSongMedia(
 
   const load = async () => {
     try {
-      recordings = await ctx.api.songRecordings(song.id);
+      recordings = await store.list(song.id);
     } catch {
       // The song reads well without them; a reader offline just sees none.
       return;
@@ -157,7 +190,7 @@ export function mountSongMedia(
     try {
       let url = urls.get(recordingId);
       if (!url) {
-        url = (await ctx.api.recordingLink(song.id, recordingId)).url;
+        url = (await store.link(song.id, recordingId)).url;
         urls.set(recordingId, url);
       }
       if (gone || selected !== recordingId) return;
@@ -174,7 +207,7 @@ export function mountSongMedia(
     const recordingId = selected;
     if (!recordingId || renewed === recordingId || gone || !audio.getAttribute("src")) return;
     renewed = recordingId;
-    void ctx.api.recordingLink(song.id, recordingId).then((link) => {
+    void store.link(song.id, recordingId).then((link) => {
       urls.set(recordingId, link.url);
       if (selected !== recordingId) return;
       audio.src = link.url;
@@ -190,11 +223,11 @@ export function mountSongMedia(
     if (was) holder.querySelector<HTMLElement>(`[data-pill="${was}"]`)?.focus();
   };
 
-  const remove = () => {
+  const remove = async () => {
     const recording = recordings.find((candidate) => candidate.id === selected);
-    if (!recording || !confirm(`Delete the recording “${recording.title}”? It cannot be brought back.`)) return;
-    void ctx.run(async () => {
-      await ctx.api.deleteRecording(song.id, recording.id);
+    if (!recording || !(await confirmAction(`Delete the recording “${recording.title}”? It cannot be brought back.`))) return;
+    try {
+      await store.remove(song.id, recording.id);
       audio.pause();
       audio.removeAttribute("src");
       selected = null;
@@ -203,10 +236,12 @@ export function mountSongMedia(
       report();
       holder.querySelector<HTMLElement>(".media-pill")?.focus();
       showToast("Recording deleted.");
-    });
+    } catch (error) {
+      showToast(errorMessage(error), true);
+    }
   };
 
-  const record = () => openRecorder(ctx, song, (recording) => {
+  const record = () => openRecorder(store, song, (recording) => {
     recordings.push(recording);
     draw();
     report();
@@ -222,13 +257,13 @@ export function mountSongMedia(
     }
     switch (target.closest<HTMLElement>("[data-media-act]")?.dataset.mediaAct) {
       case "record": record(); break;
-      case "remove": remove(); break;
+      case "remove": void remove(); break;
       case "close": close(); break;
     }
   };
   holder.addEventListener("click", onClick);
   draw();
-  if (ctx.session) void load();
+  void load();
 
   return {
     record,
@@ -312,7 +347,7 @@ function showWave(stream: MediaStream, wave: HTMLElement): () => void {
  * until Stop; then listen to it and Save, or Record again. The microphone is
  * let go as soon as the recording stops or the sheet closes.
  */
-export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title">, saved: (recording: SongRecording) => void): void {
+export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "id" | "title">, saved: (recording: SongRecording) => void): void {
   const sheet = openSheet(`<h2>Record how it is played</h2>
     <p class="muted">${escapeHtml(song.title)}. Everyone in the church can listen to it afterwards.</p>
     <div class="recorder stack">
@@ -477,7 +512,7 @@ export function openRecorder(ctx: LibraryContext, song: Pick<Song, "id" | "title
     if (!recording) return;
     setFormBusy(form, true);
     try {
-      const result = await ctx.api.addRecording(song.id, recording, durationMs);
+      const result = await store.add(song.id, recording, durationMs);
       recording = null;
       closeSheet(sheet);
       saved(result);

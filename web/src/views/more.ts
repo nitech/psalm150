@@ -1,11 +1,11 @@
-import { bindRadioGroup } from "../a11y.ts";
+import { bindRadioGroup } from "../../../shared/songs/a11y.ts";
 import { ApiError } from "../api.ts";
 import { pageHead, type AppContext } from "../context.ts";
 import { icon } from "../icons.ts";
 import { installOption, promptInstall } from "../install.ts";
 import type { Role } from "../types.ts";
 import { errorMessage, escapeHtml, initials, readPreference, relativeDate, roleName, setFormBusy, showToast, writePreference } from "../ui.ts";
-import { closeSheet, openSheet } from "./songs.ts";
+import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
 
 export async function moreView(ctx: AppContext): Promise<void> {
   const theme = readPreference("theme") ?? "system";

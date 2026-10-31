@@ -23,7 +23,7 @@ import {
   type LyricLine,
   type Section,
   type SongDoc,
-} from "../src/chord-doc.ts";
+} from "../../shared/songs/chord-doc.ts";
 
 const SONG = `{title: Amazing Grace}
 {author: John Newton}

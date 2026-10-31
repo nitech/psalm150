@@ -3671,19 +3671,41 @@ async fn song_recordings(pool: PgPool) {
     assert_eq!(empty.0, StatusCode::OK);
     assert_eq!(empty.1, json!([]));
 
-    // Only leaders and owners record.
-    for token in [&viewer, &desktop] {
-        let refused = send_bytes(
-            &app,
-            "POST",
-            &recordings,
-            Some(token),
-            "audio/webm",
-            audio.clone(),
-        )
-        .await;
-        assert_eq!(refused.0, StatusCode::FORBIDDEN);
-    }
+    // Leaders, owners and desktops record; viewers do not.
+    let refused = send_bytes(
+        &app,
+        "POST",
+        &recordings,
+        Some(&viewer),
+        "audio/webm",
+        audio.clone(),
+    )
+    .await;
+    assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    // A desktop's recording names the desktop, and a desktop removes it.
+    let from_desktop = send_bytes(
+        &app,
+        "POST",
+        &recordings,
+        Some(&desktop),
+        "audio/webm",
+        audio.clone(),
+    )
+    .await;
+    assert_eq!(from_desktop.0, StatusCode::CREATED);
+    let from_desktop: Value = serde_json::from_slice(&from_desktop.2).expect("json");
+    assert_eq!(from_desktop["created_by_name"], "Sanctuary PC");
+    let listed = send(&app, "GET", &media, Some(&viewer), None).await;
+    assert_eq!(listed.1[0]["created_by_name"], "Sanctuary PC");
+    let removed = send(
+        &app,
+        "DELETE",
+        &format!("{recordings}/{}", from_desktop["id"].as_str().expect("id")),
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(removed.0, StatusCode::NO_CONTENT);
     let not_audio = send_bytes(
         &app,
         "POST",
@@ -3800,7 +3822,7 @@ async fn song_recordings(pool: PgPool) {
     .await;
     assert_eq!(other.0, StatusCode::NOT_FOUND);
 
-    // Removing is for leaders and owners too.
+    // Removing is for leaders, owners and desktops too.
     let recording_path = format!("{recordings}/{recording_id}");
     let refused = send(&app, "DELETE", &recording_path, Some(&viewer), None).await;
     assert_eq!(refused.0, StatusCode::FORBIDDEN);

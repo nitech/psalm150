@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chordNotes, guitarShapes, parseChord, pianoShapes } from "../src/chord-shapes.ts";
+import { chordNotes, guitarShapes, parseChord, pianoShapes } from "../../shared/songs/chord-shapes.ts";
 
 const chord = (name: string) => {
   const parsed = parseChord(name);

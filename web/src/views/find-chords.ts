@@ -5,7 +5,7 @@
  * Nothing changes until Save, which makes a new revision (so it can be
  * undone like any edit).
  */
-import { announce, keepFocus, setTitle } from "../a11y.ts";
+import { announce, keepFocus, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError } from "../api.ts";
 import { keySteps, matchChords, type ChordMatch, type KeyChoice } from "../../../shared/chord-match.ts";
 import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.ts";

@@ -46,9 +46,10 @@ import {
 } from "./chord-doc.ts";
 import { chooseInstrument, instruments, preloadChosenSound, soundChord } from "./chord-viewer.ts";
 import { QUALITIES, bubbleRow, placeInSong, readChord, rootsFor, songChords } from "./chord-picker.ts";
-import { icon } from "./icons.ts";
-import { prepareSong, renderSongBody } from "./song-render.ts";
-import { escapeHtml, readPreference, showToast, writePreference } from "./ui.ts";
+import { icon } from "./icon.ts";
+import { prepareSong, renderSongBody } from "./song-preview.ts";
+import { escapeHtml, readPreference, writePreference } from "./format.ts";
+import { showToast } from "./host.ts";
 import { editable, mountWordsEditor } from "./words-editor.ts";
 
 export interface ChordEditor {

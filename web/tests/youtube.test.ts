@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clock } from "../src/ui.ts";
-import { songVideo, youtubeLink } from "../src/youtube.ts";
+import { songVideo, youtubeLink } from "../../shared/songs/youtube.ts";
 
 describe("YouTube links", () => {
   it("read every usual form of link as the same video", () => {

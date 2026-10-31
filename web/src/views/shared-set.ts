@@ -1,4 +1,4 @@
-import { announce, keepFocus, setTitle } from "../a11y.ts";
+import { announce, keepFocus, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError, type SongServerApi } from "../api.ts";
 import { emptyState, pageHead } from "../context.ts";
 import { icon } from "../icons.ts";

@@ -1,4 +1,4 @@
-import { announce as say, setTitle } from "../a11y.ts";
+import { announce as say, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError, type SongServerApi } from "../api.ts";
 import { icon } from "../icons.ts";
 import type { RoomSlide, RoomView } from "../types.ts";

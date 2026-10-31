@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasChords, parseChordPro, splitChords, transposeChord, transposeSong } from "../src/chordpro.ts";
+import { hasChords, parseChordPro, splitChords, transposeChord, transposeSong } from "../../shared/songs/chordpro.ts";
 
 describe("splitChords", () => {
   it("pairs each chord with the text after it", () => {

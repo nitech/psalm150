@@ -1,0 +1,87 @@
+/* Controls the song modules use (buttons, form messages, the segmented
+   switch, menus), loaded before each app's own stylesheet.
+
+   Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors
+   this folder at src/shared/songs/ with `bun run sync:shared`; edit it here,
+   never in the mirror. Colours, type and radii come from psa150-tokens.css. */
+
+.icon { width: 20px; height: 20px; flex: none; }
+/* No margin: a hidden <p> after the shell would otherwise make the page taller than its content. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.muted { color: var(--psa-text-secondary); }
+.form-message { min-height: 1.2em; margin: 0; color: var(--psa-danger); font-size: 14px; }
+/* Empty, the message takes no room but stays a live region, so an error
+   written into it later is read out. */
+.form-message:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.hint { margin: 0; color: var(--psa-text-secondary); font-size: 13px; }
+.stack { display: grid; gap: var(--psa-space-4); }
+
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--psa-space-2);
+  min-height: var(--psa-touch-target); padding: 0 var(--psa-space-5);
+  border: 1px solid transparent; border-radius: var(--psa-radius-full);
+  font-weight: 600; font-size: 15px; text-decoration: none; white-space: nowrap;
+  transition: background var(--psa-dur-fast) var(--psa-ease-standard), border-color var(--psa-dur-fast);
+}
+.button.primary { background: var(--psa-accent); color: var(--psa-on-accent); }
+@media (hover: hover) { .button.primary:hover:not(:disabled) { background: var(--psa-accent-hover); } }
+.button.primary:active:not(:disabled) { background: var(--psa-accent-pressed); }
+.button.secondary { background: var(--psa-bg-surface); border-color: var(--psa-border-strong); color: var(--psa-text); }
+@media (hover: hover) { .button.secondary:hover:not(:disabled) { background: var(--psa-bg-elevated); } }
+.button.small { min-height: 36px; padding: 0 var(--psa-space-3); font-size: 14px; }
+.button.wide { display: flex; width: 100%; }
+/* In plain block flow (no .stack gap), a field, a row of buttons or a
+   full-width button keeps clear of its neighbours; the margins collapse
+   with theirs. */
+:is(.auth-card, .sheet-body, .page) > :is(label, .inline-actions, .button.wide):not(:first-child) { margin-top: var(--psa-space-3); }
+:is(.auth-card, .sheet-body, .page) > :is(label, .inline-actions, .button.wide):not(:last-child) { margin-bottom: var(--psa-space-3); }
+.button.grow { flex: 1; min-width: 0; }
+/* Accent text on an accent tint is a little darker (lighter in the dark
+   theme) than plain accent text, to keep 4.5:1. */
+.button.danger { color: var(--psa-danger); }
+.link-button { padding: 0; border: 0; background: none; color: var(--psa-accent-text); text-decoration: underline; }
+
+.icon-button {
+  display: inline-grid; place-items: center; flex: none;
+  width: var(--psa-touch-target); height: var(--psa-touch-target);
+  border: 1px solid var(--psa-border); border-radius: var(--psa-radius-full);
+  background: var(--psa-bg-surface); color: var(--psa-text); text-decoration: none; font-weight: 700; font-size: 14px;
+}
+@media (hover: hover) { .icon-button:hover:not(:disabled) { background: var(--psa-bg-elevated); } }
+.icon-button.small { width: 36px; height: 36px; }
+.icon-button.small .icon { width: 18px; height: 18px; }
+.icon-button.accent { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
+/* "On" shows as a tint and a border in accent text colour, which has 3:1
+   against the page (the tint alone does not). */
+.icon-button.on { background: var(--psa-accent-medium); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
+.icon-button.danger { color: var(--psa-danger); }
+.icon-button.ghost { border-color: transparent; background: transparent; }
+@media (hover: hover) { .icon-button.ghost:hover:not(:disabled) { background: var(--psa-bg-surface); } }
+.icon-button.ghost.on { background: var(--psa-accent-medium); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
+
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); border: 1px solid var(--psa-border-control); }
+.segmented button { min-height: 38px; border: 1px solid transparent; border-radius: var(--psa-radius-full); background: none; font-weight: 600; font-size: 14px; color: var(--psa-text-secondary); }
+/* The chosen option has an edge with 3:1, not only a lighter fill. */
+.segmented button.on { background: var(--psa-bg-surface); border-color: var(--psa-border-control); color: var(--psa-text); box-shadow: var(--psa-shadow-sm); }
+.inline-actions { display: flex; gap: var(--psa-space-2); }
+.inline-actions.wrap { flex-wrap: wrap; }
+.row-main { display: grid; flex: 1; min-width: 0; }
+.row-main strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-main small { color: var(--psa-text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.bar-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 230px; padding: 6px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); box-shadow: 0 10px 24px rgb(0 0 0 / 0.19), 0 18px 40px -24px rgb(0 0 0 / 0.6); }
+.bar-menu[hidden] { display: none; }
+.bar-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--psa-touch-target); padding: 0 12px; border: 0; border-radius: calc(var(--psa-radius-md) - 4px); background: none; color: var(--psa-text); font: inherit; font-size: 16px; text-align: left; text-decoration: none; white-space: nowrap; }
+.bar-menu-item > span:first-of-type { flex: 1; }
+.bar-menu-item .icon { width: 20px; height: 20px; flex: none; color: var(--psa-text-secondary); }
+.bar-menu-check { display: inline-flex; width: 20px; color: var(--psa-accent-text); }
+.bar-menu-check .icon { color: inherit; }
+/* An on/off setting in the menu: a light switch, flipped in place. */
+.switch-track { position: relative; flex: none; width: 40px; height: 24px; margin-left: 8px; border-radius: var(--psa-radius-full); background: var(--psa-border-strong); transition: background-color 160ms var(--psa-ease-standard); }
+.switch-thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 200ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+:is(.bar-menu-switch, .ce-sound-switch)[aria-checked="true"] .switch-track { background: var(--psa-accent); }
+:is(.bar-menu-switch, .ce-sound-switch)[aria-checked="true"] .switch-thumb { transform: translateX(16px); }
+.bar-menu-switch[aria-checked="true"] > .icon { color: var(--psa-accent-text); }
+@media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }
+@media (hover: hover) { .bar-menu-item:not(.bar-menu-stepper):hover { background: var(--psa-bg-surface); } }
+.bar-menu-item:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }

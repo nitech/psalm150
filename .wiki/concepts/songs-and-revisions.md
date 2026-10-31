@@ -141,8 +141,10 @@ A song can carry recordings of how it is played (`api/src/song_media.rs`).
 Anyone signed in to the church, desktops included, lists them
 (`GET /songs/{id}/recordings`) and plays them
 (`GET /songs/{id}/recordings/{recording_id}/audio`, or a six-hour play link
-from `POST …/link` for an `<audio>` element); only leaders and owners
-(`require_editor`, so not desktops) record and remove them.
+from `POST …/link` for an `<audio>` element); leaders, owners and desktops
+(`require_song_editor`) record and remove them. A desktop's recording stores
+`created_by_device` (migration `0019_desktop_recordings.sql`) instead of a
+person, and `created_by_name` is then the desktop's name.
 
 * A recording is the audio exactly as the browser made it (WebM/Opus in
   Chrome and Firefox, MP4/AAC in Safari), at most 40 MB, kept as a file

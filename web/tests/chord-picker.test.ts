@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDoc } from "../src/chord-doc.ts";
-import { bubbleRow, nextChords, placeInSong, readChord, rootsFor, songChords } from "../src/chord-picker.ts";
+import { parseDoc } from "../../shared/songs/chord-doc.ts";
+import { bubbleRow, nextChords, placeInSong, readChord, rootsFor, songChords } from "../../shared/songs/chord-picker.ts";
 
 describe("readChord", () => {
   it("reads chords typed loosely", () => {

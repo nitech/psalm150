@@ -1,13 +1,17 @@
 import "../../shared/psa150-tokens.css";
+import "../../shared/songs/song-controls.css";
 import "./styles.css";
-import { announce, refocus, selectorFor, setTitle } from "./a11y.ts";
+import "../../shared/songs/songs.css";
+import { announce, refocus, selectorFor, setTitle } from "../../shared/songs/a11y.ts";
 import { ApiError, SongServerApi } from "./api.ts";
 import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { installFollow } from "./follow.ts";
 import { icon, type IconName } from "./icons.ts";
 import { installLyricsCopy } from "./song-render.ts";
-import { installChordViewer } from "./chord-viewer.ts";
+import { installChordViewer } from "../../shared/songs/chord-viewer.ts";
+import { setSongHost } from "../../shared/songs/host.ts";
+import { holdScreen } from "./wake-lock.ts";
 import { appGoesBack, installedApp, slideBetween, swapScreen, takeBrowserAnimated } from "./transitions.ts";
 import "./install.ts";
 import type { SessionInfo, SetDetail, Session } from "./types.ts";
@@ -52,6 +56,7 @@ for (const type of ["keydown", "pointerdown"]) {
 
 applyTheme();
 registerServiceWorker();
+setSongHost({ toast: (message, options) => showToast(message, options), holdScreen });
 installLyricsCopy();
 installChordViewer();
 installSearchClear();

@@ -1,4 +1,4 @@
-import { announce, keepFocus, setTitle } from "../a11y.ts";
+import { announce, keepFocus, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets } from "../current-set.ts";
@@ -6,10 +6,11 @@ import { barActions, bindBarActions, setSwitch, type BarAction } from "../bar-me
 import { canKeepScreenOn, holdScreen, keepScreenOn, setKeepScreenOn } from "../wake-lock.ts";
 import { endSequence, songNeighbours, stepSequence } from "../song-sequence.ts";
 import { appGoesBack, bindItemSwipe } from "../transitions.ts";
-import { mountChordEditor } from "../chord-editor.ts";
-import { hasChords, type DisplaySong } from "../chordpro.ts";
+import { mountChordEditor } from "../../../shared/songs/chord-editor.ts";
+import { hasChords, type DisplaySong } from "../../../shared/songs/chordpro.ts";
 import { icon } from "../icons.ts";
-import { canRecord, mountSongMedia } from "../song-media.ts";
+import { canRecord, mountSongMedia, type Recordings } from "../../../shared/songs/song-media.ts";
+import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
 import {
   keyLabel,
   onReaderAction,
@@ -609,7 +610,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   mediaHolder.className = "song-media";
   mediaHolder.hidden = true;
   let hasRecordings = true;
-  const media = mountSongMedia(ctx, song, mediaHolder, (has) => {
+  const media = mountSongMedia(songRecordings(ctx), song, mediaHolder, (has) => {
     if (has === hasRecordings) return;
     hasRecordings = has;
     render();
@@ -851,137 +852,13 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
   return () => editor.destroy();
 }
 
-let sheetCount = 0;
-
-/**
- * A bottom sheet on phones, a centred dialog on wide screens: a modal
- * `<dialog>` named by its first heading. It slides up as it opens (fades in
- * on wide screens), and Escape, a tap outside it or (on phones) a swipe down
- * slides it away again (`closeSheet`). Focus goes back to the control that
- * opened it (or the screen's heading, when a redraw replaced that control).
- * With `closeButton: false` the × is there only for screen readers.
- */
-export function openSheet(content: string, { closeButton = true } = {}): HTMLDialogElement {
-  const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
-    ? document.activeElement
-    : null;
-  const dialog = document.createElement("dialog");
-  dialog.className = "sheet";
-  dialog.innerHTML = `<div class="sheet-body"><span class="sheet-grip" aria-hidden="true"></span><button type="button" class="icon-button sheet-close${closeButton ? "" : " sr-only"}" aria-label="Close">${icon("close")}</button>${content}</div>`;
-  if (!closeButton) dialog.classList.add("no-close");
-  const heading = dialog.querySelector("h2");
-  if (heading) {
-    heading.id ||= `sheet-title-${++sheetCount}`;
-    dialog.setAttribute("aria-labelledby", heading.id);
-  }
-  document.body.append(dialog);
-  dialog.querySelector(".sheet-close")?.addEventListener("click", () => closeSheet(dialog));
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) closeSheet(dialog);
-  });
-  // Escape slides it away too, instead of the browser closing it at once.
-  dialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    closeSheet(dialog);
-  });
-  dialog.addEventListener("close", () => {
-    dialog.remove();
-    // Wait for whatever the closing action redraws.
-    window.setTimeout(() => {
-      const focus = document.activeElement;
-      if (focus && focus !== document.body && focus.isConnected) return;
-      if (opener?.isConnected) opener.focus();
-      else (document.querySelector<HTMLElement>("#page h1") ?? document.querySelector<HTMLElement>("#page"))?.focus({ preventScroll: true });
-    }, 0);
-  });
-  bindSwipeDown(dialog);
-  dialog.showModal();
-  return dialog;
-}
-
-/**
- * On phones the sheet follows a finger dragging it down and closes when let
- * go far or fast enough, else springs back. A drag starts only while what is
- * under the finger is scrolled to its top, and never in a row that scrolls
- * sideways (such as the chord shapes) or a field.
- */
-function bindSwipeDown(dialog: HTMLDialogElement): void {
-  let startX = 0;
-  let startY = 0;
-  let startTime = 0;
-  let offset = 0;
-  let mode: "off" | "maybe" | "drag" = "off";
-  const atTop = (target: Element | null) => {
-    for (let node = target; node && node !== dialog.parentElement; node = node.parentElement) {
-      if (node.scrollTop > 0) return false;
-    }
-    return true;
+/** The song's recordings through this session; none for a visitor without one. */
+function songRecordings(ctx: LibraryContext): Recordings {
+  return {
+    canEdit: ctx.canEdit,
+    list: async (songId) => (ctx.session ? ctx.api.songRecordings(songId) : []),
+    add: (songId, audio, durationMs) => ctx.api.addRecording(songId, audio, durationMs),
+    link: (songId, recordingId) => ctx.api.recordingLink(songId, recordingId),
+    remove: (songId, recordingId) => ctx.api.deleteRecording(songId, recordingId),
   };
-  dialog.addEventListener("touchstart", (event) => {
-    mode = "off";
-    const target = event.target as Element;
-    if (event.touches.length !== 1 || !matchMedia("(max-width: 639px)").matches) return;
-    if (target.closest("input, textarea, select, [contenteditable], .chord-shapes") || !atTop(target)) return;
-    startX = event.touches[0].clientX;
-    startY = event.touches[0].clientY;
-    startTime = event.timeStamp;
-    offset = 0;
-    mode = "maybe";
-  }, { passive: true });
-  dialog.addEventListener("touchmove", (event) => {
-    if (mode === "off") return;
-    const dx = event.touches[0].clientX - startX;
-    const dy = event.touches[0].clientY - startY;
-    if (mode === "maybe") {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      if (dy <= 0 || Math.abs(dx) > dy) {
-        mode = "off";
-        return;
-      }
-      mode = "drag";
-      dialog.classList.add("dragging");
-    }
-    event.preventDefault();
-    offset = Math.max(0, dy);
-    dialog.style.transform = `translateY(${offset}px)`;
-  }, { passive: false });
-  const end = (event: TouchEvent) => {
-    if (mode !== "drag") {
-      mode = "off";
-      return;
-    }
-    mode = "off";
-    dialog.classList.remove("dragging");
-    const fast = offset / Math.max(1, event.timeStamp - startTime) > 0.5;
-    // Closing slides on down from where the finger let go.
-    if (offset > Math.min(140, dialog.offsetHeight * 0.3) || (fast && offset > 30)) closeSheet(dialog);
-    else {
-      dialog.style.transform = "";
-    }
-  };
-  dialog.addEventListener("touchend", end);
-  dialog.addEventListener("touchcancel", end);
-}
-
-/**
- * Slides the sheet down (on wide screens, fades it) and then closes it, so
- * every sheet leaves the way it came. Without motion it closes at once.
- */
-export function closeSheet(dialog: HTMLDialogElement): void {
-  if (!dialog.open) {
-    dialog.remove();
-    return;
-  }
-  if (dialog.classList.contains("leaving")) return;
-  const close = () => {
-    if (dialog.open) dialog.close();
-  };
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return close();
-  dialog.classList.add("leaving");
-  // From where a swipe left it, if it did.
-  dialog.style.transform = "";
-  dialog.addEventListener("transitionend", (event) => {
-    if (event.target === dialog) close();
-  });
-  window.setTimeout(close, 400);
 }

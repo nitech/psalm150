@@ -6,7 +6,7 @@ tags: [web, accessibility, wcag, a11y, keyboard, screen-reader, contrast]
 status: stable
 sources:
   - id: a11y
-    resource: /web/src/a11y.ts
+    resource: /shared/songs/a11y.ts
     title: pageTitle/setTitle, announce, keepFocus/refocus/focusSelector, bindRadioGroup
   - id: main
     resource: /web/src/main.ts

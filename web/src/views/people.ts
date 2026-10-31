@@ -1,9 +1,9 @@
-import { setTitle } from "../a11y.ts";
+import { setTitle } from "../../../shared/songs/a11y.ts";
 import { emptyState, pageHead, type AppContext } from "../context.ts";
 import { icon } from "../icons.ts";
 import type { AccountLink, AccountLinkResponse, Member, Role } from "../types.ts";
 import { errorMessage, escapeHtml, initials, roleName, setFormBusy, showToast } from "../ui.ts";
-import { closeSheet, openSheet } from "./songs.ts";
+import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
 
 /** Most access first. */
 const ROLES: Role[] = ["owner", "leader", "viewer"];

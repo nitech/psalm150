@@ -39,19 +39,19 @@ sources:
     resource: /web/src/views/people.ts
     title: People (owners)
   - id: chordpro
-    resource: /web/src/chordpro.ts
+    resource: /shared/songs/chordpro.ts
     title: ChordPro parsing and transposition for display
   - id: render
-    resource: /web/src/song-render.ts
+    resource: /shared/songs/song-preview.ts
     title: Reader rendering, settings panel and key label
   - id: chord-viewer
-    resource: /web/src/chord-viewer.ts
+    resource: /shared/songs/chord-viewer.ts
     title: How to play a tapped chord (sheet, drawings, instrument choice)
   - id: chord-shapes
-    resource: /web/src/chord-shapes.ts
+    resource: /shared/songs/chord-shapes.ts
     title: Chord names, guitar shapes and piano voicings
   - id: chord-audio
-    resource: /web/src/chord-audio.ts
+    resource: /shared/songs/chord-audio.ts
     title: Playing a chord with Web Audio
   - id: ui
     resource: /web/src/ui.ts
@@ -801,6 +801,22 @@ on that browser goes straight to the consent screen. The whole flow is in
   read again from `GET /session` at boot and when the app comes back into
   view (at most once a minute), so a role an owner changed shows without
   signing in again. The server enforces a new role at once.
+
+## Shared song modules
+
+Everything done with one song lives in `shared/songs/` and is the same code
+in the desktop app, which mirrors the folder (and `web/public/sounds/`) with
+`bun run sync:shared`: the editor (`chord-editor.ts`, `words-editor.ts`,
+`chord-doc.ts`, `chord-picker.ts`), the song as it reads (`song-preview.ts`,
+`chordpro.ts`; reader classes `.reader*`), how to play a chord
+(`chord-viewer.ts`, `chord-shapes.ts`, `chord-audio.ts`), recordings and the
+YouTube pill (`song-media.ts`, `youtube.ts`), sheets (`sheet.ts`) and their
+CSS (`song-controls.css` before `styles.css`, `songs.css` after). The web
+client gives them toasts and the screen wake lock through `setSongHost`
+(`host.ts`) and its session's recordings through a `Recordings` object
+(`songRecordings` in `views/songs.ts`). `web/src/song-render.ts` keeps only
+the reader's bar actions and re-exports the rest. See
+`/shared/songs/README.md`.
 
 ## Design tokens and themes
 

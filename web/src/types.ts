@@ -90,25 +90,7 @@ export interface OnlineSong {
   chordpro: string;
 }
 
-/** A recording of how a song is played; its audio is read on its own. */
-export interface SongRecording {
-  id: string;
-  song_id: string;
-  title: string;
-  /** As the browser recorded it, such as `audio/webm;codecs=opus`. */
-  content_type: string;
-  duration_ms: number | null;
-  byte_size: number;
-  created_by_name: string | null;
-  created_at: string;
-}
-
-/** A token-free URL that plays one recording for a while. */
-export interface RecordingLink {
-  /** `/api/v1/public/recordings/{key}`, on this server. */
-  url: string;
-  expires_at: string;
-}
+export type { RecordingLink, SongRecording } from "../../shared/songs/song-media.ts";
 
 export interface SongSummary {
   id: string;

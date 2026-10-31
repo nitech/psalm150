@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { focusSelector, nextRadioIndex, pageTitle } from "../src/a11y.ts";
+import { focusSelector, nextRadioIndex, pageTitle } from "../../shared/songs/a11y.ts";
 import { toastDuration } from "../src/ui.ts";
 
 describe("pageTitle", () => {

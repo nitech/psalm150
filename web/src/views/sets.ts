@@ -1,4 +1,4 @@
-import { announce, keepFocus, setTitle } from "../a11y.ts";
+import { announce, keepFocus, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, pageHead, routeQuery, type AppContext, type Cleanup } from "../context.ts";
 import { groupSets } from "../current-set.ts";
@@ -24,11 +24,11 @@ import {
   today,
   transposeLabel,
 } from "../ui.ts";
-import { closeSheet, openSheet } from "./songs.ts";
+import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
 import { bindItemSwipe } from "../transitions.ts";
 import { holdScreen } from "../wake-lock.ts";
 import { bindSwipeDelete, swipeRow } from "../swipe-delete.ts";
-import { transposeChord } from "../chordpro.ts";
+import { transposeChord } from "../../../shared/songs/chordpro.ts";
 import { barActions, bindBarActions } from "../bar-menu.ts";
 
 function setRow(set: SetSummary, currentId?: string): string {

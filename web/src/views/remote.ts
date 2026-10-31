@@ -1,11 +1,11 @@
-import { announce, keepFocus, setTitle } from "../a11y.ts";
+import { announce, keepFocus, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.ts";
 import { icon } from "../icons.ts";
 import type { RemoteCommandRequest, RemoteDesktop, SetDetail } from "../types.ts";
 import { groupSets } from "../current-set.ts";
 import { errorMessage, escapeHtml, relativeDate, searchClear, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
-import { closeSheet, openSheet } from "./songs.ts";
+import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
 
 /**
  * Loads the church's desktops, then keeps `render` up to date as the server

@@ -205,8 +205,10 @@ pub async fn list_recordings(
     ensure_song(&state.pool, auth.church_id, song_id).await?;
     let recordings = sqlx::query_as::<_, SongRecording>(
         "SELECT r.id, r.song_id, r.title, r.content_type, r.duration_ms, r.byte_size,
-                u.display_name AS created_by_name, r.created_at
-         FROM song_recordings r LEFT JOIN users u ON u.id = r.created_by
+                COALESCE(u.display_name, d.name) AS created_by_name, r.created_at
+         FROM song_recordings r
+         LEFT JOIN users u ON u.id = r.created_by
+         LEFT JOIN device_tokens d ON d.id = r.created_by_device
          WHERE r.song_id = $1 AND r.church_id = $2
          ORDER BY r.created_at, r.id",
     )
@@ -217,7 +219,7 @@ pub async fn list_recordings(
     Ok(Json(recordings))
 }
 
-/// Leaders and owners: saves a recording of how the song is played.
+/// Leaders, owners and desktops: saves a recording of how the song is played.
 ///
 /// The body is the audio itself, up to 40 MB, with its type as
 /// `Content-Type` (`audio/webm`, `audio/mp4`, `audio/ogg`, `audio/mpeg`, …).
@@ -245,7 +247,7 @@ pub async fn add_recording(
     body: Body,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    let user_id = auth.require_editor()?;
+    let actor = auth.require_song_editor()?;
     let content_type = audio_type(&headers)?;
     let title = title(query.title.as_deref())?.unwrap_or_else(|| "Recording".into());
     let duration_ms = query.duration_ms.filter(|ms| *ms >= 0);
@@ -258,13 +260,17 @@ pub async fn add_recording(
     let recording = sqlx::query_as::<_, SongRecording>(
         "WITH saved AS (
             INSERT INTO song_recordings
-                (id, church_id, song_id, title, content_type, duration_ms, byte_size, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, song_id, title, content_type, duration_ms, byte_size, created_by, created_at
+                (id, church_id, song_id, title, content_type, duration_ms, byte_size,
+                 created_by, created_by_device)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, song_id, title, content_type, duration_ms, byte_size, created_by,
+                      created_by_device, created_at
          )
          SELECT s.id, s.song_id, s.title, s.content_type, s.duration_ms, s.byte_size,
-                u.display_name AS created_by_name, s.created_at
-         FROM saved s LEFT JOIN users u ON u.id = s.created_by",
+                COALESCE(u.display_name, d.name) AS created_by_name, s.created_at
+         FROM saved s
+         LEFT JOIN users u ON u.id = s.created_by
+         LEFT JOIN device_tokens d ON d.id = s.created_by_device",
     )
     .bind(id)
     .bind(auth.church_id)
@@ -273,7 +279,9 @@ pub async fn add_recording(
     .bind(content_type)
     .bind(duration_ms)
     .bind(size as i32)
-    .bind(user_id)
+    // A desktop's recording names the desktop, not the person who approved it.
+    .bind(actor.user_id.filter(|_| actor.device_id.is_none()))
+    .bind(actor.device_id)
     .fetch_one(&state.pool)
     .await;
     match recording {
@@ -469,7 +477,7 @@ async fn serve(
     Ok(response)
 }
 
-/// Leaders and owners: removes a recording and its file.
+/// Leaders, owners and desktops: removes a recording and its file.
 #[utoipa::path(
     delete,
     path = "/api/v1/songs/{song_id}/recordings/{recording_id}",
@@ -487,7 +495,7 @@ pub async fn delete_recording(
     Path((song_id, recording_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    auth.require_editor()?;
+    auth.require_song_editor()?;
     let removed = sqlx::query(
         "DELETE FROM song_recordings WHERE id = $1 AND song_id = $2 AND church_id = $3",
     )

@@ -125,11 +125,11 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `GET` | `/api/v1/songs/deleted?limit=&offset=` | List deleted songs, most recently deleted first |
 | `POST` | `/api/v1/songs/{id}/restore` | Bring a deleted song back with its history |
 | `GET` | `/api/v1/songs/{id}/recordings` | A song's recordings |
-| `POST` | `/api/v1/songs/{id}/recordings?title=&duration_ms=` | Leaders and owners: save a recording; the body is the audio (`audio/*`, at most 40 MB) |
+| `POST` | `/api/v1/songs/{id}/recordings?title=&duration_ms=` | Leaders, owners and desktops: save a recording (a desktop's is named after it); the body is the audio (`audio/*`, at most 40 MB) |
 | `GET` | `/api/v1/songs/{id}/recordings/{recording_id}/audio` | A recording's audio, as recorded, streamed (answers `Range`) |
 | `POST` | `/api/v1/songs/{id}/recordings/{recording_id}/link` | A six-hour play link without a token, for an `<audio>` element |
 | `GET` | `/api/v1/public/recordings/{key}` | Play a recording through a play link (no token; answers `Range`) |
-| `DELETE` | `/api/v1/songs/{id}/recordings/{recording_id}` | Leaders and owners: remove a recording |
+| `DELETE` | `/api/v1/songs/{id}/recordings/{recording_id}` | Leaders, owners and desktops: remove a recording |
 | `GET` | `/api/v1/songs/{id}/revisions` | List immutable revision metadata |
 | `GET` | `/api/v1/songs/{id}/revisions/{revision_id}` | Read any revision, current or earlier, with its ChordPro source |
 | `POST` | `/api/v1/songs/import` | Import up to 500 ChordPro songs, skipping exact content matches |
