@@ -354,7 +354,68 @@ pub async fn save_web_song(
     state: State<'_, AppState>,
     content: String,
 ) -> Result<SongDetail, String> {
-    let (folder, folder_hash, target) = with_state(&state, |runtime| {
+    let mut parsed = parse_chordpro(&content, "web.pro");
+    // A new song gets the next free number, written into it like any other.
+    if parsed.meta.song_num.is_none() {
+        parsed.meta.song_num = next_song_num(&state)?;
+    }
+    add_song_text(&app, &state, serialize_chordpro(&parsed)).await
+}
+
+/// Add a song written in the song editor, its text kept as written (the
+/// directives this app does not read included). A song without a number
+/// gets the next free one, as a `{meta: song_num=N}` line after its title.
+#[tauri::command]
+pub async fn create_song(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    content: String,
+) -> Result<SongDetail, String> {
+    let content = if parse_chordpro(&content, "new.pro").meta.song_num.is_none() {
+        match next_song_num(&state)? {
+            Some(number) => with_song_num(&content, number),
+            None => content,
+        }
+    } else {
+        content
+    };
+    add_song_text(&app, &state, content).await
+}
+
+fn next_song_num(state: &AppState) -> Result<Option<i64>, String> {
+    with_state(state, |runtime| {
+        runtime
+            .db
+            .as_ref()
+            .map(|db| db.next_song_num())
+            .transpose()
+    })
+}
+
+/// `content` with `{meta: song_num=N}` after its `{title}` line, or first.
+fn with_song_num(content: &str, number: i64) -> String {
+    let directive = format!("{{meta: song_num={number}}}");
+    let newline = if content.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut lines: Vec<&str> = content.split(newline).collect();
+    let at = lines
+        .iter()
+        .position(|line| {
+            let line = line.trim_start().to_ascii_lowercase();
+            line.starts_with("{title:") || line.starts_with("{t:") || line.starts_with("{title ")
+        })
+        .map_or(0, |index| index + 1);
+    lines.insert(at, &directive);
+    lines.join(newline)
+}
+
+/// Writes a new song, `content` as it is: into the songs folder, or onto the
+/// song server and its offline copy.
+async fn add_song_text(
+    app: &AppHandle,
+    state: &AppState,
+    content: String,
+) -> Result<SongDetail, String> {
+    let (folder, folder_hash, target) = with_state(state, |runtime| {
         let target = match &runtime.config.server_library {
             Some(server) => SaveTarget::Server(server.url.clone()),
             None if runtime.read_only => return Err("Library is in read-only mode".into()),
@@ -369,35 +430,23 @@ pub async fn save_web_song(
             target,
         ))
     })?;
-    let mut parsed = parse_chordpro(&content, "web.pro");
-    // A new song gets the next free number, written into it like any other.
-    if parsed.meta.song_num.is_none() {
-        let next = with_state(&state, |runtime| {
-            runtime
-                .db
-                .as_ref()
-                .map(|db| db.next_song_num())
-                .transpose()
-        })?;
-        parsed.meta.song_num = next;
-    }
+    let parsed = parse_chordpro(&content, "new.pro");
     let slug = slugify(&parsed.meta.title);
     let stem = if slug.is_empty() {
-        "web-song".to_string()
+        "new-song".to_string()
     } else {
         slug
     };
     let number = parsed.meta.song_num.unwrap_or(0).max(0);
     let preferred = format!("{number:04}-{stem}.pro");
-    let serialized = serialize_chordpro(&parsed);
     let filename = match target {
-        SaveTarget::Folder => create_song_unique(&folder, &preferred, &serialized)?,
+        SaveTarget::Folder => create_song_unique(&folder, &preferred, &content)?,
         SaveTarget::Server(url) => {
-            server_library::add_song(&app, &url, &folder, &preferred, &serialized).await?
+            server_library::add_song(app, &url, &folder, &preferred, &content).await?
         }
     };
-    let saved = parse_chordpro(&serialized, &filename);
-    let index_error = with_state(&state, |runtime| {
+    let saved = parse_chordpro(&content, &filename);
+    let index_error = with_state(state, |runtime| {
         Ok(runtime
             .db
             .as_ref()
@@ -409,7 +458,7 @@ pub async fn save_web_song(
             "FILE_SAVED_INDEX_FAILED: File saved as {filename}, but the index must be updated: {error}"
         ));
     }
-    Ok(detail(saved, &theme_for(&app, folder_hash.as_ref())))
+    Ok(detail(saved, &theme_for(app, folder_hash.as_ref())))
 }
 
 #[tauri::command]
@@ -497,5 +546,16 @@ mod tests {
         )
         .expect("edit");
         assert_eq!(updated, "{start_of_verse}\nHi[G][D]\n{end_of_verse}");
+    }
+
+    #[test]
+    fn numbers_a_new_song_after_its_title_keeping_the_rest() {
+        assert_eq!(
+            with_song_num("{title: Ny}\n{meta: youtube https://youtu.be/x}\n[G]Ord", 12),
+            "{title: Ny}\n{meta: song_num=12}\n{meta: youtube https://youtu.be/x}\n[G]Ord"
+        );
+        assert_eq!(with_song_num("[G]Ord", 3), "{meta: song_num=3}\n[G]Ord");
+        let parsed = parse_chordpro(&with_song_num("{title: Ny}\nOrd", 7), "x.pro");
+        assert_eq!(parsed.meta.song_num, Some(7));
     }
 }

@@ -2774,34 +2774,163 @@ psa150-modal.duplicate-modal .modal-card-wide {
    Editor
    ───────────────────────────────────────────────────────────────────────────── */
 
-.editor {
-  flex: 1;
-  min-height: 320px;
-  resize: vertical;
-  font-family: var(--font-mono);
-  font-size: 0.84rem;
-  line-height: 1.6;
-  padding: 16px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-lg);
+/* ─────────────────────────────────────────────────────────────────────────────
+   Song editor (src/components/song-editor.ts)
+   The editor itself and its CSS are the song server's (src/shared/songs/,
+   songs.css). Here it takes the song pane's layout: the mode switch where
+   the title is, the editor's bar (section, details, Save) and Cancel in the
+   pane's toolbar, the song scrolling below.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* No tab bar or dock under the editor's floating bar (narrow windows). */
+  --tabbar-h: 0px;
+  --dock-h: 0px;
 }
 
-.edit-toolbar {
+psa150-song-editor {
+  display: contents;
+}
+
+/* The mode switch, as the console's toolbar groups look. */
+.song-editor-head .segmented.ce-modes {
+  width: auto;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.song-editor-head .segmented.ce-modes button {
+  min-height: 32px;
+  padding: 0 16px;
+  border: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.song-editor-head .segmented.ce-modes button.on {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.song-editor-dock {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
-  flex-wrap: wrap;
 }
 
-.edit-divider {
-  width: 1px;
-  height: 24px;
-  background: var(--border-default);
-  margin: 0 4px;
+/* The editor's bar, docked in the toolbar: compact like the song's buttons. */
+.song-editor-dock .ce-bar.docked {
+  gap: 2px;
+}
+
+.song-editor-dock .ce-bar.docked button {
+  height: 34px;
+  font-size: 0.85rem;
+}
+
+.song-editor-dock .ce-bar.docked .ce-bar-section {
+  min-width: 0;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.song-editor-dock .ce-bar.docked .ce-bar-section:not([hidden]) + .ce-bar-cog {
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.song-editor-dock .ce-bar.docked .ce-bar-cog {
+  width: 34px;
+}
+
+.song-editor-dock .ce-bar.docked button.ce-bar-save {
+  margin-left: 2px;
+  padding: 0 14px 0 11px;
+}
+
+.song-editor-page {
+  max-width: 880px;
+  padding: 24px 32px 48px;
+}
+
+/* ChordPro with its preview beside it takes the pane's width, and both fit
+   the pane's height under the header and the hint. */
+.song-editor-page:has(.ce[data-mode="code"]) {
+  max-width: none;
+}
+
+.song-editor-page .ce-code {
+  --ce-pane-h: max(320px, calc(100vh - 320px));
+}
+
+.song-editor-note {
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--psa-accent-soft);
+  font-size: 0.86rem;
+}
+
+.song-editor .form-message:not(:empty),
+.song-editor-page .form-message:not(:empty) {
+  margin-top: 16px;
+}
+
+/* ── Chords in the song pane (as the song server's reader shows them) ─────── */
+
+.song-line.with-chords {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.transpose-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+  padding: 0 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+}
+
+.transpose-value {
+  min-width: 2.4em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.song-action-btn.active {
+  color: var(--psa-accent-text);
+  background: var(--psa-accent-medium);
+}
+
+/* Recordings and the YouTube video under the song's title (song-media). */
+.song-content > .song-media {
+  margin: 4px 0 16px;
+}
+
+.new-song-btn {
+  flex: none;
+}
+
+.toast-action {
+  flex: none;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--psa-accent);
+  color: var(--psa-on-accent);
+  font-weight: 600;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

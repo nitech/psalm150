@@ -22,7 +22,7 @@ Church worship projection: a Tauri 2 desktop app (Rust core + Lit/TypeScript web
 
 # Operator console
 
-* [Operator console](concepts/operator-console.md) - Main window state, toolbar groups, the room chip, #key search, History/Favourites/Setlist views, setlist heart, song list columns and sorting, number-key stanza shortcuts, projecting mode, settings (including the room name and sharing)
+* [Operator console](concepts/operator-console.md) - Main window state, toolbar groups, the room chip, #key search, History/Favourites/Setlist views, setlist heart, song list columns and sorting, number-key stanza shortcuts, projecting mode, the shared song editor in the song pane, chords to click with sound, recordings and the YouTube pill, settings (including the room name and sharing)
 * [Performance sections](concepts/performance-sections.md) - Console-side mirror of chorus2 expansion; stanza markers that tie the song view to slides
 * [Ad hoc editing](concepts/adhoc-editing.md) - Fix a lyric while projecting; patch raw ChordPro without touching chords
 * [Setlists](concepts/setlists.md) - JSON setlists per library (local, or mirrors of the server's sets), the add-to-setlist menu, the Setlist view and Next song with the item's transpose

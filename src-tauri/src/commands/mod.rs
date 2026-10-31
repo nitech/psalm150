@@ -7,6 +7,7 @@ pub mod print_cmd;
 pub mod projection_cmd;
 pub mod remote_cmd;
 pub mod server_library;
+pub mod server_recordings;
 pub mod server_remote;
 pub mod server_sets;
 pub mod server_sign_in;

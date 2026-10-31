@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import type { RecordingLink, SongRecording } from "./shared/songs/song-media.ts";
 
 /** A new version, downloaded and verified, waiting to be installed. */
 export interface UpdateInfo {
@@ -360,6 +361,12 @@ export interface VsbSyncFinished {
   error: string | null;
 }
 
+/** A song of a server library, as the song server knows it. */
+export interface ServerSong {
+  server_url: string;
+  song_id: string;
+}
+
 export const api = {
   pickSongsFolder: async () => {
     const selected = await open({
@@ -418,6 +425,25 @@ export const api = {
   saveSongLines: (filename: string, expectedHash: string, edits: SongLineEdit[]) =>
     invoke<SongDetail>("save_song_lines", { filename, expectedHash, edits }),
   saveWebSong: (content: string) => invoke<SongDetail>("save_web_song", { content }),
+  /** A song from the song editor, its text kept as written. */
+  createSong: (content: string) => invoke<SongDetail>("create_song", { content }),
+  /** The song server's id for a file of a server library; null otherwise. */
+  songServerRef: (filename: string) => invoke<ServerSong | null>("song_server_ref", { filename }),
+  listSongRecordings: (songId: string) => invoke<SongRecording[]>("list_song_recordings", { songId }),
+  songRecordingLink: (songId: string, recordingId: string) =>
+    invoke<RecordingLink>("song_recording_link", { songId, recordingId }),
+  addSongRecording: async (songId: string, audio: Blob, durationMs: number | null) =>
+    invoke<SongRecording>("add_song_recording", new Uint8Array(await audio.arrayBuffer()), {
+      headers: {
+        "x-song-id": songId,
+        "content-type": audio.type || "audio/webm",
+        ...(durationMs === null ? {} : { "x-duration-ms": String(Math.round(durationMs)) }),
+      },
+    }),
+  deleteSongRecording: (songId: string, recordingId: string) =>
+    invoke<void>("delete_song_recording", { songId, recordingId }),
+  /** Opens a web page in the browser. */
+  openLink: (url: string) => invoke<void>("open_link", { url }),
   deleteSong: (filename: string) => invoke<RecoveryItem>("delete_song", { filename }),
   openAudienceWindow: () => invoke<void>("open_audience_window"),
   closeAudienceWindow: () => invoke<void>("close_audience_window"),

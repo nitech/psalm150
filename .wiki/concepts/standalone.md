@@ -31,7 +31,10 @@ share the code. Do not make the desktop call the server for it.
 
 - The server repo's `shared/` is canonical. `bun run sync:shared` mirrors it:
   `psa150-tokens.css` and `icons.ts` into `src/shared/`
-  ([design tokens](design-tokens.md)), and the `shared/lyrics` crate into
+  ([design tokens](design-tokens.md)), `shared/songs/` into
+  `src/shared/songs/` (the song editor, chord sheet and sound, recordings,
+  sheets and their CSS; set up by `src/song-host.ts`), the server's
+  `web/public/sounds/` into `public/sounds/`, and the `shared/lyrics` crate into
   `src-tauri/crates/psa150-lyrics/`, a Cargo path dependency.
 - Never edit a mirror. Change the server repo, then sync.
   `bun run check:shared` and the "Shared files" workflow fail on drift.

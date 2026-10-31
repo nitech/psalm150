@@ -3,6 +3,8 @@
 //
 //   shared/psa150-tokens.css, shared/icons.ts,
 //   shared/chord-match.ts                       →  src/shared/
+//   shared/songs/ (editor, chords, recordings)  →  src/shared/songs/
+//   web/public/sounds/ (the chord sounds)       →  public/sounds/
 //   shared/lyrics/ (the online song lookup)     →  src-tauri/crates/psa150-lyrics/
 //
 //   bun run sync:shared    copy the files from the server checkout
@@ -21,6 +23,8 @@ const check = process.argv.includes("--check");
 /** `files`: only these; without it, the whole folder (build output left out). */
 const MIRRORS = [
   { source: "shared", target: "src/shared", files: ["psa150-tokens.css", "icons.ts", "chord-match.ts"] },
+  { source: "shared/songs", target: "src/shared/songs" },
+  { source: "web/public/sounds", target: "public/sounds", binary: true },
   { source: "shared/lyrics", target: "src-tauri/crates/psa150-lyrics" },
 ];
 const SKIPPED = new Set(["target", "Cargo.lock"]);
@@ -30,8 +34,10 @@ if (!existsSync(join(serverDir, "shared"))) {
   process.exit(2);
 }
 
-// Compare text with LF endings so a Windows checkout matches CI.
-const read = (path) => (existsSync(path) ? readFileSync(path, "utf8").replace(/\r\n/g, "\n") : null);
+// Compare text with LF endings so a Windows checkout matches CI; sounds as they are.
+const readText = (path) => (existsSync(path) ? readFileSync(path, "utf8").replace(/\r\n/g, "\n") : null);
+const readBytes = (path) => (existsSync(path) ? readFileSync(path) : null);
+const same = (a, b) => (Buffer.isBuffer(a) && Buffer.isBuffer(b) ? a.equals(b) : a === b);
 
 function listFiles(dir) {
   if (!existsSync(dir)) return [];
@@ -47,8 +53,9 @@ const changes = [];
 for (const mirror of MIRRORS) {
   const sourceDir = join(serverDir, mirror.source);
   const targetDir = join(root, mirror.target);
+  const read = mirror.binary ? readBytes : readText;
   const files = mirror.files ?? listFiles(sourceDir).map((path) => relative(sourceDir, path));
-  const stale = files.filter((file) => read(join(sourceDir, file)) !== read(join(targetDir, file)));
+  const stale = files.filter((file) => !same(read(join(sourceDir, file)), read(join(targetDir, file))));
   // A whole-folder mirror also loses files the server no longer has.
   const extra = mirror.files
     ? []
