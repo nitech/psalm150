@@ -50,6 +50,13 @@ commands are real and tested but reachable only over IPC.
 | `save_song` | async; `filename, content, expectedHash` → `SongDetail`; rejects an external edit and refreshes an active song immediately; in a [server library](server-library.md) saves to the song server first | yes |
 | `save_song_lines` | async; `filename, expectedHash, edits[{sectionIndex,lineIndex,text}]` → `SongDetail`; Rust uses parser source-line mappings; server libraries as `save_song` | yes |
 | `save_web_song` | `content` → `SongDetail`; collision-free number/title filename | yes |
+| `create_song` | async; `content` → `SongDetail`; a song from the editor, text kept as written, number added when missing; folder or song server | yes |
+| `song_server_ref` | `filename` → `{server_url, song_id}` or null (not a server library, or not in the manifest) | yes |
+| `list_song_recordings` / `song_recording_link` / `delete_song_recording` | async; `songId[, recordingId]`; through the device token; the link is made absolute | yes |
+| `add_song_recording` | async; raw audio body, headers `x-song-id`, `content-type`, `x-duration-ms` | yes |
+| `pull_server_favorites` | async; server library: `GET /favorites` (the connecting person's), mapped through the manifest, replaces the local favourites → file names, or null outside a server library or on an older server | yes |
+| `push_server_favorite` | async; `filename, favorite` → `PUT`/`DELETE /favorites/{id}` for a server library song | yes |
+| `open_link` | `url` (http/https only) → opens it in the browser; the console sends `target=_blank` links here | yes |
 | `delete_song` | `filename` → `RecoveryItem`; blocks active and setlist-referenced files | yes |
 | `renumber_songs` | `plans[{from,to}]` → messages | no |
 | `compact_library` | → summary string (VACUUM + orphan count) | no |

@@ -324,14 +324,35 @@ In a server library the console shows this PC's
 - A name being typed is kept when a new `server-room` event arrives, unless
   it still matched the old name.
 
-## Edit modal
+## Song editor
 
-Raw ChordPro textarea: Save (`save_song`, raw text plus expected content hash;
-closes the editor on success; in a [server library](server-library.md) the
-save goes to the song server),
-recoverable Delete (with title and filename confirmation), Transpose plus/minus
-(`set_transpose`, active slides). An external file change rejects save and
-keeps the draft. Web results open here too, but there is no real file to edit.
+The song server's editor, the same code (`src/shared/songs/`, mirrored):
+Visual, Chords (place and drag chords, chord bubble, chord sound) and
+ChordPro with problems and a preview. `psa150-song-editor` takes the song
+pane's place while the list stays: the mode switch where the title is, the
+editor's bar (section, details cog, Save) and Cancel (×) in the pane's
+toolbar. Edit (pencil) opens the selected song; + beside the search opens a
+new song (`NEW_SONG_TEMPLATE`); the pencil on a web result opens it as a new
+song to check. Save: `save_song` for a song, `create_song` for a new one
+(text kept as written; a missing number becomes `{meta: song_num=N}` after
+the title). A failed save keeps the editor open with the error. Cancel, or
+choosing another song, asks first when the text changed (compared with the
+editor's own first output, since it tidies the file a little). Escape is the
+editor's own (chord bubble).
+
+## Chords, recordings and the words
+
+The chords button (title row, songs with chords) shows chords over the
+words (`chord-line.ts`, preference `console-chords`, off by default); each is
+a button that opens how to play it (shared chord sheet with guitar/piano
+diagrams and sound from `public/sounds/`). Lines with chords showing cannot
+be corrected in place. − key + transposes: the projection's transpose for the
+song on screen (`set_transpose`), else only this view. Recordings and the
+YouTube pill show under the title (shared `song-media`): the video from
+`{meta: youtube}` works without a server; recordings, recording (mic button
+until there is one) and deleting need a [server library](server-library.md)
+song and go through the device token. Copy copies the words only. Delete
+(trash) is the recoverable delete. The toast can carry a button (Undo).
 
 ## Toasts and bootstrap
 

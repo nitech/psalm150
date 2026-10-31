@@ -21,6 +21,7 @@ import {
   type RemoteStatus,
   type ServerLibraryConfig,
   type ServerRoom,
+  type ServerSong,
   type SetSyncReport,
   type ServerSyncProgress,
   type Setlist,
@@ -92,7 +93,21 @@ import "./modal";
 import "./song-list";
 import { isWebResultId, webResultId, webResultIndex } from "./song-list-ids";
 import { NO_ONLINE_SEARCH, ONLINE_SEARCH_MIN_CHARS, onlineSearchAfter, type OnlineSearch } from "../online-search";
+import "./song-editor";
+import type { Psa150SongEditor } from "./song-editor";
+import { chordSegments, lineHasChords } from "../chord-line";
+import { desktopRecordings, installSongModules } from "../song-host";
+import { NEW_SONG_TEMPLATE } from "../shared/songs/chord-editor.ts";
+import { copyText, readPreference, writePreference } from "../shared/songs/format.ts";
+import { canRecord, mountSongMedia, type SongMedia } from "../shared/songs/song-media.ts";
+import { prepareSong, songText } from "../shared/songs/song-preview.ts";
+import { transposeChord } from "../shared/songs/chordpro.ts";
+import type { ToastOptions } from "../shared/songs/host.ts";
 
+/** What the song editor is doing: changing a song, writing a new one, or checking one found online. */
+type EditorKind = "edit" | "new" | "web";
+/** The shared modules are set up once for the window. */
+let songModulesInstalled = false;
 /** What the browse pane lists: search results, or one of the toolbar views. */
 type BrowseMode = "search" | "history" | "favorites" | "setlist";
 /** The Settings check of the typed server URL. */
@@ -196,7 +211,16 @@ export class Psa150App extends Psa150Element {
     roomRenaming: { state: true },
     vsbProgress: { state: true },
     vsbSyncing: { state: true },
-    editorValue: { state: true },
+    editorSource: { state: true },
+    editorKind: { state: true },
+    editorNote: { state: true },
+    editorBusy: { state: true },
+    editorError: { state: true },
+    showChords: { state: true },
+    viewTranspose: { state: true },
+    serverSong: { state: true },
+    hasRecordings: { state: true },
+    toastAction: { state: true },
     settingsOpen: { state: true },
     activeSettingsSection: { state: true },
     settingsQuery: { state: true },
@@ -286,7 +310,21 @@ export class Psa150App extends Psa150Element {
   declare roomRenaming: boolean;
   declare vsbProgress: VsbSyncProgress | null;
   declare vsbSyncing: boolean;
-  declare editorValue: string;
+  /** The song editor (shared with the song server's web client) is open while `editOpen`. */
+  declare editorSource: string;
+  declare editorKind: EditorKind;
+  declare editorNote: TemplateResult | null;
+  declare editorBusy: boolean;
+  declare editorError: string;
+  /** Chords over the words in the song pane, each a button that shows how to play it. */
+  declare showChords: boolean;
+  /** Transposing the chords of a song that is not on screen: only what this view shows. */
+  declare viewTranspose: number;
+  /** The selected song on the song server, for its recordings; null outside a server library. */
+  declare serverSong: ServerSong | null;
+  declare hasRecordings: boolean;
+  /** A button in the toast, such as Undo. */
+  declare toastAction: { label: string; run: () => void } | null;
   declare settingsOpen: boolean;
   declare activeSettingsSection: SettingsSectionId;
   declare settingsQuery: string;
@@ -366,6 +404,10 @@ export class Psa150App extends Psa150Element {
   private projectionStructure = "";
   private selectionGeneration = 0;
   private activeSelectionId: string | null = null;
+  /** The recordings and video pills under the song's title (shared song-media). */
+  private songMedia: SongMedia | null = null;
+  private songMediaKey = "";
+  private mediaHolder = Object.assign(document.createElement("div"), { className: "song-media", hidden: true });
 
   constructor() {
     super();
@@ -410,7 +452,16 @@ export class Psa150App extends Psa150Element {
     this.roomRenaming = false;
     this.vsbProgress = null;
     this.vsbSyncing = false;
-    this.editorValue = "";
+    this.editorSource = "";
+    this.editorKind = "edit";
+    this.editorNote = null;
+    this.editorBusy = false;
+    this.editorError = "";
+    this.showChords = readPreference("console-chords") === "on";
+    this.viewTranspose = 0;
+    this.serverSong = null;
+    this.hasRecordings = true;
+    this.toastAction = null;
     this.settingsOpen = false;
     this.activeSettingsSection = "library";
     this.settingsQuery = "";
@@ -468,6 +519,10 @@ export class Psa150App extends Psa150Element {
     window.addEventListener("focusin", this.stanzaNumberInput.reset);
     window.addEventListener("pointerdown", this.stanzaNumberInput.reset);
     document.addEventListener("pointerdown", this.onDocumentPointerDown);
+    if (!songModulesInstalled) {
+      songModulesInstalled = true;
+      installSongModules((message, options) => this.showSongToast(message, options));
+    }
     void getCurrentWebviewWindow().setFocus();
     void this.initWindowChrome();
     void this.init();
@@ -580,6 +635,7 @@ export class Psa150App extends Psa150Element {
     document.removeEventListener("pointerdown", this.onDocumentPointerDown);
     void this.unlistenImport?.();
     void this.unlistenServerSync?.();
+    this.songMedia?.cleanup();
   }
 
   firstUpdated() {
@@ -602,6 +658,10 @@ export class Psa150App extends Psa150Element {
       if (this.isProjectionActive()) {
         requestAnimationFrame(() => this.scrollActiveStanzaIntoView());
       }
+    }
+    if (changed.has("currentSong") || changed.has("currentFilename") || changed.has("serverLibrary")) {
+      // After this update, since it sets state of its own.
+      queueMicrotask(() => void this.syncSongMedia());
     }
   }
 
@@ -896,9 +956,7 @@ export class Psa150App extends Psa150Element {
   }
 
   private async confirmDiscardPendingEdits(): Promise<boolean> {
-    const fullEditChanged = Boolean(
-      this.editOpen && this.currentSong && this.editorValue !== this.currentSong.parsed.raw,
-    );
+    const fullEditChanged = this.editorChanged();
     if (!fullEditChanged && !hasPendingEdits(this.adhocPendingEdits)) return true;
     const save = await confirm(
       "This song has unsaved corrections. Save them before continuing?",
@@ -930,9 +988,12 @@ export class Psa150App extends Psa150Element {
   private async selectSong(file: string) {
     if (file === this.currentFilename) return;
     if (!(await this.confirmDiscardPendingEdits())) return;
+    // Another song leaves the editor (asked above when it had changes).
+    this.editOpen = false;
     const generation = ++this.selectionGeneration;
     this.resetAdhocEdits();
     this.currentFilename = file;
+    this.viewTranspose = 0;
     if (isWebResultId(file)) {
       const candidate = this.webResults[webResultIndex(file)];
       if (!candidate) {
@@ -1055,38 +1116,137 @@ export class Psa150App extends Psa150Element {
 
   // ── Editing ────────────────────────────────────────────────────────────
 
+  /**
+   * The song editor, the same as the song server's web client: Visual,
+   * Chords and ChordPro with its preview. Edits the selected song; a song
+   * found online opens as a new song to check and save.
+   */
   private openEdit() {
-    if (!this.currentSong) return;
+    if (!this.currentSong || !this.currentFilename) return;
     if (hasPendingEdits(this.adhocPendingEdits)) {
-      this.showToast("Save or discard the inline corrections before opening the raw editor", "info");
+      this.showToast("Save or discard the inline corrections before opening the editor", "info");
       return;
     }
-    this.editorValue = this.currentSong.parsed.raw;
-    this.editOpen = true;
-    requestAnimationFrame(() => this.querySelector<HTMLTextAreaElement>("#editor")?.focus());
+    if (isWebResultId(this.currentFilename)) {
+      this.openWebDraft();
+      return;
+    }
+    if (!this.songEditsAllowed()) {
+      this.showToast("Library is read-only", "error");
+      return;
+    }
+    this.openEditor("edit", this.currentSong.parsed.raw, null);
   }
 
-  private async saveSong(): Promise<boolean> {
+  private openNewSong() {
+    if (!this.songEditsAllowed() || !this.libraryStatus?.songs_folder) {
+      this.showToast(this.libraryStatus?.songs_folder ? "Library is read-only" : "Choose a songs folder first", "error");
+      return;
+    }
+    this.openEditor("new", NEW_SONG_TEMPLATE, null);
+  }
+
+  /** A song found online, in the editor to check before it is saved to the library. */
+  private openWebDraft() {
+    if (!this.currentFilename || !isWebResultId(this.currentFilename)) return;
+    const candidate = this.webResults[webResultIndex(this.currentFilename)];
+    if (!candidate) return;
+    if (!this.songEditsAllowed()) {
+      this.showToast("Library is read-only", "error");
+      return;
+    }
+    this.openEditor("web", candidate.chordpro_content, html`Found on
+      <a href=${candidate.source_url} target="_blank" rel="noopener noreferrer">${candidate.source_name}</a>.
+      Check the words and chords, then save to add it to the library.`);
+  }
+
+  private openEditor(kind: EditorKind, source: string, note: TemplateResult | null) {
+    this.editorKind = kind;
+    this.editorSource = source;
+    this.editorNote = note;
+    this.editorError = "";
+    this.editorBusy = false;
+    this.editOpen = true;
+  }
+
+  /** The editor's text as it is now, or null while it is closed. */
+  private editorText(): string | null {
+    if (!this.editOpen) return null;
+    return this.querySelector<Psa150SongEditor>("psa150-song-editor")?.currentSource() ?? this.editorSource;
+  }
+
+  private editorChanged(): boolean {
+    return this.editOpen && Boolean(this.querySelector<Psa150SongEditor>("psa150-song-editor")?.changed());
+  }
+
+  /** Back in the editor: asks first when there are changes. */
+  private async closeEditor() {
+    if (this.editorChanged()) {
+      const leave = await confirm("Leave the editor without saving your changes?", {
+        title: "Unsaved changes",
+        kind: "warning",
+        okLabel: "Leave",
+        cancelLabel: "Keep editing",
+      });
+      if (!leave) return;
+    }
+    this.editOpen = false;
+  }
+
+  private async saveSong(source = this.editorText()): Promise<boolean> {
+    if (source === null) return false;
+    if (this.editorKind !== "edit") return this.saveNewSong(source);
     if (!this.currentSong || !this.currentFilename || isWebResultId(this.currentFilename)) return false;
+    this.editorBusy = true;
+    this.editorError = "";
     try {
-      this.currentSong = await api.saveSong(
-        this.currentFilename,
-        this.editorValue,
-        this.currentSong.content_hash,
-      );
-      this.editorValue = this.currentSong.parsed.raw;
+      this.currentSong = await api.saveSong(this.currentFilename, source, this.currentSong.content_hash);
       this.editOpen = false;
       this.showToast(this.serverLibrary ? "Song saved to the song server" : "Song saved", "success");
       await this.refreshSongs();
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.includes("FILE_SAVED_INDEX_FAILED")) {
+      const saved = message.includes("FILE_SAVED_INDEX_FAILED");
+      if (saved) {
         this.currentSong = await api.loadSong(this.currentFilename).catch(() => this.currentSong);
-        if (this.currentSong) this.editorValue = this.currentSong.parsed.raw;
+        this.editOpen = false;
+        this.showToast(message, "error");
+      } else {
+        // The editor stays open with the text, so nothing typed is lost.
+        this.editorError = message;
       }
-      this.showToast(message, "error");
-      return message.includes("FILE_SAVED_INDEX_FAILED");
+      return saved;
+    } finally {
+      this.editorBusy = false;
+    }
+  }
+
+  /** A new song, or one found online, from the editor: its text kept as written. */
+  private async saveNewSong(source: string): Promise<boolean> {
+    this.editorBusy = true;
+    this.editorError = "";
+    try {
+      const saved = await api.createSong(source);
+      this.editOpen = false;
+      await this.refreshLibraryStatus();
+      await this.refreshSongs();
+      this.currentSong = saved;
+      this.currentFilename = saved.parsed.meta.filename as string;
+      this.showToast(this.serverLibrary ? "Song added to the song server" : "Song added", "success");
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("FILE_SAVED_INDEX_FAILED")) {
+        this.editOpen = false;
+        await this.refreshSongs();
+        this.showToast(message, "error");
+        return true;
+      }
+      this.editorError = message;
+      return false;
+    } finally {
+      this.editorBusy = false;
     }
   }
 
@@ -2212,11 +2372,25 @@ export class Psa150App extends Psa150Element {
 
   // ── Favourites ─────────────────────────────────────────────────────────
 
+  /**
+   * A server library takes its favourites from the song server (the same
+   * star as the web client's); a folder library keeps its own.
+   */
   private async refreshFavorites() {
     try {
       this.favoriteFiles = new Set(await api.listFavorites());
     } catch {
       this.favoriteFiles = new Set();
+    }
+    if (!this.serverLibrary) return;
+    try {
+      const pulled = await api.pullServerFavorites();
+      if (pulled) {
+        this.favoriteFiles = new Set(pulled);
+        if (this.browseMode === "favorites") await this.refreshSongs();
+      }
+    } catch {
+      // Offline: the favourites from last time stay.
     }
   }
 
@@ -2228,6 +2402,10 @@ export class Psa150App extends Psa150Element {
       else next.delete(filename);
       this.favoriteFiles = next;
       this.showToast(favorite ? "Added to favourites" : "Removed from favourites", favorite ? "success" : "info");
+      if (this.serverLibrary) {
+        void api.pushServerFavorite(filename, favorite).catch((err) =>
+          this.showToast(`The favourite is kept on this PC only: ${err instanceof Error ? err.message : String(err)}`, "error"));
+      }
       await this.refreshSongs();
     } catch (err) {
       this.showToast(err instanceof Error ? err.message : String(err), "error");
@@ -2312,7 +2490,8 @@ export class Psa150App extends Psa150Element {
   // ── Toast ──────────────────────────────────────────────────────────────
 
   private anyModalOpen(): boolean {
-    return this.editOpen || this.settingsOpen || this.importOpen ||
+    // The song editor is not one: it sits in the song pane, beside the list.
+    return this.settingsOpen || this.importOpen ||
       this.importReportOpen || this.duplicatesOpen || this.chordsOpen;
   }
 
@@ -2322,9 +2501,10 @@ export class Psa150App extends Psa150Element {
    * other messages stay long enough to read (longer for long text) and never
    * vanish while the pointer or focus is on them (WCAG 2.2.1).
    */
-  private showToast(msg: string, tone: ToastTone = "info") {
+  private showToast(msg: string, tone: ToastTone = "info", action: { label: string; run: () => void } | null = null) {
     this.toastMsg = msg;
     this.toastTone = tone;
+    this.toastAction = action;
     this.toastVisible = true;
     this.announce(msg, tone === "error");
     this.scheduleToastHide();
@@ -2334,13 +2514,19 @@ export class Psa150App extends Psa150Element {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = null;
     if (this.toastHeld || this.toastTone === "error") return;
-    const duration = Math.max(5000, 2000 + this.toastMsg.length * 60);
+    // Long enough to reach a button such as Undo.
+    const duration = Math.max(this.toastAction ? 10_000 : 5000, 2000 + this.toastMsg.length * 60);
     this.toastTimer = setTimeout(() => (this.toastVisible = false), duration);
   }
 
   private holdToast(held: boolean) {
     this.toastHeld = held;
     this.scheduleToastHide();
+  }
+
+  /** A toast from the song modules shared with the song server (src/shared/songs/). */
+  private showSongToast(message: string, options: ToastOptions) {
+    this.showToast(message, options.error ? "error" : "info", options.action ?? null);
   }
 
   private dismissToast() {
@@ -2480,6 +2666,9 @@ export class Psa150App extends Psa150Element {
 
   private onGlobalKeydown = async (event: KeyboardEvent) => {
     const target = event.target;
+    // A sheet of the shared song modules (how to play a chord, the recorder)
+    // takes the keys while it is open; Escape closes it, not the projection.
+    if (document.querySelector("dialog.sheet[open]")) return;
     const digit = /^[0-9]$/.test(event.key);
     const numberShortcut = digit && this.stanzaNumberKeys &&
       !event.ctrlKey && !event.metaKey && !event.altKey &&
@@ -2508,10 +2697,8 @@ export class Psa150App extends Psa150Element {
         this.exitAdhocEdit();
         return;
       }
-      if (this.editOpen) {
-        this.editOpen = false;
-        return;
-      }
+      // The editor uses Escape itself (to close its chord bubble); Back leaves it.
+      if (this.editOpen) return;
       if (this.chordsOpen) {
         this.closeChords();
         return;
@@ -2789,13 +2976,6 @@ export class Psa150App extends Psa150Element {
         @psa150-close=${() => (this.duplicatesOpen = false)}
       ></psa150-modal>
       <psa150-modal
-        heading=${(this.currentSong?.parsed.meta.title as string) || "Edit song"}
-        variant="tall"
-        ?open=${this.editOpen}
-        .content=${this.renderEditContent()}
-        @psa150-close=${() => (this.editOpen = false)}
-      ></psa150-modal>
-      <psa150-modal
         heading="Chords from the web"
         variant="tall"
         ?open=${this.chordsOpen}
@@ -2834,7 +3014,13 @@ export class Psa150App extends Psa150Element {
       @mouseleave=${() => this.holdToast(false)}
       @focusin=${() => this.holdToast(true)}
       @focusout=${() => this.holdToast(false)}
-    ><span>${this.toastMsg}</span>${this.toastTone === "error"
+    ><span>${this.toastMsg}</span>${this.toastAction
+      ? html`<button class="toast-action" type="button" @click=${() => {
+          const action = this.toastAction;
+          this.dismissToast();
+          action?.run();
+        }}>${this.toastAction.label}</button>`
+      : nothing}${this.toastTone === "error"
       ? html`<button class="toast-dismiss" type="button" aria-label="Dismiss message" @click=${() => this.dismissToast()}>×</button>`
       : nothing}</div>`;
   }
@@ -3109,6 +3295,15 @@ export class Psa150App extends Psa150Element {
               `
             : nothing}
         </form>
+        ${this.songEditsAllowed()
+          ? html`<button
+              type="button"
+              class="song-action-btn new-song-btn"
+              title="New song"
+              aria-label="New song"
+              @click=${() => this.openNewSong()}
+            >${icon("plus")}</button>`
+          : nothing}
       </div>
     `;
   }
@@ -3167,6 +3362,21 @@ export class Psa150App extends Psa150Element {
   }
 
   private renderSongPane() {
+    if (this.editOpen) {
+      return html`
+        <section class="song-pane editing" aria-labelledby="song-title">
+          <psa150-song-editor
+            .heading=${this.editorHeading()}
+            .source=${this.editorSource}
+            .note=${this.editorNote}
+            .busy=${this.editorBusy}
+            .error=${this.editorError}
+            @psa150-save=${(event: CustomEvent<{ source: string }>) => void this.saveSong(event.detail.source)}
+            @psa150-close=${() => void this.closeEditor()}
+          ></psa150-song-editor>
+        </section>
+      `;
+    }
     return html`
       <section class="song-pane ${this.projecting ? "projecting" : ""}" aria-labelledby="song-title">
         <header class="song-pane-header">
@@ -3191,6 +3401,7 @@ export class Psa150App extends Psa150Element {
                     ${this.renderSongSecondaryMeta()}
                   </div>`
                 : nothing}
+              ${this.mediaHolder}
               ${this.renderSongContent()}
             </div>
             ${this.renderStanzaOrder()}
@@ -3449,7 +3660,7 @@ export class Psa150App extends Psa150Element {
     if (!hasNum && !hasKey) return nothing;
     return html`
       ${hasNum ? html`<span class="song-title-meta-num">#${meta.song_num}</span>` : nothing}
-      ${hasKey ? html`<span class="song-title-meta-key">${meta.key}</span>` : nothing}
+      ${hasKey ? html`<span class="song-title-meta-key">${transposeChord(String(meta.key), this.displayTranspose())}</span>` : nothing}
     `;
   }
 
@@ -3460,13 +3671,53 @@ export class Psa150App extends Psa150Element {
     const favorite = Boolean(filename && this.favoriteFiles.has(filename));
     return html`
       <div class="toolbar-group song-actions" role="group" aria-label="Song">
+        ${this.songHasChords()
+          ? html`
+              ${this.showChords ? this.renderTransposeStepper() : nothing}
+              <button
+                type="button"
+                class="song-action-btn ${this.showChords ? "active" : ""}"
+                title=${this.showChords ? "Hide chords" : "Show chords (click a chord to see and hear how to play it)"}
+                aria-label="Chords"
+                aria-pressed=${this.showChords ? "true" : "false"}
+                @click=${() => this.toggleChords()}
+              >${icon("chordChart")}</button>
+            `
+          : nothing}
+        ${this.serverSong && canRecord() && this.canAdhocEdit() && !this.hasRecordings
+          ? html`<button
+              type="button"
+              class="song-action-btn"
+              title="Record how it is played"
+              aria-label="Record how it is played"
+              @click=${() => this.songMedia?.record()}
+            >${icon("mic")}</button>`
+          : nothing}
         <button
           type="button"
           class="song-action-btn"
-          title="Edit the ChordPro source"
-          aria-label="Edit the ChordPro source"
-          @click=${() => this.openEdit()}
-        >${icon("edit")}</button>
+          title="Copy the words"
+          aria-label="Copy the words"
+          @click=${() => void this.copyWords()}
+        >${icon("copy")}</button>
+        ${this.songEditsAllowed()
+          ? html`<button
+              type="button"
+              class="song-action-btn"
+              title=${this.currentFilename && isWebResultId(this.currentFilename) ? "Check and add to the library" : "Edit song"}
+              aria-label=${this.currentFilename && isWebResultId(this.currentFilename) ? "Check and add to the library" : "Edit song"}
+              @click=${() => this.openEdit()}
+            >${icon("edit")}</button>`
+          : nothing}
+        ${this.canAdhocEdit()
+          ? html`<button
+              type="button"
+              class="song-action-btn"
+              title="Delete song"
+              aria-label="Delete song"
+              @click=${() => void this.deleteSong()}
+            >${icon("trash")}</button>`
+          : nothing}
         ${this.songLacksChords()
           ? html`<button
               type="button"
@@ -3491,6 +3742,108 @@ export class Psa150App extends Psa150Element {
           : nothing}
       </div>
     `;
+  }
+
+  // ── Chords, recordings and the words (shared with the song server) ────────
+
+  private songHasChords(): boolean {
+    return Boolean(this.currentSong?.parsed.sections.some((section) => section.lines.some(lineHasChords)));
+  }
+
+  private toggleChords() {
+    this.showChords = !this.showChords;
+    writePreference("console-chords", this.showChords ? "on" : null);
+    if (this.showChords) this.exitAdhocEdit();
+  }
+
+  /**
+   * How far the chords in the song pane are moved: the projection's
+   * transpose for the song on screen (what the stage display shows), else
+   * this view's own.
+   */
+  private displayTranspose(): number {
+    if (this.selectedSongIsActive() && this.projection) return this.projection.transpose_semitones;
+    return this.viewTranspose;
+  }
+
+  private async stepTranspose(delta: number) {
+    if (this.selectedSongIsActive() && this.projection) {
+      await this.transpose(delta);
+      return;
+    }
+    let next = this.viewTranspose + delta;
+    if (next > 11) next -= 12;
+    if (next < -11) next += 12;
+    this.viewTranspose = next;
+  }
+
+  /** − key +, beside the chords switch while the chords show. */
+  private renderTransposeStepper() {
+    const steps = this.displayTranspose();
+    const key = this.currentSong?.parsed.meta.key as string | undefined;
+    const value = key ? transposeChord(key, steps) : steps ? `${steps > 0 ? "+" : ""}${steps}` : "±0";
+    const spoken = key ? `key ${value}` : steps ? `transposed ${value}` : "not transposed";
+    return html`<div class="transpose-stepper" role="group" aria-label="Transpose">
+      <button type="button" class="song-action-btn" title="Down a semitone" aria-label="Transpose down" @click=${() => void this.stepTranspose(-1)}>${icon("minus")}</button>
+      <span class="transpose-value" aria-live="polite" aria-label=${spoken}>${value}</span>
+      <button type="button" class="song-action-btn" title="Up a semitone" aria-label="Transpose up" @click=${() => void this.stepTranspose(1)}>${icon("plus")}</button>
+    </div>`;
+  }
+
+  /** The words alone, as the song server's Copy does: no labels, chords or comments. */
+  private async copyWords() {
+    if (!this.currentSong) return;
+    const text = songText(prepareSong(this.currentSong.parsed.raw, 0));
+    if (!text) {
+      this.showToast("This song has no words to copy");
+      return;
+    }
+    const copied = await copyText(text);
+    this.showToast(copied ? "Words copied" : "The words could not be copied", copied ? "info" : "error");
+  }
+
+  /** A lyric line with its chords over the words, each chord a button (chord-viewer). */
+  private renderChordLine(line: LyricLine) {
+    const transpose = this.displayTranspose();
+    return html`<div class="song-line with-chords">${chordSegments(line, transpose).map((segment) => html`<span class="seg">${segment.chord
+      ? html`<button type="button" class="ch" data-chord=${segment.chord} aria-label="${segment.chord}, how to play it">${segment.chord}</button>`
+      : html`<span class="ch"></span>`}<span class="ly">${segment.text || (segment.chord ? " " : "")}</span></span>`)}</div>`;
+  }
+
+  /**
+   * Recordings and the YouTube video, as pills under the title (the shared
+   * song-media module). The video works without a song server; recordings
+   * come from it for songs of a server library. Kept across redraws, so a
+   * recording playing goes on playing; mounted again when the song or its
+   * text changes.
+   */
+  private async syncSongMedia() {
+    const song = this.currentSong;
+    const filename = this.currentFilename;
+    const key = song && filename && !isWebResultId(filename) ? `${filename}\u0000${song.content_hash}` : "";
+    if (key === this.songMediaKey) return;
+    this.songMediaKey = key;
+    this.songMedia?.cleanup();
+    this.songMedia = null;
+    this.mediaHolder.replaceChildren();
+    this.mediaHolder.hidden = true;
+    this.hasRecordings = true;
+    if (!song || !filename || !key) {
+      this.serverSong = null;
+      return;
+    }
+    const serverSong = this.serverLibrary ? await api.songServerRef(filename).catch(() => null) : null;
+    if (key !== this.songMediaKey) return;
+    this.serverSong = serverSong;
+    const recordings = serverSong
+      ? desktopRecordings(this.canAdhocEdit())
+      : { ...desktopRecordings(false), list: async () => [] };
+    this.songMedia = mountSongMedia(
+      recordings,
+      { id: serverSong?.song_id ?? "", title: (song.parsed.meta.title as string) || "Untitled", chordpro: song.parsed.raw },
+      this.mediaHolder,
+      (has) => (this.hasRecordings = has),
+    );
   }
 
   private renderSetlistButton(filename: string) {
@@ -3760,6 +4113,8 @@ export class Psa150App extends Psa150Element {
                 @click=${(event: Event) => {
                   if (slideIndex == null) return;
                   if (editable && (event.target as HTMLElement).closest(".song-lyric-editable")) return;
+                  // A chord shows how to play it; it does not change the stanza on screen.
+                  if ((event.target as HTMLElement).closest("button.ch")) return;
                   void this.jumpToStanza(slideIndex);
                 }}
               >
@@ -3838,6 +4193,9 @@ export class Psa150App extends Psa150Element {
     blockKey: string,
     canEdit: boolean,
   ) {
+    // With the chords showing, a line reads like the song server's reader;
+    // corrections are made with the chords hidden.
+    if (this.showChords && this.songHasChords()) return this.renderChordLine(line);
     const text = this.displayLineText(provenance, line.text);
     if (!canEdit) {
       return html`<div class="song-line"><div class="song-lyrics">${text || "\u00a0"}</div></div>`;
@@ -4160,25 +4518,10 @@ export class Psa150App extends Psa150Element {
     });
   }
 
-  private renderEditContent(): TemplateResult {
-    return html`
-      <textarea
-        id="editor"
-        class="editor"
-        aria-label="ChordPro source"
-        spellcheck="false"
-        placeholder="ChordPro content…"
-        .value=${this.editorValue}
-        @input=${(e: Event) => (this.editorValue = (e.target as HTMLTextAreaElement).value)}
-      ></textarea>
-      <div class="edit-toolbar">
-        <button class="primary compact" @click=${() => this.saveSong()}>Save</button>
-        <button class="secondary compact" @click=${() => this.deleteSong()}>Delete</button>
-        <span class="edit-divider"></span>
-        <button class="ghost compact" @click=${() => this.transpose(1)}>Transpose +</button>
-        <button class="ghost compact" @click=${() => this.transpose(-1)}>Transpose −</button>
-      </div>
-    `;
+  private editorHeading(): string {
+    if (this.editorKind === "new") return "New song";
+    if (this.editorKind === "web") return "Add song";
+    return `Edit ${(this.currentSong?.parsed.meta.title as string) || "song"}`;
   }
 
   private renderImportContent(): TemplateResult {

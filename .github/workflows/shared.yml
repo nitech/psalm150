@@ -1,6 +1,6 @@
 name: Shared files
 
-# Fails when src/shared/ or src-tauri/crates/psa150-lyrics/ drifts from the
+# Fails when src/shared/, public/sounds/ or src-tauri/crates/psa150-lyrics/ drift from the
 # song server's shared/ folder.
 # The server repo is private, so this needs a PSA150_SERVER_DEPLOY_KEY secret:
 # the private half of a read-only deploy key on nitech/PSA150-server.
@@ -28,7 +28,9 @@ jobs:
           repository: nitech/PSA150-server
           ssh-key: ${{ env.SERVER_KEY }}
           path: server
-          sparse-checkout: shared
+          sparse-checkout: |
+            shared
+            web/public/sounds
 
       - name: Compare the mirrors with the server
         if: env.SERVER_KEY != ''
