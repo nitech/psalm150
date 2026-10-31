@@ -397,3 +397,22 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 @keyframes recording-pulse { 50% { opacity: 0.25; } }
 @media (prefers-reduced-motion: reduce) { .recorder-time.live::before { animation: none; } }
 .button.primary.recording, .button.primary.recording:hover:not(:disabled) { background: var(--psa-danger); color: var(--psa-on-danger); }
+/* Recording, collapsed to a card at the bottom like the current set's
+   (in the web client's dock; elsewhere floating), while the page stays in
+   use: the clock with its red dot, the waveform, Stop and ⌃ to open it. */
+.recorder-card {
+  display: flex; align-items: center; gap: var(--psa-space-2); min-height: 56px; padding: 6px 6px 6px 14px;
+  border: 1px solid var(--psa-danger); border-radius: var(--psa-radius-lg);
+  background: color-mix(in srgb, var(--psa-bg-elevated) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.8); -webkit-backdrop-filter: blur(18px) saturate(1.8);
+  box-shadow: var(--psa-shadow-md); color: var(--psa-text);
+}
+.recorder-card.floating { position: fixed; z-index: 62; left: 50%; bottom: calc(var(--tabbar-h, 0px) + var(--dock-h, 0px) + 12px); width: min(560px, calc(100vw - 24px)); transform: translateX(-50%); }
+.recorder-card [hidden] { display: none !important; }
+.recorder-card .recorder-stage { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--psa-space-3); cursor: pointer; }
+.recorder-card .recorder-time { order: -1; flex: none; font-size: 18px; }
+.recorder-card .recorder-time.live::before { width: 10px; height: 10px; margin-right: 8px; }
+.recorder-card .recorder-wave { flex: 1; min-width: 0; height: 28px; gap: 2px; }
+.recorder-card .recorder-wave span { flex-basis: 3px; }
+.recorder-card #rec-toggle { display: inline-flex; width: auto; flex: none; min-height: 40px; padding: 0 16px; }
+.recorder-card-open .icon { transform: none; }

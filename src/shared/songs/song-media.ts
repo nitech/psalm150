@@ -386,6 +386,59 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
   let counting = 0;
   let stopWave: (() => void) | null = null;
   let releaseScreen: (() => void) | null = null;
+  /** While recording, the sheet is a small card at the bottom instead. */
+  let card: HTMLElement | null = null;
+  const recorderEl = sheet.querySelector<HTMLElement>(".recorder")!;
+
+  /**
+   * Recording: the sheet gives way to a card at the bottom (in the web
+   * client's dock, above the current set) with the clock, the waveform and
+   * Stop, so the song can be read and scrolled while it records. Closing the
+   * sheet while recording does the same.
+   */
+  const collapse = (closing = false) => {
+    if (card || state !== "recording") return;
+    card = document.createElement("div");
+    card.className = "recorder-card";
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", `Recording ${song.title}`);
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "icon-button small ghost recorder-card-open";
+    open.setAttribute("aria-label", "Open the recorder");
+    open.title = "Open the recorder";
+    open.innerHTML = icon("up");
+    open.addEventListener("click", expand);
+    card.append(stage, toggle, open);
+    const dock = document.querySelector<HTMLElement>("#dock");
+    if (dock) dock.prepend(card);
+    else {
+      card.classList.add("floating");
+      document.body.append(card);
+    }
+    if (!closing) closeSheet(sheet);
+    toggle.focus({ preventScroll: true });
+    announce("Still recording. Stop it from the card at the bottom.");
+  };
+
+  /** The card opens into the sheet again (to stop and listen, or by its ⌃). */
+  function expand(): void {
+    if (!card) return;
+    // Wait for the sheet to finish closing before it opens again.
+    if (sheet.open) {
+      sheet.addEventListener("close", expand, { once: true });
+      return;
+    }
+    recorderEl.prepend(stage);
+    stage.after(toggle);
+    card.remove();
+    card = null;
+    sheet.classList.remove("leaving");
+    sheet.style.transform = "";
+    document.body.append(sheet);
+    sheet.showModal();
+  }
+  stage.addEventListener("click", () => { if (card) expand(); });
 
   const setStage = (next: typeof state) => {
     state = next;
@@ -424,6 +477,9 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
       durationMs = Date.now() - startedAt;
       letGo();
       recording = new Blob(chunks, { type: recorder?.mimeType || mimeType || "audio/webm" });
+      // Stopped from the card: the sheet comes back to listen and save.
+      setStage("done");
+      expand();
       if (!sheet.open) return;
       setStage("done");
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -444,6 +500,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     toggle.innerHTML = `${icon("stop")}Stop`;
     toggle.classList.add("recording");
     announce("Recording");
+    collapse();
   };
 
   /** Opens the microphone, shows it in the waveform, and counts 3, 2, 1. */
@@ -524,6 +581,13 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
   });
 
   sheet.addEventListener("close", () => {
+    // Closed while recording (or collapsing to the card): it goes on in the card.
+    if (state === "recording") {
+      collapse(true);
+      return;
+    }
+    // Stopped from the card while the sheet was still closing: it opens again.
+    if (card) return;
     if (recorder?.state === "recording") recorder.stop();
     letGo();
     preview.pause();
