@@ -301,6 +301,8 @@ pub fn run() {
             commands::server_recordings::add_song_recording,
             commands::server_recordings::delete_song_recording,
             commands::server_recordings::open_link,
+            commands::server_recordings::pull_server_favorites,
+            commands::server_recordings::push_server_favorite,
             commands::web_search_cmd::search_web_songs,
             commands::vsb_sync_cmd::set_vsb_database,
             commands::vsb_sync_cmd::sync_vsb_database,

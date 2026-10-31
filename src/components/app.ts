@@ -2372,11 +2372,25 @@ export class Psa150App extends Psa150Element {
 
   // ── Favourites ─────────────────────────────────────────────────────────
 
+  /**
+   * A server library takes its favourites from the song server (the same
+   * star as the web client's); a folder library keeps its own.
+   */
   private async refreshFavorites() {
     try {
       this.favoriteFiles = new Set(await api.listFavorites());
     } catch {
       this.favoriteFiles = new Set();
+    }
+    if (!this.serverLibrary) return;
+    try {
+      const pulled = await api.pullServerFavorites();
+      if (pulled) {
+        this.favoriteFiles = new Set(pulled);
+        if (this.browseMode === "favorites") await this.refreshSongs();
+      }
+    } catch {
+      // Offline: the favourites from last time stay.
     }
   }
 
@@ -2388,6 +2402,10 @@ export class Psa150App extends Psa150Element {
       else next.delete(filename);
       this.favoriteFiles = next;
       this.showToast(favorite ? "Added to favourites" : "Removed from favourites", favorite ? "success" : "info");
+      if (this.serverLibrary) {
+        void api.pushServerFavorite(filename, favorite).catch((err) =>
+          this.showToast(`The favourite is kept on this PC only: ${err instanceof Error ? err.message : String(err)}`, "error"));
+      }
       await this.refreshSongs();
     } catch (err) {
       this.showToast(err instanceof Error ? err.message : String(err), "error");

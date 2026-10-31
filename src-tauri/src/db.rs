@@ -425,6 +425,21 @@ impl Database {
         }
     }
 
+    /// Replaces all favourites (a server library takes the song server's).
+    pub fn set_favorites(&self, filenames: &[String]) -> Result<(), String> {
+        let tx = self.conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM favorites", [])
+            .map_err(|e| e.to_string())?;
+        for filename in filenames {
+            tx.execute(
+                "INSERT OR IGNORE INTO favorites (filename) VALUES (?1)",
+                params![filename],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        tx.commit().map_err(|e| e.to_string())
+    }
+
     pub fn list_favorites(&self) -> Result<Vec<String>, String> {
         let mut stmt = self
             .conn

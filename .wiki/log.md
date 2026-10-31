@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-31
+* **Favourites follow the song server**: in a server library the star is the song server's favourites of the person who connected the desktop (the web client's star): `refreshFavorites` pulls them (server wins) and a star is sent at once (`push_server_favorite`; on failure a toast says it is kept on this PC only). Folder libraries keep local favourites. `Db::set_favorites`. Pages touched: ipc-contract.
 * **The song server's song features, the same code**: `sync:shared` mirrors `shared/songs/` and the chord sounds. The raw ChordPro dialog is replaced by the shared song editor in the song pane (Visual, Chords, ChordPro with preview; Save and Cancel in the pane's toolbar); + beside the search starts a new song (`create_song`); web results open in it to check. The song pane can show chords to click (how to play, with sound) and transpose them, copy the words, delete, and shows recordings and the YouTube pill; recordings play, record and delete through new commands with the device token (the server allows desktops this from 0.1.88). CSP gains `media-src`; `open_link` opens web links in the browser. Pages touched: operator-console, ipc-contract, standalone, index.
 
 ## 2026-10-25

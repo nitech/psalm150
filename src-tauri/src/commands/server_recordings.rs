@@ -205,6 +205,78 @@ pub async fn delete_song_recording(
     answer(response).await.map(|_| ())
 }
 
+/// A server library takes its favourites from the song server: those of the
+/// person who connected this desktop, the same star as in the web client.
+/// Songs the offline copy does not have are left out. Returns the file
+/// names; outside a server library, nothing changes and `None` comes back.
+#[tauri::command]
+pub async fn pull_server_favorites(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<Vec<String>>, String> {
+    #[derive(Deserialize)]
+    struct Favorites {
+        song_ids: Vec<String>,
+    }
+    let Some(server) = with_state(&state, |runtime| Ok(connected_server_url(runtime)))? else {
+        return Ok(None);
+    };
+    let token = read_token(&app)?;
+    let response = client(30)?
+        .get(endpoint(&server, "api/v1/favorites")?)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(unreachable)?;
+    // An older song server has no favourites: keep the local ones.
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let favorites: Favorites =
+        serde_json::from_str(&answer(response).await?).map_err(|error| error.to_string())?;
+    let by_id: std::collections::HashMap<String, String> = read_manifest(&app, &server)
+        .into_values()
+        .map(|song| (song.id, song.filename))
+        .collect();
+    let filenames: Vec<String> = favorites
+        .song_ids
+        .iter()
+        .filter_map(|id| by_id.get(id).cloned())
+        .collect();
+    with_state(&state, |runtime| match runtime.db.as_ref() {
+        Some(db) => db.set_favorites(&filenames),
+        None => Ok(()),
+    })?;
+    Ok(Some(filenames))
+}
+
+/// Sends one star to the song server (server libraries; nothing otherwise).
+#[tauri::command]
+pub async fn push_server_favorite(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    filename: String,
+    favorite: bool,
+) -> Result<(), String> {
+    let Some(song) = song_server_ref(app.clone(), state.clone(), filename)? else {
+        return Ok(());
+    };
+    let token = read_token(&app)?;
+    let id = uuid::Uuid::parse_str(&song.song_id).map_err(|_| "Invalid server song id".to_string())?;
+    let url = endpoint(&song.server_url, &format!("api/v1/favorites/{id}"))?;
+    let request = if favorite {
+        client(30)?.put(url)
+    } else {
+        client(30)?.delete(url)
+    };
+    let response = request
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(unreachable)?;
+    answer(response).await.map(|_| ())
+}
+
 /// Opens a web page (a song's YouTube video, a chord site) in the browser.
 #[tauri::command]
 pub fn open_link(app: AppHandle, url: String) -> Result<(), String> {
