@@ -2,6 +2,7 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getVersion } from "@tauri-apps/api/app";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import {
   api,
@@ -221,6 +222,7 @@ export class Psa150App extends Psa150Element {
     serverSong: { state: true },
     hasRecordings: { state: true },
     toastAction: { state: true },
+    appVersion: { state: true },
     settingsOpen: { state: true },
     activeSettingsSection: { state: true },
     settingsQuery: { state: true },
@@ -325,6 +327,8 @@ export class Psa150App extends Psa150Element {
   declare hasRecordings: boolean;
   /** A button in the toast, such as Undo. */
   declare toastAction: { label: string; run: () => void } | null;
+  /** This app's version, as the release stamped it (shown in Settings and on the logo). */
+  declare appVersion: string;
   declare settingsOpen: boolean;
   declare activeSettingsSection: SettingsSectionId;
   declare settingsQuery: string;
@@ -462,6 +466,7 @@ export class Psa150App extends Psa150Element {
     this.serverSong = null;
     this.hasRecordings = true;
     this.toastAction = null;
+    this.appVersion = "";
     this.settingsOpen = false;
     this.activeSettingsSection = "library";
     this.settingsQuery = "";
@@ -560,6 +565,7 @@ export class Psa150App extends Psa150Element {
   }
 
   private async init() {
+    void getVersion().then((version) => { this.appVersion = version; }).catch(() => undefined);
     try {
       this.unlistenLibrary = await listen("library-changed", async () => {
         this.keysLoaded = false;
@@ -3035,7 +3041,7 @@ export class Psa150App extends Psa150Element {
         @dblclick=${this.onTitlebarDblClick}
       >
         ${this.renderVsbProgress()}
-        <div class="brand">
+        <div class="brand" title=${this.appVersion ? `Psalm150 ${this.appVersion}` : "Psalm150"}>
           <div class="brand-mark">
             <svg width="18" height="18" viewBox="200 180 700 680" fill="currentColor" stroke="none" aria-hidden="true">
               <rect x="352" y="196" width="104" height="632" rx="24" />
@@ -4386,6 +4392,7 @@ export class Psa150App extends Psa150Element {
                 ${query && this.settingMatches(section, query) ? html`<span class="settings-match" aria-hidden="true">•</span><span class="visually-hidden">(matches)</span>` : nothing}
               </button>`)}
           </nav>
+          ${this.appVersion ? html`<p class="settings-version">Psalm150 ${this.appVersion}${this.readyUpdate ? html` · ${this.readyUpdate.version} is ready` : nothing}</p>` : nothing}
         </aside>
         <p class="visually-hidden" role="status">${query
           ? `${matchingSections.length} ${matchingSections.length === 1 ? "section matches" : "sections match"}`
