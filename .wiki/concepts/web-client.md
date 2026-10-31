@@ -246,7 +246,10 @@ are not affected.
   recording** opens the microphone and counts 3, 2, 1 (with **Cancel**),
   then records with a running clock until **Stop** (the screen is kept on);
   a waveform of the microphone's loudness scrolls by from the count on, red
-  while recording. Then listen to it and **Save** (no title to fill in; it
+  while recording. Once recording, the sheet collapses to a card in the dock
+  above the current set (clock, waveform, **Stop**, ⌃ to open it again), so
+  the song can be read meanwhile; closing the sheet while recording does the
+  same. **Stop** brings the sheet back. Then listen to it and **Save** (no title to fill in; it
   is "Recording"), or **Record again**. It asks the microphone for music (no echo
   cancelling, noise removal or levelling), records WebM/Opus or, in Safari,
   MP4 at 128 kbit/s, and stops by itself after 30 minutes. Recordings are not
