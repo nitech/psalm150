@@ -66,14 +66,18 @@ splitter (280–720 px, default 340, stored in
 double-click toggles the default and the widest width.
 
 - **App bar** (slim): the brand (centred over the activity bar), then on the
-  right one group: Project in the quiet ghost style (highlighted while
-  projecting), Prev, Next and Blank **only while projecting**, and Settings.
-  Left of the group, in a [server library](server-library.md), sits the
-  **room chip** ("Room · Lily", [below](#room)).
-  Left of that, once a new version is downloaded, the **Update ready** chip;
-  its tooltip names the versions and says it installs on close, and a click
-  asks to restart now ("Later" keeps it for close; the question warns when
-  projecting). See [build and release](build-and-release.md#updates-in-the-installed-app).
+  right, everything in button groups (`.toolbar-group`) with icons, left to
+  right: **Update ready** (once a new version is downloaded; its tooltip
+  names the versions, a click asks to restart now, "Later" keeps it for close,
+  see [build and release](build-and-release.md#updates-in-the-installed-app)),
+  **Changed** (sync icon, while the songs folder changed since it was read; a
+  click reads it again), the **active set** (sets icon and its name, or
+  "Choose a set"; a click opens the list of sets to make one active, "No
+  active set", or a new set that becomes active), the **room** in a
+  [server library](server-library.md) (broadcast icon and the room name, a
+  screen icon when the words are not shared, [below](#room)), and Project
+  (highlighted while projecting), Prev, Next and Blank **only while
+  projecting**, and Settings. Messages (toasts) float at the bottom.
 - **Activity bar** (as in VS Code, left of the song list): Search, Setlist,
   History and Favourites choose what the song list shows; the active one has
   a lime edge. The VSB sync icon sits at the bottom when a database is linked
@@ -82,7 +86,9 @@ double-click toggles the default and the widest width.
   **Chords from the web** (chord icon; only for a library song that may be
   edited and has words but no chords, see
   [web search](web-search.md#chords-for-a-song-without-any)), a favourite
-  star and the add-to-setlist button.
+  star and + / ✓: the song in or out of the **active set** in one click.
+  With no active set, + opens the app bar's set list ("Add to which set?"),
+  and the set chosen (or created) there becomes active with the song in it.
 
 There is no "Now showing" text in the app bar. The stanza row shows
 "On screen: …" only while a different song is previewed.
@@ -189,7 +195,7 @@ flex row (title + source) spanning all columns and do not widen them.
 | → / ← (configurable) | projecting, not typing | next / previous **slide**, on through the sung order |
 | 1–9, then multi-digit numbers such as 10, 11, 12 | projecting, outside text fields and modals, unless turned off | jump to the numbered **stanza** (first slide) and unblank |
 | B (configurable) | projecting, not typing | blank screen |
-| Alt+S (configurable) | a library song selected, also while typing | add it to the active setlist; with none active, open the add-to-setlist menu |
+| Alt+S (configurable) | a library song selected, also while typing | add it to the active set; with none active, open the app bar's set list |
 | Alt+F (configurable) | a library song selected, also while typing | toggle favourite |
 | Ctrl+F (configurable) | anywhere | focus search (returns to the Search view) |
 | Ctrl+E, Ctrl+1 (fixed) | anywhere outside dialogs | Search view, focus the field and select its text |
@@ -360,10 +366,8 @@ song and go through the device token. Copy copies the words only. Delete
 
 ## Toasts and bootstrap
 
-Toasts (info / success / error) sit in the app bar; while a dialog is open
-the toast is drawn after the dialogs, centred at the top
-(`.toast.over-modal`), because the app bar's stacking context would keep it
-under the dialog backdrop. Errors stay until dismissed with their × or
+Toasts (info / success / error) float at the bottom of the window, centred,
+above dialogs too. Errors stay until dismissed with their × or
 replaced; other toasts stay at least 5 s (2 s plus 60 ms per character) and
 not while the pointer or focus is on them. Long messages wrap. Every toast is
 also written to a hidden live region (`role="status"`, errors

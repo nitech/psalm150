@@ -354,7 +354,13 @@ body {
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Long messages wrap instead of being cut off; errors carry a dismiss button. */
+/* Messages float at the bottom of the window, above dialogs too. */
 .toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 110;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -365,9 +371,10 @@ body {
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   box-shadow: var(--shadow-sm);
-  max-width: 360px;
+  max-width: min(560px, calc(100vw - 32px));
   white-space: normal;
   overflow-wrap: anywhere;
+  box-shadow: var(--shadow-md);
 }
 
 .toast:has(.toast-dismiss) {
@@ -391,18 +398,6 @@ body {
 
 .toast-dismiss:hover {
   background: rgba(255, 255, 255, 0.1);
-}
-
-/* A dialog's backdrop covers the title bar; float the toast above it. */
-.toast.over-modal {
-  position: fixed;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 110;
-  max-width: min(560px, calc(100vw - 32px));
-  white-space: normal;
-  box-shadow: var(--shadow-md);
 }
 
 .toast.success {
@@ -966,7 +961,7 @@ body.workspace-resizing {
   display: flex;
   align-items: center;
   height: var(--pane-head-height);
-  padding: 0 24px 0 32px;
+  padding: 0 20px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-subtle);
   background: linear-gradient(180deg, rgba(198, 216, 140, 0.04) 0%, transparent 100%);
@@ -980,7 +975,7 @@ body.workspace-resizing {
   z-index: 2;
   display: grid;
   gap: 8px;
-  padding: 12px 32px;
+  padding: 12px 20px;
   background: rgba(22, 22, 22, 0.94);
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -1018,9 +1013,9 @@ body.workspace-resizing {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-size: clamp(1.25rem, 2.2vw, 1.65rem);
   font-weight: 400;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--text-strong);
   letter-spacing: -0.01em;
 }
@@ -1093,7 +1088,7 @@ body.workspace-resizing {
   flex: 1;
   min-width: 0;
   position: relative;
-  padding: 24px 32px 32px;
+  padding: 20px 20px 32px;
   font-family: var(--font-ui);
   font-size: 0.95rem;
   line-height: 1.32;
@@ -3079,9 +3074,33 @@ psa150-song-editor {
     flex-wrap: wrap;
   }
 
-  .room-chip {
-    max-width: none;
-  }
+  /* Title bar: the active set, the room, an update and a changed library are
+   button groups like Project and Settings. */
+.active-set-btn .active-set-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-btn.attention {
+  color: var(--warning);
+}
+
+.room-btn.muted {
+  color: var(--text-tertiary);
+}
+
+.update-btn {
+  color: var(--accent-lime);
+}
+
+.active-set-menu {
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+}
+
 
   .song-pane-header {
     height: auto;
@@ -3567,67 +3586,13 @@ body.stage-projection {
    Room (song server): the name leaders pick this PC by and people follow
    ───────────────────────────────────────────────────────────────────────────── */
 
-.room-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: 220px;
-  padding: 4px 10px;
-  border: 1px solid var(--psa-accent-medium);
-  border-radius: var(--radius-full);
-  background: var(--psa-accent-soft);
-  color: var(--text-primary, var(--psa-text));
-  font-size: 0.78rem;
-  cursor: pointer;
-}
 
-.room-chip:hover {
-  border-color: var(--accent-lime);
-}
 
-.update-chip {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--accent-lime);
-  border-radius: var(--radius-full);
-  background: var(--psa-accent-soft);
-  color: var(--text-primary, var(--psa-text));
-  font-size: 0.78rem;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
 
-.update-chip:hover {
-  background: var(--psa-accent-medium);
-}
 
 /* Words not shared: dashed outline, so the state is not colour alone. */
-.room-chip.muted {
-  border-color: var(--border-control);
-  border-style: dashed;
-  background: transparent;
-  color: var(--text-secondary);
-}
 
-.room-chip-label {
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
 
-.room-chip-name {
-  overflow: hidden;
-  font-weight: 600;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
 
 .settings-subheading {
   margin: 20px 0 10px;

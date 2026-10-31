@@ -222,6 +222,7 @@ export class Psa150App extends Psa150Element {
     serverSong: { state: true },
     hasRecordings: { state: true },
     toastAction: { state: true },
+    pendingSetlistSong: { state: true },
     appVersion: { state: true },
     settingsOpen: { state: true },
     activeSettingsSection: { state: true },
@@ -327,6 +328,8 @@ export class Psa150App extends Psa150Element {
   declare hasRecordings: boolean;
   /** A button in the toast, such as Undo. */
   declare toastAction: { label: string; run: () => void } | null;
+  /** + on a song with no active set: the song goes in the set chosen next. */
+  declare pendingSetlistSong: string | null;
   /** This app's version, as the release stamped it (shown in Settings and on the logo). */
   declare appVersion: string;
   declare settingsOpen: boolean;
@@ -466,6 +469,7 @@ export class Psa150App extends Psa150Element {
     this.serverSong = null;
     this.hasRecordings = true;
     this.toastAction = null;
+    this.pendingSetlistSong = null;
     this.appVersion = "";
     this.settingsOpen = false;
     this.activeSettingsSection = "library";
@@ -651,8 +655,9 @@ export class Psa150App extends Psa150Element {
   /** Clicking outside the setlist menu or the key list closes it. */
   private onDocumentPointerDown = (event: PointerEvent) => {
     const target = event.target as HTMLElement | null;
-    if (this.setlistMenuOpen && !target?.closest(".setlist-menu, .setlist-btn")) {
+    if (this.setlistMenuOpen && !target?.closest(".setlist-menu, .setlist-btn, .active-set-btn")) {
       this.setlistMenuOpen = false;
+      this.pendingSetlistSong = null;
     }
     if (this.keyToken && !target?.closest(".search-wrap")) {
       this.keyToken = null;
@@ -2166,12 +2171,14 @@ export class Psa150App extends Psa150Element {
   private renderUpdateChip() {
     const update = this.readyUpdate;
     if (!update) return nothing;
-    return html`<button
-      class="update-chip"
-      type="button"
-      title="Psalm150 ${update.version} is downloaded (you have ${update.current_version}). It installs when you close Psalm150. Click to restart and install it now."
-      @click=${() => void this.restartToUpdate()}
-    >${icon("install", 14)}<span>Update ready</span></button>`;
+    return html`<div class="toolbar-group" role="group" aria-label="Update">
+      <button
+        class="ghost compact toolbar-btn update-btn"
+        type="button"
+        title="Psalm150 ${update.version} is downloaded (you have ${update.current_version}). It installs when you close Psalm150. Click to restart and install it now."
+        @click=${() => void this.restartToUpdate()}
+      >${icon("install", 16)}<span>Update ready</span></button>
+    </div>`;
   }
 
   private async restartToUpdate() {
@@ -2201,13 +2208,15 @@ export class Psa150App extends Psa150Element {
     const title = shared
       ? `Room name. Leaders pick this PC by it, and anyone can follow the words at ${room.join_url}. Click to change.`
       : `Room name. Leaders pick this PC by it. The words are not shared in the room. Click to change.`;
-    return html`<button
-      class="room-chip ${shared ? "" : "muted"}"
-      type="button"
-      title=${title}
-      @click=${() => this.openSettings("server")}
-    ><span class="room-chip-label">Room</span> <span class="room-chip-name">${room.room_name}</span
-      >${shared ? nothing : html`<span class="visually-hidden">, words not shared</span>`}</button>`;
+    return html`<div class="toolbar-group" role="group" aria-label="Room">
+      <button
+        class="ghost compact toolbar-btn room-btn ${shared ? "" : "muted"}"
+        type="button"
+        title=${title}
+        aria-label="Room ${room.room_name}${shared ? "" : ", words not shared"}"
+        @click=${() => this.openSettings("server")}
+      >${icon(shared ? "follow" : "remote", 16)}<span>${room.room_name}</span></button>
+    </div>`;
   }
 
   private renderRoomSettings() {
@@ -2265,15 +2274,49 @@ export class Psa150App extends Psa150Element {
     return this.currentFilename;
   }
 
-  /** Close the add-to-setlist popup; `refocus` returns focus to its button. */
+  /** Close the set picker; `refocus` returns focus to its button. */
   private closeSetlistMenu(refocus: boolean) {
     if (!this.setlistMenuOpen) return;
     const hadFocus = this.querySelector(".setlist-menu")?.contains(document.activeElement) ?? false;
     this.setlistMenuOpen = false;
+    this.pendingSetlistSong = null;
     if (refocus || hadFocus) {
       void this.updateComplete.then(() =>
-        this.querySelector<HTMLElement>(".setlist-btn")?.focus({ preventScroll: true }),
+        this.querySelector<HTMLElement>(".active-set-btn")?.focus({ preventScroll: true }),
       );
+    }
+  }
+
+  /** A set picked in the title bar becomes active; a song waiting for one goes in. */
+  private async pickActiveSet(setlist: Setlist | null) {
+    const pending = this.pendingSetlistSong;
+    this.closeSetlistMenu(true);
+    await this.chooseSetlist(setlist);
+    if (!setlist) {
+      this.showToast("No active set");
+      return;
+    }
+    if (pending && pending === this.setlistCandidate() && !this.setlistHasSong(setlist, pending)) {
+      await this.toggleSongInSetlist(setlist);
+    } else {
+      this.showToast(`${setlist.name} is the active set`);
+    }
+  }
+
+  /** A new set from the picker: it becomes active, with the waiting song in it. */
+  private async createActiveSet() {
+    const pending = this.pendingSetlistSong;
+    const name = this.newSetlistName.trim() || (await defaultSetlistName());
+    try {
+      let created = await api.createSetlist(name, localIsoDate(new Date()));
+      if (pending && pending === this.setlistCandidate()) created = await api.addToSetlist(created.id, pending);
+      this.setlists = [created, ...this.setlists];
+      this.closeSetlistMenu(true);
+      await this.chooseSetlist(created);
+      this.showToast(pending ? `Added to ${name}, now the active set` : `${name} is the active set`, "success");
+      if (this.browseMode === "setlist") await this.refreshSongs();
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err), "error");
     }
   }
 
@@ -2283,6 +2326,7 @@ export class Psa150App extends Psa150Element {
     if (!next) return;
     if (this.querySelector(".setlist-anchor")?.contains(next)) return;
     this.setlistMenuOpen = false;
+    this.pendingSetlistSong = null;
   };
 
   private async toggleSetlistMenu() {
@@ -2313,7 +2357,6 @@ export class Psa150App extends Psa150Element {
         const updated = await api.addToSetlist(setlist.id, filename);
         this.replaceSetlist(updated);
         if (!this.currentSetlist) await this.chooseSetlist(updated);
-        this.closeSetlistMenu(false);
         this.showToast(`Added to ${setlist.name}`, "success");
       }
       if (this.browseMode === "setlist") await this.refreshSongs();
@@ -2322,27 +2365,12 @@ export class Psa150App extends Psa150Element {
     }
   }
 
-  private async createSetlistWithSong() {
-    const filename = this.setlistCandidate();
-    if (!filename) return;
-    const name = this.newSetlistName.trim() || (await defaultSetlistName());
-    try {
-      const created = await api.createSetlist(name, localIsoDate(new Date()));
-      const updated = await api.addToSetlist(created.id, filename);
-      this.setlists = [updated, ...this.setlists];
-      if (!this.currentSetlist) await this.chooseSetlist(updated);
-      this.closeSetlistMenu(false);
-      this.showToast(`Added to ${name}`, "success");
-    } catch (err) {
-      this.showToast(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
   /**
-   * Keyboard add (Alt+S by default): into the active setlist, or, with none
-   * active, open the menu to pick or create one.
+   * + on a song, or Alt+S: into the active set (the button also takes it out
+   * again). With none active, the title bar's set picker opens, and the song
+   * goes in the set chosen there.
    */
-  private async addSelectedToSetlist() {
+  private async addSelectedToSetlist(toggle = false) {
     const filename = this.setlistCandidate();
     if (!filename) {
       this.showToast("Select a song from the library first");
@@ -2351,9 +2379,10 @@ export class Psa150App extends Psa150Element {
     const active = this.currentSetlist;
     if (!active) {
       if (!this.setlistMenuOpen) await this.toggleSetlistMenu();
+      this.pendingSetlistSong = filename;
       return;
     }
-    if (this.setlistHasSong(active, filename)) {
+    if (this.setlistHasSong(active, filename) && !toggle) {
       this.showToast(`Already in ${active.name}`);
       return;
     }
@@ -3002,21 +3031,20 @@ export class Psa150App extends Psa150Element {
         .content=${this.renderImportReportContent()}
         @psa150-close=${() => (this.importReportOpen = false)}
       ></psa150-modal>
-      ${modalOpen ? this.renderToast() : nothing}
+      ${this.renderToast()}
       <div class="visually-hidden" role="status">${this.liveStatus}</div>
       <div class="visually-hidden" role="alert">${this.liveAlert}</div>
     `;
   }
 
   /**
-   * The toast lives in the title bar; while a dialog is open it is drawn after
-   * the dialogs instead, because the title bar's stacking context would keep
-   * it under the dialog backdrop.
+   * The toast floats at the bottom of the window, above dialogs too, so the
+   * title bar keeps only its button groups.
    */
   private renderToast() {
     // Screen readers get the message from the live regions in render().
     return html`<div
-      class="toast ${this.toastTone} ${this.toastVisible ? "" : "hidden"} ${this.anyModalOpen() ? "over-modal" : ""}"
+      class="toast ${this.toastTone} ${this.toastVisible ? "" : "hidden"}"
       @mouseenter=${() => this.holdToast(true)}
       @mouseleave=${() => this.holdToast(false)}
       @focusin=${() => this.holdToast(true)}
@@ -3057,13 +3085,19 @@ export class Psa150App extends Psa150Element {
           <strong class="brand-name">Psalm150</strong>
         </div>
         <div class="header-end app-no-drag">
-          ${this.anyModalOpen() ? nothing : this.renderToast()}
           ${this.renderUpdateChip()}
+          ${this.libraryStatus?.library_dirty
+            ? html`<div class="toolbar-group" role="group" aria-label="Library">
+                <button
+                  type="button"
+                  class="ghost compact toolbar-btn attention"
+                  title="The songs folder has changed since it was last read. Click to read it again."
+                  @click=${() => void this.rescan()}
+                >${icon("sync", 16)}<span>Changed</span></button>
+              </div>`
+            : nothing}
+          ${this.renderActiveSetPicker()}
           ${this.renderRoomChip()}
-          <span
-            class="badge ${this.libraryStatus?.library_dirty ? "" : "hidden"}"
-            title="The songs folder has changed since it was last read"
-          >Changed</span>
           <div class="toolbar-group projection-toolbar" role="group" aria-label="Projection and settings">
             <button
               class="ghost compact toolbar-btn ${this.projecting ? "pressed" : ""}"
@@ -3853,60 +3887,74 @@ export class Psa150App extends Psa150Element {
     );
   }
 
+  /**
+   * + / check beside the song: puts the song in the active set or takes it
+   * out. With no active set it opens the set picker in the title bar; the set
+   * chosen there becomes active and the song goes in.
+   */
   private renderSetlistButton(filename: string) {
     const current = this.currentSetlist;
     const inSetlist = this.setlistHasSong(current, filename);
-    // In the setlist (check): one click takes the song out of the active setlist.
-    // Not in it (plus): open the menu to pick a setlist or start a new one.
-    const label = inSetlist && current
-      ? `Remove from ${current.name}`
-      : `Add to a setlist (${formatCombo(this.shortcuts.add_to_setlist)})`;
-    return html`
-      <div class="setlist-anchor">
-        <button
-          type="button"
-          class="song-action-btn setlist-btn ${inSetlist ? "active" : ""}"
-          title=${label}
-          aria-label=${label}
-          aria-haspopup=${inSetlist ? nothing : "dialog"}
-          aria-expanded=${inSetlist ? nothing : this.setlistMenuOpen ? "true" : "false"}
-          aria-controls=${inSetlist ? nothing : "setlist-menu"}
-          @click=${() => {
-            if (inSetlist && current) {
-              this.setlistMenuOpen = false;
-              void this.toggleSongInSetlist(current);
-            } else {
-              void this.toggleSetlistMenu();
-            }
-          }}
-        >${icon(inSetlist ? "check" : "plus")}</button>
-        ${this.setlistMenuOpen ? this.renderSetlistMenu(filename) : nothing}
-      </div>
-    `;
+    const label = !current
+      ? `Choose the active set and add this song (${formatCombo(this.shortcuts.add_to_setlist)})`
+      : inSetlist
+        ? `Remove from ${current.name}`
+        : `Add to ${current.name} (${formatCombo(this.shortcuts.add_to_setlist)})`;
+    return html`<button
+      type="button"
+      class="song-action-btn setlist-btn ${inSetlist ? "active" : ""}"
+      title=${label}
+      aria-label=${label}
+      aria-haspopup=${current ? nothing : "dialog"}
+      @click=${() => void this.addSelectedToSetlist(true)}
+    >${icon(inSetlist ? "check" : "plus")}</button>`;
   }
 
-  private renderSetlistMenu(filename: string) {
+  /**
+   * The active set, in the title bar: its name (or "Choose a set"); a click
+   * opens the list of sets to make another one active, or start a new one.
+   */
+  private renderActiveSetPicker() {
+    const current = this.currentSetlist;
+    const label = current ? `Active set: ${current.name}. Choose another set` : "Choose the active set";
+    return html`<div class="toolbar-group setlist-anchor" role="group" aria-label="Active set">
+      <button
+        type="button"
+        class="ghost compact toolbar-btn active-set-btn ${current ? "" : "attention"}"
+        title=${label}
+        aria-label=${label}
+        aria-haspopup="dialog"
+        aria-expanded=${this.setlistMenuOpen ? "true" : "false"}
+        aria-controls="setlist-menu"
+        @click=${() => void this.toggleSetlistMenu()}
+      >${icon("sets", 16)}<span class="active-set-name">${current?.name ?? "Choose a set"}</span>${icon("down", 14)}</button>
+      ${this.setlistMenuOpen ? this.renderSetlistMenu() : nothing}
+    </div>`;
+  }
+
+  private renderSetlistMenu() {
+    const pending = this.pendingSetlistSong;
     return html`
       <div
-        class="setlist-menu"
+        class="setlist-menu active-set-menu"
         id="setlist-menu"
         role="dialog"
         aria-labelledby=${this.setlists.length ? "setlist-menu-heading" : "new-setlist-label"}
         @focusout=${this.onSetlistMenuFocusOut}
       >
         ${this.setlists.length
-          ? html`<div class="setlist-menu-heading" id="setlist-menu-heading">Add to setlist</div>
+          ? html`<div class="setlist-menu-heading" id="setlist-menu-heading">${pending ? "Add to which set?" : "Active set"}</div>
             <div class="setlist-menu-list" role="group" aria-labelledby="setlist-menu-heading">
               ${this.setlists.map((setlist) => {
-                const has = this.setlistHasSong(setlist, filename);
+                const active = this.currentSetlist?.id === setlist.id;
                 return html`
                   <button
                     type="button"
-                    aria-pressed=${has ? "true" : "false"}
-                    class="setlist-menu-item ${has ? "checked" : ""} ${this.currentSetlist?.id === setlist.id ? "current" : ""}"
-                    @click=${() => this.toggleSongInSetlist(setlist)}
+                    aria-pressed=${active ? "true" : "false"}
+                    class="setlist-menu-item ${active ? "checked current" : ""}"
+                    @click=${() => void this.pickActiveSet(setlist)}
                   >
-                    <span class="setlist-menu-check">${has ? icon("check", 14) : nothing}</span>
+                    <span class="setlist-menu-check">${active ? icon("check", 14) : nothing}</span>
                     <span class="setlist-menu-name">${setlist.name}</span>
                     <span class="setlist-menu-count"
                       >${setlist.items.length}<span class="visually-hidden">
@@ -3916,16 +3964,21 @@ export class Psa150App extends Psa150Element {
                   </button>
                 `;
               })}
+              ${this.currentSetlist && !pending
+                ? html`<button type="button" class="setlist-menu-item" @click=${() => void this.pickActiveSet(null)}>
+                    <span class="setlist-menu-check"></span><span class="setlist-menu-name">No active set</span><span></span>
+                  </button>`
+                : nothing}
             </div>`
           : nothing}
         <form
           class="setlist-menu-new"
           @submit=${(event: Event) => {
             event.preventDefault();
-            void this.createSetlistWithSong();
+            void this.createActiveSet();
           }}
         >
-          <label class="setlist-menu-label" id="new-setlist-label" for="new-setlist-name">New setlist</label>
+          <label class="setlist-menu-label" id="new-setlist-label" for="new-setlist-name">New set</label>
           <div class="setlist-menu-new-row">
             <input
               id="new-setlist-name"
@@ -3941,7 +3994,7 @@ export class Psa150App extends Psa150Element {
                 }
               }}
             />
-            <button type="submit" class="primary compact toolbar-btn" title="Create the setlist and add this song">
+            <button type="submit" class="primary compact toolbar-btn" title=${pending ? "Create the set and add this song" : "Create the set and make it active"}>
               ${icon("plus", 14)}<span>Create</span>
             </button>
           </div>

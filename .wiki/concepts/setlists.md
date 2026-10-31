@@ -81,8 +81,9 @@ There is no command to delete or rename a setlist.
 
 ## UI today
 
-- **Add to setlist** (+) on the song title row adds or removes the selected song and
-  creates a setlist named with today's short date
+- The **active set** is chosen in the app bar (or a new one made there,
+  named with today's short date); + on the song title row adds the selected
+  song to it or takes it out
   ([operator console](operator-console.md#favourite-star-and-add-to-setlist)).
 - **Setlist** view (activity bar): a picker over all setlists (name and song
   count), the items in service order with titles from the index, and
