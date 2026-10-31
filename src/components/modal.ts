@@ -25,6 +25,7 @@ let nextModalId = 0;
 export class Psa150Modal extends Psa150Element {
   static properties = {
     heading: {},
+    subheading: {},
     open: { type: Boolean, reflect: true },
     variant: {},
     dismissible: { type: Boolean },
@@ -32,6 +33,8 @@ export class Psa150Modal extends Psa150Element {
   };
 
   declare heading: string;
+  /** A quiet line under the heading (Settings: the app's version). */
+  declare subheading: string;
   declare open: boolean;
   declare variant: ModalVariant;
   declare dismissible: boolean;
@@ -44,6 +47,7 @@ export class Psa150Modal extends Psa150Element {
   constructor() {
     super();
     this.heading = "";
+    this.subheading = "";
     this.open = false;
     this.variant = "default";
     this.dismissible = true;
@@ -141,7 +145,10 @@ export class Psa150Modal extends Psa150Element {
           @keydown=${this.onKeydown}
         >
           <div class="modal-header">
-            <h2 id=${this.headingId}>${this.heading}</h2>
+            <div class="modal-titles">
+              <h2 id=${this.headingId}>${this.heading}</h2>
+              ${this.subheading ? html`<p class="modal-subheading">${this.subheading}</p>` : nothing}
+            </div>
             ${this.dismissible
               ? html`<button class="icon-btn" type="button" aria-label="Close" @click=${() => this.close()}>
                   ×

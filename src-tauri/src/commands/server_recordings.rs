@@ -34,15 +34,31 @@ fn endpoint(server_url: &str, path: &str) -> Result<url::Url, String> {
         .map_err(|error| error.to_string())
 }
 
-fn song_path(song_id: &str, rest: &str) -> Result<String, String> {
-    let id = uuid::Uuid::parse_str(song_id).map_err(|_| "Invalid server song id".to_string())?;
-    Ok(format!("api/v1/songs/{id}/recordings{rest}"))
+fn song_uuid(song_id: &str) -> Result<uuid::Uuid, String> {
+    uuid::Uuid::parse_str(song_id).map_err(|_| "Invalid server song id".to_string())
 }
 
-fn recording_part(recording_id: &str) -> Result<String, String> {
-    let id =
-        uuid::Uuid::parse_str(recording_id).map_err(|_| "Invalid recording id".to_string())?;
-    Ok(format!("/{id}"))
+fn recording_uuid(recording_id: &str) -> Result<uuid::Uuid, String> {
+    uuid::Uuid::parse_str(recording_id).map_err(|_| "Invalid recording id".to_string())
+}
+
+// Each path is written out whole: the release lists the server paths it
+// calls from these literals (scripts/server-endpoints.mjs), and a desktop
+// only updates when its server has every one.
+
+fn recordings_path(song_id: &str) -> Result<String, String> {
+    let song = song_uuid(song_id)?;
+    Ok(format!("api/v1/songs/{song}/recordings"))
+}
+
+fn recording_path(song_id: &str, recording_id: &str) -> Result<String, String> {
+    let (song, recording) = (song_uuid(song_id)?, recording_uuid(recording_id)?);
+    Ok(format!("api/v1/songs/{song}/recordings/{recording}"))
+}
+
+fn recording_link_path(song_id: &str, recording_id: &str) -> Result<String, String> {
+    let (song, recording) = (song_uuid(song_id)?, recording_uuid(recording_id)?);
+    Ok(format!("api/v1/songs/{song}/recordings/{recording}/link"))
 }
 
 fn client(timeout_secs: u64) -> Result<reqwest::Client, String> {
@@ -106,7 +122,7 @@ pub async fn list_song_recordings(
     let server = server_url(&state)?;
     let token = read_token(&app)?;
     let response = client(30)?
-        .get(endpoint(&server, &song_path(&song_id, "")?)?)
+        .get(endpoint(&server, &recordings_path(&song_id)?)?)
         .header(AUTHORIZATION, format!("Bearer {token}"))
         .send()
         .await
@@ -130,7 +146,7 @@ pub async fn song_recording_link(
 ) -> Result<RecordingLink, String> {
     let server = server_url(&state)?;
     let token = read_token(&app)?;
-    let path = song_path(&song_id, &format!("{}/link", recording_part(&recording_id)?))?;
+    let path = recording_link_path(&song_id, &recording_id)?;
     let response = client(30)?
         .post(endpoint(&server, &path)?)
         .header(AUTHORIZATION, format!("Bearer {token}"))
@@ -169,7 +185,7 @@ pub async fn add_song_recording(
 
     let server = server_url(&state)?;
     let token = read_token(&app)?;
-    let mut url = endpoint(&server, &song_path(&song_id, "")?)?;
+    let mut url = endpoint(&server, &recordings_path(&song_id)?)?;
     if let Some(ms) = duration {
         url.query_pairs_mut()
             .append_pair("duration_ms", &ms.max(0).to_string());
@@ -195,7 +211,7 @@ pub async fn delete_song_recording(
 ) -> Result<(), String> {
     let server = server_url(&state)?;
     let token = read_token(&app)?;
-    let path = song_path(&song_id, &recording_part(&recording_id)?)?;
+    let path = recording_path(&song_id, &recording_id)?;
     let response = client(30)?
         .delete(endpoint(&server, &path)?)
         .header(AUTHORIZATION, format!("Bearer {token}"))
@@ -291,17 +307,26 @@ pub fn open_link(app: AppHandle, url: String) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{endpoint, recording_part, song_path};
+    use super::{endpoint, recording_link_path, recording_path, recordings_path};
 
     #[test]
     fn builds_recording_addresses_from_ids_only() {
         let song = "6f1c2c8e-4b0b-4d7a-9f00-2b1d1f6b7a10";
+        let rec = "0b5f1a2e-1111-4d7a-9f00-2b1d1f6b7a11";
         assert_eq!(
-            song_path(song, "").unwrap(),
+            recordings_path(song).unwrap(),
             format!("api/v1/songs/{song}/recordings")
         );
-        assert!(song_path("../../admin", "").is_err());
-        assert!(recording_part("x/../y").is_err());
+        assert_eq!(
+            recording_path(song, rec).unwrap(),
+            format!("api/v1/songs/{song}/recordings/{rec}")
+        );
+        assert_eq!(
+            recording_link_path(song, rec).unwrap(),
+            format!("api/v1/songs/{song}/recordings/{rec}/link")
+        );
+        assert!(recordings_path("../../admin").is_err());
+        assert!(recording_path(song, "x/../y").is_err());
         assert_eq!(
             endpoint("https://praise.example/", "api/v1/public/recordings/abc")
                 .unwrap()

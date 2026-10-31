@@ -2186,14 +2186,6 @@ select option {
   gap: 2px;
 }
 
-/* This app's version, at the foot of the settings menu. */
-.settings-version {
-  margin: 24px 8px 0;
-  color: var(--text-tertiary);
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-}
-
 .settings-nav nav button {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
@@ -2719,6 +2711,18 @@ psa150-modal.duplicate-modal .modal-card-wide {
   font-size: 1.3rem;
   font-weight: 500;
   color: var(--text-primary);
+}
+
+.modal-titles {
+  min-width: 0;
+}
+
+/* Settings: the app's version, quietly under the title. */
+.modal-card .modal-subheading {
+  margin: 2px 0 0;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .modal-card p {

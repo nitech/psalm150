@@ -121,7 +121,11 @@ verifies the signature) and held in `UpdateState`,
 only if the song server is compatible: with a [server library](server-library.md)
 connected, the server's `GET /api/openapi.json` must describe every path in
 the release's `server_endpoints` (compared with parameters as `{}`; a
-release without the list skips this), and `GET <server>/api/v1/info` must
+release without the list skips this). The list comes from string literals,
+so a server path must be written out whole in the Rust code, never glued
+from pieces; `tests/server-endpoints.test.ts` fails on a partial segment
+(0.1.13 and 0.1.14 listed `/api/v1/songs/{}/recordings{}` and no server-library
+desktop took them), and `GET <server>/api/v1/info` must
 report a `desktop_api` (missing means 1) at least the release's `desktop_api`
 (missing means 1). Otherwise, or if the server cannot be reached, the
 release is skipped until the next check, and a held download is dropped

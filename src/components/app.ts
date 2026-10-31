@@ -2965,6 +2965,7 @@ export class Psa150App extends Psa150Element {
       <psa150-modal
         class="settings-modal"
         heading="Settings"
+        .subheading=${this.appVersion}
         variant="wide"
         ?open=${this.settingsOpen}
         .content=${this.renderSettingsContent()}
@@ -4392,7 +4393,7 @@ export class Psa150App extends Psa150Element {
                 ${query && this.settingMatches(section, query) ? html`<span class="settings-match" aria-hidden="true">•</span><span class="visually-hidden">(matches)</span>` : nothing}
               </button>`)}
           </nav>
-          ${this.appVersion ? html`<p class="settings-version">Psalm150 ${this.appVersion}${this.readyUpdate ? html` · ${this.readyUpdate.version} is ready` : nothing}</p>` : nothing}
+
         </aside>
         <p class="visually-hidden" role="status">${query
           ? `${matchingSections.length} ${matchingSections.length === 1 ? "section matches" : "sections match"}`

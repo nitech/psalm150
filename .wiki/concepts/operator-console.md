@@ -326,7 +326,7 @@ In a server library the console shows this PC's
 
 ## Version
 
-The foot of the Settings menu shows "Psalm150 <version>" (and "· <version> is ready" while a downloaded update waits); the logo's tooltip says it too. The version is the one the release stamps into `tauri.conf.json` (`<major>.<minor>.<run number>`; a dev build says 0.1.0).
+The Settings dialog shows the version, quietly under its title (`subheading` on `psa150-modal`); the logo's tooltip says "Psalm150 <version>" too. The version is the one the release stamps into `tauri.conf.json` (`<major>.<minor>.<run number>`; a dev build says 0.1.0).
 
 ## Song editor
 

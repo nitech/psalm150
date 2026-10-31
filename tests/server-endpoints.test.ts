@@ -37,4 +37,11 @@ describe("server endpoints", () => {
     }
     expect(endpoints.every((path: string) => path.startsWith("/api/v1/") && !path.includes("?"))).toBe(true);
   });
+
+  it("lists only whole path segments, so a desktop can find each on its server", () => {
+    // A path glued from pieces (`recordings{rest}`) names nothing the server
+    // has, and every desktop on a song server then refuses the release.
+    const partial = desktopEndpoints(process.cwd()).filter((path: string) => !/^(\/(\{\}|[^/{}]+))+$/.test(path));
+    expect(partial).toEqual([]);
+  });
 });
