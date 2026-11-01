@@ -43,12 +43,55 @@ let playing: GainNode | null = null;
 let ringing = { chord: "", until: 0 };
 const RING_MS = 2500;
 
+type AudioSessionType = "playback" | "play-and-record";
+
+/**
+ * Tells iOS how the page uses sound. Playing chords asks for "playback", so
+ * Web Audio is heard under the ring/silent switch; but "playback" also keeps
+ * the microphone from starting, so recording asks for "play-and-record"
+ * first and gives it back afterwards.
+ */
+export function useAudioSession(type: AudioSessionType): void {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session && session.type !== type) session.type = type;
+}
+
+/** While a recording has the microphone, chords play without taking it back. */
+let recording = false;
+
+export function setRecording(on: boolean): void {
+  recording = on;
+  useAudioSession(on ? "play-and-record" : "playback");
+}
+
+/**
+ * Called within a tap, before sound is played: asks iOS for playback and
+ * wakes the audio. A context iOS has interrupted (a call, the phone locked,
+ * the microphone used) or closed often stays silent however it is resumed,
+ * so it is replaced with a new one, here within the tap where iOS allows it.
+ */
+function wake(): AudioContext {
+  if (!recording) useAudioSession("playback");
+  const state = context?.state as AudioContextState | "interrupted" | undefined;
+  if (context && (state === "interrupted" || state === "closed")) {
+    void context.close().catch(() => undefined);
+    context = output = playing = null;
+    // Recordings still decoding in the old context are lost; load them again.
+    banks.clear();
+  }
+  const fresh = audio().context;
+  void fresh.resume().catch(() => undefined);
+  // An empty sound started within the tap unlocks the audio on older iOS.
+  const silence = fresh.createBufferSource();
+  silence.buffer = fresh.createBuffer(1, 1, fresh.sampleRate);
+  silence.connect(fresh.destination);
+  silence.start();
+  return fresh;
+}
+
 function audio(): { context: AudioContext; output: GainNode } {
   if (!context || !output) {
-    // iOS keeps Web Audio silent under the ring/silent switch unless the
-    // page asks to play like a media app.
-    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-    if (session) session.type = "playback";
+    if (!recording) useAudioSession("playback");
     context = new AudioContext();
     const limiter = context.createDynamicsCompressor();
     limiter.threshold.value = -10;
@@ -107,10 +150,10 @@ export function playChord(notes: number[], sound: Sound, unlessRinging = false):
   const chord = `${sound}:${notes.join(",")}`;
   if (unlessRinging && chord === ringing.chord && performance.now() < ringing.until) return;
   ringing = { chord, until: performance.now() + RING_MS };
-  const { context } = audio();
   // Within the tap, so iOS lets the sound start.
-  void context.resume();
+  const context = wake();
   void ready(sound, 1200).then((recordings) => {
+    if (context.state === "closed") return;
     const now = context.currentTime + 0.02;
     if (playing) {
       playing.gain.cancelScheduledValues(now);
@@ -132,9 +175,9 @@ export function playChord(notes: number[], sound: Sound, unlessRinging = false):
 
 /** Plays one note (a string or a key tapped), letting what sounds ring on. */
 export function playNote(midi: number, sound: Sound): void {
-  const { context } = audio();
-  void context.resume();
+  const context = wake();
   void ready(sound, 1200).then((recordings) => {
+    if (context.state === "closed") return;
     play(recordings, sound, newBus(0.9), midi, context.currentTime + 0.01, 1);
   });
 }

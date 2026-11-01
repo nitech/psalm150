@@ -12,6 +12,7 @@
  * it starts at once and seeks without reading the whole file.
  */
 import { announce } from "./a11y.ts";
+import { setRecording } from "./chord-audio.ts";
 import { clock, errorMessage, escapeHtml, initials, relativeDate, setFormBusy } from "./format.ts";
 import { confirmAction, holdScreen, showToast } from "./host.ts";
 import { icon } from "./icon.ts";
@@ -456,6 +457,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     stopWave = null;
     stream?.getTracks().forEach((track) => track.stop());
     stream = null;
+    setRecording(false);
     releaseScreen?.();
     releaseScreen = null;
   };
@@ -506,15 +508,25 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
   /** Opens the microphone, shows it in the waveform, and counts 3, 2, 1. */
   const start = async () => {
     toggle.disabled = true;
+    // After a chord has played, iOS is set for playback only, which keeps the microphone off.
+    setRecording(true);
     try {
       // Music, not speech: no echo cancelling, noise removal or levelling.
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
     } catch (error) {
+      setRecording(false);
       showStart();
-      const denied = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
-      showToast(denied ? "The microphone is blocked. Allow it for this site in the browser's settings." : "No microphone was found.", true);
+      const name = error instanceof DOMException ? error.name : "";
+      showToast(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "The microphone is blocked. Allow it for this site in the browser's settings."
+          : name === "NotFoundError" || name === "OverconstrainedError"
+            ? "No microphone was found."
+            : "The microphone could not be started. Close other apps that use it and try again.",
+        true,
+      );
       return;
     }
     if (!sheet.open) {
