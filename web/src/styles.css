@@ -165,38 +165,6 @@ button.tab:not(.on) { background: none; }
 /* Foot of the menu: the version and build. */
 .app-version { margin: auto 0 0; padding: var(--psa-space-4) var(--psa-space-3) 0; color: var(--psa-text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-/* Side rail on wide screens. */
-@media (min-width: 900px) {
-  :root { --page-pad: var(--psa-space-6); --tabbar-h: 0px; }
-  .shell { display: grid; grid-template-columns: 220px 1fr; }
-  .tabbar, body.menu-open .tabbar {
-    /* `top` after `inset`, which would otherwise reset it and let the rail scroll away. */
-    position: sticky; inset: auto; top: 0; z-index: auto; width: auto; height: 100dvh;
-    padding: var(--psa-space-5) var(--psa-space-3); overflow: visible;
-    background: var(--psa-bg-glass); box-shadow: none; transform: none; visibility: visible; transition: none;
-  }
-  .nav-scrim, .menu-button, .app-bar.menu-only { display: none; }
-  /* With its phone-only bar hidden, the title starts the page. */
-  .page > .app-bar.menu-only:first-child + .page-titles { margin-top: var(--psa-space-8); }
-  .tab { padding: 10px var(--psa-space-3); font-size: 15px; }
-  .tab .icon { width: 20px; height: 20px; }
-  .tab:hover { background: var(--psa-bg-surface); color: var(--psa-text); }
-  .tab.on { background: var(--psa-accent-soft); }
-  .page { padding-bottom: calc(var(--dock-h) + var(--psa-space-8)); }
-  .page > :first-child:not(.app-bar, .play, .swipe-view) { margin-top: var(--psa-space-8); }
-}
-/* Light theme on wide screens: the rail is the grey ground and the page is
-   white. `--rail-bg` keeps the root's grey after the body takes white. */
-:root { --rail-bg: var(--psa-bg-canvas); }
-@media (min-width: 900px) {
-  :root[data-theme="light"] body { --psa-bg-canvas: var(--psa-bg-surface); }
-  :root[data-theme="light"] .tabbar { background: var(--rail-bg); }
-}
-@media (min-width: 900px) and (prefers-color-scheme: light) {
-  :root:not([data-theme]) body { --psa-bg-canvas: var(--psa-bg-surface); }
-  :root:not([data-theme]) .tabbar { background: var(--rail-bg); }
-}
-
 /* ── Page header ────────────────────────────────────────────────────────── */
 
 /* A sticky bar (back, title once scrolled, actions) above a large title that
@@ -224,35 +192,6 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .page-titles { min-width: 0; margin: var(--psa-space-2) 0 var(--psa-space-4); }
 .page-titles h1 { margin: 0; font-family: var(--psa-font-display); font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .page-actions { display: flex; gap: var(--psa-space-1); margin-left: auto; }
-.bar-set-actions { display: contents; }
-.icon-button.in-set { color: var(--psa-accent-text); }
-/* Bar actions (bar-menu.ts): fixed icons, a thin divider, the often used ones
-   (with a small dot, as they come and go), then ⋮ and its menu. */
-/* ⋮ and the fixed icons never shrink; when the bar is short of room the
-   often-used icons go first (they are in ⋮ too), so ⋮ is never pushed out. */
-.page-actions { min-width: 0; }
-.bar-actions { position: relative; display: flex; align-items: center; gap: var(--psa-space-1); min-width: 0; }
-.bar-actions > .icon-button, .bar-actions > a.icon-button, .bar-more { flex: none; }
-.bar-frequent { display: flex; gap: var(--psa-space-1); min-width: 0; overflow: hidden; }
-.bar-frequent > * { flex: none; }
-.bar-actions.crowded .bar-frequent, .bar-actions.crowded .bar-divider { display: none; }
-.bar-divider { width: 1px; height: 22px; margin: 0 2px; background: var(--psa-border-strong); }
-.icon-button.frequent { position: relative; }
-.icon-button.frequent::after { content: ""; position: absolute; bottom: 5px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--psa-accent-text); }
-.bar-more .icon { transform: rotate(90deg); }
-/* Transpose: − key +, in the bar as one pill and in the menu as one row
-   with two places to tap. */
-.bar-stepper { position: relative; display: inline-flex; align-items: center; height: 40px; padding: 0 2px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); }
-.bar-step { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--psa-text); }
-.bar-step .icon { width: 18px; height: 18px; }
-@media (hover: hover) { .bar-step:hover { background: var(--psa-bg-surface); } }
-.bar-step:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
-.bar-stepper-value { min-width: 2.4em; text-align: center; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
-.bar-stepper.frequent::after { content: ""; position: absolute; bottom: -7px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--psa-accent-text); }
-.bar-menu-stepper { gap: 8px; cursor: default; }
-.bar-menu-stepper > span:first-of-type { flex: 1; }
-.bar-menu-stepper .bar-step { width: 40px; height: 40px; border: 1px solid var(--psa-border-strong); }
-.bar-menu-stepper .bar-stepper-value { min-width: 2.6em; }
 /* Phones: no church name over the tab screens, and compact screens (the song
    list) keep their title in the bar instead of a large title. */
 @media (max-width: 899px) {
@@ -291,9 +230,6 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .row-link { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; min-height: 60px; padding: 10px 0 10px var(--psa-space-4); color: inherit; text-decoration: none; }
 .add-toggle.on, .add-toggle.on:hover:not(:disabled) { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
 /* ☆ / ★: a favourite has a filled amber star, as in the desktop app. */
-.fav-toggle { color: var(--psa-text-tertiary); }
-.fav-toggle.on, .fav-toggle.on:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--psa-warning); }
-.fav-toggle.on .icon { fill: currentColor; }
 .list-sort #fav-filter.on { color: var(--psa-warning); }
 #fav-filter.on .icon { fill: currentColor; }
 .load-more { display: grid; justify-items: center; margin: 0 0 var(--psa-space-4); }
@@ -502,8 +438,8 @@ body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .dock:not(:has(>
 body[data-route^="/sets/id/play"]:has(.play-nav) .dock { bottom: calc(66px + env(safe-area-inset-bottom)); }
 body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66px + env(safe-area-inset-bottom) + var(--dock-h)); }
 @media (min-width: 900px) {
-  .dock { left: 220px; bottom: 0; padding: 0 var(--psa-space-6) var(--psa-space-4); }
-  .follow-view { left: 220px; }
+  .dock { left: var(--rail-w); bottom: 0; padding: 0 var(--psa-space-6) var(--psa-space-4); }
+  .follow-view { left: var(--rail-w); }
   .dock > * { width: min(100%, 712px); margin-inline: auto; }
 }
 
@@ -524,8 +460,8 @@ body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66p
   .page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
 }
 @media (min-width: 900px) {
-  /* The bar at the bottom and its panel line up with it: the middle of the page beside the 220px rail. */
-  body > .ce-bar, body > .ce-well { left: calc(50% + 110px); }
+  /* The bar at the bottom and its panel line up with it: the middle of the page beside the rail. */
+  body > .ce-bar, body > .ce-well { left: calc(50% + var(--rail-w) / 2); }
 }
 /* Back says "Back" where a header has room for it (the wide editor below). */
 .bar-back-text { display: none; }
@@ -535,13 +471,13 @@ body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66p
    below keeps its reading width. Narrower, it is the phone layout: the
    switch beside Back and the floating bar at the bottom. */
 @media (min-width: 1100px) {
-  .page:has(> .app-bar .ce-modes) { width: 100%; }
+  .page:has(> .app-bar .ce-modes) { width: auto; }
   /* More room to edit than to read: the words a little wider, and ChordPro
      with its preview beside it as wide as the screen allows. */
   .page:has(> .app-bar .ce-modes) > :not(.app-bar) { width: min(100%, 880px); margin-inline: auto; }
   .page:has(> .app-bar .ce-modes):has(.ce[data-mode="code"]) > :not(.app-bar) { width: min(100%, 1480px); }
   /* Not white on white in the light theme: the header takes the rail's grey. */
-  .app-bar:has(.ce-modes) { padding-inline: var(--psa-space-4); border-bottom-color: var(--psa-border); background: var(--rail-bg); }
+  .app-bar:has(.ce-modes) { padding-inline: var(--psa-space-4); border-bottom-color: var(--psa-border); background: var(--pane-bg, var(--rail-bg)); }
   .app-bar:has(.ce-modes) .app-bar-row { height: 64px; }
   .app-bar:has(.ce-modes) .bar-back { display: inline-flex; align-items: center; width: auto; gap: 4px; padding: 0 14px 0 8px; border-radius: var(--psa-radius-full); font-weight: 600; text-decoration: none; color: var(--psa-text); }
   .app-bar:has(.ce-modes) .bar-back-text { display: inline; }
@@ -580,7 +516,7 @@ body[data-route^="/sets/id/play"] .page, .page:has(.play-nav) { padding-bottom: 
 .play-step strong { font-size: 14px; font-weight: 600; }
 .play-step small { color: var(--psa-text-secondary); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
 @media (min-width: 900px) {
-  .play-nav { left: 220px; }
+  .play-nav { left: var(--rail-w); }
   body[data-route^="/sets/id/play"] .shell { grid-template-columns: 1fr; }
   body[data-route^="/sets/id/play"] .play-nav { left: 0; }
   body[data-route^="/sets/id/play"] :is(.dock, .follow-view) { left: 0; }
@@ -790,3 +726,158 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
 .chord-key-note strong { color: var(--psa-text); }
 .chord-key-choice { justify-self: start; grid-auto-columns: auto; }
 .chord-key-choice button { padding: 0 var(--psa-space-3); }
+@media (min-width: 900px) {
+  /* ChordPro with its preview may be wider than the pane allows for words. */
+  .page:has(> .app-bar .ce-modes):has(.ce[data-mode="code"]) { width: auto; }
+}
+@media (min-width: 900px) {
+  .tabbar .tab { justify-content: center; }
+}
+@media (min-width: 1100px) {
+  /* The current set's card and the projector's words stay over the song's pane. */
+  body.split :is(.dock, .follow-view) { left: calc(var(--rail-w) + var(--browse-w) + var(--pane-gap)); }
+}
+/* On a phone the chord panel shares the screen with the words: a smaller drawing. */
+@media (max-width: 899px) {
+  .page > .chord-dock .chord-shape { min-height: 0; padding: 30px 44px 30px; }
+  .page > .chord-dock .chord-diagram { max-height: 150px; }
+}
+/* The current set's card rises above a chord panel along the bottom. */
+@media (min-width: 900px) and (max-width: 1399px) {
+  body:has(.page > .chord-dock:not([hidden])) .dock { bottom: calc(var(--chord-dock-h, 0px) + var(--pane-gap)); }
+}
+@media (min-width: 900px) and (max-width: 1099px) {
+  body:has(.page > .chord-dock:not([hidden])) .dock { bottom: calc(var(--chord-dock-h, 0px) + 3 * var(--pane-gap)); }
+}
+
+/* ── Wide screens: the desktop's layout ─────────────────────────────────────
+   Last, so it overrides the phone-first rules above. */
+
+/* Wide screens: the desktop app's layout. A narrow rail of icons at the left
+   (the section in use marked by a lime edge, its name a tooltip), and the
+   screen in a pane with a hairline edge on the dark, dotted ground. The
+   page's words keep a reading width inside it (`--gutter`). */
+@media (min-width: 900px) {
+  :root {
+    --page-pad: var(--psa-space-6); --tabbar-h: 0px; --rail-w: 56px; --pane-gap: 12px;
+    --pane-bg: color-mix(in srgb, var(--psa-bg-surface) 72%, var(--psa-bg-canvas));
+  }
+  body {
+    background-image: radial-gradient(circle at 50% 0%, rgb(198 216 140 / 0.05) 0%, transparent 55%), radial-gradient(circle, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+    background-size: 100% 100%, 24px 24px; background-attachment: fixed;
+  }
+  .shell { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); align-items: start; }
+  .tabbar, body.menu-open .tabbar {
+    /* `top` after `inset`, which would otherwise reset it and let the rail scroll away. */
+    position: sticky; inset: auto; top: 0; z-index: auto; width: auto; height: 100dvh;
+    align-items: center; gap: 4px; padding: 10px 0; overflow: visible;
+    background: var(--psa-bg-glass); border-right: 1px solid var(--psa-border-subtle); box-shadow: none; transform: none; visibility: visible; transition: none;
+  }
+  .tabbar .brand { margin: 0 0 var(--psa-space-3); }
+  .tabbar .brand > span:last-child { display: none; }
+  .tabbar .brand-mark { background: linear-gradient(135deg, var(--psa-accent) 0%, #96ac58 100%); box-shadow: 0 4px 16px var(--psa-accent-glow), inset 0 1px 1px rgb(255 255 255 / 0.25); }
+  .tab-label, .app-version { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tab { display: grid; place-items: center; width: var(--rail-w); height: 44px; padding: 0; border-radius: 0; color: var(--psa-text-tertiary); }
+  .tab .icon { width: 22px; height: 22px; }
+  .tab:hover, .tab.on { background: none; color: var(--psa-text); }
+  .tab.on::before { left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 0 2px 2px 0; background: var(--psa-accent); box-shadow: 0 0 8px var(--psa-accent-glow); }
+  .tab:focus-visible { border-radius: 0; box-shadow: inset 0 0 0 2px var(--psa-focus-color); }
+  .nav-scrim, .menu-button, .app-bar.menu-only { display: none; }
+  /* With its phone-only bar hidden, the title starts the page. */
+  .page > .app-bar.menu-only:first-child + .page-titles { margin-top: var(--psa-space-8); }
+  .page {
+    --gutter: max(var(--page-pad), (100vw - var(--rail-w) - 2 * var(--pane-gap) - 760px) / 2);
+    width: auto; min-height: calc(100dvh - 2 * var(--pane-gap)); margin: var(--pane-gap);
+    padding: 0 var(--gutter) calc(var(--dock-h) + var(--psa-space-8));
+    border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-lg); background: var(--pane-bg);
+  }
+  .page > :first-child:not(.app-bar, .play, .swipe-view) { margin-top: var(--psa-space-8); }
+  /* The pane's head: as tall as the desktop's, a hairline under it and a
+     faint lime light from above. */
+  .app-bar, .search-bar { margin-inline: calc(-1 * var(--gutter)); padding-inline: calc(var(--gutter) - 6px); }
+  .app-bar { border-bottom-color: var(--psa-border-subtle); border-radius: var(--psa-radius-lg) var(--psa-radius-lg) 0 0; background: linear-gradient(180deg, rgb(198 216 140 / 0.04) 0%, transparent 100%), var(--pane-bg); }
+  .search-bar { background: var(--pane-bg); }
+  body.scrolled .app-bar { border-bottom-color: var(--psa-border); }
+  .app-bar-row { height: 64px; }
+  .page-titles h1 { font-weight: 400; letter-spacing: -0.01em; }
+  /* The song editor sets its own widths. */
+  .page:has(> .app-bar .ce-modes) { --gutter: var(--page-pad); }
+  .app-bar:has(.ce-modes) { background: var(--pane-bg); }
+}
+:root { --rail-bg: var(--psa-bg-canvas); }
+
+/* Wider still, the songs as on the desktop: the list in a pane of its own
+   (it stays as it is while songs open), the song chosen in the pane beside
+   it, under a head with its title and toolbar. Each pane scrolls inside. */
+@media (min-width: 1100px) {
+  body.split { --browse-w: clamp(320px, 28vw, 440px); }
+  body.split .shell { grid-template-columns: var(--rail-w) var(--browse-w) minmax(0, 1fr); }
+  .browse-pane[hidden] { display: none; }
+  .browse-pane {
+    --page-pad: 14px; --gutter: 14px;
+    position: sticky; top: var(--pane-gap); height: calc(100dvh - 2 * var(--pane-gap)); margin: var(--pane-gap) 0 var(--pane-gap) var(--pane-gap);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-lg); background: var(--pane-bg);
+  }
+  .browse-pane .page-titles { display: none; }
+  .browse-pane .search-bar { height: 73px; margin: 0 0 var(--psa-space-2); padding: 0 14px; border-bottom: 1px solid var(--psa-border-subtle); }
+  .browse-pane .search-field input { min-height: 44px; border-radius: var(--psa-radius-lg); background: var(--psa-bg-subtle); font-size: 15px; }
+  .browse-pane .list-sort { padding-inline: 14px; }
+  .browse-pane .filter-summary { padding-inline: 14px; }
+  .browse-pane #song-results { margin: 0 8px 8px; border: 0; border-radius: 0; background: none; overflow: visible; }
+  .browse-pane #song-results > li + li { border-top: 0; }
+  .browse-pane #song-results > li { border-radius: var(--psa-radius-md); }
+  .browse-pane #song-results .list-row, .browse-pane #song-results .row-link { min-height: 40px; padding-left: 10px; }
+  .browse-pane #song-results .song-row { padding-left: 0; }
+  @media (hover: hover) { .browse-pane #song-results > li:hover, .browse-pane .song-row:hover { background: var(--psa-bg-elevated); } }
+  /* The song open beside the list: a lime edge round its row. */
+  .browse-pane #song-results > li.on { background: var(--psa-accent-soft); box-shadow: inset 0 0 0 1px var(--psa-accent-medium); }
+  .browse-pane #song-results > li.on .row-main strong { color: var(--psa-text-strong); }
+  .browse-pane #song-results .list-row > .icon:last-child { display: none; }
+  .browse-pane .load-more { margin-bottom: var(--psa-space-6); }
+
+  /* The song's pane: its head and words scroll inside it; how to play a
+     chord sits under them, or beside them when there is room. */
+  body.split .page {
+    --gutter: var(--page-pad);
+    display: flex; flex-direction: column; height: calc(100dvh - 2 * var(--pane-gap)); min-height: 0;
+    padding: 0; overflow: hidden;
+  }
+  body.split .page > .swipe-view { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--gutter) var(--psa-space-8); }
+  body.split .page > .chord-dock { position: relative; inset: auto; flex: none; max-height: 48%; overflow-y: auto; border: 0; border-top: 1px solid var(--psa-border-subtle); border-radius: 0; box-shadow: none; background: var(--psa-bg-subtle); }
+  /* The title is in the head, always; no Back (the list is beside it) and no steps to the next song. */
+  body.split .page .app-bar { position: sticky; top: 0; transform: none; }
+  body.split .page .app-bar-row { height: 72px; gap: var(--psa-space-4); }
+  body.split .page .bar-back, body.split .page .song-nav { display: none; }
+  body.split .page .bar-title { margin: 0 0 0 6px; opacity: 1; transform: none; font-family: var(--psa-font-display); font-size: clamp(1.25rem, 2.2vw, 1.65rem); font-weight: 400; letter-spacing: -0.01em; color: var(--psa-text-strong); }
+  body.split .page .swipe-view > .page-titles { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* Number and key at the top right of the words, as on the desktop. */
+  body.split .page .page-meta { float: right; max-width: 40%; margin: var(--psa-space-5) 0 var(--psa-space-3) var(--psa-space-6); color: var(--psa-text-tertiary); font-size: 13px; text-align: right; }
+  body.split .page .swipe-view > .page-meta + * { margin-top: var(--psa-space-5); }
+  body.split .page .reader { margin-top: var(--psa-space-5); }
+  body.split .page > .page-titles.quiet + .pick-song { flex: 1; display: grid; place-content: center; justify-items: center; color: var(--psa-text-secondary); }
+  .pick-song .icon { width: 36px; height: 36px; margin-bottom: var(--psa-space-3); color: var(--psa-text-tertiary); }
+}
+/* Room for the chord beside the words. */
+@media (min-width: 1400px) {
+  body.split .page { flex-direction: row; }
+  body.split .page > .chord-dock { width: 340px; max-height: none; border-top: 0; border-left: 1px solid var(--psa-border-subtle); }
+}
+
+/* How to play a chord (chord-viewer.ts): a panel along the bottom, over the
+   current set's card, so the song still scrolls above it. The page keeps
+   room under its last line. Too short a screen (a phone on its side) has
+   no room for it: the chord opens in a sheet. */
+.chord-dock {
+  position: fixed; z-index: 24; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--dock-h));
+  max-height: 55dvh; overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: calc(var(--psa-space-4) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--psa-border); box-shadow: 0 -12px 32px rgb(0 0 0 / 0.3);
+}
+.page:has(> .chord-dock:not([hidden])) { padding-bottom: calc(var(--chord-dock-h, 0px) + var(--dock-h) + var(--psa-space-6)); }
+@media (min-width: 1100px) { body.split .page:has(> .chord-dock:not([hidden])) { padding-bottom: 0; } }
+@media (max-height: 560px) { .chord-dock { --chord-dock: none; } }
+/* Wide, without the list beside it: the chord panel floats along the bottom of the pane. */
+@media (min-width: 900px) {
+  .chord-dock { left: calc(var(--rail-w) + 2 * var(--pane-gap)); right: calc(2 * var(--pane-gap)); bottom: calc(var(--dock-h) + 2 * var(--pane-gap)); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-lg); }
+}

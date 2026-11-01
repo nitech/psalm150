@@ -145,6 +145,12 @@ chosen the lines that differ (`line-diff.ts`) from the current version ("what
 restoring would change") or from the version before it ("what this save
 changed"), and **Restore this version** saves that text again as a new
 revision on top of the current one (`PUT /songs/{id}`), so nothing is lost.
+The window keeps one size; the versions are a timeline, each with a short
+note made from what changed (`song-changes.ts` `describeChange`: "Chords in
+Chorus", "Transposed G → A", "Added Bridge", "Restored 3 days ago" for a text
+equal to an older version's) and a graph drawn from `parent_revision_id`
+(`revisionGraph`): one lane while versions follow each other, a lane of its
+own for a version saved on top of an older one, joining where they share it.
 
 ## Favourites
 

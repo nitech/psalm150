@@ -1,5 +1,6 @@
 import { announce } from "../../shared/songs/a11y.ts";
 import { reopenMenu, type BarAction } from "./bar-menu.ts";
+import { songBarActions, type SongActionState } from "../../shared/songs/song-actions.ts";
 import { hasChords, type DisplaySong } from "../../shared/songs/chordpro.ts";
 import { saveReaderOptions, songKey, type ReaderOptions } from "../../shared/songs/song-preview.ts";
 import { transposeLabel } from "./ui.ts";
@@ -20,38 +21,30 @@ export {
 } from "../../shared/songs/song-preview.ts";
 
 /**
- * The reader's own bar actions, for a song with chords: the chords on/off
- * switch (fixed) and Transpose (− key +), always in the ⋮ menu: it is too
- * wide for a phone's bar. Handle them with `onReaderAction`.
+ * The reader's own toolbar state, for a song with chords: chords on or off
+ * and Transpose (− key +). Handle them with `onReaderAction`.
  */
-export function readerBarActions(song: DisplaySong, options: ReaderOptions, transpose: number): BarAction[] {
-  if (!hasChords(song)) return [];
+export function readerActionState(song: DisplaySong, options: ReaderOptions, transpose: number): SongActionState {
+  if (!hasChords(song)) return {};
   const key = songKey(song);
   const steps = transpose ? transposeLabel(transpose) : "";
-  return [
-    {
-      id: "chords",
-      label: options.chords ? "Hide chords" : "Show chords",
-      icon: "chordChart",
-      fixed: true,
-      checked: options.chords,
-      className: options.chords ? "on" : "",
+  return {
+    chords: { shown: options.chords },
+    transpose: {
+      value: key ?? (steps || "±0"),
+      spoken: key ? `key ${key}${steps ? `, ${steps}` : ""}` : steps || "not transposed",
     },
-    {
-      id: "transpose",
-      label: "Transpose",
-      icon: "transpose",
-      menuOnly: true,
-      stepper: {
-        value: key ?? (steps || "±0"),
-        spoken: key ? `key ${key}${steps ? `, ${steps}` : ""}` : steps || "not transposed",
-      },
-    },
-  ];
+  };
+}
+
+/** Only the reader's actions (a song in a shared set). */
+export function readerBarActions(song: DisplaySong, options: ReaderOptions, transpose: number): BarAction[] {
+  return songBarActions(readerActionState(song, options, transpose));
 }
 
 /**
- * A click on one of `readerBarActions`: switches chords (and saves that) or
+ * A click on one of the reader's actions: switches chords (and saves that) or
+
  * steps the transpose through `step`, redraws with `redraw`, then puts
  * focus back where it was (the menu stays open for a step taken in it).
  * False for any other click.

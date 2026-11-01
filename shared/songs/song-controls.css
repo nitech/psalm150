@@ -52,7 +52,11 @@
 @media (hover: hover) { .icon-button:hover:not(:disabled) { background: var(--psa-bg-elevated); } }
 .icon-button.small { width: 36px; height: 36px; }
 .icon-button.small .icon { width: 18px; height: 18px; }
+.icon-button { padding: 0; }
 .icon-button.accent { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
+/* An accent button stays accent under the pointer: a little brighter, never grey. */
+@media (hover: hover) { .icon-button.accent:hover:not(:disabled) { background: var(--psa-accent-hover); color: var(--psa-on-accent); } }
+.icon-button.accent:active:not(:disabled) { background: var(--psa-accent-pressed); }
 /* "On" shows as a tint and a border in accent text colour, which has 3:1
    against the page (the tint alone does not). */
 .icon-button.on { background: var(--psa-accent-medium); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
@@ -87,3 +91,55 @@
 @media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }
 @media (hover: hover) { .bar-menu-item:not(.bar-menu-stepper):hover { background: var(--psa-bg-surface); } }
 .bar-menu-item:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+
+/* A toolbar's actions (bar-menu.ts), as the desktop draws its button rows:
+   one pill on a subtle ground with a hairline edge, round quiet icons in it,
+   the fixed ones, a thin divider and the often used ones (with a small dot,
+   as they come and go), then ⋮ and its menu. ⋮ and the fixed icons never
+   shrink; when the bar is short of room the often used icons go first
+   (they are in ⋮ too), so ⋮ is never pushed out. */
+.bar-actions { --bar-button: 34px; position: relative; display: flex; align-items: center; gap: 2px; min-width: 0; padding: 3px; border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-full); background: var(--psa-bg-subtle); }
+@media (pointer: coarse) { .bar-actions { --bar-button: 40px; } }
+.bar-actions > :is(.icon-button, a.icon-button), .bar-frequent > .icon-button {
+  flex: none; width: var(--bar-button); height: var(--bar-button);
+  border-color: transparent; background: transparent; color: var(--psa-text-tertiary);
+  transition: background-color var(--psa-dur-fast) var(--psa-ease-standard), color var(--psa-dur-fast) var(--psa-ease-standard);
+}
+.bar-actions .icon-button .icon { width: 18px; height: 18px; }
+@media (hover: hover) { .bar-actions .icon-button:hover:not(:disabled) { border-color: var(--psa-border-subtle); background: var(--psa-bg-elevated); color: var(--psa-text-secondary); } }
+.bar-actions .icon-button[aria-expanded="true"] { background: var(--psa-bg-elevated); color: var(--psa-text); }
+/* On: an accent tint and accent text, as the desktop marks Chords. */
+.bar-actions .icon-button.on, .bar-actions .icon-button.in-set { background: var(--psa-accent-medium); color: var(--psa-accent-text); }
+.bar-more { flex: none; }
+.bar-more .icon { transform: rotate(90deg); }
+.bar-frequent { display: flex; gap: 2px; min-width: 0; overflow: hidden; }
+.bar-frequent > * { flex: none; }
+.bar-actions.crowded .bar-frequent, .bar-actions.crowded .bar-divider { display: none; }
+.bar-divider { flex: none; width: 1px; height: 18px; margin: 0 3px; background: var(--psa-border); }
+.icon-button.frequent { position: relative; }
+.icon-button.frequent::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--psa-accent-text); }
+/* ☆ / ★: a favourite has a filled amber star. */
+.fav-toggle { color: var(--psa-text-tertiary); }
+.fav-toggle.on, .fav-toggle.on:hover:not(:disabled), .bar-actions .fav-toggle.on { background: transparent; border-color: transparent; color: var(--psa-warning); }
+.fav-toggle.on .icon { fill: currentColor; }
+/* Transpose: − key +, in the bar a pill of its own and in the menu one row
+   with two places to tap. */
+.bar-stepper { position: relative; display: inline-flex; flex: none; align-items: center; height: var(--bar-button); padding: 0 2px; border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-full); }
+.bar-step { display: inline-flex; align-items: center; justify-content: center; flex: none; width: calc(var(--bar-button, 40px) - 6px); height: calc(var(--bar-button, 40px) - 6px); padding: 0; border: 0; border-radius: 50%; background: none; color: var(--psa-text-secondary); }
+.bar-step .icon { width: 16px; height: 16px; }
+@media (hover: hover) { .bar-step:hover { background: var(--psa-bg-elevated); color: var(--psa-text); } }
+.bar-step:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+.bar-stepper-value { min-width: 2.4em; text-align: center; font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
+.bar-stepper.frequent::after { content: ""; position: absolute; bottom: -5px; left: 50%; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--psa-accent-text); }
+.bar-menu-stepper { gap: 8px; cursor: default; }
+.bar-menu-stepper > span:first-of-type { flex: 1; }
+.bar-menu-stepper .bar-step { width: 40px; height: 40px; border: 1px solid var(--psa-border-strong); }
+.bar-menu-stepper .bar-stepper-value { min-width: 2.6em; font-size: 15px; }
+/* In ⋮, the actions that are also in the bar now: a faint accent tint and
+   an accent icon, so the menu is the whole list and still says what is out. */
+.bar-actions .bar-menu { max-height: min(70vh, 560px); overflow-y: auto; }
+.bar-menu-item.in-bar { background: color-mix(in srgb, var(--psa-accent) 7%, transparent); }
+.bar-menu-item.in-bar > .icon { color: var(--psa-accent-text); }
+@media (hover: hover) { .bar-menu-item.in-bar:not(.bar-menu-stepper):hover { background: color-mix(in srgb, var(--psa-accent) 13%, transparent); } }
+.bar-menu-item.in-bar + .bar-menu-item.in-bar { margin-top: 2px; }
+.bar-menu-item.danger, .bar-menu-item.danger > .icon { color: var(--psa-danger); }

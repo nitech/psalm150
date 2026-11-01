@@ -2,7 +2,9 @@ import { announce, keepFocus, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError } from "../api.ts";
 import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets } from "../current-set.ts";
-import { barActions, bindBarActions, setSwitch, type BarAction } from "../bar-menu.ts";
+import { barActions, bindBarActions, setSwitch } from "../bar-menu.ts";
+import { songBarActions } from "../../../shared/songs/song-actions.ts";
+import { closeChordDock } from "../../../shared/songs/chord-viewer.ts";
 import { canKeepScreenOn, holdScreen, keepScreenOn, setKeepScreenOn } from "../wake-lock.ts";
 import { endSequence, songNeighbours, stepSequence } from "../song-sequence.ts";
 import { appGoesBack, bindItemSwipe } from "../transitions.ts";
@@ -17,7 +19,8 @@ import {
   onReaderAction,
   prepareSong,
   readReaderOptions,
-  readerBarActions,
+  readerActionState,
+
   renderSongBody,
   songKey,
   songText,
@@ -630,40 +633,29 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   }
 
   /**
-   * Fixed in the bar, as in the song list: + (or ✓) for the current set
-   * while there is one, else ☆ (or ★) for the person's favourites.
+   * The song's toolbar, as on the desktop (song-actions.ts): chords, the
+   * current set's + / ✓ (else ☆ / ★), share and edit in the bar; every
+   * action in ⋮, where often used ones also come into the bar.
    */
-  const setToggle = () => {
-    const set = ctx.currentSet.value;
-    if (!ctx.canEdit || !set) {
-      if (!ctx.session) return "";
-      const on = ctx.favorites.has(song.id);
-      return `<button type="button" class="icon-button ghost fav-toggle${on ? " on" : ""}" data-set-act="fav" aria-pressed="${on}" aria-label="Favourite" title="${on ? "A favourite. Tap to remove it." : "Make it a favourite"}">${icon("favorites")}</button>`;
-    }
-    const inSet = ctx.currentSet.count(song.id) > 0;
-    const label = inSet ? `In ${set.name}. Tap to remove it.` : `Add to ${set.name}`;
-    return `<button type="button" class="icon-button ghost${inSet ? " in-set" : ""}" data-set-act="toggle" aria-pressed="${inSet}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(inSet ? "check" : "plus")}</button>`;
+  const songBar = (display: DisplaySong) => {
+    const set = ctx.canEdit ? ctx.currentSet.value : null;
+    const bar = songBarActions({
+      ...readerActionState(display, options, transpose),
+      set: set ? { name: set.name, inSet: ctx.currentSet.count(song.id) > 0 } : undefined,
+      addToSet: ctx.canEdit || undefined,
+      favorite: ctx.session ? { on: ctx.favorites.has(song.id) } : undefined,
+      record: (ctx.canEdit && canRecord() && !hasRecordings) || undefined,
+      findChords: ctx.canEdit && !hasChords(display) ? { href: `#/songs/${song.id}/chords` } : undefined,
+      copy: true,
+      history: Boolean(ctx.session) || undefined,
+      keepAwake: canKeepScreenOn() ? { on: keepScreenOn() } : undefined,
+      share: true,
+      edit: ctx.canEdit ? { href: `#/songs/${song.id}/edit` } : undefined,
+    });
+    // Phones have room for one used-often icon beside a leader's four fixed ones.
+    return barActions("song", bar, ctx.canEdit ? 1 : 2);
   };
-
-  /**
-   * The bar: fixed, the current set's +/✓ and "Chords and key" (the reader's
-   * own controls); everything else in ⋮, where often used ones also come
-   * into the bar ([bar-menu.ts](../bar-menu.ts)).
-   */
-  const actions = (display: DisplaySong) => {
-    const bar: BarAction[] = readerBarActions(display, options, transpose);
-    if (ctx.canEdit) bar.push({ id: "add-to-set", label: ctx.currentSet.value ? "Add to another set" : "Add to a set", icon: "sets" });
-    if (ctx.canEdit && canRecord() && !hasRecordings) bar.push({ id: "record", label: "Record how it is played", icon: "mic", menuOnly: true });
-    // A song without chords can borrow them from a version found online.
-    if (ctx.canEdit && !hasChords(display)) bar.push({ id: "find-chords", label: "Chords from the web", icon: "chords", href: `#/songs/${song.id}/chords` });
-    bar.push({ id: "copy", label: "Copy the words", icon: "copy" });
-    if (ctx.session) bar.push({ id: "history", label: "History", icon: "history", menuOnly: true });
-    if (canKeepScreenOn()) bar.push({ id: "keep-awake", label: "Keep screen on", icon: "sun", checked: keepScreenOn(), switch: true, className: keepScreenOn() ? "on" : "" });
-    bar.push({ id: "share", label: "Share song", icon: "share", fixed: true });
-    if (ctx.canEdit) bar.push({ id: "edit", label: "Edit song", icon: "edit", href: `#/songs/${song.id}/edit`, fixed: true });
-    // Phones have room for one used-often icon beside a leader's five fixed ones.
-    return `<span class="bar-set-actions" id="set-actions">${setToggle()}</span>${barActions("song", bar, ctx.canEdit ? 1 : 2)}`;
-  };
+  const actions = (display: DisplaySong) => `<span class="bar-song-actions" id="song-bar">${songBar(display)}</span>`;
 
   /**
    * Recordings and the YouTube video, as pills under the title, read once;
@@ -681,7 +673,17 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     render();
   });
 
+  /**
+   * How to play a chord tapped in the song: beside it on a wide screen,
+   * along the bottom on a phone (chord-viewer.ts). Kept across redraws like
+   * the media; a redraw (transposing) closes it, as its chord moved.
+   */
+  const chordDock = document.createElement("aside");
+  chordDock.className = "chord-dock";
+  chordDock.hidden = true;
+
   const render = () => {
+    closeChordDock();
     const display = prepareSong(song.chordpro, transpose);
     const meta = [song.song_number ? `No. ${song.song_number}` : "", song.authors, keyLabel(display, transpose)]
       .filter(Boolean).map(escapeHtml).join(" · ");
@@ -697,6 +699,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     ${songNav()}
     ${revisionNote(song, ctx.canEdit)}</div>`;
     ctx.main.querySelector("#song-media-slot")?.replaceWith(mediaHolder);
+    ctx.main.append(chordDock);
   };
 
   /** Previous and Next under the song, for a mouse; phones swipe instead. */
@@ -744,14 +747,6 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   ctx.main.addEventListener("click", onSetAction);
   function onSetAction(event: Event): void {
     const target = event.target as HTMLElement;
-    if (target.closest("[data-set-act='toggle']")) {
-      toggleInCurrentSet(ctx, song, transpose);
-      return;
-    }
-    if (target.closest("[data-set-act='fav']")) {
-      toggleFavorite(ctx, song);
-      return;
-    }
     const step = target.closest<HTMLElement>("[data-song-step]")?.dataset.songStep;
     if (step) {
       goTo(step === "next" ? 1 : -1);
@@ -765,6 +760,12 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     });
     if (reader) return;
     switch (target.closest<HTMLElement>("[data-action]")?.dataset.action) {
+      case "set":
+        toggleInCurrentSet(ctx, song, transpose);
+        break;
+      case "favorite":
+        toggleFavorite(ctx, song);
+        break;
       case "add-to-set":
         void ctx.run(() => openAddToSet(ctx, song, transpose));
         break;
@@ -790,10 +791,10 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     }
   }
 
-  // Only the buttons change when the current set or the favourites do, so the reader keeps its place.
+  // Only the toolbar changes when the current set or the favourites do, so the reader keeps its place.
   const redrawSetToggle = () => {
-    const holder = ctx.main.querySelector<HTMLElement>("#set-actions");
-    if (holder) keepFocus(holder, () => { holder.innerHTML = setToggle(); });
+    const holder = ctx.main.querySelector<HTMLElement>("#song-bar");
+    if (holder) keepFocus(holder, () => { holder.innerHTML = songBar(prepareSong(song.chordpro, transpose)); });
   };
   const unsubscribe = ctx.currentSet.subscribe(redrawSetToggle);
   const unsubscribeFavorites = ctx.favorites.subscribe(redrawSetToggle);
@@ -801,6 +802,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   render();
   const releaseScreen = holdScreen();
   return () => {
+    closeChordDock();
     releaseScreen();
     media.cleanup();
     unbindSwipe();

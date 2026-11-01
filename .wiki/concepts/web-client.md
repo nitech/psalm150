@@ -128,8 +128,16 @@ subtitle is `public_library_name` from `/info`.
 
 Signed in, the app is a shell with four sections: **Songs**, **Sets**,
 **Remote** and **More** (visitors: **Songs** and **Sign in**). At 900 px and
-wider they are a side rail with the brand, and the version and build time at
-its foot (`__APP_VERSION__`, `__BUILD_TIME__` from `vite.config.ts`). On phones there is no tab bar: the
+wider they are a narrow rail of icons as in the desktop app (the one in use
+marked by a lime edge, names as tooltips; the version and build time are in
+the brand's tooltip and for screen readers), and each screen sits in a pane
+with a hairline edge on the dotted dark ground (`--pane-bg`, `--gutter` keeps
+the reading width). At 1100 px and wider the songs are laid out as on the
+desktop (`body.split`): the song list in a pane of its own (`aside#browse`,
+mounted by `syncBrowsePane` in `main.ts` and kept while songs open beside it,
+the open song marked) and the chosen song in a pane under a 72 px head with
+its title and toolbar; each pane scrolls inside. `#/songs` there shows
+"Choose a song". On phones there is no tab bar: the
 same `nav#sections` is a drawer that slides in from the left when you tap ☰
 (`menuButton()`: beside the search field on Songs, in the bar on Sets, Remote
 and More; screens with Back have no ☰). A dimmed shade covers the page. The
@@ -294,7 +302,7 @@ are not affected.
   white in the light theme. The song is up to 880 px wide, and ChordPro with
   its preview beside it up to 1480 px. Narrower windows get the
   phone layout: the switch beside Back and the floating bar.
-- **Song bar**: few icons. Fixed: Back, the current set's **+**/**✓**
+- **Song bar** (`shared/songs/song-actions.ts`, the same in the desktop app; the bar is one pill like the desktop's button groups): few icons. Fixed: Back, the current set's **+**/**✓**
   (leaders, when a set is current), for songs with chords a **chords
   on/off** switch (a chord diagram icon, `chordChart`; lit when on,
   remembered), **Share** and (leaders) **Edit**. With a leader's five fixed
@@ -316,7 +324,8 @@ are not affected.
   promoted icon (`bar-menu.ts`, tested). ⋮ and the fixed icons never
   shrink: when the bar is short of room (a narrow phone, a long title) the
   often-used icons are dropped from it (`.crowded`, measured whenever the
-  screen is drawn or resized), so ⋮ is never pushed out. The menu closes on Escape (focus
+  screen is drawn or resized), so ⋮ is never pushed out. ⋮ lists every
+  action, also those in the bar, which are tinted (`.in-bar`). The menu closes on Escape (focus
   back on ⋮), a tap outside or Tab, and moves with the arrow keys.
 - **How to play a chord** (`chord-viewer.ts`): every chord in a song
   (`renderSongBody`, so the song page, service view, shared sets and the

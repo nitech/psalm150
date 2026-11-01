@@ -397,19 +397,22 @@ function visitorRoute(path: string): boolean {
 /** Signed in, or visiting a public library. */
 function renderShell(): void {
   if (!session && !publicLibrary) return;
+  // On wide screens the sections are a rail of icons, as in the desktop app;
+  // their names show beside them in the phone's drawer and as tooltips.
   const tabs = session
-    ? TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}">${icon(tab.icon)}<span>${tab.label}</span></a>`).join("")
-    : `<a class="tab" href="#/songs" data-tab="songs">${icon("songs")}<span>Songs</span></a>
-      ${roomsOpen ? `<a class="tab" href="/join">${icon("project")}<span>Join a room</span></a>` : ""}
-      <button type="button" class="tab" id="sign-in">${icon("login")}<span>Sign in</span></button>`;
+    ? TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}" title="${tab.label}">${icon(tab.icon)}<span class="tab-label">${tab.label}</span></a>`).join("")
+    : `<a class="tab" href="#/songs" data-tab="songs" title="Songs">${icon("songs")}<span class="tab-label">Songs</span></a>
+      ${roomsOpen ? `<a class="tab" href="/join" title="Join a room">${icon("project")}<span class="tab-label">Join a room</span></a>` : ""}
+      <button type="button" class="tab" id="sign-in" title="Sign in">${icon("login")}<span class="tab-label">Sign in</span></button>`;
   app.innerHTML = `<a class="skip-link" href="#page" id="skip-link">Skip to content</a>
   <div class="shell${session ? "" : " visitor"}">
     <nav class="tabbar" id="sections" aria-label="Sections">
-      <div class="brand" aria-hidden="true"><span class="brand-mark">150</span><span>PSA150</span></div>
+      <div class="brand" aria-hidden="true" title="PSA150 · Version ${escapeHtml(__APP_VERSION__)}"><span class="brand-mark">150</span><span>PSA150</span></div>
       ${tabs}
       <p class="app-version">${versionLabel()}</p>
     </nav>
     <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
+    <aside class="browse-pane" id="browse" aria-label="Song list" hidden></aside>
     <main class="page" id="page" tabindex="-1"></main>
   </div>
   <section class="follow-view room" id="follow-view" aria-label="The projector's words" hidden></section>
@@ -459,6 +462,67 @@ function renderShell(): void {
   void route();
 }
 
+/* ── Songs beside the song (wide screens) ────────────────────────────────── */
+
+/**
+ * Wide enough for the desktop's layout: the song list in a pane of its own,
+ * the song chosen beside it. Narrower, the list and a song are each a screen.
+ */
+const SPLIT = matchMedia("(min-width: 1100px)");
+/** The routes shown beside the list: the list itself and a song. */
+const SPLIT_PATH = /^\/songs(?:\/[0-9a-f-]{36})?$/;
+/** The song list in the pane, while it is there (its view's cleanup). */
+let browse: { cleanup: Cleanup | void; observer: MutationObserver } | null = null;
+
+/**
+ * Shows the song list in its pane for the songs' routes on a wide screen,
+ * and takes it away elsewhere. The list stays as it is (search, scroll)
+ * while songs open beside it.
+ */
+async function syncBrowsePane(path: string): Promise<boolean> {
+  const pane = document.querySelector<HTMLElement>("#browse");
+  const split = Boolean(pane) && SPLIT.matches && SPLIT_PATH.test(path);
+  document.body.classList.toggle("split", split);
+  if (!pane) return false;
+  if (split && !browse) {
+    pane.hidden = false;
+    const cleanup = await songList(libraryContext(pane));
+    // The rows are drawn again as the list loads: mark the open song each time.
+    const observer = new MutationObserver(() => markBrowsed());
+    observer.observe(pane, { childList: true, subtree: true });
+    browse = { cleanup, observer };
+  } else if (!split && browse) {
+    browse.observer.disconnect();
+    if (typeof browse.cleanup === "function") browse.cleanup();
+    browse = null;
+    pane.replaceChildren();
+    pane.hidden = true;
+  }
+  markBrowsed();
+  return split;
+}
+
+/** The song open beside the list is marked in it. */
+function markBrowsed(): void {
+  const pane = document.querySelector<HTMLElement>("#browse");
+  if (!pane || pane.hidden) return;
+  const href = `#${currentPath()}`;
+  pane.querySelectorAll<HTMLElement>("#song-results > li").forEach((row) => {
+    const on = Boolean(row.querySelector(`a[href="${href}"]`));
+    if (row.classList.contains("on") === on) return;
+    row.classList.toggle("on", on);
+    const link = row.querySelector("a");
+    if (on) link?.setAttribute("aria-current", "page");
+    else link?.removeAttribute("aria-current");
+  });
+}
+
+/** Beside the list, before a song is chosen. */
+async function chooseSongView(ctx: LibraryContext): Promise<void> {
+  ctx.main.innerHTML = `<div class="page-titles quiet"><h1 tabindex="-1">Songs</h1></div>
+    <div class="empty-state pick-song">${icon("songs")}<h2>Choose a song</h2><p>Pick one from the list, or search for a title, a number or a line.</p></div>`;
+}
+
 /** Everyone starts at the songs. */
 function homeRoute(): string {
   return "#/songs";
@@ -498,7 +562,7 @@ function openMenu(opener: HTMLElement | null): void {
  * Tab or a screen reader, as with a modal dialog.
  */
 function setBackgroundInert(value: boolean): void {
-  for (const id of ["page", "dock", "skip-link"]) {
+  for (const id of ["page", "browse", "dock", "skip-link"]) {
     const element = document.getElementById(id);
     if (element) element.inert = value;
   }
@@ -767,9 +831,14 @@ async function route(): Promise<void> {
     await currentReady;
     const params = match.found.slice(1);
     const ctx = libraryContext(next);
-    result = match.entry.visitors
-      ? await match.entry.view(ctx, params)
-      : await match.entry.view({ ...ctx, session: session! }, params);
+    // Beside the list in its pane, the songs' own screen asks for a song.
+    const split = await syncBrowsePane(path);
+    if (token !== routeToken) return;
+    result = split && path === "/songs"
+      ? await chooseSongView(ctx)
+      : match.entry.visitors
+        ? await match.entry.view(ctx, params)
+        : await match.entry.view({ ...ctx, session: session! }, params);
   } catch (error) {
     if (token !== routeToken) return;
     main.classList.remove("loading");
@@ -1044,6 +1113,9 @@ function startShellListeners(): void {
   });
   // Turning a tablet to landscape shows the rail; the drawer state must not linger.
   matchMedia("(min-width: 900px)").addEventListener("change", () => closeMenu(false));
+  // Wide enough for the list beside the song, or no longer: lay the screen out again.
+  SPLIT.addEventListener("change", () => void route());
+
   bindEdgeSwipe();
   bindSwipeBack();
   // Start reading a song or set as the finger lands on its link, so the

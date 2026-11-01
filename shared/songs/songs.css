@@ -356,6 +356,45 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 @media (min-width: 640px) {
   dialog.sheet { margin: auto; border-radius: var(--psa-radius-xl); }
 }
+/* The chord panel (chord-viewer.ts showChord): the same chord view, kept
+   beside the song (a side panel) or under it (a bar along the bottom), so
+   the words stay in view and scroll while chords are played. Each app
+   places the empty `.chord-dock` and says where it goes; `--chord-dock:
+   none` means no room, and a sheet opens instead. Its own width decides the
+   layout: narrow, the chord over its shapes; wide and short, side by side. */
+.chord-dock { container: chord-dock / inline-size; box-sizing: border-box; padding: var(--psa-space-4); background: var(--psa-bg-surface); color: var(--psa-text); }
+.chord-dock[hidden] { display: none; }
+.chord-dock-inner { position: relative; }
+.chord-dock .chord-head { flex-wrap: wrap; margin-bottom: var(--psa-space-3); }
+.chord-dock .chord-name { flex-basis: 100%; order: -1; padding-right: 48px; }
+.chord-dock h2.chord-title { margin: 0; font-size: 26px; line-height: 1.15; color: var(--psa-chord); overflow-wrap: anywhere; }
+.chord-dock .chord-instrument { margin-right: auto; }
+.chord-dock .chord-close { position: absolute; top: -4px; right: -4px; }
+.chord-dock .chord-shape { min-height: 200px; padding: 36px 44px 40px; }
+.chord-dock .chord-diagram { max-height: 200px; }
+/* Room for the head on one line: the chord, the instrument, ▷ and ×. */
+@container chord-dock (min-width: 350px) {
+  .chord-dock .chord-head { flex-wrap: nowrap; }
+  .chord-dock .chord-name { flex: 1; flex-basis: auto; order: 0; padding-right: 0; }
+  .chord-dock .chord-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chord-dock .chord-instrument { margin-right: 0; }
+  .chord-dock .chord-close { position: static; }
+}
+/* Wide and short: the chord and its controls on the left, the shapes beside them. */
+@container chord-dock (min-width: 560px) {
+  .chord-dock-inner { display: grid; grid-template-columns: minmax(200px, 240px) minmax(0, 1fr); gap: var(--psa-space-4); align-items: center; padding-right: 44px; }
+  .chord-dock .chord-head { flex-wrap: wrap; margin: 0; align-self: start; }
+  .chord-dock .chord-name { flex-basis: 100%; order: -1; }
+  .chord-dock .chord-instrument { margin-right: auto; }
+  .chord-dock .chord-close { position: absolute; }
+  .chord-dock .chord-shape { min-height: 0; padding: 30px 48px 30px; }
+  .chord-dock .chord-diagram { max-height: 140px; }
+  .chord-dock .chord-dots { bottom: 10px; }
+  .chord-dock .chord-shape-name { top: 8px; }
+}
+/* The chord the panel shows, wherever it is played in the song. */
+button.ch.shown { border-radius: 4px; background: var(--psa-accent-soft); box-shadow: 0 0 0 2px var(--psa-accent-soft); }
+
 
 .song-media { margin: 0 0 var(--psa-space-4); }
 .media-pills { display: flex; flex-wrap: wrap; gap: var(--psa-space-2); }
@@ -417,20 +456,45 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 .recorder-card #rec-toggle { display: inline-flex; width: auto; flex: none; min-height: 40px; padding: 0 16px; }
 .recorder-card-open .icon { transform: none; }
 
-/* A song's history (song-history.ts): the versions on the left (on top on
-   a phone), and the lines that differ for the one chosen. */
-dialog.sheet.history-sheet { max-width: 960px; }
-.history { display: grid; gap: var(--psa-space-3); }
-.history-list { display: grid; gap: 4px; max-height: 28dvh; overflow-y: auto; overscroll-behavior: contain; }
-.history-row { display: flex; align-items: center; gap: var(--psa-space-2); width: 100%; min-height: 52px; padding: 8px 12px; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); color: var(--psa-text); font: inherit; text-align: left; }
-.history-row.on { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); }
-.history-row .row-main small { white-space: normal; }
+/* A song's history (song-history.ts): one window of one size, the
+   versions as a timeline on the left (on top on a phone) and the lines
+   that differ for the one chosen; each scrolls inside it. */
+dialog.sheet.history-sheet { max-width: 1040px; height: min(760px, 88dvh); }
+.history-sheet .sheet-body { display: flex; flex-direction: column; height: 100%; padding-bottom: calc(var(--psa-space-4) + env(safe-area-inset-bottom)); }
+.history-head { display: flex; align-items: center; gap: var(--psa-space-2); margin: 0 56px var(--psa-space-3) 0; }
+.history-head h2 { margin: 0; }
+.history-count { min-width: 22px; padding: 1px 7px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); color: var(--psa-text-secondary); font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.history-count[hidden] { display: none; }
+.history { flex: 1; min-height: 0; display: grid; grid-template-rows: minmax(0, 2fr) minmax(0, 3fr); gap: var(--psa-space-3); }
+.history > p { margin: 0; }
+.history-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+/* Rows meet with no gap, so the graph's lines run on from one to the next. */
+.history-row { display: flex; align-items: center; gap: 6px; width: 100%; height: 52px; padding: 0 10px 0 4px; border: 0; border-radius: var(--psa-radius-sm); background: none; color: var(--psa-text); font: inherit; text-align: left; }
+@media (hover: hover) { .history-row:not(.on):hover { background: var(--psa-bg-elevated); } }
+.history-row.on { background: var(--psa-accent-soft); box-shadow: inset 0 0 0 1px var(--psa-accent-medium); }
+.history-row:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+.history-row .row-main { line-height: 1.25; }
+.history-row .row-main strong { font-size: 14px; }
+.history-row .row-main small { font-size: 12px; }
+.history-note.pending { color: var(--psa-text-tertiary); font-weight: 500; }
+.history-graph { flex: none; overflow: visible; }
+.history-graph :is(line, path) { fill: none; stroke-width: 2; stroke: var(--lane); }
+.history-graph circle { fill: var(--psa-bg-surface); stroke: var(--lane); stroke-width: 2; }
+.history-graph circle.now { fill: var(--lane); }
+.history-row.on .history-graph circle { fill: var(--lane); }
+.history-graph .lane-0 { --lane: var(--psa-accent-text); }
+.history-graph .lane-1 { --lane: var(--psa-positive); }
+.history-graph .lane-2 { --lane: var(--psa-warning); }
+.history-graph .lane-3 { --lane: var(--psa-text-secondary); }
 .history-badge { flex: none; padding: 1px 8px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); color: var(--psa-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-.history-view { display: grid; gap: var(--psa-space-3); min-width: 0; }
-.history-compare { justify-self: start; }
-.history-compare button { padding: 0 var(--psa-space-3); }
-.history-caption { margin: 0; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
-.history-diff { max-height: 46dvh; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-sm); background: var(--psa-bg-sunken); }
+.history-view { display: flex; flex-direction: column; gap: var(--psa-space-3); min-width: 0; min-height: 0; }
+.history-view-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-3); }
+.history-view-title { display: grid; flex: 1 1 220px; min-width: 0; line-height: 1.3; }
+.history-view-title strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-view-title small { color: var(--psa-text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-compare { flex: none; }
+.history-compare button { min-height: 32px; padding: 0 var(--psa-space-3); font-size: 13px; }
+.history-diff { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-sm); background: var(--psa-bg-sunken); }
 .history-diff > p { margin: 0; padding: var(--psa-space-3); }
 .history-lines { margin: 0; padding: 8px 0; font-family: var(--psa-font-mono); font-size: 13px; line-height: 1.55; }
 .history-line, .history-fold { display: block; padding: 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -440,8 +504,10 @@ dialog.sheet.history-sheet { max-width: 960px; }
 .history-line.added .history-sign { color: var(--psa-accent-text); }
 .history-line.removed .history-sign { color: var(--psa-danger); }
 .history-fold { color: var(--psa-text-tertiary); font-style: italic; }
+.history-actions { display: flex; justify-content: flex-end; }
+.history-actions .button .icon { width: 18px; height: 18px; }
 @media (min-width: 900px) {
-  .history { grid-template-columns: 280px minmax(0, 1fr); align-items: start; }
-  .history-list { max-height: 62dvh; }
-  .history-diff { max-height: 52dvh; }
+  .history { grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: var(--psa-space-4); }
+  .history-list { border-right: 1px solid var(--psa-border-subtle); padding-right: var(--psa-space-2); }
 }
+
