@@ -1673,42 +1673,6 @@ select option {
   box-shadow: var(--focus-ring);
 }
 
-/* Star: favourite, filled amber like the star column in the song list. */
-.star-btn.active {
-  color: var(--warning);
-}
-
-.star-btn.active svg {
-  fill: var(--warning);
-  animation: pop-in 260ms var(--ease-decelerate);
-}
-
-.star-btn.active:hover {
-  background: rgba(208, 194, 76, 0.12);
-  border-color: rgba(208, 194, 76, 0.3);
-}
-
-/* Add to setlist: grey plus; lime check while the song is in the active setlist. */
-.setlist-btn.active {
-  color: var(--accent-lime);
-}
-
-.setlist-btn.active svg {
-  filter: drop-shadow(0 0 6px var(--accent-lime-glow));
-  animation: pop-in 260ms var(--ease-decelerate);
-}
-
-.setlist-btn.active:hover {
-  background: var(--accent-lime-soft);
-  border-color: rgba(198, 216, 140, 0.3);
-}
-
-@keyframes pop-in {
-  0% { transform: scale(0.8); }
-  60% { transform: scale(1.15); }
-  100% { transform: scale(1); }
-}
-
 .setlist-menu {
   position: absolute;
   z-index: 50;
@@ -2897,24 +2861,6 @@ psa150-song-editor {
   align-items: flex-end;
 }
 
-.transpose-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-right: 4px;
-  padding: 0 2px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-}
-
-.transpose-value {
-  min-width: 2.4em;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
 .song-action-btn.active {
   color: var(--psa-accent-text);
   background: var(--psa-accent-medium);
@@ -3838,3 +3784,59 @@ body.stage-projection {
   color: var(--accent-lime);
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Song pane: the words, and how to play a chord beside or under them
+   (the shared chord viewer's panel, src/shared/songs/chord-viewer.ts).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.song-pane {
+  container: song-pane / inline-size;
+}
+
+.song-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.song-main > .song-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Under the words: a band across the pane, the song still scrolling above it. */
+.song-main > .chord-dock {
+  flex: none;
+  max-height: 50%;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(12, 12, 12, 0.6);
+}
+
+/* A short window has no room for the band: the chord opens in a sheet. */
+@media (max-height: 620px) {
+  .song-main > .chord-dock {
+    --chord-dock: none;
+  }
+}
+
+/* A wide pane: the chord beside the words, as tall as the pane. */
+@container song-pane (min-width: 900px) {
+  .song-main {
+    flex-direction: row;
+  }
+
+  .song-main > .chord-dock {
+    --chord-dock: side;
+    width: 340px;
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--border-subtle);
+  }
+}
+
+/* The song toolbar (shared bar-menu.ts) sits where the song actions were. */
+.song-actions .bar-menu {
+  z-index: 40;
+}

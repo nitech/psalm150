@@ -1,10 +1,11 @@
 /**
- * Tapping a chord in a song opens a sheet that shows how to play it, on the
- * instrument the person chose last (remembered on this device; a button by
- * the chord opens a menu of instruments). The ways to play it sit side by
- * side in one box, easiest first: swipe, or use ‹ ›, to go through them, and
- * ▷ beside the instrument sounds the one showing. Tapping a string or a key
- * in the drawing sounds that one note.
+ * Tapping a chord in a song shows how to play it, on the instrument the
+ * person chose last (remembered on this device; a button by the chord opens
+ * a menu of instruments): in a panel beside or under the song where the app
+ * has room for one, so the words stay in view and scroll, else in a sheet.
+ * The ways to play it sit side by side in one box, easiest first: swipe, or
+ * use ‹ ›, to go through them, and ▷ beside the instrument sounds the one
+ * showing. Tapping a string or a key in the drawing sounds that one note.
  */
 import { playChord, playNote, preloadSound, type Sound } from "./chord-audio.ts";
 import {
@@ -22,7 +23,7 @@ import {
 import { announce } from "./a11y.ts";
 import { icon } from "./icon.ts";
 import { escapeHtml, readPreference, writePreference } from "./format.ts";
-import { openSheet } from "./sheet.ts";
+import { closeSheet, openSheet } from "./sheet.ts";
 
 interface Instrument<Shape> {
   id: string;
@@ -93,41 +94,137 @@ export function soundChord(name: string): void {
   if (shape !== undefined) playChord(instrument.notes(shape), instrument.sound, true);
 }
 
-/** Opens the sheet for a chord a person taps in any song (`.ch` buttons from `renderSongBody`). */
+/**
+ * Shows how to play a chord a person taps in any song (`.ch` buttons from
+ * `renderSongBody`): in the app's chord panel (`.chord-dock`) when it has
+ * one with room, so the song stays in view and scrolls beside it, else in a
+ * sheet. Escape in the panel closes it.
+ */
 export function installChordViewer(): void {
   document.addEventListener("click", (event) => {
     const button = (event.target as Element).closest?.<HTMLElement>("button.ch[data-chord]");
     if (!button) return;
     event.preventDefault();
-    openChordSheet(button.dataset.chord ?? button.textContent ?? "");
+    showChord(button.dataset.chord ?? button.textContent ?? "", button);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !docked || event.defaultPrevented) return;
+    if (!docked.dock.contains(event.target as Node)) return;
+    event.preventDefault();
+    closeChordDock(true);
   });
 }
 
+/**
+ * The chord panel in use: the element the app gave, the chord button it was
+ * opened from (focus goes back there when it closes), and how to stop it.
+ */
+let docked: { dock: HTMLElement; opener: HTMLElement | null; stop: () => void; resize: ResizeObserver } | null = null;
+
+/**
+ * The chord in the panel when there is one with room, else in a sheet. The
+ * app places an empty `<aside class="chord-dock" hidden>` beside or under
+ * the song and says in CSS where it goes: `--chord-dock: none` (say, on a
+ * phone held sideways) means no room, and the sheet opens instead. A chord
+ * tapped inside a dialog always opens a sheet.
+ */
+export function showChord(name: string, from?: HTMLElement | null): void {
+  const dock = from?.closest("dialog") ? null : document.querySelector<HTMLElement>(".chord-dock");
+  if (dock && openDock(dock, name, from ?? null)) return;
+  openChordSheet(name);
+}
+
+function openDock(dock: HTMLElement, name: string, opener: HTMLElement | null): boolean {
+  if (docked && (docked.dock !== dock || !dock.isConnected)) closeChordDock(false);
+  const wasOpen = !dock.hidden;
+  dock.hidden = false;
+  if (getComputedStyle(dock).getPropertyValue("--chord-dock").trim() === "none" || !dock.getClientRects().length) {
+    if (wasOpen) closeChordDock(false);
+    dock.hidden = true;
+    return false;
+  }
+  docked?.stop();
+  docked?.resize.disconnect();
+  dock.setAttribute("aria-label", `How to play ${name}`);
+  dock.innerHTML = `<div class="chord-dock-inner">${chordMarkup(name, true)}</div>`;
+  const stop = bindChord(dock, name, () => closeChordDock(true));
+  // Pages leave room under the song for a panel along the bottom.
+  const resize = new ResizeObserver(() => {
+    document.documentElement.style.setProperty("--chord-dock-h", `${Math.round(dock.getBoundingClientRect().height)}px`);
+  });
+  resize.observe(dock);
+  docked = { dock, opener, stop, resize };
+  markShown(name);
+  return true;
+}
+
+/** Closes the chord panel, if open; `refocus` returns focus to the chord it showed. */
+export function closeChordDock(refocus = false): void {
+  if (!docked) return;
+  const { dock, opener, stop, resize } = docked;
+  docked = null;
+  stop();
+  resize.disconnect();
+  dock.hidden = true;
+  dock.replaceChildren();
+  document.documentElement.style.removeProperty("--chord-dock-h");
+  markShown(null);
+  if (refocus && opener?.isConnected) opener.focus();
+}
+
+/** The chord in the panel is marked wherever it is played in the song. */
+function markShown(name: string | null): void {
+  document.querySelectorAll<HTMLElement>("button.ch.shown").forEach((button) => button.classList.remove("shown"));
+  if (!name) return;
+  document.querySelectorAll<HTMLElement>("button.ch[data-chord]").forEach((button) => {
+    if (button.dataset.chord === name) button.classList.add("shown");
+  });
+}
+
+/** Opens the sheet for a chord: a phone's bottom sheet, a dialog on a wide screen. */
 export function openChordSheet(name: string): void {
+  const sheet = openSheet(chordMarkup(name, false), { closeButton: false });
+  bindChord(sheet.querySelector<HTMLElement>(".sheet-body")!, name, () => closeSheet(sheet));
+}
+
+/**
+ * The chord, what it is, the instrument (a button with a menu, like ⋮) and
+ * ▷ on one line; under them one box with the ways to play it. In the panel
+ * a × closes it.
+ */
+function chordMarkup(name: string, closable: boolean): string {
   const chord = parseChord(name);
   const subtitle = chord ? `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)} · ${chordNotes(chord).join(" ")}` : "";
-  // The chord, what it is, the instrument (a button with a menu, like ⋮)
-  // and ▷ share one line; the shapes and their controls share one box.
-  const sheet = openSheet(`<div class="chord-head">
+  return `<div class="chord-head">
       <div class="chord-name">
         <h2 class="chord-title">${escapeHtml(name)}</h2>
         ${subtitle ? `<p class="chord-subtitle">${escapeHtml(subtitle)}</p>` : ""}
       </div>
       ${chord ? `<div class="chord-instrument">
-        <button type="button" class="button secondary" id="chord-instrument" aria-haspopup="menu" aria-expanded="false"></button>
+        <button type="button" class="button secondary" data-chord-instrument aria-haspopup="menu" aria-expanded="false"></button>
         <div class="bar-menu" role="menu" aria-label="Instrument" hidden></div>
       </div>
-      <button type="button" class="icon-button accent chord-play" id="chord-play" aria-label="Play the chord">${icon("play")}</button>` : ""}
+      <button type="button" class="icon-button accent chord-play" data-chord-play aria-label="Play the chord" title="Play the chord">${icon("play")}</button>` : ""}
+      ${closable ? `<button type="button" class="icon-button ghost chord-close" data-chord-close aria-label="Close" title="Close (Esc)">${icon("close")}</button>` : ""}
     </div>
-    <div id="chord-sheet"></div>`, { closeButton: false });
-  const body = sheet.querySelector<HTMLElement>("#chord-sheet")!;
-  if (!chord) {
-    body.innerHTML = `<p class="muted">This chord's name is not one the app can read, so it cannot show how to play it.</p>`;
-    return;
-  }
-  const picker = sheet.querySelector<HTMLButtonElement>("#chord-instrument")!;
-  const menu = sheet.querySelector<HTMLElement>(".chord-instrument .bar-menu")!;
-  const play = sheet.querySelector<HTMLButtonElement>("#chord-play")!;
+    <div class="chord-body">${chord ? "" : `<p class="muted">This chord's name is not one the app can read, so it cannot show how to play it.</p>`}</div>`;
+}
+
+/**
+ * Brings a chord's markup to life inside `root`: the instrument menu, ▷,
+ * the shapes to swipe or step through, and a string or key to tap. Returns
+ * a function that stops listening (the panel is used again for the next chord).
+ */
+function bindChord(root: HTMLElement, name: string, close: () => void): () => void {
+  const listening = new AbortController();
+  const signal = listening.signal;
+  root.querySelector("[data-chord-close]")?.addEventListener("click", close, { signal });
+  const chord = parseChord(name);
+  if (!chord) return () => listening.abort();
+  const body = root.querySelector<HTMLElement>(".chord-body")!;
+  const picker = root.querySelector<HTMLButtonElement>("[data-chord-instrument]")!;
+  const menu = root.querySelector<HTMLElement>(".chord-instrument .bar-menu")!;
+  const play = root.querySelector<HTMLButtonElement>("[data-chord-play]")!;
   let instrument = chosenInstrument();
   let shapes: unknown[] = [];
   let current = 0;
@@ -157,9 +254,9 @@ export function openChordSheet(name: string): void {
 
   const strip = () => body.querySelector<HTMLElement>(".chord-shapes");
   const showCurrent = () => {
-    const name = body.querySelector<HTMLElement>(".chord-shape-name");
-    if (!name) return;
-    name.textContent = `${instrument.shapeName(shapes[current])} · ${current + 1}/${shapes.length}`;
+    const label = body.querySelector<HTMLElement>(".chord-shape-name");
+    if (!label) return;
+    label.textContent = `${instrument.shapeName(shapes[current])} · ${current + 1}/${shapes.length}`;
     body.querySelectorAll<HTMLElement>(".chord-dots span").forEach((dot, index) => dot.classList.toggle("on", index === current));
     body.querySelector<HTMLButtonElement>("[data-step='-1']")!.disabled = current === 0;
     body.querySelector<HTMLButtonElement>("[data-step='1']")!.disabled = current === shapes.length - 1;
@@ -187,11 +284,9 @@ export function openChordSheet(name: string): void {
     if (refocus) picker.focus();
   };
 
-  // On the whole sheet, so the instrument and ▷ in the head are heard too.
-  const root = sheet.querySelector<HTMLElement>(".sheet-body")!;
   root.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    if (target.closest("#chord-instrument")) {
+    if (target.closest("[data-chord-instrument]")) {
       if (menu.hidden) openMenu();
       else closeMenu(false);
       return;
@@ -219,15 +314,15 @@ export function openChordSheet(name: string): void {
     }
     const step = target.closest<HTMLElement>("[data-step]");
     if (step) goTo(current + Number(step.dataset.step));
-    if (target.closest("#chord-play") && shapes.length) playChord(instrument.notes(shapes[current]), instrument.sound);
-  });
+    if (target.closest("[data-chord-play]") && shapes.length) playChord(instrument.notes(shapes[current]), instrument.sound);
+  }, { signal });
   root.addEventListener("keydown", (event) => {
     const target = event.target as HTMLElement;
     if (!menu.hidden) {
       const all = items();
       const index = all.indexOf(document.activeElement as HTMLElement);
       if (event.key === "Escape") {
-        // Closes the menu only, not the sheet.
+        // Closes the menu only, not the sheet or the panel.
         event.preventDefault();
         event.stopPropagation();
         closeMenu(true);
@@ -243,7 +338,7 @@ export function openChordSheet(name: string): void {
       goTo(current + (event.key === "ArrowRight" ? 1 : -1));
       event.preventDefault();
     }
-  });
+  }, { signal });
   // A swipe settles on a shape: follow it.
   body.addEventListener("scroll", (event) => {
     const row = event.target as HTMLElement;
@@ -253,10 +348,11 @@ export function openChordSheet(name: string): void {
       current = index;
       showCurrent();
     }
-  }, true);
+  }, { capture: true, signal });
   preloadSound(instrument.sound);
   render();
   announce(`${chord.name}, ${instrument.label}`);
+  return () => listening.abort();
 }
 
 /** Lights a string or key for a moment as it sounds. */

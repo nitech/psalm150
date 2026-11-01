@@ -62,6 +62,9 @@ const SHORT_FORMS: Record<string, string> = {
 
 const DIRECTIVE = /^\{\s*([A-Za-z_][\w-]*)\s*(?::\s*(.*?))?\s*\}$/;
 
+/** For each section, the source lines (0-based) its words and comments come from. */
+const sourceLines = new WeakMap<DisplaySection, number[]>();
+
 export function parseChordPro(source: string): DisplaySong {
   let title = "";
   let key: string | null = null;
@@ -76,6 +79,11 @@ export function parseChordPro(source: string): DisplaySong {
   const ensure = (): DisplaySection => {
     if (!current) current = { label: "", kind: "verse", lines: [] };
     return current;
+  };
+  const from = (section: DisplaySection, index: number) => {
+    const list = sourceLines.get(section) ?? [];
+    list.push(index);
+    sourceLines.set(section, list);
   };
 
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
@@ -108,7 +116,10 @@ export function parseChordPro(source: string): DisplaySong {
       } else if (name.startsWith("end_of_")) {
         flush();
       } else if (name === "comment" || name === "comment_italic" || name === "comment_box") {
-        if (value) ensure().lines.push({ kind: "comment", segments: [{ chord: null, text: value }] });
+        if (value) {
+          ensure().lines.push({ kind: "comment", segments: [{ chord: null, text: value }] });
+          from(ensure(), index);
+        }
       }
       continue;
     }
@@ -123,6 +134,7 @@ export function parseChordPro(source: string): DisplaySong {
       current = { label: "", kind: keepsKind ? previousKind : "verse", lines: [] };
     }
     ensure().lines.push({ kind: "lyrics", segments: splitChords(raw.trimEnd()) });
+    from(ensure(), index);
   }
   flush();
 
@@ -137,6 +149,18 @@ export function parseChordPro(source: string): DisplaySong {
     }
   }
   return { title, key, sections };
+}
+
+/**
+ * The section each source line belongs to, as the reader names it
+ * ("Verse 2", "Chorus"); "" for lines in none (the title, blank lines).
+ */
+export function lineSections(source: string): string[] {
+  const labels = source.replace(/\r\n?/g, "\n").split("\n").map(() => "");
+  for (const section of parseChordPro(source).sections) {
+    for (const index of sourceLines.get(section) ?? []) labels[index] = section.label;
+  }
+  return labels;
 }
 
 function normaliseDirective(name: string): string {

@@ -1,5 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getVersion } from "@tauri-apps/api/app";
@@ -102,6 +103,9 @@ import { NEW_SONG_TEMPLATE } from "../shared/songs/chord-editor.ts";
 import { copyText, readPreference, writePreference } from "../shared/songs/format.ts";
 import { canRecord, mountSongMedia, type SongMedia } from "../shared/songs/song-media.ts";
 import { openSongHistory } from "../shared/songs/song-history.ts";
+import { barActions, bindBarActions, reopenMenu } from "../shared/songs/bar-menu.ts";
+import { songBarActions, type SongActionState } from "../shared/songs/song-actions.ts";
+import { closeChordDock } from "../shared/songs/chord-viewer.ts";
 import { prepareSong, songText } from "../shared/songs/song-preview.ts";
 import { transposeChord } from "../shared/songs/chordpro.ts";
 import type { ToastOptions } from "../shared/songs/host.ts";
@@ -416,6 +420,15 @@ export class Psa150App extends Psa150Element {
   private songMedia: SongMedia | null = null;
   private songMediaKey = "";
   private mediaHolder = Object.assign(document.createElement("div"), { className: "song-media", hidden: true });
+  /**
+   * How to play a chord clicked in the song (the shared chord viewer): beside
+   * the words when the song pane is wide, under them otherwise. Kept across
+   * redraws like the media.
+   */
+  private chordDock = Object.assign(document.createElement("aside"), { className: "chord-dock", hidden: true });
+  /** The song toolbar's HTML for the state it was drawn for (see renderSongActions). */
+  private songBar = { key: "", html: "" };
+  private unbindSongBar: (() => void) | null = null;
 
   constructor() {
     super();
@@ -627,6 +640,7 @@ export class Psa150App extends Psa150Element {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this.onRecordShortcutKeydown, true);
     window.removeEventListener("keydown", this.onGlobalKeydown);
+    this.unbindSongBar?.();
     window.removeEventListener("blur", this.stanzaNumberInput.reset);
     window.removeEventListener("focusin", this.stanzaNumberInput.reset);
     window.removeEventListener("pointerdown", this.stanzaNumberInput.reset);
@@ -651,12 +665,14 @@ export class Psa150App extends Psa150Element {
 
   firstUpdated() {
     this.focusActiveBrowseField();
+    // ⋮ of the song toolbar: opening, closing, arrows, and counting uses.
+    this.unbindSongBar = bindBarActions(this);
   }
 
   /** Clicking outside the setlist menu or the key list closes it. */
   private onDocumentPointerDown = (event: PointerEvent) => {
     const target = event.target as HTMLElement | null;
-    if (this.setlistMenuOpen && !target?.closest(".setlist-menu, .setlist-btn, .active-set-btn")) {
+    if (this.setlistMenuOpen && !target?.closest(".setlist-menu, .active-set-btn, [data-action='set'], [data-action='add-to-set']")) {
       this.setlistMenuOpen = false;
       this.pendingSetlistSong = null;
     }
@@ -666,6 +682,8 @@ export class Psa150App extends Psa150Element {
   };
 
   updated(changed: Map<string, unknown>) {
+    // Another song, chords hidden or moved: the chord shown no longer fits.
+    if (["currentFilename", "showChords", "viewTranspose", "editOpen"].some((name) => changed.has(name))) closeChordDock();
     if (changed.has("projection") || changed.has("projecting")) {
       if (this.isProjectionActive()) {
         requestAnimationFrame(() => this.scrollActiveStanzaIntoView());
@@ -2725,6 +2743,8 @@ export class Psa150App extends Psa150Element {
     this.stanzaNumberInput.reset();
 
     if (event.key === "Escape") {
+      // Taken already: ⋮ closed its menu, or the chord panel closed.
+      if (event.defaultPrevented) return;
       if (this.setlistMenuOpen) {
         this.closeSetlistMenu(true);
         return;
@@ -3433,22 +3453,26 @@ export class Psa150App extends Psa150Element {
             ${this.renderSongActions()}
           </div>
         </header>
-        <div class="song-body scroll-region">
-          ${this.renderSongNotices()}
-          <div class="song-columns">
-            <div class="song-content ${this.isProjectionActive() ? "projecting" : ""}">
-              ${this.currentSong
-                ? html`<div class="song-title-meta">
-                    <div class="song-title-meta-line">${this.renderSongTitleMeta()}</div>
-                    ${this.renderSongSecondaryMeta()}
-                  </div>`
-                : nothing}
-              ${this.mediaHolder}
-              ${this.renderSongContent()}
+        <div class="song-main">
+          <div class="song-body scroll-region">
+            ${this.renderSongNotices()}
+            <div class="song-columns">
+              <div class="song-content ${this.isProjectionActive() ? "projecting" : ""}">
+                ${this.currentSong
+                  ? html`<div class="song-title-meta">
+                      <div class="song-title-meta-line">${this.renderSongTitleMeta()}</div>
+                      ${this.renderSongSecondaryMeta()}
+                    </div>`
+                  : nothing}
+                ${this.mediaHolder}
+                ${this.renderSongContent()}
+              </div>
+              ${this.renderStanzaOrder()}
             </div>
-            ${this.renderStanzaOrder()}
           </div>
+          ${this.chordDock}
         </div>
+
       </section>
     `;
   }
@@ -3706,93 +3730,91 @@ export class Psa150App extends Psa150Element {
     `;
   }
 
-  /** Edit, favourite star and add-to-setlist, right-aligned on the title row. */
+  /**
+   * The song's toolbar, the same as the song server's web client
+   * (shared/songs/song-actions.ts): chords, the active set's + / ✓ (else
+   * the favourite star) and edit in the bar; every action, with its name,
+   * in ⋮, from where the ones used often come into the bar too.
+   */
   private renderSongActions() {
     if (!this.currentSong) return nothing;
     const filename = this.setlistCandidate();
-    const favorite = Boolean(filename && this.favoriteFiles.has(filename));
-    return html`
-      <div class="toolbar-group song-actions" role="group" aria-label="Song">
-        ${this.songHasChords()
-          ? html`
-              ${this.showChords ? this.renderTransposeStepper() : nothing}
-              <button
-                type="button"
-                class="song-action-btn ${this.showChords ? "active" : ""}"
-                title=${this.showChords ? "Hide chords" : "Show chords (click a chord to see and hear how to play it)"}
-                aria-label="Chords"
-                aria-pressed=${this.showChords ? "true" : "false"}
-                @click=${() => this.toggleChords()}
-              >${icon("chordChart")}</button>
-            `
-          : nothing}
-        ${this.serverSong && canRecord() && this.canAdhocEdit() && !this.hasRecordings
-          ? html`<button
-              type="button"
-              class="song-action-btn"
-              title="Record how it is played"
-              aria-label="Record how it is played"
-              @click=${() => this.songMedia?.record()}
-            >${icon("mic")}</button>`
-          : nothing}
-        ${this.serverSong
-          ? html`<button
-              type="button"
-              class="song-action-btn"
-              title="Song history: every saved version, what changed, and restore"
-              aria-label="Song history"
-              @click=${() => this.openHistory()}
-            >${icon("history")}</button>`
-          : nothing}
-        <button
-          type="button"
-          class="song-action-btn"
-          title="Copy the words"
-          aria-label="Copy the words"
-          @click=${() => void this.copyWords()}
-        >${icon("copy")}</button>
-        ${this.songEditsAllowed()
-          ? html`<button
-              type="button"
-              class="song-action-btn"
-              title=${this.currentFilename && isWebResultId(this.currentFilename) ? "Check and add to the library" : "Edit song"}
-              aria-label=${this.currentFilename && isWebResultId(this.currentFilename) ? "Check and add to the library" : "Edit song"}
-              @click=${() => this.openEdit()}
-            >${icon("edit")}</button>`
-          : nothing}
-        ${this.canAdhocEdit()
-          ? html`<button
-              type="button"
-              class="song-action-btn"
-              title="Delete song"
-              aria-label="Delete song"
-              @click=${() => void this.deleteSong()}
-            >${icon("trash")}</button>`
-          : nothing}
-        ${this.songLacksChords()
-          ? html`<button
-              type="button"
-              class="song-action-btn"
-              title="Chords from the web"
-              aria-label="Chords from the web"
-              @click=${() => this.openChords()}
-            >${icon("chords")}</button>`
-          : nothing}
-        ${filename
-          ? html`
-              <button
-                type="button"
-                class="song-action-btn star-btn ${favorite ? "active" : ""}"
-                title=${`${favorite ? "Remove from favourites" : "Add to favourites"} (${formatCombo(this.shortcuts.toggle_favorite)})`}
-                aria-label=${favorite ? "Remove from favourites" : "Add to favourites"}
-                aria-pressed=${favorite ? "true" : "false"}
-                @click=${() => this.toggleFavorite(filename)}
-              >${icon("favorites")}</button>
-              ${this.renderSetlistButton(filename)}
-            `
-          : nothing}
-      </div>
-    `;
+    const webResult = Boolean(this.currentFilename && isWebResultId(this.currentFilename));
+    const chords = this.songHasChords();
+    const steps = this.displayTranspose();
+    const key = this.currentSong.parsed.meta.key as string | undefined;
+    const value = key ? transposeChord(key, steps) : steps ? `${steps > 0 ? "+" : ""}${steps}` : "±0";
+    const set = filename ? this.currentSetlist : null;
+    const state: SongActionState = {
+      chords: chords ? { shown: this.showChords } : undefined,
+      transpose: chords ? { value, spoken: key ? `key ${value}` : steps ? `transposed ${value}` : "not transposed" } : undefined,
+      set: set ? { name: set.name, inSet: this.setlistHasSong(set, filename!) } : undefined,
+      addToSet: filename ? true : undefined,
+      favorite: filename ? { on: this.favoriteFiles.has(filename) } : undefined,
+      record: (this.serverSong && canRecord() && this.canAdhocEdit() && !this.hasRecordings) || undefined,
+      findChords: this.songLacksChords() ? {} : undefined,
+      copy: true,
+      history: this.serverSong ? true : undefined,
+      edit: this.songEditsAllowed() ? { label: webResult ? "Check and add to the library" : "Edit song" } : undefined,
+      delete: this.canAdhocEdit() || undefined,
+    };
+    // Drawn again only when something in it changed, so an open ⋮ stays
+    // open while the rest of the app redraws.
+    const stateKey = JSON.stringify(state);
+    if (stateKey !== this.songBar.key) this.songBar = { key: stateKey, html: barActions("song", songBarActions(state), 2) };
+    return html`<div class="song-actions" @click=${(event: Event) => void this.onSongAction(event)}>${unsafeHTML(this.songBar.html)}</div>`;
+  }
+
+  /** A click in the song toolbar or its ⋮ menu (`data-action`, as in the web client). */
+  private async onSongAction(event: Event) {
+    const target = event.target as HTMLElement;
+    const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
+    if (!action) return;
+    const filename = this.setlistCandidate();
+    const fromMenu = Boolean(target.closest(".bar-menu"));
+    switch (action) {
+      case "chords":
+        this.toggleChords();
+        break;
+      case "transpose-down":
+      case "transpose-up":
+        await this.stepTranspose(action === "transpose-up" ? 1 : -1);
+        await this.updateComplete;
+        // A step taken in ⋮ leaves it open, on the same button.
+        if (fromMenu) reopenMenu(this, action);
+        else this.querySelector<HTMLElement>(`.song-actions .bar-stepper [data-action="${action}"]`)?.focus();
+        break;
+      case "set":
+        await this.addSelectedToSetlist(true);
+        break;
+      case "add-to-set":
+        // The set chosen in the title bar's list becomes active and the song goes in.
+        if (!filename) return;
+        if (!this.setlistMenuOpen) await this.toggleSetlistMenu();
+        this.pendingSetlistSong = filename;
+        break;
+      case "favorite":
+        if (filename) await this.toggleFavorite(filename);
+        break;
+      case "record":
+        this.songMedia?.record();
+        break;
+      case "find-chords":
+        this.openChords();
+        break;
+      case "copy":
+        await this.copyWords();
+        break;
+      case "history":
+        this.openHistory();
+        break;
+      case "edit":
+        this.openEdit();
+        break;
+      case "delete":
+        await this.deleteSong();
+        break;
+    }
   }
 
   // ── Chords, recordings and the words (shared with the song server) ────────
@@ -3826,19 +3848,6 @@ export class Psa150App extends Psa150Element {
     if (next > 11) next -= 12;
     if (next < -11) next += 12;
     this.viewTranspose = next;
-  }
-
-  /** − key +, beside the chords switch while the chords show. */
-  private renderTransposeStepper() {
-    const steps = this.displayTranspose();
-    const key = this.currentSong?.parsed.meta.key as string | undefined;
-    const value = key ? transposeChord(key, steps) : steps ? `${steps > 0 ? "+" : ""}${steps}` : "±0";
-    const spoken = key ? `key ${value}` : steps ? `transposed ${value}` : "not transposed";
-    return html`<div class="transpose-stepper" role="group" aria-label="Transpose">
-      <button type="button" class="song-action-btn" title="Down a semitone" aria-label="Transpose down" @click=${() => void this.stepTranspose(-1)}>${icon("minus")}</button>
-      <span class="transpose-value" aria-live="polite" aria-label=${spoken}>${value}</span>
-      <button type="button" class="song-action-btn" title="Up a semitone" aria-label="Transpose up" @click=${() => void this.stepTranspose(1)}>${icon("plus")}</button>
-    </div>`;
   }
 
   /**
@@ -3922,29 +3931,6 @@ export class Psa150App extends Psa150Element {
       this.mediaHolder,
       (has) => (this.hasRecordings = has),
     );
-  }
-
-  /**
-   * + / check beside the song: puts the song in the active set or takes it
-   * out. With no active set it opens the set picker in the title bar; the set
-   * chosen there becomes active and the song goes in.
-   */
-  private renderSetlistButton(filename: string) {
-    const current = this.currentSetlist;
-    const inSetlist = this.setlistHasSong(current, filename);
-    const label = !current
-      ? `Choose the active set and add this song (${formatCombo(this.shortcuts.add_to_setlist)})`
-      : inSetlist
-        ? `Remove from ${current.name}`
-        : `Add to ${current.name} (${formatCombo(this.shortcuts.add_to_setlist)})`;
-    return html`<button
-      type="button"
-      class="song-action-btn setlist-btn ${inSetlist ? "active" : ""}"
-      title=${label}
-      aria-label=${label}
-      aria-haspopup=${current ? nothing : "dialog"}
-      @click=${() => void this.addSelectedToSetlist(true)}
-    >${icon(inSetlist ? "check" : "plus")}</button>`;
   }
 
   /**

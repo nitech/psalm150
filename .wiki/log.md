@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-11-01
+* **Song toolbar as on the web; chord panel; history timeline**: the song pane's actions are the shared toolbar (`src/shared/songs/song-actions.ts`, `bar-menu.ts`, drawn with `unsafeHTML` and redrawn only when its state changes): chords, the active set's + / ✓ (else the star) and Edit in the bar, every action with its name in ⋮ (those in the bar tinted), often used ones coming into the bar; Transpose and Delete moved into ⋮. A clicked chord shows in a panel beside the words when the song pane is 900 px or wider, under them otherwise (`.song-main`, `chordDock`; a sheet when the window is under 620 px tall); it closes with another song, the chords hidden or a transpose. Escape taken by ⋮ or the panel no longer stops the projection. The history sheet is a fixed-size timeline with a note per version. The play button keeps its lime under the pointer. Pages touched: operator-console.
 * **Song history**: a history button on a server library song opens the shared history sheet (every version with who saved it, the lines that differ from the current version or the one before, and Restore, saved as a new version through `save_song`). New commands `list_song_revisions`, `get_song_revision`. Pages touched: operator-console, ipc-contract.
 
 ## 2026-10-31

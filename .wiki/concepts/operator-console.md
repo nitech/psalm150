@@ -363,10 +363,20 @@ and `get_song_revision` read them with the device token.
 
 ## Chords, recordings and the words
 
-The chords button (title row, songs with chords) shows chords over the
+The song's actions are the shared toolbar (`src/shared/songs/song-actions.ts`
+and `bar-menu.ts`, the same as the song server's web client): chords, the
+active set's + / ✓ (else the favourite star) and Edit in the bar; every
+action with its name in ⋮ (Transpose, Add to a set, the star, Record, Chords
+from the web, Copy the words, History, Delete), those also in the bar tinted;
+an action used often comes into the bar. Escape taken by ⋮ does not stop the
+projection.
+
+The chords button (in the toolbar, songs with chords) shows chords over the
 words (`chord-line.ts`, preference `console-chords`, off by default); each is
-a button that opens how to play it (shared chord sheet with guitar/piano
-diagrams and sound from `public/sounds/`). Lines with chords showing cannot
+a button that shows how to play it (shared chord viewer with guitar/piano
+diagrams and sound from `public/sounds/`) in a panel beside the words when the
+song pane is 900 px or wider, under them otherwise, so the song still scrolls
+(`.song-main` with `chordDock`; a sheet when the window is under 620 px tall). Lines with chords showing cannot
 be corrected in place. − key + transposes: the projection's transpose for the
 song on screen (`set_transpose`), else only this view. Recordings and the
 YouTube pill show under the title (shared `song-media`): the video from
