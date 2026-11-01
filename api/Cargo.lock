@@ -1516,7 +1516,7 @@ dependencies = [
 
 [[package]]
 name = "psa150-server"
-version = "0.1.94"
+version = "0.1.95"
 dependencies = [
  "argon2",
  "axum",
