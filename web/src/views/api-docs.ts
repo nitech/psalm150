@@ -72,7 +72,7 @@ const STATUS_TEXT: Record<string, string> = {
 
 export async function apiDocs(ctx: LibraryContext): Promise<void> {
   setTitle("API reference");
-  const back = ctx.session ? "#/more" : "#/songs";
+  const back = ctx.session ? "#/settings/about" : "#/songs";
   const doc = await ctx.api.openApi();
   const schemas = doc.components?.schemas ?? {};
   const groups = groupOperations(doc);
@@ -85,7 +85,7 @@ export async function apiDocs(ctx: LibraryContext): Promise<void> {
     <dl class="api-facts">
       <dt>Base address</dt><dd><code>${escapeHtml(base)}</code></dd>
       <dt>Signing requests</dt><dd>Send <code>Authorization: Bearer &lt;token&gt;</code>. ${ctx.session
-        ? `Make a token that acts as you under <a href="#/more">More, API tokens</a>.`
+        ? `Make a token that acts as you under <a href="#/settings/api">Settings, API</a>.`
         : "Sign in to make an API token."} Operations marked <strong>No token needed</strong> work without one.</dd>
       <dt>Version</dt><dd>${escapeHtml(doc.info.version)} · <a href="/api/openapi.json" download="psa150-openapi.json">OpenAPI document (JSON)</a> for tools such as Postman or Swagger</dd>
     </dl>

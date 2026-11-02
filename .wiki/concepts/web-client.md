@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Web client
-description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, how to play a tapped chord on guitar or piano, set editor with drag to reorder, service view with swipe and Lead (moving shared-link pages along, with a watching count), remote screen with live push and room names, the token-free /join room reader, More screen with API tokens, rooms and your password, the API reference, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
+description: The bundled mobile-first Vite/TypeScript client — hash routes, tab bar and side rail, sticky bars, the current set and one-tap adding, song reader with chords and transpose, how to play a tapped chord on guitar or piano, set editor with drag to reorder, service view with swipe and Lead (moving shared-link pages along, with a watching count), remote screen with live push and room names, the token-free /join room reader, Settings with its own menu (account, sharing, desktops, API tokens…), the API reference, People screen for owners, role handling and refresh, installable app with offline copies, session and preference storage, the desktop consent screen, and what it does not expose.
 tags: [web, ui, vite, typescript, mobile, pwa, offline]
 status: stable
 sources:
@@ -32,9 +32,9 @@ sources:
   - id: room
     resource: /web/src/views/room.ts
     title: Join page and room reader (/join)
-  - id: more
-    resource: /web/src/views/more.ts
-    title: Account and password, app install, theme, import/export, church, rooms, desktops, API tokens
+  - id: settings
+    resource: /web/src/views/settings.ts
+    title: Settings pages (account, appearance, app, library, sharing, desktops, API, about) and their menu
   - id: people
     resource: /web/src/views/people.ts
     title: People (owners)
@@ -127,7 +127,7 @@ subtitle is `public_library_name` from `/info`.
 ## Shell and routes
 
 Signed in, the app is a shell with four sections: **Songs**, **Sets**,
-**Remote** and **More** (visitors: **Songs** and **Sign in**). At 900 px and
+**Remote** and **Settings** (visitors: **Songs** and **Sign in**). At 900 px and
 wider they are a narrow rail of icons as in the desktop app (the one in use
 marked by a lime edge, names as tooltips; the version and build time are in
 the brand's tooltip and for screen readers), and each screen sits in a pane
@@ -174,9 +174,11 @@ navigation offline with the saved `/`, but saves only `/` itself.
 | `#/sets/{id}/play/{index}` | Service view |
 | `#/remote` | Desktops of the church |
 | `#/remote/{deviceId}` | One desktop's remote |
-| `#/more` | Account, app, appearance, library, church, desktops, API tokens |
-| `#/people` | People of the church (owners; others get "Only owners manage people") |
+| `#/settings`, `#/settings/{page}` | Settings: account, appearance, app, library, sharing, desktops, API, about (`#/settings` alone is the list of pages on phones, the first page wide; `#/more` goes here) |
+| `#/people` | People of the church, a Settings page (owners; others get "Only owners manage people") |
 | `#/api` | API reference (also `/api/docs`; visitors too when the library is public) |
+
+Inside Settings (its pages, People and the API reference) the menu is Settings' own (`body.settings-nav`, `settingsNav` in `main.ts`): Back to the songs, then the pages this person has (`settingsPages`). Wide, the rail widens to 220 px with the pages' names.
 
 An unknown route goes to `#/songs`. A 401 from any screen clears the session
 and shows sign-in. A 404 shows "Not found".

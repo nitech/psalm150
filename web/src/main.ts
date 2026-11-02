@@ -18,7 +18,7 @@ import { appGoesBack, installedApp, slideBetween, swapScreen, takeBrowserAnimate
 import "./install.ts";
 import type { SessionInfo, SetDetail, Session } from "./types.ts";
 import { dateBadge, errorMessage, escapeHtml, hideToast, installSearchClear, readPreference, setFormBusy, showToast } from "./ui.ts";
-import { moreView } from "./views/more.ts";
+import { settingsHref, settingsPages, settingsView } from "./views/settings.ts";
 import { peopleView } from "./views/people.ts";
 import { apiDocs } from "./views/api-docs.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
@@ -339,7 +339,7 @@ type Route = { pattern: RegExp; tab: Tab } & (
   | { visitors?: false; view: View }
 );
 
-type Tab = "songs" | "sets" | "remote" | "more";
+type Tab = "songs" | "sets" | "remote" | "settings";
 
 const ROUTES: Route[] = [
   { pattern: /^\/songs$/, view: songList, tab: "songs", visitors: true },
@@ -354,16 +354,19 @@ const ROUTES: Route[] = [
   { pattern: /^\/sets\/([0-9a-f-]{36})\/play\/(\d+)$/, view: setPlay, tab: "sets" },
   { pattern: /^\/remote$/, view: remoteList, tab: "remote" },
   { pattern: /^\/remote\/([0-9a-f-]{36})$/, view: remoteDesktop, tab: "remote" },
-  { pattern: /^\/more$/, view: moreView, tab: "more" },
-  { pattern: /^\/people$/, view: peopleView, tab: "more" },
-  { pattern: /^\/api$/, view: apiDocs, tab: "more", visitors: true },
+  // More was renamed Settings; old links still arrive.
+  { pattern: /^\/more$/, view: async (ctx) => ctx.navigate("#/settings", true), tab: "settings" },
+  { pattern: /^\/settings$/, view: settingsView, tab: "settings" },
+  { pattern: /^\/settings\/([a-z]+)$/, view: settingsView, tab: "settings" },
+  { pattern: /^\/people$/, view: peopleView, tab: "settings" },
+  { pattern: /^\/api$/, view: apiDocs, tab: "settings", visitors: true },
 ];
 
 const TABS: Array<{ tab: Tab; label: string; icon: IconName; href: string }> = [
   { tab: "songs", label: "Songs", icon: "songs", href: "#/songs" },
   { tab: "sets", label: "Sets", icon: "sets", href: "#/sets" },
   { tab: "remote", label: "Remote", icon: "remote", href: "#/remote" },
-  { tab: "more", label: "More", icon: "more", href: "#/more" },
+  { tab: "settings", label: "Settings", icon: "settings", href: "#/settings" },
 ];
 
 let cleanup: Cleanup | void;
@@ -384,6 +387,18 @@ let hashListener: (() => void) | null = null;
 function versionLabel(): string {
   const built = new Date(__BUILD_TIME__).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   return `Version ${escapeHtml(__APP_VERSION__)} · <time datetime="${__BUILD_TIME__}" title="Built ${escapeHtml(new Date(__BUILD_TIME__).toLocaleString())}">${escapeHtml(built)}</time>`;
+}
+
+/**
+ * Inside Settings the menu is Settings' own: Back to the songs, then its
+ * pages. Rebuilt on each route, as the pages depend on the person's role.
+ */
+function settingsNav(): string {
+  if (!session) return "";
+  const pages = settingsPages({ session, canEdit: canEditSets() });
+  return `<a class="tab nav-back" href="#/songs" title="Back">${icon("back")}<span class="tab-label">Back</span></a>
+    <p class="nav-heading">Settings</p>
+    ${pages.map((page) => `<a class="tab" href="${settingsHref(page)}" data-setting="${page.href ? page.href.slice(2) : `/settings/${page.id}`}" title="${page.label}">${icon(page.icon)}<span class="tab-label">${page.label}</span></a>`).join("")}`;
 }
 
 function currentPath(): string {
@@ -408,7 +423,8 @@ function renderShell(): void {
   <div class="shell${session ? "" : " visitor"}">
     <nav class="tabbar" id="sections" aria-label="Sections">
       <div class="brand" aria-hidden="true" title="PSA150 · Version ${escapeHtml(__APP_VERSION__)}"><span class="brand-mark">150</span><span>PSA150</span></div>
-      ${tabs}
+      <div class="nav-main">${tabs}</div>
+      ${session ? `<div class="nav-settings" aria-label="Settings">${settingsNav()}</div>` : ""}
       <p class="app-version">${versionLabel()}</p>
     </nav>
     <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
@@ -459,6 +475,8 @@ function renderShell(): void {
   if (!location.hash || location.hash === "#" || location.hash === "#/") {
     history.replaceState(null, "", homeRoute());
   }
+  // More is now Settings.
+  if (location.hash === "#/more") history.replaceState(null, "", "#/settings");
   void route();
 }
 
@@ -554,7 +572,11 @@ function openMenu(opener: HTMLElement | null): void {
   const nav = document.querySelector<HTMLElement>("#sections");
   // After the slide starts, so the browser does not scroll to it.
   // The current section, else the first.
-  requestAnimationFrame(() => (nav?.querySelector<HTMLElement>(".tab.on") ?? nav?.querySelector<HTMLElement>(".tab"))?.focus({ preventScroll: true }));
+  // Of the menu shown (Settings has its own), the current section, else the first.
+  requestAnimationFrame(() => {
+    const tabs = Array.from(nav?.querySelectorAll<HTMLElement>(".tab") ?? []).filter((tab) => tab.getClientRects().length);
+    (tabs.find((tab) => tab.classList.contains("on")) ?? tabs[0])?.focus({ preventScroll: true });
+  });
 }
 
 /**
@@ -869,6 +891,22 @@ async function route(): Promise<void> {
       if (on) tab.setAttribute("aria-current", "page");
       else tab.removeAttribute("aria-current");
     });
+    // Settings has its own menu; its pages are marked in it.
+    const inSettings = Boolean(session) && match.entry.tab === "settings";
+    document.body.classList.toggle("settings-nav", inSettings);
+    if (inSettings) {
+      const nav = document.querySelector<HTMLElement>(".nav-settings");
+      if (nav) nav.innerHTML = settingsNav();
+      const shown = path === "/settings" && matchMedia("(min-width: 900px)").matches
+        ? nav?.querySelector<HTMLElement>("[data-setting]")?.dataset.setting
+        : path === "/api" ? "/settings/about" : path;
+      nav?.querySelectorAll<HTMLElement>("[data-setting]").forEach((tab) => {
+        const on = tab.dataset.setting === shown;
+        tab.classList.toggle("on", on);
+        if (on) tab.setAttribute("aria-current", "page");
+        else tab.removeAttribute("aria-current");
+      });
+    }
     document.body.dataset.route = path.split("/").slice(0, 4).join("/").replace(/[0-9a-f-]{36}/g, "id").replace(/\/\d+$/, "");
     document.body.classList.remove("bar-away", "title-away", "scrolled");
     // Back and Forward return to where you were; anything else starts at the top.

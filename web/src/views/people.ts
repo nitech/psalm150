@@ -15,8 +15,8 @@ const ROLES: Role[] = ["owner", "leader", "viewer"];
  * (`/members`).
  */
 export async function peopleView(ctx: AppContext): Promise<void> {
-  const head = pageHead({ title: "People", back: "#/more", church: ctx.session.church_name });
-  setTitle("People", "More");
+  const head = pageHead({ title: "People", church: ctx.session.church_name, compact: true, menu: true });
+  setTitle("People", "Settings");
   if (ctx.session.role !== "owner") {
     ctx.main.innerHTML = `${head}${emptyState("Only owners manage people", "Ask an owner of your church to add people or change what they can do.")}`;
     return;
@@ -214,7 +214,7 @@ function openMemberSheet(ctx: AppContext, member: Member): void {
         // Your own role changed: leave the owners' screen and pick it up.
         closeSheet(sheet);
         showToast("Saved.");
-        ctx.navigate("#/more", true);
+        ctx.navigate("#/settings", true);
         await ctx.refreshSession(true);
         return;
       }

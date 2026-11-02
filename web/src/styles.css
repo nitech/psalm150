@@ -167,6 +167,11 @@ body.menu-dragging .tabbar, body.menu-dragging .nav-scrim { transition: none; }
 .tab.on::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--psa-accent-text); }
 button.tab { width: 100%; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
 button.tab:not(.on) { background: none; }
+/* Settings has its own menu in the same place: Back, then its pages. */
+.nav-settings { display: none; }
+body.settings-nav .nav-main { display: none; }
+body.settings-nav .nav-settings { display: contents; }
+.nav-heading { margin: var(--psa-space-4) var(--psa-space-3) var(--psa-space-1); color: var(--psa-text-tertiary); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 /* Foot of the menu: the version and build. */
 .app-version { margin: auto 0 0; padding: var(--psa-space-4) var(--psa-space-3) 0; color: var(--psa-text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
 
@@ -211,6 +216,9 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
      toolbars are, with the button pill set into it. */
   .app-bar, .search-bar { background: linear-gradient(180deg, rgb(198 216 140 / 0.04) 0%, transparent 100%), var(--psa-bg-subtle); }
   .app-bar .bar-actions { background: var(--psa-bg-sunken); }
+  /* Where the large title is left out, what follows keeps its distance
+     from the bar. */
+  .page > .app-bar + .page-titles.compact + :not(.list-heading) { margin-top: var(--psa-space-4); }
   /* The song list's search: closed, a magnifier beside the title; tapped,
      the field takes the whole bar until it is left empty. The closed field
      is still the input, so a tap opens the keyboard at once. */
@@ -819,6 +827,16 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   .tab:hover, .tab.on { background: none; color: var(--psa-text); }
   .tab.on::before { left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 0 2px 2px 0; background: var(--psa-accent); box-shadow: 0 0 8px var(--psa-accent-glow); }
   .tab:focus-visible { border-radius: 0; box-shadow: inset 0 0 0 2px var(--psa-focus-color); }
+  /* Settings' menu is wider, with its pages' names: there are more of
+     them than icons alone could tell apart. */
+  body.settings-nav { --rail-w: 220px; }
+  body.settings-nav .tabbar { align-items: stretch; padding: 10px var(--psa-space-2); }
+  body.settings-nav .tabbar .brand { align-self: start; margin-left: 10px; }
+  body.settings-nav .tab { display: flex; justify-content: flex-start; gap: var(--psa-space-3); width: auto; height: 40px; padding: 0 var(--psa-space-3); border-radius: var(--psa-radius-sm); font-size: 14px; color: var(--psa-text-secondary); }
+  body.settings-nav .tab .icon { width: 18px; height: 18px; }
+  body.settings-nav .tab .tab-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  body.settings-nav .tab.on { background: var(--psa-accent-soft); color: var(--psa-text); }
+  body.settings-nav .tab.on::before { left: -8px; }
   .nav-scrim, .menu-button, .app-bar.menu-only { display: none; }
   /* With its phone-only bar hidden, the title starts the page. */
   .page > .app-bar.menu-only:first-child + .page-titles { margin-top: var(--psa-space-8); }
