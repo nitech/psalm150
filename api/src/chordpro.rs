@@ -237,71 +237,119 @@ pub fn export_filename(title: &str, id: uuid::Uuid) -> String {
 
 /// The song with sections that name themselves in their first line made the
 /// sections they say they are: a verse starting "Kor:", "Chorus" or
-/// "Chours:" becomes a chorus, one starting "Bridge:" or "Bro:" a bridge.
-/// The naming line goes (a chorus that already is one just loses it), or
-/// only its name where the words follow on the same line ("Kor: Jesus har
-/// makt,"). A number or a repeat ("Kor 2.", "BRIDGE X3") becomes the
-/// section's label. Applying it twice changes nothing.
+/// "Chours:" becomes a chorus, one starting "Bridge:" or "Bro:" a bridge,
+/// and "Vers 2:" or "Verse:" is a verse. The naming lines go (several in a
+/// row count as one; a chorus that already is one just loses them), or only
+/// the name where the words follow on the same line ("Kor: Jesus har
+/// makt,"). A section that holds nothing but a name ("Kor:" with the chorus
+/// in the next section) goes, and its name applies to the next section, so
+/// no empty chorus is left. A number or a repeat ("Kor 2.", "BRIDGE X3")
+/// becomes the label of a chorus or bridge. Applying it twice changes nothing.
 pub fn label_sections(source: &str) -> String {
     let mut lines: Vec<String> = source.split_inclusive('\n').map(str::to_string).collect();
-    // The open section: its start line, its kind, and whether its first
-    // line of words has been looked at.
-    let mut open: Option<(usize, String, bool)> = None;
-    let mut renamed: Option<&'static str> = None;
-    for index in 0..lines.len() {
-        let line = lines[index].clone();
-        let ending = line_ending(&line);
-        if let Some(name) = directive_name(&line) {
-            let name = match name.as_str() {
-                "sov" => "start_of_verse".to_string(),
-                "soc" => "start_of_chorus".to_string(),
-                "sob" => "start_of_bridge".to_string(),
-                "eov" => "end_of_verse".to_string(),
-                "eoc" => "end_of_chorus".to_string(),
-                "eob" => "end_of_bridge".to_string(),
-                _ => name,
-            };
-            if let Some(kind) = name.strip_prefix("start_of_") {
-                open = Some((index, kind.to_string(), false));
-                renamed = None;
-            } else if name.starts_with("end_of_") {
-                if let Some(kind) = renamed.take() {
-                    lines[index] = format!("{{end_of_{kind}}}{ending}");
-                }
-                open = None;
-            }
-            continue;
-        }
-        let Some((start, kind, looked)) = open.as_mut() else {
+    let mut dropped = vec![false; lines.len()];
+    // The name of a section that held only that, for the next section.
+    let mut carried: Option<SectionName> = None;
+    let mut index = 0;
+    while index < lines.len() {
+        let Some(kind) = section_directive(&lines[index])
+            .and_then(|name| name.strip_prefix("start_of_").map(str::to_string))
+        else {
+            index += 1;
             continue;
         };
-        if *looked || line.trim().is_empty() {
-            continue;
-        }
-        *looked = true;
+        let start = index;
+        // The section runs to its end directive, or to the next start.
+        let stop = (start + 1..lines.len())
+            .find(|&i| section_directive(&lines[i]).is_some())
+            .unwrap_or(lines.len());
+        let end = (stop < lines.len()
+            && section_directive(&lines[stop]).is_some_and(|name| name.starts_with("end_of_")))
+        .then_some(stop);
+        index = end.map_or(stop, |end| end + 1);
         if !matches!(kind.as_str(), "verse" | "chorus" | "chorus2" | "bridge") {
+            carried = None;
             continue;
         }
-        let Some(named) = section_name(&line) else {
+        let mut named = carried.take();
+        let mut words = false;
+        for i in start + 1..stop {
+            let line = &lines[i];
+            if line.trim().is_empty() || directive_name(line).is_some() {
+                continue;
+            }
+            let Some(name) = section_name(line) else {
+                words = true;
+                break;
+            };
+            let ending = line_ending(line).to_string();
+            let rest = name.words.clone();
+            named.get_or_insert(name);
+            if rest.is_empty() {
+                dropped[i] = true;
+            } else {
+                lines[i] = format!("{rest}{ending}");
+                words = true;
+                break;
+            }
+        }
+        // An empty bridge is a bridge whose name line went (an empty chorus
+        // stays: it says "sing the chorus here").
+        if named.is_none() && !words && kind == "bridge" {
+            named = Some(SectionName {
+                kind: "bridge",
+                label: None,
+                words: String::new(),
+            });
+        }
+        let Some(named) = named else {
             continue;
         };
-        lines[index] = if named.words.is_empty() {
-            String::new()
-        } else {
-            format!("{}{ending}", named.words)
-        };
-        let same =
-            kind.as_str() == named.kind || (named.kind == "chorus" && kind.as_str() == "chorus2");
+        if !words {
+            // Only a name: the section goes (with a blank line after it)
+            // and the name is the next section's.
+            let last = end.unwrap_or(stop.saturating_sub(1)).min(lines.len() - 1);
+            dropped[start..=last].iter_mut().for_each(|d| *d = true);
+            if lines.get(last + 1).is_some_and(|l| l.trim().is_empty()) {
+                dropped[last + 1] = true;
+            }
+            carried = Some(named);
+            continue;
+        }
+        let same = kind == named.kind || (named.kind == "chorus" && kind == "chorus2");
         if !same || named.label.is_some() {
-            let start_ending = line_ending(&lines[*start]).to_string();
-            lines[*start] = match &named.label {
-                Some(label) => format!("{{start_of_{}: {label}}}{start_ending}", named.kind),
-                None => format!("{{start_of_{}}}{start_ending}", named.kind),
+            let ending = line_ending(&lines[start]).to_string();
+            lines[start] = match &named.label {
+                Some(label) => format!("{{start_of_{}: {label}}}{ending}", named.kind),
+                None => format!("{{start_of_{}}}{ending}", named.kind),
             };
-            renamed = Some(named.kind);
+            if let Some(end) = end {
+                let ending = line_ending(&lines[end]).to_string();
+                lines[end] = format!("{{end_of_{}}}{ending}", named.kind);
+            }
         }
     }
-    lines.concat()
+    lines
+        .into_iter()
+        .zip(dropped)
+        .filter_map(|(line, dropped)| (!dropped).then_some(line))
+        .collect()
+}
+
+/// A section's start or end directive, short forms written out
+/// (`{soc}` is `start_of_chorus`).
+fn section_directive(line: &str) -> Option<String> {
+    let name = directive_name(line)?;
+    let name = match name.as_str() {
+        "sov" => "start_of_verse".to_string(),
+        "soc" => "start_of_chorus".to_string(),
+        "sob" => "start_of_bridge".to_string(),
+        "eov" => "end_of_verse".to_string(),
+        "eoc" => "end_of_chorus".to_string(),
+        "eob" => "end_of_bridge".to_string(),
+        _ => name,
+    };
+    (name.starts_with("start_of_") || name.starts_with("end_of_")).then_some(name)
 }
 
 fn line_ending(line: &str) -> &str {
@@ -315,7 +363,7 @@ struct SectionName {
     words: String,
 }
 
-/// "Kor:", "Chorus", "Ref 1:", "Bridge...", "BRIDGE X3", "Kor: Jesus har makt"
+/// "Kor:", "Chorus", "Ref 1:", "Bridge...", "BRIDGE X3", "Vers 2:", "Kor: Jesus har makt"
 /// as the section they name; not a line of words that starts with one
 /// ("kor me i verda går").
 fn section_name(line: &str) -> Option<SectionName> {
@@ -327,6 +375,7 @@ fn section_name(line: &str) -> Option<SectionName> {
         "ref" => ("chorus", true),
         "bridge" | "brige" => ("bridge", false),
         "bro" => ("bridge", true),
+        "vers" | "verse" => ("verse", false),
         _ => return None,
     };
     let mut rest = text[word.len()..].trim_start();
@@ -350,7 +399,8 @@ fn section_name(line: &str) -> Option<SectionName> {
         return None;
     }
     let name = if kind == "chorus" { "Chorus" } else { "Bridge" };
-    let label = match (number.is_empty(), repeat.is_empty()) {
+    // Verses are numbered in order where they are shown.
+    let label = match (number.is_empty() || kind == "verse", repeat.is_empty()) {
         (true, true) => None,
         (false, true) => Some(format!("{name} {number}")),
         (true, false) => Some(format!("{name} (x{repeat})")),
@@ -506,7 +556,7 @@ No chords"
         for source in [
             "{start_of_verse}\nkor me i verda går,\n{end_of_verse}\n",
             "{start_of_verse}\nBro over vann\n{end_of_verse}\n",
-            "{start_of_verse}\nVerse\nKor:\n{end_of_verse}\n",
+            "{start_of_verse}\nVersene vi synger\n{end_of_verse}\n",
             "Kor:\nno sections here\n",
         ] {
             assert_eq!(label_sections(source), source);
@@ -519,6 +569,33 @@ No chords"
             assert_ne!(once, source);
             assert_eq!(label_sections(&once), once);
         }
+    }
+
+    #[test]
+    fn a_section_of_only_a_name_names_the_next() {
+        let source = "{start_of_verse}\nA\n{end_of_verse}\n\n{start_of_verse}\nKor:\n{end_of_verse}\n\n{start_of_verse}\nChorus:\nB\n{end_of_verse}\n\n{start_of_verse}\nbridge...\n{end_of_verse}\n{start_of_verse}\nC\n{end_of_verse}\n";
+        assert_eq!(
+            label_sections(source),
+            "{start_of_verse}\nA\n{end_of_verse}\n\n{start_of_chorus}\nB\n{end_of_chorus}\n\n{start_of_bridge}\nC\n{end_of_bridge}\n"
+        );
+    }
+
+    #[test]
+    fn an_empty_bridge_names_the_next_but_an_empty_chorus_stays() {
+        let source = "{start_of_bridge}\n{end_of_bridge}\n\n{start_of_verse}\nA\n{end_of_verse}\n{start_of_chorus}\n\n{end_of_chorus}\n";
+        assert_eq!(
+            label_sections(source),
+            "{start_of_bridge}\nA\n{end_of_bridge}\n{start_of_chorus}\n\n{end_of_chorus}\n"
+        );
+    }
+
+    #[test]
+    fn drops_verse_names_and_stacked_names() {
+        let source = "{start_of_verse}\nVers 1:\nA\n{end_of_verse}\n{start_of_chorus}\nVerse:\nB\n{end_of_chorus}\n{start_of_verse}\nKor:\nChorus:\nC\n{end_of_verse}\n";
+        assert_eq!(
+            label_sections(source),
+            "{start_of_verse}\nA\n{end_of_verse}\n{start_of_verse}\nB\n{end_of_verse}\n{start_of_chorus}\nC\n{end_of_chorus}\n"
+        );
     }
 
     #[test]
