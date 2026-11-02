@@ -38,7 +38,8 @@ export interface SongActionState {
 
 /**
  * The actions, in the menu's order. Always in the bar: chords, the current
- * set's + / ✓ (else the favourite star), share and edit. The rest wait in ⋮.
+ * set's + / ✓ (else the favourite star), share and edit. The rest wait in ⋮;
+ * Transpose (− key +) always does.
  */
 export function songBarActions(state: SongActionState): BarAction[] {
   const actions: BarAction[] = [];
@@ -46,7 +47,8 @@ export function songBarActions(state: SongActionState): BarAction[] {
     const shown = state.chords.shown;
     actions.push({ id: "chords", label: shown ? "Hide chords" : "Show chords", icon: "chordChart", fixed: true, checked: shown, className: shown ? "on" : "" });
   }
-  if (state.transpose) actions.push({ id: "transpose", label: "Transpose", icon: "transpose", stepper: state.transpose });
+  // − key + is too wide for a toolbar: always in ⋮, however often it is used.
+  if (state.transpose) actions.push({ id: "transpose", label: "Transpose", icon: "transpose", stepper: state.transpose, menuOnly: true });
   if (state.set) {
     const { name, inSet } = state.set;
     actions.push({
