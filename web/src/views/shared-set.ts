@@ -19,6 +19,7 @@ import { itemPeek, itemTitle, keyCell, openSongPicker, playNav } from "./sets.ts
 import { bindSwipeDelete, swipeRow } from "../swipe-delete.ts";
 import { bindItemSwipe, swapScreen, type Slide } from "../transitions.ts";
 import { holdScreen } from "../wake-lock.ts";
+import { locale, t } from "../../../shared/songs/i18n.ts";
 
 /**
  * A set a leader shared on a link: anyone who has `/shared/{key}` reads the
@@ -83,7 +84,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
         return;
       }
       present(() => {
-        main.innerHTML = `<div class="empty-state"><h1 tabindex="-1">Could not load this page</h1><p>${escapeHtml(errorMessage(error))}</p><a class="button secondary" href="#/">Back to the set</a></div>`;
+        main.innerHTML = `<div class="empty-state"><h1 tabindex="-1">${t("Could not load this page")}</h1><p>${escapeHtml(errorMessage(error))}</p><a class="button secondary" href="#/">${t("Back to the set")}</a></div>`;
       });
     }
   };
@@ -119,7 +120,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       return;
     }
     if (shown === "set") keepFocus(main, drawSet, () => main.querySelector<HTMLElement>("#add-songs, h1"));
-    showToast(done, undo ? { action: { label: "Undo", run: () => void change(undo, "Put back.") } } : false);
+    showToast(done, undo ? { action: { label: t("Undo"), run: () => void change(undo, t("Put back.")) } } : false);
   };
 
   const drawSet = () => {
@@ -130,20 +131,20 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       subtitle: `${set.church_name} · ${serviceDate(set.service_date, true)}`,
     })}
     <p class="current-note">${icon(set.editable ? "edit" : "link")}<span>${set.editable
-      ? "Shared with you on a link. Anyone with it can add songs and remove them."
-      : "Shared with you on a link."}</span></p>
+      ? t("Shared with you on a link. Anyone with it can add songs and remove them.")
+      : t("Shared with you on a link.")}</span></p>
     ${first
-      ? `<a class="button primary wide" href="#/item/${first.id}">${icon("play")}Go through the songs</a>
-         <ol class="list numbered" id="shared-items" aria-label="Songs in the set">${set.items.map(itemRow).join("")}</ol>`
-      : emptyState("This set is empty", set.editable ? "Add the first song." : "No songs have been added yet.")}
-    ${set.editable ? `<button type="button" class="button secondary wide" id="add-songs">${icon("plus")}Add songs</button>` : ""}
-    <p class="fine-print">Updated ${new Date(set.updated_at).toLocaleString()}</p>`;
+      ? `<a class="button primary wide" href="#/item/${first.id}">${icon("play")}${t("Go through the songs")}</a>
+         <ol class="list numbered" id="shared-items" aria-label="${t("Songs in the set")}">${set.items.map(itemRow).join("")}</ol>`
+      : emptyState(t("This set is empty"), set.editable ? t("Add the first song.") : t("No songs have been added yet."))}
+    ${set.editable ? `<button type="button" class="button secondary wide" id="add-songs">${icon("plus")}${t("Add songs")}</button>` : ""}
+    <p class="fine-print">${t("Updated {when}", { when: new Date(set.updated_at).toLocaleString(locale()) })}</p>`;
   };
 
   const itemRow = (item: SetItem, index: number) => {
     const details = [
-      item.song?.song_number ? `No. ${escapeHtml(item.song.song_number)}` : "",
-      item.transpose ? `Transpose ${transposeLabel(item.transpose)}` : "",
+      item.song?.song_number ? t("No. {number}", { number: escapeHtml(item.song.song_number) }) : "",
+      item.transpose ? t("Transpose {steps}", { steps: transposeLabel(item.transpose) }) : "",
       escapeHtml(item.note),
     ].filter(Boolean).join(" · ") || "&nbsp;";
     const main = `<span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong><small>${details}</small></span>${keyCell(item.song?.song_key, item.transpose)}`;
@@ -152,7 +153,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     }
     // Phones swipe a row left to remove the song; a mouse has the × button.
     return `<li data-key="${item.id}" data-item="${item.id}" data-swipe-row>${swipeRow(`<a class="row-link" href="#/item/${item.id}">${main}</a>
-      <button type="button" class="icon-button small danger swipe-alt" data-remove="${item.id}" aria-label="Remove: ${escapeHtml(`${index + 1}, ${itemTitle(item)}`)}">${icon("close")}</button>`, "Remove", "list-row song-row")}</li>`;
+      <button type="button" class="icon-button small danger swipe-alt" data-remove="${item.id}" aria-label="${t("Remove: {item}", { item: escapeHtml(`${index + 1}, ${itemTitle(item)}`) })}">${icon("close")}</button>`, t("Remove"), "list-row song-row")}</li>`;
   };
 
   const removeItem = (itemId: string) => {
@@ -162,7 +163,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     const songId = item.song_id;
     void change(
       () => api.removeSharedSong(key, item.id),
-      `Removed ${itemTitle(item)}.`,
+      t("Removed {title}.", { title: itemTitle(item) }),
       songId ? () => api.addSharedSong(key, songId, index) : undefined,
     );
   };
@@ -204,7 +205,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     if (target.closest("#add-songs")) {
       const count = (songId: string) => set.items.filter((item) => item.song_id === songId).length;
       openSongPicker((search) => api.searchSharedSongs(key, search), count, (song) => {
-        void change(() => api.addSharedSong(key, song.id), `Added ${song.title}.`);
+        void change(() => api.addSharedSong(key, song.id), t("Added {title}.", { title: song.title }));
       });
     }
   };
@@ -216,7 +217,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       // Removed meanwhile, or an old link to one item.
       history.replaceState(null, "", location.pathname);
       shown = "set";
-      showToast("That item is no longer in the set.");
+      showToast(t("That item is no longer in the set."));
       return showSet(present);
     }
     const song = item.kind === "song" && item.song_id ? await loadSong(item.song_id) : null;
@@ -226,8 +227,8 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       const target = set.items[next];
       if (target) location.replace(`#/item/${target.id}`);
     };
-    setTitle(`${itemTitle(item)} (${index + 1} of ${set.items.length})`, set.name);
-    announce(`${itemTitle(item)}, ${index + 1} of ${set.items.length}`);
+    setTitle(t("{title} ({position} of {total})", { title: itemTitle(item), position: index + 1, total: set.items.length }), set.name);
+    announce(t("{title}, {position} of {total}", { title: itemTitle(item), position: index + 1, total: set.items.length }));
 
     const draw = () => {
       const prev = set.items[index - 1];
@@ -238,13 +239,13 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       main.innerHTML = `<div class="play swipe-view">
         ${pageHead({
           title: itemTitle(item),
-          subtitle: `${set.name} · ${index + 1} of ${set.items.length}`,
+          subtitle: `${set.name} · ${t("{position} of {total}", { position: index + 1, total: set.items.length })}`,
           back: "#/",
           actions: display ? barActions("shared-song", readerBarActions(display, options, transpose)) : "",
         })}
         ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
         ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
-        ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">Blank screen</div>` : emptyState("This song was deleted", "It is no longer in the library.")}
+        ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">${t("Blank screen")}</div>` : emptyState(t("This song was deleted"), t("It is no longer in the library."))}
         ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
       </div>`;
       main.querySelector("#play-prev")?.addEventListener("click", () => go(index - 1));
@@ -326,7 +327,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
     const source = new EventSource(`/api/v1/public/sets/${encodeURIComponent(key)}/live/events`);
     source.addEventListener("live", (event) => {
       const live = JSON.parse((event as MessageEvent<string>).data) as SharedSetLive;
-      const text = live.item_id && live.leader_name ? `Following ${live.leader_name}` : "";
+      const text = live.item_id && live.leader_name ? t("Following {name}", { name: live.leader_name }) : "";
       if (banner.textContent !== text) {
         banner.textContent = text;
         banner.hidden = !text;
@@ -380,13 +381,13 @@ for (const type of ["keydown", "pointerdown"]) {
 /** The link was stopped, the set deleted, or the link was never right. */
 function gone(main: HTMLElement, error: unknown): void {
   const missing = error instanceof ApiError && error.status === 404;
-  setTitle(missing ? "Link not found" : "Could not open the set");
+  setTitle(missing ? t("Link not found") : t("Could not open the set"));
   main.innerHTML = `<div class="empty-state">
-    <h1 tabindex="-1">${missing ? "This link does not open a set" : "Could not open the set"}</h1>
+    <h1 tabindex="-1">${missing ? t("This link does not open a set") : t("Could not open the set")}</h1>
     <p>${missing
-      ? "The leader may have stopped sharing it, or the set was deleted. Ask whoever sent you the link for a new one."
+      ? t("The leader may have stopped sharing it, or the set was deleted. Ask whoever sent you the link for a new one.")
       : escapeHtml(errorMessage(error))}</p>
-    ${missing ? "" : `<button type="button" class="button secondary" id="try-again">Try again</button>`}
+    ${missing ? "" : `<button type="button" class="button secondary" id="try-again">${t("Try again")}</button>`}
   </div>`;
   main.querySelector("#try-again")?.addEventListener("click", () => location.reload());
 }

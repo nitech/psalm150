@@ -6,6 +6,7 @@ import type { Follow } from "./follow.ts";
 import { icon } from "./icons.ts";
 import type { RemoteDesktop, SetDetail, SetLive } from "./types.ts";
 import { errorMessage, escapeHtml, readPreference, showToast, writePreference } from "./ui.ts";
+import { t, tn } from "../../shared/songs/i18n.ts";
 
 /**
  * What this phone does with the projector and the people around it, in one
@@ -67,6 +68,8 @@ export function installLive(options: {
   const online = () => follow.desktops.filter((desktop) => desktop.online);
   const steerable = () => online().filter((desktop) => desktop.state.accepts_commands);
   const controlled = (): RemoteDesktop | null => follow.desktops.find((desktop) => desktop.device_id === controlId) ?? null;
+  /** A desktop by its room name, or "the projector". */
+  const projector = (desktop: RemoteDesktop | null | undefined): string => desktop?.room_name ?? t("the projector");
   /** The set to lead: the one open in the service view, else the current set. */
   const leadable = (): SetDetail | null => shown?.set ?? currentSet.value;
 
@@ -95,7 +98,7 @@ export function installLive(options: {
     follow.off();
     const index = shown?.set.id === set.id ? shown.index : 0;
     const itemId = set.items[index]?.id ?? null;
-    if (!itemId) throw new Error("This set is empty.");
+    if (!itemId) throw new Error(t("This set is empty."));
     lead = { set, itemId, info: null };
     changed();
     try {
@@ -109,7 +112,7 @@ export function installLive(options: {
     window.clearInterval(timer);
     // The server lets go a minute after the last word.
     timer = window.setInterval(() => void report(), 5000);
-    announce(set.shared ? `Leading ${set.name}` : `Leading ${set.name}. Share the set on a link so others can follow you.`);
+    announce(set.shared ? t("Leading {set}", { set: set.name }) : t("Leading {set}. Share the set on a link so others can follow you.", { set: set.name }));
   };
 
   const stopLead = async () => {
@@ -119,7 +122,7 @@ export function installLive(options: {
     window.clearInterval(timer);
     changed();
     await api.stopLeadingSet(was.set.id).catch(() => undefined);
-    announce(`No longer leading ${was.set.name}`);
+    announce(t("No longer leading {set}", { set: was.set.name }));
   };
 
   /* ── Controlling ─────────────────────────────────────────────────────── */
@@ -145,26 +148,30 @@ export function installLive(options: {
     projected = "";
     changed();
     void project(true);
-    announce(`Controlling ${controlled()?.room_name ?? "the projector"}`);
+    announce(t("Controlling {desktop}", { desktop: projector(controlled()) }));
   };
 
   const stopControl = () => {
     if (!controlId) return;
-    const name = controlled()?.room_name ?? "the projector";
+    const name = projector(controlled());
     controlId = null;
     projected = "";
     changed();
-    announce(`No longer controlling ${name}`);
+    announce(t("No longer controlling {desktop}", { desktop: name }));
   };
 
   /* ── Following ───────────────────────────────────────────────────────── */
 
   const startFollow = async (deviceId?: string) => {
-    const dropping = [lead && `leading ${lead.set.name}`, controlId && `controlling ${controlled()?.room_name ?? "the projector"}`].filter(Boolean);
-    if (dropping.length) {
+    const values = { set: lead?.set.name ?? "", desktop: projector(controlled()) };
+    const dropping = lead && controlId
+      ? t("Stopped leading {set} and controlling {desktop} to follow the projector.", values)
+      : lead ? t("Stopped leading {set} to follow the projector.", values)
+        : controlId ? t("Stopped controlling {desktop} to follow the projector.", values) : "";
+    if (dropping) {
       await stopLead();
       stopControl();
-      showToast(`Stopped ${dropping.join(" and ")} to follow the projector.`);
+      showToast(dropping);
     }
     if (sheet) closeSheet(sheet);
     follow.setOn(true, deviceId);
@@ -187,19 +194,26 @@ export function installLive(options: {
     const onAir = Boolean(state?.projecting && !state.blanked);
     const mode = follow.on ? "follow" : lead && controlId ? "both" : lead ? "lead" : controlId ? "control" : "idle";
     const viewers = lead?.info?.viewers ?? 0;
+    const setName = lead?.set.name ?? t("a set");
     const words = {
-      follow: `Following ${follow.target?.room_name ?? "the projector"}`,
-      both: `Leading ${lead?.set.name ?? "a set"} and controlling ${controlled()?.room_name ?? "the projector"}`,
-      lead: `Leading ${lead?.set.name ?? "a set"}`,
-      control: `Controlling ${controlled()?.room_name ?? "the projector"}`,
-      idle: !desktop ? "Live: no projector" : !state?.projecting ? `Live: ${desktop.room_name} is not projecting` : `Live: ${desktop.room_name} shows ${state.blanked ? "a blank screen" : state.song_title ?? "words"}`,
+      follow: t("Following {desktop}", { desktop: projector(follow.target) }),
+      both: t("Leading {set} and controlling {desktop}", { set: setName, desktop: projector(controlled()) }),
+      lead: t("Leading {set}", { set: setName }),
+      control: t("Controlling {desktop}", { desktop: projector(controlled()) }),
+      idle: !desktop ? t("Live: no projector")
+        : !state?.projecting ? t("Live: {desktop} is not projecting", { desktop: desktop.room_name })
+          : state.blanked ? t("Live: {desktop} shows a blank screen", { desktop: desktop.room_name })
+            : state.song_title ? t("Live: {desktop} shows {title}", { desktop: desktop.room_name, title: state.song_title })
+              : t("Live: {desktop} shows words", { desktop: desktop.room_name }),
     }[mode];
     const glyph = mode === "follow" ? "eye" : mode === "lead" || mode === "both" ? "follow" : mode === "control" ? "project" : "remote";
     const key = `${mode}:${glyph}:${onAir}:${viewers}:${words}`;
     if (button.dataset.key === key) return;
     button.dataset.key = key;
     button.dataset.mode = mode;
-    button.setAttribute("aria-label", `${words}${viewers ? `, ${viewers} following you` : ""}. Change what this phone does with the projector`);
+    button.setAttribute("aria-label", viewers
+      ? tn(viewers, "{words}, {n} following you. Change what this phone does with the projector", "{words}, {n} following you. Change what this phone does with the projector", { words })
+      : t("{words}. Change what this phone does with the projector", { words }));
     button.title = words;
     button.innerHTML = `${icon(glyph)}${mode === "idle" && onAir ? `<span class="live-dot" aria-hidden="true"></span>` : ""}${mode === "both" ? `<span class="live-dot control" aria-hidden="true"></span>` : ""}${viewers ? `<span class="count-pill" aria-hidden="true">${viewers}</span>` : ""}`;
   };
@@ -238,7 +252,7 @@ export function installLive(options: {
 
   /** A desktop to pick, by room name; only those online. */
   const desktopChoices = (name: string, list: RemoteDesktop[], chosen: string | null, disabled: boolean) => list.length > 1
-    ? `<div class="live-desktops" role="radiogroup" aria-label="Which projector">${list.map((desktop) => `<button type="button" role="radio" class="chip${desktop.device_id === chosen ? " on" : ""}" aria-checked="${desktop.device_id === chosen}" data-${name}="${desktop.device_id}"${disabled ? " disabled" : ""}>${escapeHtml(desktop.room_name)}</button>`).join("")}</div>`
+    ? `<div class="live-desktops" role="radiogroup" aria-label="${t("Which projector")}">${list.map((desktop) => `<button type="button" role="radio" class="chip${desktop.device_id === chosen ? " on" : ""}" aria-checked="${desktop.device_id === chosen}" data-${name}="${desktop.device_id}"${disabled ? " disabled" : ""}>${escapeHtml(desktop.room_name)}</button>`).join("")}</div>`
     : "";
 
   const sheetHtml = (): string => {
@@ -247,36 +261,40 @@ export function installLive(options: {
     const steer = steerable();
     const steerChoice = controlId ?? readPreference("desktop") ?? steer[0]?.device_id ?? null;
     const set = lead?.set ?? leadable();
+    const following = lead?.info?.viewers ?? 0;
     const leadHint = lead
-      ? `${lead.info?.viewers ?? 0} following you${lead.set.shared ? "" : ". Share the set on a link so others can follow."}`
-      : !set ? "Choose a current set (or open a set) to lead it."
-        : set.shared ? "Everyone with the set's shared link moves to the item you show." : "Share the set on a link first, so others can follow you.";
+      ? lead.set.shared
+        ? tn(following, "{n} following you", "{n} following you")
+        : tn(following, "{n} following you. Share the set on a link so others can follow.", "{n} following you. Share the set on a link so others can follow.")
+      : !set ? t("Choose a current set (or open a set) to lead it.")
+        : set.shared ? t("Everyone with the set's shared link moves to the item you show.") : t("Share the set on a link first, so others can follow you.");
+    const controlName = controlled()?.room_name;
     const controlHint = controlId
-      ? `${controlled()?.room_name ?? "The projector"} shows the item you open in a set.`
-      : steer.length ? "The projector shows the item you open in a set's service view." : "No projector accepts remote control right now.";
-    return `<h2>Live</h2>
+      ? controlName ? t("{desktop} shows the item you open in a set.", { desktop: controlName }) : t("The projector shows the item you open in a set.")
+      : steer.length ? t("The projector shows the item you open in a set's service view.") : t("No projector accepts remote control right now.");
+    return `<h2>${t("Live")}</h2>
       <section class="live-group" aria-labelledby="live-watch">
-        <h3 id="live-watch">Watch</h3>
+        <h3 id="live-watch">${t("Watch")}</h3>
         <button type="button" class="live-row" role="radio" aria-checked="${follow.on}" data-live="follow"${followList.length ? "" : " disabled"}>
           <span class="live-mark" aria-hidden="true">${follow.on ? icon("check") : ""}</span>
-          <span class="row-main"><strong>Follow the projector</strong><small>${followList.length ? `The words on ${escapeHtml(followTarget?.room_name ?? "the projector")} fill this screen.` : "No projector is connected."}</small></span>
+          <span class="row-main"><strong>${t("Follow the projector")}</strong><small>${followList.length ? t("The words on {desktop} fill this screen.", { desktop: escapeHtml(projector(followTarget)) }) : t("No projector is connected.")}</small></span>
         </button>
         ${desktopChoices("follow-desktop", followList, followTarget?.device_id ?? null, false)}
       </section>
       ${canLead() ? `<section class="live-group" aria-labelledby="live-lead">
-        <h3 id="live-lead">Lead</h3>
+        <h3 id="live-lead">${t("Lead")}</h3>
         <button type="button" class="live-row" role="switch" aria-checked="${Boolean(lead)}" data-live="lead"${set ? "" : " disabled"}>
-          <span class="row-main"><strong>Lead ${escapeHtml(set?.name ?? "a set")}</strong><small>${escapeHtml(leadHint)}</small></span>
+          <span class="row-main"><strong>${set ? t("Lead {set}", { set: escapeHtml(set.name) }) : t("Lead a set")}</strong><small>${escapeHtml(leadHint)}</small></span>
           <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
         </button>
         <button type="button" class="live-row" role="switch" aria-checked="${Boolean(controlId)}" data-live="control"${steer.length || controlId ? "" : " disabled"}>
-          <span class="row-main"><strong>Control the projector</strong><small>${escapeHtml(controlHint)}</small></span>
+          <span class="row-main"><strong>${t("Control the projector")}</strong><small>${escapeHtml(controlHint)}</small></span>
           <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
         </button>
         ${desktopChoices("control-desktop", steer, steerChoice, false)}
-        ${controlId ? `<a class="button secondary small live-remote" href="#/remote/${controlId}">${icon("remote")}Open the remote</a>` : ""}
+        ${controlId ? `<a class="button secondary small live-remote" href="#/remote/${controlId}">${icon("remote")}${t("Open the remote")}</a>` : ""}
       </section>` : ""}
-      ${follow.on || lead || controlId ? `<button type="button" class="button secondary wide" data-live="off">Turn everything off</button>` : ""}`;
+      ${follow.on || lead || controlId ? `<button type="button" class="button secondary wide" data-live="off">${t("Turn everything off")}</button>` : ""}`;
   };
 
   function drawSheet(): void {

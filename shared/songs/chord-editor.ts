@@ -22,7 +22,6 @@ import {
   MAJOR_KEYS,
   MINOR_KEYS,
   NOTE_INDEX,
-  NO_TITLE,
   autoLabel,
   chordsInKey,
   findMeta,
@@ -30,6 +29,7 @@ import {
   metaSource,
   metaValue,
   newId,
+  noTitle,
   parseChordName,
   parseDoc,
   serializeDoc,
@@ -51,6 +51,7 @@ import { prepareSong, renderSongBody } from "./song-preview.ts";
 import { escapeHtml, readPreference, writePreference } from "./format.ts";
 import { showToast } from "./host.ts";
 import { editable, mountWordsEditor } from "./words-editor.ts";
+import { t } from "./i18n.ts";
 
 /** What a new song starts as. */
 export const NEW_SONG_TEMPLATE = "{title: }\n{author: }\n{key: }\n\n{start_of_verse}\n\n{end_of_verse}\n";
@@ -107,24 +108,24 @@ export function mountChordEditor(
   root.dataset.mode = "visual";
   root.innerHTML = `
     <div class="ce-visual">
-      <input class="ce-title" data-meta="title" autocomplete="off" placeholder="Song title" aria-label="Title" />
+      <input class="ce-title" data-meta="title" autocomplete="off" placeholder="${t("Song title")}" aria-label="${t("Title")}" />
       <div class="ce-flow"></div>
       <div class="ce-sections"></div>
-      <p class="hint ce-hint ce-hint-chords">${mouse ? "Point at a line and click a box above a letter" : "Press and hold a place in the words"} to put a chord there, and drag a chord to move it. The words are changed in Visual.</p>
+      <p class="hint ce-hint ce-hint-chords">${mouse ? t("Point at a line and click a box above a letter to put a chord there, and drag a chord to move it. The words are changed in Visual.") : t("Press and hold a place in the words to put a chord there, and drag a chord to move it. The words are changed in Visual.")}</p>
     </div>
     <div class="ce-code" hidden>
       <div class="ce-code-main">
-        <div class="ce-code-box"><div class="ce-code-inner"><pre class="ce-hl" aria-hidden="true"></pre><textarea class="ce-src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="ChordPro source"></textarea></div></div>
+        <div class="ce-code-box"><div class="ce-code-inner"><pre class="ce-hl" aria-hidden="true"></pre><textarea class="ce-src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="${t("ChordPro source")}"></textarea></div></div>
         <ul class="ce-issues" aria-live="polite"></ul>
-        <p class="hint">${mouse ? "Press Ctrl+K to pick a chord at the cursor. " : ""}Chords go in brackets before the syllable, like <code>[G]Amazing [D]grace</code>. Sections use <code>{start_of_chorus}</code> … <code>{end_of_chorus}</code>.</p>
+        <p class="hint">${mouse ? `${t("Press Ctrl+K to pick a chord at the cursor.")} ` : ""}${t("Chords go in brackets before the syllable, like {example}. Sections use {start} … {end}.", { example: "<code>[G]Amazing [D]grace</code>", start: "<code>{start_of_chorus}</code>", end: "<code>{end_of_chorus}</code>" })}</p>
       </div>
       <div class="ce-preview-col">
-        <button type="button" class="button secondary small ce-preview-toggle" aria-expanded="false">Show preview</button>
+        <button type="button" class="button secondary small ce-preview-toggle" aria-expanded="false">${t("Show preview")}</button>
         <div class="ce-preview" hidden></div>
       </div>
     </div>`;
 
-  parts.modes.innerHTML = `<button type="button" data-mode="visual" class="on" aria-pressed="true">Visual</button><button type="button" data-mode="chords" aria-pressed="false">Chords</button><button type="button" data-mode="code" aria-pressed="false">ChordPro</button>`;
+  parts.modes.innerHTML = `<button type="button" data-mode="visual" class="on" aria-pressed="true">${t("Visual")}</button><button type="button" data-mode="chords" aria-pressed="false">${t("Chords")}</button><button type="button" data-mode="code" aria-pressed="false">ChordPro</button>`;
 
   const q = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = root) => scope.querySelector<T>(selector)!;
   const sectionsEl = q(".ce-sections");
@@ -134,23 +135,23 @@ export function mountChordEditor(
   settingsEl.className = "ce-settings";
   settingsEl.innerHTML = `
     <div class="ce-pair">
-      <label>Key<select class="ce-key"></select></label>
-      <label>Capo<select data-meta="capo"><option value="">None</option>${Array.from({ length: 11 }, (_, i) => `<option>${i + 1}</option>`).join("")}</select></label>
+      <label>${t("Key")}<select class="ce-key"></select></label>
+      <label>${t("Capo")}<select data-meta="capo"><option value="">${t("None")}</option>${Array.from({ length: 11 }, (_, i) => `<option>${i + 1}</option>`).join("")}</select></label>
     </div>
     <div class="ce-key-prompt" hidden>
       <p></p>
-      <button type="button" class="button primary small" data-key="yes">Move chords</button>
-      <button type="button" class="button secondary small" data-key="no">Keep chords</button>
+      <button type="button" class="button primary small" data-key="yes">${t("Move chords")}</button>
+      <button type="button" class="button secondary small" data-key="no">${t("Keep chords")}</button>
     </div>
     <details class="ce-more">
-      <summary>More details</summary>
+      <summary>${t("More details")}</summary>
       <div class="ce-more-grid">
-        <label class="ce-span">Author<input data-meta="author" autocomplete="off" /></label>
-        <label>Number<input data-meta="number" autocomplete="off" inputmode="numeric" /></label>
+        <label class="ce-span">${t("Author")}<input data-meta="author" autocomplete="off" /></label>
+        <label>${t("Number")}<input data-meta="number" autocomplete="off" inputmode="numeric" /></label>
         <label>CCLI<input data-meta="ccli" autocomplete="off" inputmode="numeric" /></label>
-        <label>Tempo<input data-meta="tempo" autocomplete="off" inputmode="numeric" placeholder="BPM" /></label>
-        <label>Time<input data-meta="time" autocomplete="off" placeholder="4/4" /></label>
-        <label class="ce-span">Copyright<input data-meta="copyright" autocomplete="off" /></label>
+        <label>${t("Tempo")}<input data-meta="tempo" autocomplete="off" inputmode="numeric" placeholder="${t("BPM")}" /></label>
+        <label>${t("Time")}<input data-meta="time" autocomplete="off" placeholder="4/4" /></label>
+        <label class="ce-span">${t("Copyright")}<input data-meta="copyright" autocomplete="off" /></label>
         <label class="ce-span">YouTube<input data-meta="youtube" type="url" inputmode="url" autocomplete="off" placeholder="https://youtu.be/…" /></label>
       </div>
       <p class="ce-extras" hidden></p>
@@ -162,11 +163,11 @@ export function mountChordEditor(
   const drawSound = () => {
     soundEl.innerHTML = `
       <div class="ce-well-rule"></div>
-      <p class="ce-well-title">Chord sound</p>
+      <p class="ce-well-title">${t("Chord sound")}</p>
       <div class="ce-well-grid">
-        <button type="button" class="ce-well-row ce-sound-switch" role="switch" aria-checked="${soundOn()}"><span class="ce-well-check" aria-hidden="true">${icon("play")}</span><span>Play chords</span><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button>
+        <button type="button" class="ce-well-row ce-sound-switch" role="switch" aria-checked="${soundOn()}"><span class="ce-well-check" aria-hidden="true">${icon("play")}</span><span>${t("Play chords")}</span><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button>
       </div>
-      <div class="ce-well-grid" role="radiogroup" aria-label="Instrument">${instruments().map((item) =>
+      <div class="ce-well-grid" role="radiogroup" aria-label="${t("Instrument")}">${instruments().map((item) =>
         `<button type="button" class="ce-well-row" role="radio" aria-checked="${item.chosen}" data-instrument="${item.id}"><span class="ce-well-check" aria-hidden="true">${item.chosen ? icon("check") : ""}</span>${escapeHtml(item.label)}</button>`).join("")}</div>`;
   };
   drawSound();
@@ -205,15 +206,15 @@ export function mountChordEditor(
     <div class="ce-bubble-chords"></div>
     <div class="ce-bubble-more" hidden>
       <div class="ce-bubble-head">
-        <button type="button" class="ce-pick ce-bubble-back" aria-label="Back to the song's chords">${icon("prev")}</button>
+        <button type="button" class="ce-pick ce-bubble-back" aria-label="${t("Back to the song's chords")}">${icon("prev")}</button>
         <span class="ce-bubble-name" aria-live="polite"></span>
       </div>
-      <div class="ce-bubble-roots" role="group" aria-label="Root"></div>
-      <div class="ce-bubble-forms" role="group" aria-label="Kind"></div>
-      <div class="ce-bubble-basses" role="group" aria-label="Bass" hidden></div>
+      <div class="ce-bubble-roots" role="group" aria-label="${t("Root")}"></div>
+      <div class="ce-bubble-forms" role="group" aria-label="${t("Kind")}"></div>
+      <div class="ce-bubble-basses" role="group" aria-label="${t("Bass")}" hidden></div>
       <div class="ce-bubble-type">
-        <input class="ce-bubble-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Or type: fiss moll, F#m, H7" aria-label="Type a chord" enterkeyhint="done" />
-        <button type="button" class="button primary small ce-bubble-ok">Put in</button>
+        <input class="ce-bubble-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${t("Or type: fiss moll, F#m, H7")}" aria-label="${t("Type a chord")}" enterkeyhint="done" />
+        <button type="button" class="button primary small ce-bubble-ok">${t("Put in")}</button>
       </div>
       <p class="ce-bubble-warn" hidden></p>
     </div>`;
@@ -357,17 +358,17 @@ export function mountChordEditor(
 
   function chipsHtml(line: LyricLine): string {
     return `<span class="ce-ghost" hidden aria-hidden="true"></span>${[...line.chords].sort((a, b) => a.pos - b.pos).map((chord) =>
-      `<button type="button" class="ce-chip" data-chord="${chord.id}" aria-label="Chord ${escapeHtml(chord.name)}" aria-describedby="ce-chip-help">${escapeHtml(chord.name)}</button>`).join("")}`;
+      `<button type="button" class="ce-chip" data-chord="${chord.id}" aria-label="${t("Chord {name}", { name: escapeHtml(chord.name) })}" aria-describedby="ce-chip-help">${escapeHtml(chord.name)}</button>`).join("")}`;
   }
   function lineHtml(line: Section["lines"][number]): string {
     if (line.kind === "lyric") {
       // With a mouse the words keep a caret (for the keyboard) but take no
       // typing. On a touch screen they are not editable at all, so a long
       // press does not select words while placing a chord.
-      return `<div class="ce-line" data-line="${line.id}"><div class="ce-text" data-line="${line.id}" contenteditable="${mouse ? editable : "false"}" inputmode="none" aria-readonly="true" role="textbox" aria-label="Line" spellcheck="false">${escapeHtml(line.text)}</div><div class="ce-chips">${chipsHtml(line)}</div></div>`;
+      return `<div class="ce-line" data-line="${line.id}"><div class="ce-text" data-line="${line.id}" contenteditable="${mouse ? editable : "false"}" inputmode="none" aria-readonly="true" role="textbox" aria-label="${t("Line")}" spellcheck="false">${escapeHtml(line.text)}</div><div class="ce-chips">${chipsHtml(line)}</div></div>`;
     }
-    if (line.kind === "comment") return `<div class="ce-comment"><span class="ce-tag">Note</span><div class="ce-comment-text">${escapeHtml(line.text)}</div></div>`;
-    return `<div class="ce-raw" title="Change this line in ChordPro"><code>${escapeHtml(line.text)}</code></div>`;
+    if (line.kind === "comment") return `<div class="ce-comment"><span class="ce-tag">${t("Note")}</span><div class="ce-comment-text">${escapeHtml(line.text)}</div></div>`;
+    return `<div class="ce-raw" title="${t("Change this line in ChordPro")}"><code>${escapeHtml(line.text)}</code></div>`;
   }
   function sectionHtml(section: Section, verse: number): string {
     const name = escapeHtml(section.label || autoLabel(section, verse));
@@ -390,13 +391,13 @@ export function mountChordEditor(
     cellsLine = null;
     let verse = 0;
     sectionsEl.innerHTML = doc.items.filter((item) => item.kind !== "meta").map((item) => {
-      if (item.kind === "raw") return `<div class="ce-raw" data-item="${item.id}" title="Edit this line in ChordPro"><code>${escapeHtml(item.text)}</code></div>`;
+      if (item.kind === "raw") return `<div class="ce-raw" data-item="${item.id}" title="${t("Edit this line in ChordPro")}"><code>${escapeHtml(item.text)}</code></div>`;
       if (item.kind === "section") {
         if (item.type === "verse" || item.type === "none") verse += 1;
         return sectionHtml(item, verse);
       }
       return "";
-    }).join("") + `<p id="ce-chip-help" class="sr-only">Arrow keys move the chord, Delete removes it, Enter changes it.</p>`;
+    }).join("") + `<p id="ce-chip-help" class="sr-only">${t("Arrow keys move the chord, Delete removes it, Enter changes it.")}</p>`;
     layoutAll();
     restoreFocus();
   }
@@ -461,12 +462,12 @@ export function mountChordEditor(
     const key = metaValue(doc, "key");
     const keys = [...MAJOR_KEYS, ...MINOR_KEYS];
     const option = (value: string) => `<option${value === key ? " selected" : ""}>${escapeHtml(value)}</option>`;
-    keySelect.innerHTML = `<option value="">Not set</option>${key && !keys.includes(key) ? option(key) : ""}<optgroup label="Major">${MAJOR_KEYS.map(option).join("")}</optgroup><optgroup label="Minor">${MINOR_KEYS.map(option).join("")}</optgroup>`;
+    keySelect.innerHTML = `<option value="">${t("Not set")}</option>${key && !keys.includes(key) ? option(key) : ""}<optgroup label="${t("Major")}">${MAJOR_KEYS.map(option).join("")}</optgroup><optgroup label="${t("Minor")}">${MINOR_KEYS.map(option).join("")}</optgroup>`;
     const fieldKeys = new Set(FIELD_KEYS);
     const others = doc.items.filter((item) => item.kind === "meta" && !fieldKeys.has(item.key));
     const extras = q(".ce-extras", settingsEl);
     extras.hidden = !others.length;
-    extras.innerHTML = others.length ? `Also in the song: ${others.map((item) => `<code>${escapeHtml(metaSource(item as MetaItem))}</code>`).join(" ")}. Change these in ChordPro.` : "";
+    extras.innerHTML = others.length ? t("Also in the song: {details}. Change these in ChordPro.", { details: others.map((item) => `<code>${escapeHtml(metaSource(item as MetaItem))}</code>`).join(" ") }) : "";
   }
   metaFields().forEach((field) => {
     field.addEventListener(field.tagName === "SELECT" ? "change" : "input", () => {
@@ -484,7 +485,7 @@ export function mountChordEditor(
     const steps = before && after ? keyDistance(before, after) : null;
     keyShift = steps ?? 0;
     keyPrompt.hidden = !keyShift || !hasAnyChord();
-    if (!keyPrompt.hidden) keyPrompt.querySelector("p")!.textContent = `Move the chords from ${before} to ${after} too?`;
+    if (!keyPrompt.hidden) keyPrompt.querySelector("p")!.textContent = t("Move the chords from {from} to {to} too?", { from: before, to: after });
   });
   keyPrompt.addEventListener("click", (event) => {
     const choice = (event.target as HTMLElement).closest<HTMLElement>("[data-key]")?.dataset.key;
@@ -495,11 +496,11 @@ export function mountChordEditor(
     if (mode === "code") {
       // The source keeps its own undo (Ctrl+Z in it).
       writeCode();
-      showToast(`Moved the chords to ${metaValue(doc, "key")}.`);
+      showToast(t("Moved the chords to {key}.", { key: metaValue(doc, "key") }));
       return;
     }
     commit();
-    showToast(`Moved the chords to ${metaValue(doc, "key")}.`, { action: { label: "Undo", run: undo } });
+    showToast(t("Moved the chords to {key}.", { key: metaValue(doc, "key") }), { action: { label: t("Undo"), run: undo } });
   });
   // Enter in a field must not save the form.
   const noSubmit = (event: KeyboardEvent) => {
@@ -601,7 +602,7 @@ export function mountChordEditor(
       const top = box.top - origin.top - 23;
       if (i === length) {
         // A place after the last letter, for a chord that ends the line: set apart, so it does not read as a letter.
-        cells.push(`<span class="ce-cell end" data-pos="${i}" title="After the line" style="left:${box.x - origin.left + (length ? 6 : 0)}px;top:${top}px;--letter-h:${box.h}px">+</span>`);
+        cells.push(`<span class="ce-cell end" data-pos="${i}" title="${t("After the line")}" style="left:${box.x - origin.left + (length ? 6 : 0)}px;top:${top}px;--letter-h:${box.h}px">+</span>`);
         continue;
       }
       range.setStart(node!, i);
@@ -1000,14 +1001,14 @@ export function mountChordEditor(
     row = keep?.row ?? bubbleRowFor(next);
     q(".ce-bubble-chords", bubbleEl).innerHTML = row.chords.map((name) => {
       const hint = row.hint?.chord === name && name !== current;
-      return `<button type="button" class="ce-pick${name === current ? " on" : ""}${hint ? " hint" : ""}" data-pick="${escapeHtml(name)}"${hint ? ` aria-label="${escapeHtml(`${name}, ${row.hint!.why === "usually next" ? "usually next" : `as in ${row.hint!.why}`}`)}"` : ""}>${escapeHtml(name)}</button>`;
+      return `<button type="button" class="ce-pick${name === current ? " on" : ""}${hint ? " hint" : ""}" data-pick="${escapeHtml(name)}"${hint ? ` aria-label="${escapeHtml(row.hint!.why === "usually next" ? t("{chord}, usually next", { chord: name }) : t("{chord}, as in {section}", { chord: name, section: row.hint!.why }))}"` : ""}>${escapeHtml(name)}</button>`;
     }).join("")
-      + `<button type="button" class="ce-pick ce-bubble-more-toggle" aria-label="Other chords">…</button>`
+      + `<button type="button" class="ce-pick ce-bubble-more-toggle" aria-label="${t("Other chords")}">…</button>`
       + (current ? removeButton(current) : "");
     // A chord the builder cannot show (not a chord name) is in the field to change.
     bubbleInput.value = current && !parseChordName(current) ? current : "";
     bassOpen = keep?.bass ?? Boolean(parseChordName(current)?.bass);
-    bubbleEl.setAttribute("aria-label", current ? `Change ${current}` : "Add a chord");
+    bubbleEl.setAttribute("aria-label", current ? t("Change {chord}", { chord: current }) : t("Add a chord"));
     showMore(Boolean(keep?.more) || (typing && !coarse) || Boolean(bubbleInput.value && !coarse));
     if (next.kind === "line") markLine(true);
     bubbleEl.hidden = false;
@@ -1027,7 +1028,7 @@ export function mountChordEditor(
     q(".ce-bubble-more", bubbleEl).hidden = !open;
     if (open) fillBuilder();
   }
-  const removeButton = (name: string) => `<button type="button" class="ce-pick ce-bubble-remove" aria-label="Remove ${escapeHtml(name)}">${icon("trash")}</button>`;
+  const removeButton = (name: string) => `<button type="button" class="ce-pick ce-bubble-remove" aria-label="${t("Remove {chord}", { chord: escapeHtml(name) })}">${icon("trash")}</button>`;
   /** The song's chords and the key's, and the one to suggest at this place. */
   function bubbleRowFor(target: Bubble): Row {
     const key = metaValue(doc, "key");
@@ -1133,7 +1134,7 @@ export function mountChordEditor(
     const pitch = (name: string) => NOTE_INDEX[name];
     const notes = rootsFor(key || "C");
     const name = bubbleChord();
-    q(".ce-bubble-name", bubbleEl).textContent = name || "No chord yet";
+    q(".ce-bubble-name", bubbleEl).textContent = name || t("No chord yet");
     q(".ce-bubble-name", bubbleEl).classList.toggle("empty", !name);
     q(".ce-bubble-head", bubbleEl).querySelector(".ce-bubble-remove")?.remove();
     if (name) q(".ce-bubble-head", bubbleEl).insertAdjacentHTML("beforeend", removeButton(name));
@@ -1142,14 +1143,14 @@ export function mountChordEditor(
       const label = on ? root : note.name;
       return `<button type="button" class="ce-pick ce-root${note.inKey ? " in-key" : ""}${on ? " on" : ""}" data-pick="${escapeHtml(label + quality)}" aria-label="${escapeHtml(label + quality)}">${escapeHtml(label)}</button>`;
     }).join("");
-    q(".ce-bubble-forms", bubbleEl).innerHTML = QUALITIES.map((kind) => `<button type="button" class="ce-pick${known && kind === quality ? " on" : ""}" data-pick="${escapeHtml(root + kind)}" aria-label="${escapeHtml(root + kind)}">${kind ? escapeHtml(kind) : "Major"}</button>`).join("")
-      + `<button type="button" class="ce-pick ce-bubble-bass-toggle" aria-expanded="${bassOpen}" aria-label="Bass note">/</button>`;
+    q(".ce-bubble-forms", bubbleEl).innerHTML = QUALITIES.map((kind) => `<button type="button" class="ce-pick${known && kind === quality ? " on" : ""}" data-pick="${escapeHtml(root + kind)}" aria-label="${escapeHtml(root + kind)}">${kind ? escapeHtml(kind) : t("Major")}</button>`).join("")
+      + `<button type="button" class="ce-pick ce-bubble-bass-toggle" aria-expanded="${bassOpen}" aria-label="${t("Bass note")}">/</button>`;
     const basses = q(".ce-bubble-basses", bubbleEl);
     basses.hidden = !bassOpen;
-    basses.innerHTML = (known?.bass ? `<button type="button" class="ce-pick" data-pick="${escapeHtml(root + quality)}" aria-label="No bass note">None</button>` : "")
+    basses.innerHTML = (known?.bass ? `<button type="button" class="ce-pick" data-pick="${escapeHtml(root + quality)}" aria-label="${t("No bass note")}">${t("None")}</button>` : "")
       + notes.filter((note) => pitch(note.name) !== pitch(root)).map((note) => {
         const on = Boolean(known?.bass) && pitch(note.name) === pitch(known!.bass);
-        return `<button type="button" class="ce-pick ce-root${note.inKey ? " in-key" : ""}${on ? " on" : ""}" data-pick="${escapeHtml(`${root}${quality}/${note.name}`)}" aria-label="${escapeHtml(`${root}${quality} over ${note.name}`)}">/${escapeHtml(note.name)}</button>`;
+        return `<button type="button" class="ce-pick ce-root${note.inKey ? " in-key" : ""}${on ? " on" : ""}" data-pick="${escapeHtml(`${root}${quality}/${note.name}`)}" aria-label="${escapeHtml(t("{chord} over {bass}", { chord: `${root}${quality}`, bass: note.name }))}">/${escapeHtml(note.name)}</button>`;
       }).join("");
     fillTyped();
   }
@@ -1160,7 +1161,7 @@ export function mountChordEditor(
     const warn = q(".ce-bubble-warn", bubbleEl);
     warn.hidden = !value || read === value;
     warn.classList.toggle("ok", Boolean(read));
-    warn.textContent = read ? `Puts in ${read}` : "That does not look like a chord, but it is saved as you wrote it.";
+    warn.textContent = read ? t("Puts in {chord}", { chord: read }) : t("That does not look like a chord, but it is saved as you wrote it.");
   }
   /** What the field puts in: the chord it reads as, or the text as written. */
   const typedChord = () => readChord(bubbleInput.value) ?? bubbleInput.value;
@@ -1319,11 +1320,12 @@ export function mountChordEditor(
     doc = parsed.doc;
     renderDetails();
     words.refresh();
-    const real = issues.filter((issue) => issue.message !== NO_TITLE);
+    const missingTitle = noTitle();
+    const real = issues.filter((issue) => issue.message !== missingTitle);
     highlightEl.innerHTML = highlight(codeBox.value, new Set(real.map((issue) => issue.line)));
     window.clearTimeout(codeTimer);
     codeTimer = window.setTimeout(() => {
-      q(".ce-issues").innerHTML = issues.map((issue: Issue) => `<li><button type="button" data-goto="${issue.line}">Line ${issue.line}</button>${escapeHtml(issue.message)}</li>`).join("");
+      q(".ce-issues").innerHTML = issues.map((issue: Issue) => `<li><button type="button" data-goto="${issue.line}">${t("Line {n}", { n: issue.line })}</button>${escapeHtml(issue.message)}</li>`).join("");
       if (!preview.hidden) preview.innerHTML = renderSongBody(prepareSong(codeBox.value, 0), { chords: true });
     }, 150);
   }
@@ -1436,7 +1438,7 @@ export function mountChordEditor(
   function showPreview(open: boolean): void {
     preview.hidden = !open;
     previewToggle.setAttribute("aria-expanded", String(open));
-    previewToggle.textContent = open ? "Hide preview" : "Show preview";
+    previewToggle.textContent = open ? t("Hide preview") : t("Show preview");
     if (open) preview.innerHTML = renderSongBody(prepareSong(codeBox.value, 0), { chords: true });
   }
   previewToggle.addEventListener("click", () => showPreview(preview.hidden));
@@ -1502,7 +1504,8 @@ export function mountChordEditor(
         pendingFocus = { id: nearest.id, off, scroll: true };
       }
       remember();
-      if (issues.some((issue) => issue.message !== NO_TITLE)) showToast("The ChordPro had problems; lines the editor could not read are shown in grey.");
+      const missingTitle = noTitle();
+      if (issues.some((issue) => issue.message !== missingTitle)) showToast(t("The ChordPro had problems; lines the editor could not read are shown in grey."));
     }
     root.dataset.mode = mode;
     q(".ce-visual").hidden = mode === "code";

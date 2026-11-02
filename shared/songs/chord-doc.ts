@@ -8,6 +8,7 @@
  * a line that has not changed is written back exactly as it was read, so
  * opening and saving a song does not change it.
  */
+import { t } from "./i18n.ts";
 
 export interface Chord {
   id: string;
@@ -106,7 +107,8 @@ const SHORT_FORMS: Record<string, string> = {
 const META_KEYS = new Set(["title", "subtitle", "artist", "author", "composer", "lyricist", "key", "capo", "tempo", "time", "ccli", "copyright", "album", "year", "duration", "number", "song_number", "language", "lang"]);
 const COMMENT_KEYS = new Set(["comment", "comment_italic", "comment_box"]);
 const DIRECTIVE = /^\{\s*([A-Za-z_][\w-]*)\s*(?::\s*([\s\S]*?))?\s*\}$/;
-export const NO_TITLE = "The song has no {title}";
+/** The problem `parseDoc` reports for a song without a title, as shown. */
+export const noTitle = () => t("The song has no {directive}", { directive: "{title}" });
 
 export const SECTION_TYPES: Array<[string, string]> = [
   ["verse", "Verse"],
@@ -119,15 +121,25 @@ export const SECTION_TYPES: Array<[string, string]> = [
   ["tag", "Tag"],
   ["none", "Untagged"],
 ];
-const TYPE_NAMES: Record<string, string> = { ...Object.fromEntries(SECTION_TYPES), pre_chorus: "Pre-chorus", chorus2: "Chorus 2" };
-
 export function typeName(type: string): string {
-  return TYPE_NAMES[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
+  switch (type) {
+    case "verse": return t("Verse");
+    case "chorus": return t("Chorus");
+    case "prechorus": case "pre_chorus": return t("Pre-chorus");
+    case "bridge": return t("Bridge");
+    case "intro": return t("Intro");
+    case "interlude": return t("Interlude");
+    case "outro": return t("Outro");
+    case "tag": return t("Tag");
+    case "none": return t("Untagged");
+    case "chorus2": return t("Chorus 2");
+    default: return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
+  }
 }
 
 /** The name the reader shows for a section without its own label. */
 export function autoLabel(section: Section, verseNumber: number): string {
-  return section.type === "verse" || section.type === "none" ? `Verse ${verseNumber}` : typeName(section.type);
+  return section.type === "verse" || section.type === "none" ? t("Verse {n}", { n: verseNumber }) : typeName(section.type);
 }
 
 export function parseLyric(source: string, line: number, issues: Issue[]): LyricLine {
@@ -139,16 +151,16 @@ export function parseLyric(source: string, line: number, issues: Issue[]): Lyric
     if (char === "[") {
       const end = source.indexOf("]", index + 1);
       if (end < 0) {
-        issues.push({ line, message: "A chord is missing its ]" });
+        issues.push({ line, message: t("A chord is missing its ]") });
         text += source.slice(index);
         break;
       }
       const name = source.slice(index + 1, end).trim();
       if (name) chords.push({ id: newId(), pos: text.length, name });
-      else issues.push({ line, message: "Empty chord []" });
+      else issues.push({ line, message: t("Empty chord []") });
       index = end + 1;
     } else {
-      if (char === "]") issues.push({ line, message: "] without [ before it" });
+      if (char === "]") issues.push({ line, message: t("] without [ before it") });
       text += char;
       index += 1;
     }
@@ -203,7 +215,7 @@ export function parseDoc(source: string): { doc: SongDoc; issues: Issue[] } {
       const value = (directive[2] ?? "").trim();
       const start = /^start_of_(\w+)$/.exec(name);
       if (start) {
-        if (inSection) issues.push({ line: current!.src ?? n, message: `{start_of_${current!.type}} is never ended` });
+        if (inSection) issues.push({ line: current!.src ?? n, message: t("{directive} is never ended", { directive: `{start_of_${current!.type}}` }) });
         const labelled = /^label\s*=\s*"(.*)"$/.exec(value);
         const label = labelled ? labelled[1] : value;
         const section: Section = { id: newId(), kind: "section", type: start[1], label, lines: [], startRaw: raw, origType: start[1], origLabel: label, src: n };
@@ -217,9 +229,9 @@ export function parseDoc(source: string): { doc: SongDoc; issues: Issue[] } {
         if (inSection && current!.type === end[1]) {
           current!.endRaw = raw;
         } else if (inSection) {
-          issues.push({ line: n, message: `{${tag}} does not match {start_of_${current!.type}} on line ${current!.src}` });
+          issues.push({ line: n, message: t("{directive} does not match {start} on line {line}", { directive: `{${tag}}`, start: `{start_of_${current!.type}}`, line: current!.src ?? "" }) });
         } else {
-          issues.push({ line: n, message: `{${tag}} has no start` });
+          issues.push({ line: n, message: t("{directive} has no start", { directive: `{${tag}}` }) });
           return rawLine(raw, n);
         }
         inSection = false;
@@ -248,14 +260,14 @@ export function parseDoc(source: string): { doc: SongDoc; issues: Issue[] } {
       return rawLine(raw, n);
     }
     if (trimmed.startsWith("{")) {
-      issues.push({ line: n, message: trimmed.includes("}") ? "A directive must be on a line of its own" : "A directive is missing its }" });
+      issues.push({ line: n, message: trimmed.includes("}") ? t("A directive must be on a line of its own") : t("A directive is missing its }") });
       return rawLine(raw, n);
     }
     (current ?? untagged(n)).lines.push(parseLyric(raw, n, issues));
   });
 
-  if (inSection) issues.push({ line: current!.src ?? lines.length, message: `{start_of_${current!.type}} is never ended` });
-  if (!items.some((item) => item.kind === "meta" && item.key === "title" && item.value)) issues.push({ line: 1, message: NO_TITLE });
+  if (inSection) issues.push({ line: current!.src ?? lines.length, message: t("{directive} is never ended", { directive: `{start_of_${current!.type}}` }) });
+  if (!items.some((item) => item.kind === "meta" && item.key === "title" && item.value)) issues.push({ line: 1, message: noTitle() });
   issues.sort((a, b) => a.line - b.line);
   return { doc: { items }, issues };
 }

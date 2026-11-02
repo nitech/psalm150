@@ -39,6 +39,7 @@ import type {
   SortDirection,
 } from "./types.ts";
 import type { OpenApiDocument } from "./views/api-docs.ts";
+import { t } from "../../shared/songs/i18n.ts";
 
 const API_ROOT = "/api/v1";
 
@@ -48,7 +49,7 @@ async function send(url: string, init: RequestInit): Promise<Response> {
     return await fetch(url, init);
   } catch {
     throw new ApiError(
-      navigator.onLine ? "The song server did not answer. Try again." : "You are offline. Try again when you are connected.",
+      navigator.onLine ? t("The song server did not answer. Try again.") : t("You are offline. Try again when you are connected."),
       0,
     );
   }
@@ -73,7 +74,7 @@ async function readEvents(
       const response = await fetch(url, { headers: { Accept: "text/event-stream", ...headers() }, cache: "no-store", signal });
       if (response.status >= 400 && response.status < 500) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        onError(new ApiError(body?.error ?? `Request failed (${response.status})`, response.status));
+        onError(new ApiError(body?.error ?? t("Request failed ({status})", { status: response.status }), response.status));
         return;
       }
       if (!response.ok || !response.body) throw new Error(`Request failed (${response.status})`);
@@ -607,6 +608,6 @@ export class SongServerApi {
 
   private async error(response: Response): Promise<ApiError> {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    return new ApiError(body?.error ?? `Request failed (${response.status})`, response.status);
+    return new ApiError(body?.error ?? t("Request failed ({status})", { status: response.status }), response.status);
   }
 }

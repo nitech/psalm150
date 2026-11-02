@@ -16,8 +16,9 @@
  * in the mirror.
  */
 import { announce } from "./a11y.ts";
-import { errorMessage, escapeHtml, relativeDate } from "./format.ts";
+import { daysSince, errorMessage, escapeHtml, relativeDate } from "./format.ts";
 import { confirmAction, showToast } from "./host.ts";
+import { locale, t, tn } from "./i18n.ts";
 import { icon } from "./icon.ts";
 import { diffLines, withContext } from "./line-diff.ts";
 import { closeSheet, openSheet } from "./sheet.ts";
@@ -50,21 +51,21 @@ type Compare = "change" | "current";
 const ROW_H = 52;
 const LANE_W = 14;
 
-const time = (date: Date) => date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const time = (date: Date) => date.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 
 /** "14:05", "Yesterday 19:47", "3 days ago", "12 Oct". */
 const shortWhen = (value: string) => {
   const date = new Date(value);
-  const day = relativeDate(value);
-  if (day === "Today") return time(date);
-  if (day === "Yesterday") return `${day} ${time(date)}`;
-  return day;
+  const days = daysSince(value);
+  if (days <= 0) return time(date);
+  if (days === 1) return t("Yesterday {time}", { time: time(date) });
+  return relativeDate(value);
 };
 
-const fullDate = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" });
+const fullDate = (value: string) => new Date(value).toLocaleString(locale(), { dateStyle: "long", timeStyle: "short" });
 
 /** Who saved it; a desktop's name without the app's name in front. */
-const who = (revision: RevisionSummary) => (revision.created_by_name ?? "Imported").replace(/^Psalm150 on /, "");
+const who = (revision: RevisionSummary) => (revision.created_by_name ?? t("Imported")).replace(/^Psalm150 on /, "");
 
 /** The graph's piece for one row: the lines through it and the version's dot. */
 function graphSvg(row: GraphRow, lanes: number, current: boolean): string {
@@ -85,8 +86,8 @@ function graphSvg(row: GraphRow, lanes: number, current: boolean): string {
 
 /** Opens the history; `restored` hears when an earlier version became current. */
 export function openSongHistory(history: SongHistory, song: { id: string; title: string }, restored: () => void): void {
-  const sheet = openSheet(`<div class="history-head"><h2>History</h2><span class="history-count" hidden></span></div>
-    <div class="history" aria-busy="true"><p class="muted">Reading the versions…</p></div>`);
+  const sheet = openSheet(`<div class="history-head"><h2>${t("History")}</h2><span class="history-count" hidden></span></div>
+    <div class="history" aria-busy="true"><p class="muted">${t("Reading the versions…")}</p></div>`);
   sheet.classList.add("history-sheet");
   sheet.setAttribute("aria-description", song.title);
   const root = sheet.querySelector<HTMLElement>(".history")!;
@@ -122,25 +123,25 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
     const revision = revisions[index];
     const parent = parentOf(index);
     const older = revisions.slice(index + 1).find((other) => other.content_hash === revision.content_hash && other !== parent);
-    if (older && parent && parent.content_hash !== revision.content_hash) return `Restored ${shortWhen(older.created_at)}`;
+    if (older && parent && parent.content_hash !== revision.content_hash) return t("Restored {when}", { when: shortWhen(older.created_at) });
     if (!revision.parent_revision_id) return describeChange(null, "");
-    if (!parent) return "Earlier changes";
+    if (!parent) return t("Earlier changes");
     return describeChange(await source(parent.id), await source(revision.id));
   };
 
   const rowHtml = (revision: RevisionSummary, index: number, row: GraphRow, lanes: number) => {
     const note = notes.get(revision.id);
-    return `<button type="button" class="history-row${index === selected ? " on" : ""}" role="option" aria-selected="${index === selected}" data-index="${index}" title="${escapeHtml(`${fullDate(revision.created_at)} · ${revision.created_by_name ?? "Imported"}`)}">
+    return `<button type="button" class="history-row${index === selected ? " on" : ""}" role="option" aria-selected="${index === selected}" data-index="${index}" title="${escapeHtml(`${fullDate(revision.created_at)} · ${revision.created_by_name ?? t("Imported")}`)}">
       ${graphSvg(row, lanes, index === 0)}
-      <span class="row-main"><strong class="history-note${note ? "" : " pending"}">${escapeHtml(note ?? "Reading…")}</strong><small>${escapeHtml(who(revision))} · ${escapeHtml(shortWhen(revision.created_at))}${revision.title !== song.title ? ` · ${escapeHtml(revision.title)}` : ""}</small></span>
-      ${index === 0 ? `<span class="history-badge">Current</span>` : ""}
+      <span class="row-main"><strong class="history-note${note ? "" : " pending"}">${escapeHtml(note ?? t("Reading…"))}</strong><small>${escapeHtml(who(revision))} · ${escapeHtml(shortWhen(revision.created_at))}${revision.title !== song.title ? ` · ${escapeHtml(revision.title)}` : ""}</small></span>
+      ${index === 0 ? `<span class="history-badge">${t("Current")}</span>` : ""}
     </button>`;
   };
 
   const drawList = () => {
     const graph = revisionGraph(revisions.map((revision) => ({ id: revision.id, parent: revision.parent_revision_id })));
-    root.innerHTML = `<div class="history-list" role="listbox" aria-label="Versions">${revisions.map((revision, index) => rowHtml(revision, index, graph.rows[index], graph.lanes)).join("")}</div>
-      <section class="history-view" aria-label="The version chosen"></section>`;
+    root.innerHTML = `<div class="history-list" role="listbox" aria-label="${escapeHtml(t("Versions"))}">${revisions.map((revision, index) => rowHtml(revision, index, graph.rows[index], graph.lanes)).join("")}</div>
+      <section class="history-view" aria-label="${escapeHtml(t("The version chosen"))}"></section>`;
   };
 
   /** Marks the chosen row without redrawing the list, so focus and scroll stay. */
@@ -162,14 +163,14 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
     // The first version has none before it: its whole text shows.
     const other = mode === "current" ? revisions[0] : parent;
     view.innerHTML = `<header class="history-view-head">
-        <div class="history-view-title"><strong>${escapeHtml(notes.get(chosen.id) ?? "")}</strong><small>${escapeHtml(chosen.created_by_name ?? "Imported")} · ${escapeHtml(fullDate(chosen.created_at))}</small></div>
-        ${isCurrent ? "" : `<div class="segmented history-compare" role="radiogroup" aria-label="Show">
-          <button type="button" role="radio" aria-checked="${mode === "change"}" class="${mode === "change" ? "on" : ""}" data-compare="change">This change</button>
-          <button type="button" role="radio" aria-checked="${mode === "current"}" class="${mode === "current" ? "on" : ""}" data-compare="current">Against now</button>
+        <div class="history-view-title"><strong>${escapeHtml(notes.get(chosen.id) ?? "")}</strong><small>${escapeHtml(chosen.created_by_name ?? t("Imported"))} · ${escapeHtml(fullDate(chosen.created_at))}</small></div>
+        ${isCurrent ? "" : `<div class="segmented history-compare" role="radiogroup" aria-label="${escapeHtml(t("Show"))}">
+          <button type="button" role="radio" aria-checked="${mode === "change"}" class="${mode === "change" ? "on" : ""}" data-compare="change">${t("This change")}</button>
+          <button type="button" role="radio" aria-checked="${mode === "current"}" class="${mode === "current" ? "on" : ""}" data-compare="current">${t("Against now")}</button>
         </div>`}
       </header>
-      <div class="history-diff" aria-live="polite"><p class="muted">Reading…</p></div>
-      ${history.canRestore && !isCurrent ? `<footer class="history-actions"><button type="button" class="button primary" data-restore>${icon("sync")}Restore this version</button></footer>` : ""}`;
+      <div class="history-diff" aria-live="polite"><p class="muted">${t("Reading…")}</p></div>
+      ${history.canRestore && !isCurrent ? `<footer class="history-actions"><button type="button" class="button primary" data-restore>${icon("sync")}${t("Restore this version")}</button></footer>` : ""}`;
     const diffEl = view.querySelector<HTMLElement>(".history-diff")!;
     try {
       // Restoring makes `chosen` the text: show what changes from `other` to it.
@@ -177,10 +178,10 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
       if (mine !== drawing) return;
       const lines = other ? withContext(diffLines(before, after)) : diffLines("", after).map((line) => ({ ...line, kind: "same" as const }));
       diffEl.innerHTML = !lines.length
-        ? `<p class="muted">${mode === "current" ? "The same text as now." : "The text is the same."}</p>`
+        ? `<p class="muted">${mode === "current" ? t("The same text as now.") : t("The text is the same.")}</p>`
         : `<pre class="history-lines">${lines.map((line) => line.kind === "fold"
-          ? `<span class="history-fold">⋯ ${line.count} unchanged ${line.count === 1 ? "line" : "lines"}</span>`
-          : `<span class="history-line ${line.kind}"><span class="history-sign" aria-hidden="true">${line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</span>${line.kind === "added" ? `<span class="sr-only">Added: </span>` : line.kind === "removed" ? `<span class="sr-only">Removed: </span>` : ""}${escapeHtml(line.text) || " "}</span>`).join("")}</pre>`;
+          ? `<span class="history-fold">⋯ ${tn(line.count, "{n} unchanged line", "{n} unchanged lines")}</span>`
+          : `<span class="history-line ${line.kind}"><span class="history-sign" aria-hidden="true">${line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</span>${line.kind === "added" ? `<span class="sr-only">${t("Added:")} </span>` : line.kind === "removed" ? `<span class="sr-only">${t("Removed:")} </span>` : ""}${escapeHtml(line.text) || " "}</span>`).join("")}</pre>`;
     } catch (error) {
       if (mine === drawing) diffEl.innerHTML = `<p class="form-message">${escapeHtml(errorMessage(error))}</p>`;
     }
@@ -202,7 +203,7 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
         }
       }).catch(() => {
         const row = root.querySelector<HTMLElement>(`.history-row[data-index="${index}"] .history-note`);
-        if (row) row.textContent = "Saved";
+        if (row) row.textContent = t("Saved");
       });
     });
   };
@@ -213,20 +214,20 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
     compare = "change";
     markSelected();
     void drawView();
-    announce(`${notes.get(revisions[index].id) ?? "Version"}, ${fullDate(revisions[index].created_at)}`);
+    announce(`${notes.get(revisions[index].id) ?? t("Version")}, ${fullDate(revisions[index].created_at)}`);
   };
 
   const restore = async () => {
     const chosen = revisions[selected];
     const current = revisions[0];
     if (!chosen || !current || chosen === current) return;
-    if (!(await confirmAction(`Restore the version from ${fullDate(chosen.created_at)}? It is saved as a new version; the current one stays in the history.`))) return;
+    if (!(await confirmAction(t("Restore the version from {date}? It is saved as a new version; the current one stays in the history.", { date: fullDate(chosen.created_at) })))) return;
     const button = root.querySelector<HTMLButtonElement>("[data-restore]");
     if (button) button.disabled = true;
     try {
       await history.restore(song.id, current.id, await source(chosen.id));
       closeSheet(sheet);
-      showToast("Restored. The earlier text is now the current version.");
+      showToast(t("Restored. The earlier text is now the current version."));
       restored();
     } catch (error) {
       if (button) button.disabled = false;
@@ -265,9 +266,9 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
     root.removeAttribute("aria-busy");
     count.hidden = false;
     count.textContent = String(list.length);
-    count.setAttribute("aria-label", `${list.length} ${list.length === 1 ? "version" : "versions"}`);
+    count.setAttribute("aria-label", tn(list.length, "{n} version", "{n} versions"));
     if (!list.length) {
-      root.innerHTML = `<p class="muted">No saved versions.</p>`;
+      root.innerHTML = `<p class="muted">${t("No saved versions.")}</p>`;
       return;
     }
     // The newest change is what people come to see.

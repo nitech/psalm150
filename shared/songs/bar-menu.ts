@@ -16,6 +16,7 @@
  */
 import { icon, type IconName } from "./icon.ts";
 import { escapeHtml, readPreference, writePreference } from "./format.ts";
+import { t } from "./i18n.ts";
 
 export interface BarAction {
   id: string;
@@ -114,7 +115,7 @@ function writeUsage(screen: string, usage: UsageMap): void {
 
 function stepButtons(action: BarAction, inMenu: boolean): [string, string] {
   const step = (way: "down" | "up") => {
-    const label = `${action.label} ${way}`;
+    const label = way === "down" ? t("{action} down", { action: action.label }) : t("{action} up", { action: action.label });
     const menuAttrs = inMenu ? ` role="menuitem" tabindex="-1"` : "";
     return `<button type="button" class="bar-step" data-action="${action.id}-${way}" data-usage="${action.id}" data-keep-open aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${menuAttrs}>${icon(way === "down" ? "minus" : "plus")}</button>`;
   };
@@ -125,9 +126,9 @@ function barButton(action: BarAction, frequentOne: boolean): string {
   if (action.stepper) {
     const [down, up] = stepButtons(action, false);
     const label = `${action.label}, ${action.stepper.spoken}`;
-    return `<span class="bar-stepper${frequentOne ? " frequent" : ""}" role="group" aria-label="${escapeHtml(label)}" title="${escapeHtml(frequentOne ? `${action.label} (often used)` : action.label)}">${down}<span class="bar-stepper-value" aria-hidden="true">${escapeHtml(action.stepper.value)}</span>${up}</span>`;
+    return `<span class="bar-stepper${frequentOne ? " frequent" : ""}" role="group" aria-label="${escapeHtml(label)}" title="${escapeHtml(frequentOne ? t("{action} (often used)", { action: action.label }) : action.label)}">${down}<span class="bar-stepper-value" aria-hidden="true">${escapeHtml(action.stepper.value)}</span>${up}</span>`;
   }
-  const title = frequentOne ? `${action.label} (often used)` : action.label;
+  const title = frequentOne ? t("{action} (often used)", { action: action.label }) : action.label;
   const classes = `icon-button ghost${frequentOne ? " frequent" : ""}${action.className ? ` ${action.className}` : ""}`;
   const pressed = action.checked === undefined ? "" : ` aria-pressed="${action.checked}"`;
   const attributes = `data-action="${action.id}" class="${classes}" aria-label="${escapeHtml(action.label)}" title="${escapeHtml(title)}"${pressed} ${action.attributes ?? ""}`;
@@ -139,7 +140,7 @@ function barButton(action: BarAction, frequentOne: boolean): string {
 /** `inBar`: also in the bar now, which the menu shows with a tint. */
 function menuItem(action: BarAction, inBar: boolean): string {
   const classes = `bar-menu-item${inBar ? " in-bar" : ""}${action.danger ? " danger" : ""}`;
-  const where = inBar ? ` aria-description="Also in the toolbar"` : "";
+  const where = inBar ? ` aria-description="${escapeHtml(t("Also in the toolbar"))}"` : "";
   if (action.stepper) {
     // Two places to tap: − and +, the key between them.
     const [down, up] = stepButtons(action, true);
@@ -175,8 +176,8 @@ export function barActions(screen: string, actions: BarAction[], maxFrequent = M
   return `<div class="bar-actions" data-bar-screen="${screen}">
     ${fixed.map((action) => barButton(action, false)).join("")}
     ${often.length ? `<span class="bar-divider" aria-hidden="true"></span><span class="bar-frequent">${often.map((action) => barButton(action, true)).join("")}</span>` : ""}
-    ${unfixed.length ? `<button type="button" class="icon-button ghost bar-more" aria-haspopup="menu" aria-expanded="false" aria-label="More actions" title="More actions">${icon("more")}</button>
-    <div class="bar-menu" role="menu" aria-label="Actions" hidden>${actions.map((action) => menuItem(action, Boolean(action.fixed) || shown.includes(action.id))).join("")}</div>` : ""}
+    ${unfixed.length ? `<button type="button" class="icon-button ghost bar-more" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(t("More actions"))}" title="${escapeHtml(t("More actions"))}">${icon("more")}</button>
+    <div class="bar-menu" role="menu" aria-label="${escapeHtml(t("Actions"))}" hidden>${actions.map((action) => menuItem(action, Boolean(action.fixed) || shown.includes(action.id))).join("")}</div>` : ""}
   </div>`;
 }
 

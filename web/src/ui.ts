@@ -1,5 +1,6 @@
 import { icon } from "./icons.ts";
 import { escapeHtml } from "../../shared/songs/format.ts";
+import { locale, t } from "../../shared/songs/i18n.ts";
 
 export {
   clock,
@@ -15,15 +16,15 @@ export {
 } from "../../shared/songs/format.ts";
 
 export function roleName(role: string): string {
-  return role === "owner" ? "Owner" : role === "leader" ? "Leader" : "Viewer";
+  return role === "owner" ? t("Owner") : role === "leader" ? t("Leader") : t("Viewer");
 }
 
 /** `2026-10-04` → "Sun 4 Oct" (in the reader's locale); local, not UTC. */
 export function serviceDate(value: string | null, long = false): string {
-  if (!value) return "No date";
+  if (!value) return t("No date");
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(year, month - 1, day);
-  return date.toLocaleDateString(undefined, long
+  return date.toLocaleDateString(locale(), long
     ? { weekday: "long", day: "numeric", month: "long", year: "numeric" }
     : { weekday: "short", day: "numeric", month: "short" });
 }
@@ -31,9 +32,9 @@ export function serviceDate(value: string | null, long = false): string {
 /** The day-and-month tile shown beside a set; hidden from screen readers. */
 export function dateBadge(value: string | null): string {
   // Decorative: the date is also in words beside it (or in the row's label).
-  if (!value) return `<span class="date-badge" aria-hidden="true"><small>No date</small></span>`;
+  if (!value) return `<span class="date-badge" aria-hidden="true"><small>${t("No date")}</small></span>`;
   const [year, month, day] = value.split("-").map(Number);
-  const monthName = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "short" });
+  const monthName = new Date(year, month - 1, 1).toLocaleDateString(locale(), { month: "short" });
   return `<span class="date-badge" aria-hidden="true"><strong>${day}</strong><small>${escapeHtml(monthName)}</small></span>`;
 }
 
@@ -90,7 +91,7 @@ export function showToast(message: string, options: boolean | ToastOptions = fal
     const close = document.createElement("button");
     close.type = "button";
     close.className = "toast-close";
-    close.setAttribute("aria-label", "Dismiss");
+    close.setAttribute("aria-label", t("Dismiss"));
     close.innerHTML = icon("close");
     close.addEventListener("click", hideToast, { once: true });
     toast.append(close);
@@ -224,8 +225,11 @@ export function startPolling(tick: () => Promise<void>, interval: () => number):
 /**
  * The × at the right of a search field, after its input: shown while the
  * field has text (CSS), and `installSearchClear` empties the field on a tap.
+ * Drawn when put into a template, so it is in the reader's language.
  */
-export const searchClear = `<button type="button" class="search-clear" aria-label="Clear search" title="Clear search">${icon("close")}</button>`;
+export const searchClear = {
+  toString: () => `<button type="button" class="search-clear" aria-label="${t("Clear search")}" title="${t("Clear search")}">${icon("close")}</button>`,
+};
 
 /**
  * Empties the search field whose × was tapped, as if the text had been

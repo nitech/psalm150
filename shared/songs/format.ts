@@ -6,6 +6,7 @@
  * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
  * in the mirror.
  */
+import { locale, t, tn } from "./i18n.ts";
 
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
@@ -23,7 +24,7 @@ export function initials(name: string): string {
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong.";
+  return error instanceof Error ? error.message : t("Something went wrong.");
 }
 
 /** `m:ss`, or `h:mm:ss` from an hour. */
@@ -35,13 +36,18 @@ export function clock(ms: number): string {
   return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
 }
 
+/** Whole days since `value`: 0 today (or in the future), 1 yesterday. */
+export function daysSince(value: string): number {
+  return Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000);
+}
+
 export function relativeDate(value: string): string {
   const date = new Date(value);
-  const days = Math.floor((Date.now() - date.getTime()) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 14) return `${days} days ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const days = daysSince(value);
+  if (days <= 0) return t("Today");
+  if (days === 1) return t("Yesterday");
+  if (days < 14) return tn(days, "{n} day ago", "{n} days ago");
+  return date.toLocaleDateString(locale(), { month: "short", day: "numeric" });
 }
 
 export function setFormBusy(form: HTMLElement, value: boolean): void {

@@ -4,6 +4,7 @@ import { songBarActions, type SongActionState } from "../../shared/songs/song-ac
 import { hasChords, type DisplaySong } from "../../shared/songs/chordpro.ts";
 import { saveReaderOptions, songKey, type ReaderOptions } from "../../shared/songs/song-preview.ts";
 import { transposeLabel } from "./ui.ts";
+import { t } from "../../shared/songs/i18n.ts";
 
 export {
   guessKey,
@@ -32,7 +33,7 @@ export function readerActionState(song: DisplaySong, options: ReaderOptions, tra
     chords: { shown: options.chords },
     transpose: {
       value: key ?? (steps || "±0"),
-      spoken: key ? `key ${key}${steps ? `, ${steps}` : ""}` : steps || "not transposed",
+      spoken: key ? (steps ? t("key {key}, {steps}", { key, steps }) : t("key {key}", { key })) : steps || t("not transposed"),
     },
   };
 }
@@ -61,7 +62,7 @@ export function onReaderAction(
     saveReaderOptions(options);
     hooks.redraw();
     root.querySelector<HTMLElement>("[data-action='chords']")?.focus();
-    announce(options.chords ? "Chords shown" : "Chords hidden");
+    announce(options.chords ? t("Chords shown") : t("Chords hidden"));
     return true;
   }
   if (action === "transpose-down" || action === "transpose-up") {
@@ -72,7 +73,7 @@ export function onReaderAction(
     else root.querySelector<HTMLElement>(`.bar-stepper [data-action="${action}"]`)?.focus();
     const key = hooks.key();
     const transpose = hooks.transpose();
-    announce(key ? `Key ${key}` : transpose ? `Transposed ${transposeLabel(transpose)}` : "Not transposed");
+    announce(key ? t("Key {key}", { key }) : transpose ? t("Transposed {steps}", { steps: transposeLabel(transpose) }) : t("Not transposed"));
     return true;
   }
   return false;

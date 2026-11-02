@@ -2,6 +2,7 @@ import { announce, setTitle } from "../../../shared/songs/a11y.ts";
 import { emptyState, pageHead, type LibraryContext } from "../context.ts";
 import { icon } from "../icons.ts";
 import { escapeHtml, searchClear, showToast } from "../ui.ts";
+import { t, tn } from "../../../shared/songs/i18n.ts";
 
 /**
  * `#/api` (also `/api/docs`): the server's API reference, drawn from its own
@@ -57,40 +58,43 @@ export interface Schema {
 const METHODS = ["get", "post", "put", "patch", "delete"];
 
 /** Plain words for the statuses this API answers with. */
-const STATUS_TEXT: Record<string, string> = {
-  "200": "OK",
-  "201": "Created",
-  "202": "Accepted",
-  "204": "Done, no content",
-  "400": "The request is not valid",
-  "401": "No token, or the token no longer works",
-  "403": "The token may not do this",
-  "404": "Not found",
-  "409": "Conflict: changed in the meantime, or already exists",
-  "429": "Too many attempts; wait for Retry-After",
-};
+function statusText(status: string): string {
+  switch (status) {
+    case "200": return t("OK");
+    case "201": return t("Created");
+    case "202": return t("Accepted");
+    case "204": return t("Done, no content");
+    case "400": return t("The request is not valid");
+    case "401": return t("No token, or the token no longer works");
+    case "403": return t("The token may not do this");
+    case "404": return t("Not found");
+    case "409": return t("Conflict: changed in the meantime, or already exists");
+    case "429": return t("Too many attempts; wait for Retry-After");
+    default: return "";
+  }
+}
 
 export async function apiDocs(ctx: LibraryContext): Promise<void> {
-  setTitle("API reference");
+  setTitle(t("API reference"));
   const back = ctx.session ? "#/settings/about" : "#/songs";
   const doc = await ctx.api.openApi();
   const schemas = doc.components?.schemas ?? {};
   const groups = groupOperations(doc);
   const base = `${location.origin}/api/v1`;
 
-  ctx.main.innerHTML = `${pageHead({ title: "API reference", back, church: ctx.libraryName })}
+  ctx.main.innerHTML = `${pageHead({ title: t("API reference"), back, church: ctx.libraryName })}
   <section class="card api-intro" aria-labelledby="api-about">
-    <h2 id="api-about" class="sr-only">About the API</h2>
+    <h2 id="api-about" class="sr-only">${t("About the API")}</h2>
     <p>${inline(doc.info.description ?? "")}</p>
     <dl class="api-facts">
-      <dt>Base address</dt><dd><code>${escapeHtml(base)}</code></dd>
-      <dt>Signing requests</dt><dd>Send <code>Authorization: Bearer &lt;token&gt;</code>. ${ctx.session
-        ? `Make a token that acts as you under <a href="#/settings/api">Settings, API</a>.`
-        : "Sign in to make an API token."} Operations marked <strong>No token needed</strong> work without one.</dd>
-      <dt>Version</dt><dd>${escapeHtml(doc.info.version)} · <a href="/api/openapi.json" download="psa150-openapi.json">OpenAPI document (JSON)</a> for tools such as Postman or Swagger</dd>
+      <dt>${t("Base address")}</dt><dd><code>${escapeHtml(base)}</code></dd>
+      <dt>${t("Signing requests")}</dt><dd>${t("Send <code>Authorization: Bearer &lt;token&gt;</code>.")} ${ctx.session
+        ? t("Make a token that acts as you under <a href=\"#/settings/api\">Settings, API</a>.")
+        : t("Sign in to make an API token.")} ${t("Operations marked <strong>No token needed</strong> work without one.")}</dd>
+      <dt>${t("Version")}</dt><dd>${escapeHtml(doc.info.version)} · ${t("<a href=\"/api/openapi.json\" download=\"psa150-openapi.json\">OpenAPI document (JSON)</a> for tools such as Postman or Swagger")}</dd>
     </dl>
   </section>
-  <div class="search-field">${icon("search")}<input type="search" id="api-search" placeholder="Path, method or words" aria-label="Search the API" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
+  <div class="search-field">${icon("search")}<input type="search" id="api-search" placeholder="${t("Path, method or words")}" aria-label="${t("Search the API")}" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
   <div id="api-groups">
     ${groups.map((group) => `<section class="api-group" data-group aria-labelledby="api-group-${slug(group.name)}">
       <h2 class="list-heading" id="api-group-${slug(group.name)}">${escapeHtml(group.name)}</h2>
@@ -98,7 +102,7 @@ export async function apiDocs(ctx: LibraryContext): Promise<void> {
       <ul class="api-ops">${group.operations.map(({ method, path, operation }) => operationHtml(method, path, operation, schemas, base)).join("")}</ul>
     </section>`).join("")}
   </div>
-  <div id="api-none" hidden>${emptyState("Nothing matches", "Try a path such as /songs, a method such as POST, or another word.")}</div>`;
+  <div id="api-none" hidden>${emptyState(t("Nothing matches"), t("Try a path such as /songs, a method such as POST, or another word."))}</div>`;
 
   const search = ctx.main.querySelector<HTMLInputElement>("#api-search")!;
   let timer = 0;
@@ -106,7 +110,7 @@ export async function apiDocs(ctx: LibraryContext): Promise<void> {
     window.clearTimeout(timer);
     timer = window.setTimeout(() => {
       const shown = filterOperations(ctx.main, search.value);
-      announce(search.value.trim() ? `${shown} ${shown === 1 ? "operation" : "operations"} found` : "");
+      announce(search.value.trim() ? tn(shown, "{n} operation found", "{n} operations found") : "");
     }, 200);
   });
 
@@ -115,8 +119,8 @@ export async function apiDocs(ctx: LibraryContext): Promise<void> {
     if (!button) return;
     const text = button.closest(".api-example")?.querySelector("code")?.textContent ?? "";
     void navigator.clipboard.writeText(text).then(
-      () => showToast("Example copied."),
-      () => showToast("Could not copy; select the example instead.", true),
+      () => showToast(t("Example copied.")),
+      () => showToast(t("Could not copy; select the example instead."), true),
     );
   });
 }
@@ -130,7 +134,7 @@ interface Group {
 /** Operations by tag, in the document's tag order; anything untagged last. */
 export function groupOperations(doc: OpenApiDocument): Group[] {
   const groups: Group[] = (doc.tags ?? []).map((tag) => ({ name: tag.name, description: tag.description, operations: [] }));
-  const other: Group = { name: "Other", operations: [] };
+  const other: Group = { name: t("Other"), operations: [] };
   for (const [path, item] of Object.entries(doc.paths)) {
     for (const method of METHODS) {
       const operation = item[method];
@@ -175,22 +179,22 @@ function operationHtml(method: string, path: string, operation: Operation, schem
     </summary>
     <div class="api-op-body">
       ${more.map((paragraph) => `<p>${inline(paragraph)}</p>`).join("")}
-      <p class="api-access">${open ? "No token needed." : "Needs a token (<code>Authorization: Bearer</code>)."}</p>
-      ${parameters.length ? `<h3>Parameters</h3>
-        <ul class="api-fields">${parameters.map((parameter) => fieldHtml(parameter.name, parameter.schema ?? {}, parameter.required ?? false, schemas, new Set(), `in the ${parameter.in === "path" ? "path" : parameter.in === "query" ? "query string" : parameter.in}`, parameter.description)).join("")}</ul>` : ""}
-      ${body ? `<h3>Request body</h3>
-        <p class="hint"><code>${escapeHtml(body.type)}</code>${operation.requestBody?.required ? ", required" : ""}</p>
+      <p class="api-access">${open ? t("No token needed.") : t("Needs a token (<code>Authorization: Bearer</code>).")}</p>
+      ${parameters.length ? `<h3>${t("Parameters")}</h3>
+        <ul class="api-fields">${parameters.map((parameter) => fieldHtml(parameter.name, parameter.schema ?? {}, parameter.required ?? false, schemas, new Set(), parameter.in === "path" ? t("in the path") : parameter.in === "query" ? t("in the query string") : t("in the {place}", { place: parameter.in }), parameter.description)).join("")}</ul>` : ""}
+      ${body ? `<h3>${t("Request body")}</h3>
+        <p class="hint"><code>${escapeHtml(body.type)}</code>${operation.requestBody?.required ? `, ${t("required")}` : ""}</p>
         ${schemaHtml(body.schema, schemas, new Set())}` : ""}
-      ${responses.length ? `<h3>Answers</h3>
+      ${responses.length ? `<h3>${t("Answers")}</h3>
         <dl class="api-responses">${responses.map(([status, response]) => {
           const content = firstContent(response.content);
-          return `<dt><code>${escapeHtml(status)}</code> ${escapeHtml(response.description || STATUS_TEXT[status] || "")}</dt>
-            <dd>${content ? `${content.type === "application/json" ? "" : `<p class="hint"><code>${escapeHtml(content.type)}</code>${content.type === "text/event-stream" ? ": server-sent events, each carrying this as JSON" : ""}</p>`}${schemaHtml(content.schema, schemas, new Set())}` : ""}</dd>`;
+          return `<dt><code>${escapeHtml(status)}</code> ${escapeHtml(response.description || statusText(status))}</dt>
+            <dd>${content ? `${content.type === "application/json" ? "" : `<p class="hint"><code>${escapeHtml(content.type)}</code>${content.type === "text/event-stream" ? `: ${t("server-sent events, each carrying this as JSON")}` : ""}</p>`}${schemaHtml(content.schema, schemas, new Set())}` : ""}</dd>`;
         }).join("")}</dl>` : ""}
-      <h3>Example</h3>
+      <h3>${t("Example")}</h3>
       <div class="api-example">
-        <pre tabindex="0" aria-label="Example request"><code>${escapeHtml(curlExample(method, path, operation, schemas, base))}</code></pre>
-        <button type="button" class="button secondary small" data-copy aria-label="Copy the example for ${method.toUpperCase()} ${escapeHtml(path)}">${icon("copy")}Copy</button>
+        <pre tabindex="0" aria-label="${t("Example request")}"><code>${escapeHtml(curlExample(method, path, operation, schemas, base))}</code></pre>
+        <button type="button" class="button secondary small" data-copy aria-label="${t("Copy the example for {operation}", { operation: `${method.toUpperCase()} ${escapeHtml(path)}` })}">${icon("copy")}${t("Copy")}</button>
       </div>
     </div>
   </details></li>`;
@@ -221,12 +225,12 @@ function fieldHtml(name: string, schema: Schema, required: boolean, schemas: Rec
   const nestedName = nested ? refName(nested.$ref) : null;
   const expandable = nested && !(nestedName && seen.has(nestedName));
   const values = enumValues(schema, schemas);
-  const meta = [typeLabel(schema, schemas), required ? "required" : "optional", where].filter(Boolean).join(", ");
+  const meta = [typeLabel(schema, schemas), required ? t("required") : t("optional"), where].filter(Boolean).join(", ");
   return `<li>
     <code class="api-field">${escapeHtml(name)}</code> <span class="api-type">${escapeHtml(meta)}</span>
     ${description ? `<div class="api-field-text">${inline(oneLine(description))}</div>` : ""}
-    ${values ? `<div class="api-field-text">One of ${values.map((value) => `<code>${escapeHtml(String(value))}</code>`).join(", ")}.</div>` : ""}
-    ${expandable ? `<details class="api-nested"><summary>Fields of ${escapeHtml(nestedName ?? name)}</summary>${schemaHtml(nested, schemas, seen)}</details>` : ""}
+    ${values ? `<div class="api-field-text">${t("One of {values}.", { values: values.map((value) => `<code>${escapeHtml(String(value))}</code>`).join(", ") })}</div>` : ""}
+    ${expandable ? `<details class="api-nested"><summary>${t("Fields of {name}", { name: escapeHtml(nestedName ?? name) })}</summary>${schemaHtml(nested, schemas, seen)}</details>` : ""}
   </li>`;
 }
 
@@ -262,17 +266,24 @@ export function typeLabel(schema: Schema, schemas: Record<string, Schema>): stri
   if (schema.$ref) {
     const name = refName(schema.$ref)!;
     const target = schemas[name];
-    return target?.enum ? `${name} (text)` : name;
+    return target?.enum ? t("{name} (text)", { name }) : name;
   }
-  if (schema.items) return `list of ${typeLabel(schema.items, schemas)}`;
+  if (schema.items) return t("list of {type}", { type: typeLabel(schema.items, schemas) });
   const options = schema.oneOf ?? schema.anyOf;
-  if (options) return options.map((option) => option.type === "null" ? "null" : typeLabel(option, schemas)).join(" or ");
+  if (options) return either(options.map((option) => option.type === "null" ? "null" : typeLabel(option, schemas)));
+  const format = schema.format && !["int32", "int64"].includes(schema.format) ? schema.format : null;
   const types = (Array.isArray(schema.type) ? schema.type : [schema.type ?? (schema.properties ? "object" : "any")])
-    .map((type) => (type === "string" ? "text" : type === "integer" ? "whole number" : type === "boolean" ? "true or false" : type));
-  let label = types.join(" or ");
-  if (schema.format && !["int32", "int64"].includes(schema.format)) label = label.replace(/^text/, `text (${schema.format})`);
-  if (schema.minimum !== undefined) label += `, at least ${schema.minimum}`;
+    .map((type, index) => (type === "string"
+      ? (index === 0 && format ? t("text ({format})", { format }) : t("text"))
+      : type === "integer" ? t("whole number") : type === "boolean" ? t("true or false") : type));
+  let label = either(types);
+  if (schema.minimum !== undefined) label = t("{type}, at least {minimum}", { type: label, minimum: schema.minimum });
   return label;
+}
+
+/** "a or b or c". */
+function either(labels: string[]): string {
+  return labels.length ? labels.reduce((all, label) => t("{a} or {b}", { a: all, b: label })) : "";
 }
 
 /** A sample value a schema accepts, for the curl example. */

@@ -1,6 +1,7 @@
 import { ApiError, type SongServerApi } from "./api.ts";
 import type { SetDetail, SetItem, SetItemInput, SetSummary } from "./types.ts";
 import { readPreference, today, writePreference } from "./ui.ts";
+import { t } from "../../shared/songs/i18n.ts";
 
 const CHOSEN_KEY = "current-set";
 /** Stored instead of a set id when the person put the current set away. */
@@ -138,7 +139,7 @@ export class CurrentSet {
 
   private change(edit: (items: SetItemInput[]) => SetItemInput[]): Promise<void> {
     return this.enqueue(async () => {
-      if (!this.set) throw new Error("There is no current set.");
+      if (!this.set) throw new Error(t("There is no current set."));
       for (let attempt = 0; ; attempt++) {
         const latest = await this.api.getSet(this.set.id, { fresh: true });
         try {

@@ -3,6 +3,7 @@ import { ApiError, type SongServerApi } from "../api.ts";
 import { icon } from "../icons.ts";
 import type { RoomSlide, RoomView } from "../types.ts";
 import { errorMessage, escapeHtml, readPreference, showFormError, writePreference } from "../ui.ts";
+import { t } from "../../../shared/songs/i18n.ts";
 
 /**
  * Following a room: anyone, signed in or not, types the room name a desktop
@@ -32,19 +33,19 @@ export function joinPath(): string | null {
 
 export function renderJoin(app: HTMLElement, api: SongServerApi, message = ""): void {
   history.replaceState(null, "", "/join");
-  setTitle("Join a room");
+  setTitle(t("Join a room"));
   const last = readPreference("room") ?? "";
   app.innerHTML = `<main class="auth">
     <div class="auth-card">
       <div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div>
-      <h1>Follow the words</h1>
-      <p class="lede">Type the room name shown by your church, such as <strong>Lily</strong>, to read the words on the screen on this phone, as large as you like.</p>
+      <h1>${t("Follow the words")}</h1>
+      <p class="lede">${t("Type the room name shown by your church, such as <strong>Lily</strong>, to read the words on the screen on this phone, as large as you like.")}</p>
       <form class="stack" id="join-form">
-        <label>Room name<input name="room" value="${escapeHtml(last)}" autocomplete="off" autocapitalize="words" enterkeyhint="go" maxlength="30" required autofocus /></label>
-        <button class="button primary wide" type="submit">Join</button>
+        <label>${t("Room name")}<input name="room" value="${escapeHtml(last)}" autocomplete="off" autocapitalize="words" enterkeyhint="go" maxlength="30" required autofocus /></label>
+        <button class="button primary wide" type="submit">${t("Join")}</button>
         <p class="form-message" role="status"></p>
       </form>
-      <a class="button secondary wide" href="/">Open the song library</a>
+      <a class="button secondary wide" href="/">${t("Open the song library")}</a>
     </div>
   </main>`;
   const form = app.querySelector<HTMLFormElement>("#join-form")!;
@@ -66,7 +67,7 @@ export function renderJoin(app: HTMLElement, api: SongServerApi, message = ""): 
     } catch (error) {
       form.querySelector("button")!.disabled = false;
       showFormError(form, error instanceof ApiError && error.status === 404
-        ? `There is no room called ${name}. Check the name on the screen and try again.`
+        ? t("There is no room called {name}. Check the name on the screen and try again.", { name })
         : errorMessage(error), field);
     }
   });
@@ -78,7 +79,7 @@ export async function renderRoomFromPath(app: HTMLElement, api: SongServerApi, n
     openRoom(app, api, await api.getRoom(name));
   } catch (error) {
     renderJoin(app, api, error instanceof ApiError && error.status === 404
-      ? `There is no room called ${name}. Check the name on the screen and try again.`
+      ? t("There is no room called {name}. Check the name on the screen and try again.", { name })
       : errorMessage(error));
   }
 }
@@ -99,17 +100,17 @@ function openRoom(app: HTMLElement, api: SongServerApi, first: RoomView): void {
   app.innerHTML = `<main class="room" id="room">
     <header class="room-bar">
       <div class="room-title">
-        <p class="eyebrow">Room</p>
+        <p class="eyebrow">${t("Room")}</p>
         <h1 id="room-name" tabindex="-1"></h1>
       </div>
       <span class="room-status" id="room-status" role="status"></span>
-      <div class="room-tools" role="group" aria-label="Reading settings">
-        <button class="icon-button" id="room-smaller" aria-label="Smaller text" title="Smaller text">${icon("minus")}</button>
-        <button class="icon-button" id="room-larger" aria-label="Larger text" title="Larger text">${icon("plus")}</button>
-        <button class="icon-button" id="room-contrast" aria-label="High contrast" title="High contrast">${icon("sun")}</button>
-        <button class="icon-button" id="room-follow" aria-label="Follow the screen" title="Follow the screen">${icon("follow")}</button>
-        <button class="icon-button" id="room-announce" aria-label="Read each new slide aloud with the screen reader" title="Announce new slides (screen readers)">${icon("text")}</button>
-        <button class="icon-button" id="room-leave" aria-label="Leave the room" title="Leave the room">${icon("close")}</button>
+      <div class="room-tools" role="group" aria-label="${t("Reading settings")}">
+        <button class="icon-button" id="room-smaller" aria-label="${t("Smaller text")}" title="${t("Smaller text")}">${icon("minus")}</button>
+        <button class="icon-button" id="room-larger" aria-label="${t("Larger text")}" title="${t("Larger text")}">${icon("plus")}</button>
+        <button class="icon-button" id="room-contrast" aria-label="${t("High contrast")}" title="${t("High contrast")}">${icon("sun")}</button>
+        <button class="icon-button" id="room-follow" aria-label="${t("Follow the screen")}" title="${t("Follow the screen")}">${icon("follow")}</button>
+        <button class="icon-button" id="room-announce" aria-label="${t("Read each new slide aloud with the screen reader")}" title="${t("Announce new slides (screen readers)")}">${icon("text")}</button>
+        <button class="icon-button" id="room-leave" aria-label="${t("Leave the room")}" title="${t("Leave the room")}">${icon("close")}</button>
       </div>
     </header>
     <section class="room-body" id="room-body" aria-live="off"></section>
@@ -138,19 +139,19 @@ function openRoom(app: HTMLElement, api: SongServerApi, first: RoomView): void {
 
   const render = (previous: RoomView | null) => {
     app.querySelector("#room-name")!.textContent = view.room_name;
-    setTitle(view.room_name, "Room");
+    setTitle(view.room_name, t("Room"));
     app.querySelector("#room-status")!.textContent = !connected
-      ? "Reconnecting…"
-      : { live: "Live", blank: "Screen is blank", idle: "Waiting", offline: "Not connected" }[view.status];
+      ? t("Reconnecting…")
+      : { live: t("Live"), blank: t("Screen is blank"), idle: t("Waiting"), offline: t("Not connected") }[view.status];
     root.dataset.status = connected ? view.status : "reconnecting";
 
     if (view.status === "idle" || view.status === "offline") {
       drawnSong = "";
       body.innerHTML = `<div class="room-waiting">
-        <h2>${view.status === "idle" ? "Nothing is on the screen" : "The projection computer is not connected"}</h2>
+        <h2>${view.status === "idle" ? t("Nothing is on the screen") : t("The projection computer is not connected")}</h2>
         <p>${view.status === "idle"
-          ? "The words show here as soon as the next song is projected. You can leave this page open."
-          : "This page will show the words again when it is back. You can leave it open."}</p>
+          ? t("The words show here as soon as the next song is projected. You can leave this page open.")
+          : t("This page will show the words again when it is back. You can leave it open.")}</p>
       </div>`;
       return;
     }
@@ -199,7 +200,7 @@ function openRoom(app: HTMLElement, api: SongServerApi, first: RoomView): void {
     size = next;
     writePreference("room-size", String(size));
     applySettings();
-    say(`Text size ${Math.round(SIZES[size] * 100)}%`);
+    say(t("Text size {percent}%", { percent: Math.round(SIZES[size] * 100) }));
     if (follow) scrollToCurrent(true);
   };
   app.querySelector("#room-smaller")?.addEventListener("click", () => resize(-1));
@@ -242,7 +243,7 @@ function openRoom(app: HTMLElement, api: SongServerApi, first: RoomView): void {
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) {
           leave();
-          renderJoin(app, api, `The room ${view.room_name} has closed or was renamed. Check the name on the screen.`);
+          renderJoin(app, api, t("The room {name} has closed or was renamed. Check the name on the screen.", { name: view.room_name }));
         } else {
           source.dispatchEvent(new Event("error"));
         }

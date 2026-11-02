@@ -15,6 +15,7 @@ import { announce } from "./a11y.ts";
 import { setRecording } from "./chord-audio.ts";
 import { clock, errorMessage, escapeHtml, initials, relativeDate, setFormBusy } from "./format.ts";
 import { confirmAction, holdScreen, showToast } from "./host.ts";
+import { t } from "./i18n.ts";
 import { icon } from "./icon.ts";
 import { closeSheet, openSheet } from "./sheet.ts";
 import { songVideo } from "./youtube.ts";
@@ -102,14 +103,16 @@ export function mountSongMedia(
   audio.className = "media-audio";
   showLength(audio);
 
-  const who = (recording: SongRecording) => recording.created_by_name ?? "Someone";
+  const who = (recording: SongRecording) => recording.created_by_name ?? t("Someone");
 
   const pillTime = (recording: SongRecording) => {
     if (recording.id === selected && audio.currentTime > 0) return clock(audio.currentTime * 1000);
     return recording.duration_ms !== null ? clock(recording.duration_ms) : "";
   };
 
-  const pillLabel = (recording: SongRecording, playing: boolean) => `${playing ? "Pause" : "Play"} ${recording.title}, by ${who(recording)}`;
+  const pillLabel = (recording: SongRecording, playing: boolean) => playing
+    ? t("Pause {title}, by {who}", { title: recording.title, who: who(recording) })
+    : t("Play {title}, by {who}", { title: recording.title, who: who(recording) });
 
   const recordingPill = (recording: SongRecording) => {
     const playing = recording.id === selected && !audio.paused;
@@ -124,23 +127,23 @@ export function mountSongMedia(
   const playerHead = (recording: SongRecording) => {
     const details = [recording.created_by_name ?? "", relativeDate(recording.created_at)].filter(Boolean).map(escapeHtml).join(" · ");
     return `<span class="row-main"><strong>${escapeHtml(recording.title)}</strong><small>${details}</small></span>
-      ${store.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(`Delete ${recording.title}`)}" title="Delete">${icon("trash")}</button>` : ""}
-      <button type="button" class="icon-button small ghost" data-media-act="close" aria-label="Close the player" title="Close">${icon("close")}</button>`;
+      ${store.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(t("Delete {title}", { title: recording.title }))}" title="${t("Delete")}">${icon("trash")}</button>` : ""}
+      <button type="button" class="icon-button small ghost" data-media-act="close" aria-label="${t("Close the player")}" title="${t("Close")}">${icon("close")}</button>`;
   };
 
   const draw = () => {
     const current = recordings.find((recording) => recording.id === selected);
     const addPill = store.canEdit && canRecord() && recordings.length
-      ? `<button type="button" class="media-pill add" data-media-act="record" aria-label="Record another" title="Record another">${icon("plus")}${icon("mic")}</button>`
+      ? `<button type="button" class="media-pill add" data-media-act="record" aria-label="${t("Record another")}" title="${t("Record another")}">${icon("plus")}${icon("mic")}</button>`
       : "";
     const videoPill = video
-      ? `<a class="media-pill video" href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube (opens YouTube)">${icon("video")}<span>YouTube</span></a>`
+      ? `<a class="media-pill video" href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" aria-label="${t("Watch on YouTube (opens YouTube)")}">${icon("video")}<span>YouTube</span></a>`
       : "";
     holder.hidden = !recordings.length && !video;
     const html = `${videoPill}${recordings.map(recordingPill).join("")}${addPill}`;
     const pills = holder.querySelector(".media-pills");
     if (pills) pills.innerHTML = html;
-    else holder.innerHTML = `<div class="media-pills" role="group" aria-label="How it is played">${html}</div><div class="media-player" hidden><div class="media-player-head"></div></div>`;
+    else holder.innerHTML = `<div class="media-pills" role="group" aria-label="${t("How it is played")}">${html}</div><div class="media-player" hidden><div class="media-player-head"></div></div>`;
     const player = holder.querySelector<HTMLElement>(".media-player")!;
     player.hidden = !current;
     if (current) {
@@ -213,7 +216,7 @@ export function mountSongMedia(
       if (selected !== recordingId) return;
       audio.src = link.url;
       void audio.play().catch(() => undefined);
-    }).catch(() => showToast("The recording could not be played.", true));
+    }).catch(() => showToast(t("The recording could not be played."), true));
   });
 
   const close = () => {
@@ -226,7 +229,7 @@ export function mountSongMedia(
 
   const remove = async () => {
     const recording = recordings.find((candidate) => candidate.id === selected);
-    if (!recording || !(await confirmAction(`Delete the recording “${recording.title}”? It cannot be brought back.`))) return;
+    if (!recording || !(await confirmAction(t("Delete the recording “{title}”? It cannot be brought back.", { title: recording.title })))) return;
     try {
       await store.remove(song.id, recording.id);
       audio.pause();
@@ -236,7 +239,7 @@ export function mountSongMedia(
       draw();
       report();
       holder.querySelector<HTMLElement>(".media-pill")?.focus();
-      showToast("Recording deleted.");
+      showToast(t("Recording deleted."));
     } catch (error) {
       showToast(errorMessage(error), true);
     }
@@ -349,21 +352,21 @@ function showWave(stream: MediaStream, wave: HTMLElement): () => void {
  * let go as soon as the recording stops or the sheet closes.
  */
 export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "id" | "title">, saved: (recording: SongRecording) => void): void {
-  const sheet = openSheet(`<h2>Record how it is played</h2>
-    <p class="muted">${escapeHtml(song.title)}. Everyone in the church can listen to it afterwards.</p>
+  const sheet = openSheet(`<h2>${t("Record how it is played")}</h2>
+    <p class="muted">${t("{title}. Everyone in the church can listen to it afterwards.", { title: escapeHtml(song.title) })}</p>
     <div class="recorder stack">
       <div class="recorder-stage">
         <p class="recorder-count" id="rec-count" aria-hidden="true" hidden></p>
         <div class="recorder-wave" id="rec-wave" aria-hidden="true">${"<span></span>".repeat(WAVE_BARS)}</div>
-        <p class="recorder-time" id="rec-time" role="timer" aria-label="Recorded time">0:00</p>
+        <p class="recorder-time" id="rec-time" role="timer" aria-label="${t("Recorded time")}">0:00</p>
       </div>
-      <button type="button" class="button primary wide" id="rec-toggle">${icon("mic")}Start recording</button>
+      <button type="button" class="button primary wide" id="rec-toggle">${icon("mic")}${t("Start recording")}</button>
       <audio class="recorder-preview" id="rec-preview" controls hidden></audio>
       <form id="rec-form" class="stack" hidden>
         <p class="form-message" role="status"></p>
         <div class="inline-actions wrap">
-          <button class="button primary grow" type="submit">${icon("save")}Save</button>
-          <button class="button secondary" type="button" id="rec-again">Record again</button>
+          <button class="button primary grow" type="submit">${icon("save")}${t("Save")}</button>
+          <button class="button secondary" type="button" id="rec-again">${t("Record again")}</button>
         </div>
       </form>
     </div>`);
@@ -402,12 +405,12 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     card = document.createElement("div");
     card.className = "recorder-card";
     card.setAttribute("role", "group");
-    card.setAttribute("aria-label", `Recording ${song.title}`);
+    card.setAttribute("aria-label", t("Recording {title}", { title: song.title }));
     const open = document.createElement("button");
     open.type = "button";
     open.className = "icon-button small ghost recorder-card-open";
-    open.setAttribute("aria-label", "Open the recorder");
-    open.title = "Open the recorder";
+    open.setAttribute("aria-label", t("Open the recorder"));
+    open.title = t("Open the recorder");
     open.innerHTML = icon("up");
     open.addEventListener("click", expand);
     card.append(stage, toggle, open);
@@ -419,7 +422,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     }
     if (!closing) closeSheet(sheet);
     toggle.focus({ preventScroll: true });
-    announce("Still recording. Stop it from the card at the bottom.");
+    announce(t("Still recording. Stop it from the card at the bottom."));
   };
 
   /** The card opens into the sheet again (to stop and listen, or by its ⌃). */
@@ -463,7 +466,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
   };
 
   const showStart = () => {
-    toggle.innerHTML = `${icon("mic")}Start recording`;
+    toggle.innerHTML = `${icon("mic")}${t("Start recording")}`;
     toggle.classList.remove("recording");
     toggle.disabled = false;
   };
@@ -490,7 +493,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
       preview.hidden = false;
       form.hidden = false;
       toggle.hidden = true;
-      announce(`Recorded ${clock(durationMs)}. Listen to it, then save it.`);
+      announce(t("Recorded {time}. Listen to it, then save it.", { time: clock(durationMs) }));
       form.querySelector<HTMLButtonElement>("[type='submit']")?.focus();
     });
     recorder.start(1000);
@@ -499,9 +502,9 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     limit = window.setTimeout(() => recorder?.state === "recording" && recorder.stop(), MAX_RECORDING_MS);
     time.textContent = "0:00";
     setStage("recording");
-    toggle.innerHTML = `${icon("stop")}Stop`;
+    toggle.innerHTML = `${icon("stop")}${t("Stop")}`;
     toggle.classList.add("recording");
-    announce("Recording");
+    announce(t("Recording"));
     collapse();
   };
 
@@ -521,10 +524,10 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
       const name = error instanceof DOMException ? error.name : "";
       showToast(
         name === "NotAllowedError" || name === "SecurityError"
-          ? "The microphone is blocked. Allow it for this site in the browser's settings."
+          ? t("The microphone is blocked. Allow it for this site in the browser's settings.")
           : name === "NotFoundError" || name === "OverconstrainedError"
-            ? "No microphone was found."
-            : "The microphone could not be started. Close other apps that use it and try again.",
+            ? t("No microphone was found.")
+            : t("The microphone could not be started. Close other apps that use it and try again."),
         true,
       );
       return;
@@ -535,7 +538,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     }
     stopWave = showWave(stream, wave);
     releaseScreen = holdScreen();
-    toggle.innerHTML = `${icon("close")}Cancel`;
+    toggle.innerHTML = `${icon("close")}${t("Cancel")}`;
     toggle.disabled = false;
     setStage("counting");
     let left = COUNT_FROM;
@@ -585,7 +588,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
       recording = null;
       closeSheet(sheet);
       saved(result);
-      showToast("Recording saved.");
+      showToast(t("Recording saved."));
     } catch (error) {
       setFormBusy(form, false);
       form.querySelector<HTMLElement>(".form-message")!.textContent = errorMessage(error);

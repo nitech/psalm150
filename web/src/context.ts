@@ -5,6 +5,7 @@ import type { Live } from "./live.ts";
 import { icon } from "./icons.ts";
 import type { Session } from "./types.ts";
 import { escapeHtml } from "./ui.ts";
+import { t } from "../../shared/songs/i18n.ts";
 
 /**
  * What the song list and reader get from the shell. A visitor to a public
@@ -93,7 +94,7 @@ export function pageHead(options: {
     </div>`;
   if (!options.back && !options.actions && !options.panel && !options.compact && !options.menu) return titles;
   const back = options.back
-    ? `<a class="icon-button ghost bar-back" href="${options.back}" aria-label="Back">${icon("back")}<span class="bar-back-text" aria-hidden="true">Back</span></a>`
+    ? `<a class="icon-button ghost bar-back" href="${options.back}" aria-label="${t("Back")}">${icon("back")}<span class="bar-back-text" aria-hidden="true">${t("Back")}</span></a>`
     : options.menu ? menuButton() : "";
   // On wide screens the rail replaces ☰, so a bar with nothing else goes.
   const menuOnly = options.menu && !options.back && !options.actions && !options.panel;
@@ -111,7 +112,7 @@ export function pageHead(options: {
 
 /** ☰: opens the sections drawer on phones (main.ts); hidden on wide screens. */
 export function menuButton(): string {
-  return `<button type="button" class="icon-button ghost menu-button" data-menu aria-label="Menu" aria-controls="sections" aria-expanded="false">${icon("menu")}</button>`;
+  return `<button type="button" class="icon-button ghost menu-button" data-menu aria-label="${t("Menu")}" aria-controls="sections" aria-expanded="false">${icon("menu")}</button>`;
 }
 
 export function emptyState(title: string, copy: string): string {

@@ -5,6 +5,8 @@
  * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
  * in the mirror.
  */
+import { escapeHtml } from "./format.ts";
+import { t } from "./i18n.ts";
 import { icon } from "./icon.ts";
 
 let sheetCount = 0;
@@ -23,7 +25,7 @@ export function openSheet(content: string, { closeButton = true } = {}): HTMLDia
     : null;
   const dialog = document.createElement("dialog");
   dialog.className = "sheet";
-  dialog.innerHTML = `<div class="sheet-body"><span class="sheet-grip" aria-hidden="true"></span><button type="button" class="icon-button sheet-close${closeButton ? "" : " sr-only"}" aria-label="Close">${icon("close")}</button>${content}</div>`;
+  dialog.innerHTML = `<div class="sheet-body"><span class="sheet-grip" aria-hidden="true"></span><button type="button" class="icon-button sheet-close${closeButton ? "" : " sr-only"}" aria-label="${escapeHtml(t("Close"))}">${icon("close")}</button>${content}</div>`;
   if (!closeButton) dialog.classList.add("no-close");
   const heading = dialog.querySelector("h2");
   if (heading) {

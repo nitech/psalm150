@@ -10,6 +10,7 @@
  * in the mirror.
  */
 import type { BarAction } from "./bar-menu.ts";
+import { t } from "./i18n.ts";
 
 /**
  * What a screen can do with its song now, and in what state; an action
@@ -45,36 +46,36 @@ export function songBarActions(state: SongActionState): BarAction[] {
   const actions: BarAction[] = [];
   if (state.chords) {
     const shown = state.chords.shown;
-    actions.push({ id: "chords", label: shown ? "Hide chords" : "Show chords", icon: "chordNote", fixed: true, checked: shown, className: shown ? "on" : "" });
+    actions.push({ id: "chords", label: shown ? t("Hide chords") : t("Show chords"), icon: "chordNote", fixed: true, checked: shown, className: shown ? "on" : "" });
   }
   // − key + is too wide for a toolbar: always in ⋮, however often it is used.
-  if (state.transpose) actions.push({ id: "transpose", label: "Transpose", icon: "transpose", stepper: state.transpose, menuOnly: true });
+  if (state.transpose) actions.push({ id: "transpose", label: t("Transpose"), icon: "transpose", stepper: state.transpose, menuOnly: true });
   if (state.set) {
     const { name, inSet } = state.set;
     actions.push({
       id: "set",
-      label: inSet ? `In ${name}` : `Add to ${name}`,
+      label: inSet ? t("In {set}", { set: name }) : t("Add to {set}", { set: name }),
       icon: inSet ? "check" : "plus",
       fixed: true,
       checked: inSet,
       className: inSet ? "in-set" : "",
     });
   }
-  if (state.addToSet) actions.push({ id: "add-to-set", label: state.set ? "Add to another set" : "Add to a set", icon: "sets" });
+  if (state.addToSet) actions.push({ id: "add-to-set", label: state.set ? t("Add to another set") : t("Add to a set"), icon: "sets" });
   if (state.favorite) {
     const on = state.favorite.on;
-    actions.push({ id: "favorite", label: on ? "Favourite" : "Make a favourite", icon: "favorites", fixed: !state.set, checked: on, className: `fav-toggle${on ? " on" : ""}` });
+    actions.push({ id: "favorite", label: on ? t("Favourite") : t("Make a favourite"), icon: "favorites", fixed: !state.set, checked: on, className: `fav-toggle${on ? " on" : ""}` });
   }
-  if (state.record) actions.push({ id: "record", label: "Record how it is played", icon: "mic" });
-  if (state.findChords) actions.push({ id: "find-chords", label: "Chords from the web", icon: "chords", href: state.findChords.href });
-  if (state.copy) actions.push({ id: "copy", label: "Copy the words", icon: "copy" });
-  if (state.history) actions.push({ id: "history", label: "History", icon: "history" });
+  if (state.record) actions.push({ id: "record", label: t("Record how it is played"), icon: "mic" });
+  if (state.findChords) actions.push({ id: "find-chords", label: t("Chords from the web"), icon: "chords", href: state.findChords.href });
+  if (state.copy) actions.push({ id: "copy", label: t("Copy the words"), icon: "copy" });
+  if (state.history) actions.push({ id: "history", label: t("History"), icon: "history" });
   if (state.keepAwake) {
     const on = state.keepAwake.on;
-    actions.push({ id: "keep-awake", label: "Keep screen on", icon: "sun", checked: on, switch: true, className: on ? "on" : "" });
+    actions.push({ id: "keep-awake", label: t("Keep screen on"), icon: "sun", checked: on, switch: true, className: on ? "on" : "" });
   }
-  if (state.share) actions.push({ id: "share", label: "Share song", icon: "share", fixed: true });
-  if (state.edit) actions.push({ id: "edit", label: state.edit.label ?? "Edit song", icon: "edit", href: state.edit.href, fixed: true });
-  if (state.delete) actions.push({ id: "delete", label: "Delete song", icon: "trash", danger: true, menuOnly: true });
+  if (state.share) actions.push({ id: "share", label: t("Share song"), icon: "share", fixed: true });
+  if (state.edit) actions.push({ id: "edit", label: state.edit.label ?? t("Edit song"), icon: "edit", href: state.edit.href, fixed: true });
+  if (state.delete) actions.push({ id: "delete", label: t("Delete song"), icon: "trash", danger: true, menuOnly: true });
   return actions;
 }

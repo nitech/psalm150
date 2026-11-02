@@ -4,6 +4,7 @@ import { icon } from "./icons.ts";
 import type { RemoteDesktop } from "./types.ts";
 import { escapeHtml, readPreference, writePreference } from "./ui.ts";
 import { SIZES, slideHtml } from "./views/room.ts";
+import { t } from "../../shared/songs/i18n.ts";
 
 /**
  * Following the projector from the app, one of the modes behind the Live
@@ -93,9 +94,9 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
     draw();
     if (on) {
       view()?.querySelector<HTMLElement>("#follow-title")?.focus({ preventScroll: true });
-      announce(desktop ? `Following ${desktop.room_name}` : "Following the projector");
+      announce(desktop ? t("Following {desktop}", { desktop: desktop.room_name }) : t("Following the projector"));
     } else {
-      announce("Back to your screen");
+      announce(t("Back to your screen"));
     }
   };
 
@@ -115,14 +116,14 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
     const state = desktop?.state;
     const status = !desktop?.online ? "offline" : !state?.projecting ? "idle" : state.blanked ? "blank" : "live";
     root.dataset.status = status;
-    root.querySelector("#follow-title")!.textContent = desktop?.room_name ?? "Projector";
-    root.querySelector("#follow-status")!.textContent = { live: "Live", blank: "Screen is blank", idle: "Waiting", offline: "Not connected" }[status];
+    root.querySelector("#follow-title")!.textContent = desktop?.room_name ?? t("Projector");
+    root.querySelector("#follow-status")!.textContent = { live: t("Live"), blank: t("Screen is blank"), idle: t("Waiting"), offline: t("Not connected") }[status];
     if (status === "idle" || status === "offline" || !state) {
       drawnSong = "";
       shownSlide = null;
       body.innerHTML = `<div class="room-waiting">
-        <h2>${status === "idle" ? "Nothing is on the screen" : "The projection computer is not connected"}</h2>
-        <p>The words show here as soon as the next song is projected.</p>
+        <h2>${status === "idle" ? t("Nothing is on the screen") : t("The projection computer is not connected")}</h2>
+        <p>${t("The words show here as soon as the next song is projected.")}</p>
       </div>`;
       return;
     }
@@ -161,7 +162,7 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
     size = next;
     writePreference("room-size", String(size));
     applySize();
-    announce(`Text size ${Math.round(SIZES[size] * 100)}%`);
+    announce(t("Text size {percent}%", { percent: Math.round(SIZES[size] * 100) }));
     shownSlide = null;
     draw();
   };
@@ -174,10 +175,10 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
         <span class="follow-live live" aria-hidden="true"></span>
         <div class="room-title"><h2 id="follow-title" tabindex="-1"></h2></div>
         <span class="room-status" id="follow-status" role="status"></span>
-        <div class="room-tools" role="group" aria-label="Reading settings">
-          <button class="icon-button" id="follow-smaller" aria-label="Smaller text" title="Smaller text">${icon("minus")}</button>
-          <button class="icon-button" id="follow-larger" aria-label="Larger text" title="Larger text">${icon("plus")}</button>
-          <button class="icon-button" id="follow-close" aria-label="Back to your screen" title="Back to your screen">${icon("close")}</button>
+        <div class="room-tools" role="group" aria-label="${t("Reading settings")}">
+          <button class="icon-button" id="follow-smaller" aria-label="${t("Smaller text")}" title="${t("Smaller text")}">${icon("minus")}</button>
+          <button class="icon-button" id="follow-larger" aria-label="${t("Larger text")}" title="${t("Larger text")}">${icon("plus")}</button>
+          <button class="icon-button" id="follow-close" aria-label="${t("Back to your screen")}" title="${t("Back to your screen")}">${icon("close")}</button>
         </div>
       </header>
       <div class="room-body" id="follow-body"></div>`;

@@ -9,6 +9,7 @@
 import { hasChords, parseChordPro, transposeSong, type DisplaySong } from "./chordpro.ts";
 import { guessKey } from "../chord-match.ts";
 import { escapeHtml, readPreference, transposeLabel, writePreference } from "./format.ts";
+import { t } from "./i18n.ts";
 
 export { guessKey };
 
@@ -34,7 +35,7 @@ export function prepareSong(chordpro: string, transpose: number): DisplaySong {
  * a button: `installChordViewer` shows how to play it.
  */
 export function renderSongBody(song: DisplaySong, options: ReaderOptions): string {
-  if (!song.sections.length) return `<p class="muted">This song has no lyrics yet.</p>`;
+  if (!song.sections.length) return `<p class="muted">${t("This song has no lyrics yet.")}</p>`;
   const withChords = options.chords && hasChords(song);
   return `<div class="reader${withChords ? " with-chords" : ""}">
     ${song.sections.map((section) => `<section class="reader-section">
@@ -45,7 +46,7 @@ export function renderSongBody(song: DisplaySong, options: ReaderOptions): strin
           const text = line.segments.map((segment) => segment.text).join("");
           return `<p class="reader-line">${escapeHtml(text) || "&nbsp;"}</p>`;
         }
-        return `<p class="reader-line">${line.segments.map((segment) => `<span class="seg">${segment.chord ? `<button type="button" class="ch" data-chord="${escapeHtml(segment.chord)}" aria-label="${escapeHtml(segment.chord)}, how to play it">${escapeHtml(segment.chord)}</button>` : `<span class="ch"></span>`}<span class="ly">${escapeHtml(segment.text) || (segment.chord ? "&nbsp;" : "")}</span></span>`).join("")}</p>`;
+        return `<p class="reader-line">${line.segments.map((segment) => `<span class="seg">${segment.chord ? `<button type="button" class="ch" data-chord="${escapeHtml(segment.chord)}" aria-label="${escapeHtml(t("{chord}, how to play it", { chord: segment.chord }))}">${escapeHtml(segment.chord)}</button>` : `<span class="ch"></span>`}<span class="ly">${escapeHtml(segment.text) || (segment.chord ? "&nbsp;" : "")}</span></span>`).join("")}</p>`;
       }).join("")}
     </section>`).join("")}
   </div>`;
@@ -103,7 +104,9 @@ export function lyricsIn(fragment: DocumentFragment): string {
 export function keyLabel(song: DisplaySong, transpose: number): string {
   const key = songKey(song);
   if (!key && !transpose) return "";
-  return `${key ? `Key ${key}` : "Transposed"}${transpose ? ` ${transposeLabel(transpose)}` : ""}`;
+  const steps = transposeLabel(transpose);
+  if (key) return transpose ? t("Key {key} {steps}", { key, steps }) : t("Key {key}", { key });
+  return t("Transposed {steps}", { steps });
 }
 
 /** Keeps a transpose value in -11..11 after a step. */

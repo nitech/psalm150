@@ -21,13 +21,19 @@ import {
   type PianoShape,
 } from "./chord-shapes.ts";
 import { announce } from "./a11y.ts";
+import { t } from "./i18n.ts";
 import { icon } from "./icon.ts";
 import { escapeHtml, readPreference, writePreference } from "./format.ts";
 import { closeSheet, openSheet } from "./sheet.ts";
 
 interface Instrument<Shape> {
   id: string;
-  label: string;
+  /** Its name in the reader's language. */
+  label(): string;
+  /** "Ways to play G on guitar", whole, so it reads well in every language. */
+  ways(chord: string): string;
+  /** "No way to play G on guitar was found." */
+  none(chord: string): string;
   sound: Sound;
   shapes(chord: Chord): Shape[];
   /** "Open", "Barre, fret 3", "1st inversion". */
@@ -38,7 +44,9 @@ interface Instrument<Shape> {
 
 const guitar: Instrument<GuitarShape> = {
   id: "guitar",
-  label: "Guitar",
+  label: () => t("Guitar"),
+  ways: (chord) => t("Ways to play {chord} on guitar", { chord }),
+  none: (chord) => t("No way to play {chord} on guitar was found.", { chord }),
   sound: "guitar",
   shapes: (chord) => guitarShapes(chord),
   shapeName: (shape) => shape.label,
@@ -48,7 +56,9 @@ const guitar: Instrument<GuitarShape> = {
 
 const piano: Instrument<PianoShape> = {
   id: "piano",
-  label: "Piano",
+  label: () => t("Piano"),
+  ways: (chord) => t("Ways to play {chord} on piano", { chord }),
+  none: (chord) => t("No way to play {chord} on piano was found.", { chord }),
   sound: "piano",
   shapes: pianoShapes,
   shapeName: (shape) => shape.label,
@@ -67,7 +77,7 @@ function chosenInstrument(): Instrument<unknown> {
 /** The instruments, for the song editor's chord sound: the same choice as this sheet's. */
 export const instruments = (): Array<{ id: string; label: string; chosen: boolean }> => {
   const chosen = chosenInstrument();
-  return INSTRUMENTS.map((instrument) => ({ id: instrument.id, label: instrument.label, chosen: instrument === chosen }));
+  return INSTRUMENTS.map((instrument) => ({ id: instrument.id, label: instrument.label(), chosen: instrument === chosen }));
 };
 
 export function chooseInstrument(id: string): void {
@@ -145,7 +155,7 @@ function openDock(dock: HTMLElement, name: string, opener: HTMLElement | null): 
   }
   docked?.stop();
   docked?.resize.disconnect();
-  dock.setAttribute("aria-label", `How to play ${name}`);
+  dock.setAttribute("aria-label", t("How to play {chord}", { chord: name }));
   dock.innerHTML = `<div class="chord-dock-inner">${chordMarkup(name, true)}</div>`;
   const stop = bindChord(dock, name, () => closeChordDock(true));
   // Pages leave room under the song for a panel along the bottom.
@@ -202,12 +212,12 @@ function chordMarkup(name: string, closable: boolean): string {
       </div>
       ${chord ? `<div class="chord-instrument">
         <button type="button" class="button secondary" data-chord-instrument aria-haspopup="menu" aria-expanded="false"></button>
-        <div class="bar-menu" role="menu" aria-label="Instrument" hidden></div>
+        <div class="bar-menu" role="menu" aria-label="${t("Instrument")}" hidden></div>
       </div>
-      <button type="button" class="icon-button accent chord-play" data-chord-play aria-label="Play the chord" title="Play the chord">${icon("play")}</button>` : ""}
-      ${closable ? `<button type="button" class="icon-button ghost chord-close" data-chord-close aria-label="Close" title="Close (Esc)">${icon("close")}</button>` : ""}
+      <button type="button" class="icon-button accent chord-play" data-chord-play aria-label="${t("Play the chord")}" title="${t("Play the chord")}">${icon("play")}</button>` : ""}
+      ${closable ? `<button type="button" class="icon-button ghost chord-close" data-chord-close aria-label="${t("Close")}" title="${t("Close (Esc)")}">${icon("close")}</button>` : ""}
     </div>
-    <div class="chord-body">${chord ? "" : `<p class="muted">This chord's name is not one the app can read, so it cannot show how to play it.</p>`}</div>`;
+    <div class="chord-body">${chord ? "" : `<p class="muted">${t("This chord's name is not one the app can read, so it cannot show how to play it.")}</p>`}</div>`;
 }
 
 /**
@@ -232,23 +242,23 @@ function bindChord(root: HTMLElement, name: string, close: () => void): () => vo
   const render = () => {
     shapes = instrument.shapes(chord);
     current = 0;
-    picker.innerHTML = `${instrument.label}${icon("down")}`;
-    picker.setAttribute("aria-label", `Instrument: ${instrument.label}`);
-    menu.innerHTML = INSTRUMENTS.map((item) => `<button type="button" role="menuitemradio" aria-checked="${item === instrument}" tabindex="-1" class="bar-menu-item" data-instrument="${item.id}"><span>${item.label}</span><span class="bar-menu-check" aria-hidden="true">${item === instrument ? icon("check") : ""}</span></button>`).join("");
+    picker.innerHTML = `${instrument.label()}${icon("down")}`;
+    picker.setAttribute("aria-label", t("Instrument: {instrument}", { instrument: instrument.label() }));
+    menu.innerHTML = INSTRUMENTS.map((item) => `<button type="button" role="menuitemradio" aria-checked="${item === instrument}" tabindex="-1" class="bar-menu-item" data-instrument="${item.id}"><span>${item.label()}</span><span class="bar-menu-check" aria-hidden="true">${item === instrument ? icon("check") : ""}</span></button>`).join("");
     play.disabled = !shapes.length;
     body.innerHTML = shapes.length
       ? `<div class="chord-stage">
-          <div class="chord-shapes" tabindex="0" role="group" aria-roledescription="carousel" aria-label="Ways to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()}">
-            ${shapes.map((shape, index) => `<figure class="chord-shape chord-${instrument.id}" role="group" aria-roledescription="slide" aria-label="${index + 1} of ${shapes.length}: ${escapeHtml(instrument.shapeName(shape))}">
+          <div class="chord-shapes" tabindex="0" role="group" aria-roledescription="carousel" aria-label="${instrument.ways(escapeHtml(chord.name))}">
+            ${shapes.map((shape, index) => `<figure class="chord-shape chord-${instrument.id}" role="group" aria-roledescription="slide" aria-label="${t("{index} of {count}: {name}", { index: index + 1, count: shapes.length, name: escapeHtml(instrument.shapeName(shape)) })}">
               ${instrument.draw(shape, chord)}
             </figure>`).join("")}
           </div>
           <p class="chord-shape-name" aria-live="polite"></p>
-          <button type="button" class="icon-button ghost chord-step" data-step="-1" aria-label="Previous way">${icon("prev")}</button>
-          <button type="button" class="icon-button ghost chord-step" data-step="1" aria-label="Next way">${icon("next")}</button>
+          <button type="button" class="icon-button ghost chord-step" data-step="-1" aria-label="${t("Previous way")}">${icon("prev")}</button>
+          <button type="button" class="icon-button ghost chord-step" data-step="1" aria-label="${t("Next way")}">${icon("next")}</button>
           ${shapes.length > 1 ? `<div class="chord-dots" aria-hidden="true">${shapes.map(() => "<span></span>").join("")}</div>` : ""}
         </div>`
-      : `<p class="muted">No way to play ${escapeHtml(chord.name)} on ${instrument.label.toLowerCase()} was found.</p>`;
+      : `<p class="muted">${instrument.none(escapeHtml(chord.name))}</p>`;
     showCurrent();
   };
 
@@ -300,7 +310,7 @@ function bindChord(root: HTMLElement, name: string, close: () => void): () => vo
       writePreference("instrument", next.id);
       preloadSound(next.sound);
       render();
-      announce(next.label);
+      announce(next.label());
       return;
     }
     if (!target.closest(".chord-instrument")) closeMenu(false);
@@ -351,7 +361,7 @@ function bindChord(root: HTMLElement, name: string, close: () => void): () => vo
   }, { capture: true, signal });
   preloadSound(instrument.sound);
   render();
-  announce(`${chord.name}, ${instrument.label}`);
+  announce(`${chord.name}, ${instrument.label()}`);
   return () => listening.abort();
 }
 
@@ -411,7 +421,11 @@ function drawGuitar(shape: GuitarShape): string {
   shape.frets.forEach((fret, string) => {
     if (fret >= 0) parts.push(`<rect class="hit" data-string="${string}" data-midi="${GUITAR_TUNING[string] + fret}" x="${x(string) - STRING_GAP / 2}" y="${TOP - 30}" width="${STRING_GAP}" height="${bottom - TOP + 64}"/>`);
   });
-  const spoken = shape.frets.map((fret, string) => `${noteName(GUITAR_TUNING[string], false)} string ${fret < 0 ? "not played" : fret === 0 ? "open" : `fret ${fret}`}`).join(", ");
+  const spoken = shape.frets.map((fret, string) => {
+    const note = noteName(GUITAR_TUNING[string], false);
+    if (fret < 0) return t("{note} string not played", { note });
+    return fret === 0 ? t("{note} string open", { note }) : t("{note} string fret {fret}", { note, fret });
+  }).join(", ");
   return `<svg class="chord-diagram" viewBox="0 0 ${right + 30} ${bottom + 34}" role="img" aria-label="${escapeHtml(spoken)}">${parts.join("")}</svg>`;
 }
 
@@ -447,7 +461,7 @@ function drawPiano(shape: PianoShape, chord: Chord): string {
   }
   const width = whiteIndex * whiteWidth;
   const spoken = notes.map((midi) => noteNameFor(chord, midi, flats)).join(", ");
-  return `<svg class="chord-diagram piano" viewBox="-1 -1 ${width + 2} ${height + 2}" role="img" aria-label="Keys ${escapeHtml(spoken)}${shape.bass === null ? "" : ", the first with the left hand"}">${whites.join("")}${blacks.join("")}</svg>`;
+  return `<svg class="chord-diagram piano" viewBox="-1 -1 ${width + 2} ${height + 2}" role="img" aria-label="${shape.bass === null ? t("Keys {notes}", { notes: escapeHtml(spoken) }) : t("Keys {notes}, the first with the left hand", { notes: escapeHtml(spoken) })}">${whites.join("")}${blacks.join("")}</svg>`;
 }
 
 /** A note's name as the chord spells it (Bb in Gm, A# in F#), else by the chord's accidentals. */

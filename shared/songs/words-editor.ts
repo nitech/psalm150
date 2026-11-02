@@ -40,6 +40,7 @@ import {
 import { icon, type IconName } from "./icon.ts";
 import { escapeHtml } from "./format.ts";
 import { showToast } from "./host.ts";
+import { t, tn } from "./i18n.ts";
 
 /** Where the editor's bar moves into the header: wide enough for Back, the mode switch and the bar. */
 export const DOCKED = "(min-width: 1100px)";
@@ -103,27 +104,27 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   flow.contentEditable = editable;
   flow.setAttribute("role", "textbox");
   flow.setAttribute("aria-multiline", "true");
-  flow.setAttribute("aria-label", "Song words");
+  flow.setAttribute("aria-label", t("Song words"));
   flow.spellcheck = false;
 
   const bar = document.createElement("div");
   bar.className = "ce-bar";
   bar.innerHTML = `
     <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
-    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="Key, capo, details and chord sound" title="Key, capo, details and chord sound">${icon("settings")}</button>
-    <button type="button" class="ce-bar-save">${icon("save")}Save</button>`;
+    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="${t("Key, capo, details and chord sound")}" title="${t("Key, capo, details and chord sound")}">${icon("settings")}</button>
+    <button type="button" class="ce-bar-save">${icon("save")}${t("Save")}</button>`;
   const wellEl = document.createElement("div");
   wellEl.className = "ce-well";
   wellEl.setAttribute("role", "dialog");
   wellEl.hidden = true;
   wellEl.innerHTML = `
-    <div class="ce-well-section" role="group" aria-label="Section"></div>
-    <div class="ce-well-settings"><p class="ce-well-title">Song</p></div>
+    <div class="ce-well-section" role="group" aria-label="${t("Section")}"></div>
+    <div class="ce-well-settings"><p class="ce-well-title">${t("Song")}</p></div>
     <div class="ce-well-name">
       <p class="ce-well-title"></p>
       <div class="ce-well-field">
         <input autocomplete="off" enterkeyhint="done" />
-        <button type="button" class="button primary small">Done</button>
+        <button type="button" class="button primary small">${t("Done")}</button>
       </div>
     </div>`;
   document.body.append(wellEl, bar);
@@ -164,8 +165,8 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
 
   function lineHtml(line: Line): string {
     if (line.kind === "lyric") return `<div class="ce-l" data-line="${line.id}">${escapeHtml(line.text) || "<br>"}</div>`;
-    if (line.kind === "comment") return `<div class="ce-atom ce-note" contenteditable="false" data-note="${line.id}" title="Change the note"><span class="ce-tag">Note</span>${escapeHtml(line.text) || "&nbsp;"}</div>`;
-    return `<div class="ce-atom ce-raw" contenteditable="false" title="Change this line in ChordPro"><code>${escapeHtml(line.text)}</code></div>`;
+    if (line.kind === "comment") return `<div class="ce-atom ce-note" contenteditable="false" data-note="${line.id}" title="${t("Change the note")}"><span class="ce-tag">${t("Note")}</span>${escapeHtml(line.text) || "&nbsp;"}</div>`;
+    return `<div class="ce-atom ce-raw" contenteditable="false" title="${t("Change this line in ChordPro")}"><code>${escapeHtml(line.text)}</code></div>`;
   }
   function render(caret?: Point | null): void {
     const song = doc();
@@ -260,7 +261,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     const { caret, lost } = replaceRange(doc(), from, to, pieces);
     host.remember();
     render(caret);
-    if (lost && !quiet) showToast(`Removed ${lost} chord${lost === 1 ? "" : "s"}.`, { action: { label: "Undo", run: host.undo } });
+    if (lost && !quiet) showToast(tn(lost, "Removed {n} chord.", "Removed {n} chords."), { action: { label: t("Undo"), run: host.undo } });
   }
   function enter(from: Point, to: Point): void {
     const line = lyric(from.line);
@@ -409,7 +410,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     }
     if (!pieces.length) return;
     change(place.from, place.to, pieces);
-    if (converted) showToast(`Placed the chords from ${converted} chord line${converted === 1 ? "" : "s"}.`);
+    if (converted) showToast(tn(converted, "Placed the chords from {n} chord line.", "Placed the chords from {n} chord lines."));
   });
 
   /* ── The bar and its panel ──────────────────────────────────────────── */
@@ -490,12 +491,12 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
       <div class="ce-well-grid">${TYPES.map((type) => row(`data-type="${type}" role="menuitemradio" aria-checked="${section.type === type}"`, typeName(type), section.type === type ? "check" : null)).join("")}</div>
       <div class="ce-well-rule"></div>
       <div class="ce-well-grid">
-        ${row('data-act="name"', section.label ? "Rename…" : "Name…", "edit", " action")}
-        ${row('data-act="note"', "Add a note", "note", " action")}
-        ${row(`data-act="up"${index === 0 ? " disabled" : ""}`, "Move up", "arrowUp", " action")}
-        ${row(`data-act="down"${index === all.length - 1 ? " disabled" : ""}`, "Move down", "arrowDown", " action")}
-        ${row('data-act="copy"', "Duplicate", "copy", " action")}
-        ${row('data-act="delete"', "Delete", "trash", " action danger")}
+        ${row('data-act="name"', section.label ? t("Rename…") : t("Name…"), "edit", " action")}
+        ${row('data-act="note"', t("Add a note"), "note", " action")}
+        ${row(`data-act="up"${index === 0 ? " disabled" : ""}`, t("Move up"), "arrowUp", " action")}
+        ${row(`data-act="down"${index === all.length - 1 ? " disabled" : ""}`, t("Move down"), "arrowDown", " action")}
+        ${row('data-act="copy"', t("Duplicate"), "copy", " action")}
+        ${row('data-act="delete"', t("Delete"), "trash", " action danger")}
       </div>`;
   }
   function openWell(kind: "section" | "settings" | "field"): void {
@@ -506,7 +507,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     nameWell.hidden = kind !== "field";
     sectionButton.setAttribute("aria-expanded", String(kind === "section"));
     cogButton.setAttribute("aria-expanded", String(kind === "settings"));
-    wellEl.setAttribute("aria-label", kind === "settings" ? "Key, capo, details and chord sound" : "Section");
+    wellEl.setAttribute("aria-label", kind === "settings" ? t("Key, capo, details and chord sound") : t("Section"));
     wellEl.hidden = false;
     wellEl.classList.remove("open");
     placeBar();
@@ -573,7 +574,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     if (button.dataset.type) return edit(() => { section.type = button.dataset.type!; });
     switch (button.dataset.act) {
       case "name":
-        return openField("Section name", section.label, autoLabel(section, verseOf(section)), (value) => edit(() => { section.label = value; }));
+        return openField(t("Section name"), section.label, autoLabel(section, verseOf(section)), (value) => edit(() => { section.label = value; }));
       case "note": {
         const note: CommentLine = { id: newId(), kind: "comment", tag: "c", text: "", orig: null };
         const here = place();
@@ -599,7 +600,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
           song.items.splice(song.items.indexOf(section), 1);
           return first ? { line: first.id, off: 0 } : null;
         });
-        showToast(`Deleted ${name}.`, { action: { label: "Undo", run: host.undo } });
+        showToast(t("Deleted {name}.", { name }), { action: { label: t("Undo"), run: host.undo } });
       }
     }
   });
@@ -656,7 +657,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     const found = findLine(doc(), id);
     const note = found?.section.lines[found.index] as CommentLine | undefined;
     if (!found || !note) return;
-    openField("Note", note.text, "Write a note", (value) => edit(() => {
+    openField(t("Note"), note.text, t("Write a note"), (value) => edit(() => {
       if (value) note.text = value;
       else found.section.lines.splice(found.section.lines.indexOf(note), 1);
     }));

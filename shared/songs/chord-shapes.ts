@@ -3,6 +3,7 @@
  * play it on each instrument, easiest first (`guitarShapes`, `pianoShapes`).
  * Pure functions, no DOM; `chord-viewer.ts` draws and plays them.
  */
+import { t } from "./i18n.ts";
 
 /** A chord tone: semitones above the root and its scale degree (1, 3, 5, 7, 9…). */
 export interface Tone {
@@ -368,9 +369,9 @@ function fingersFor(frets: number[], barre: GuitarShape["barre"]): number[] {
 function shapeLabel(candidate: Candidate): string {
   const pressed = candidate.frets.filter((fret) => fret > 0);
   const lowest = pressed.length ? Math.min(...pressed) : 0;
-  if (candidate.barre) return `Barre, fret ${candidate.barre.fret}`;
-  if (candidate.frets.includes(0)) return "Open";
-  return `Fret ${lowest}`;
+  if (candidate.barre) return t("Barre, fret {fret}", { fret: candidate.barre.fret });
+  if (candidate.frets.includes(0)) return t("Open");
+  return t("Fret {fret}", { fret: lowest });
 }
 
 /** The MIDI notes a guitar shape sounds, low to high. */
@@ -388,7 +389,13 @@ export interface PianoShape {
   label: string;
 }
 
-const INVERSIONS = ["Root position", "1st inversion", "2nd inversion", "3rd inversion", "4th inversion"];
+const INVERSIONS = [
+  () => t("Root position"),
+  () => t("1st inversion"),
+  () => t("2nd inversion"),
+  () => t("3rd inversion"),
+  () => t("4th inversion"),
+];
 
 /**
  * The chord on a piano: in root position first, then its inversions, each
@@ -409,7 +416,7 @@ export function pianoShapes(chord: Chord): PianoShape[] {
     // The bass is the nearest note under the hand, so both fit one keyboard.
     let bass = chord.bass === null ? null : notes[0] - 1 - ((notes[0] - 1 - chord.bass + 1200) % 12);
     if (bass !== null && notes[0] - bass < 3) bass -= 12;
-    shapes.push({ notes: [...notes], bass, label: INVERSIONS[inversion] });
+    shapes.push({ notes: [...notes], bass, label: INVERSIONS[inversion]() });
     const [first, ...rest] = notes;
     let moved = first + 12;
     while (moved <= rest[rest.length - 1]) moved += 12;

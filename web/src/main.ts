@@ -19,6 +19,8 @@ import "./install.ts";
 import type { SessionInfo, SetDetail, Session } from "./types.ts";
 import { dateBadge, errorMessage, escapeHtml, hideToast, installSearchClear, readPreference, setFormBusy, showToast } from "./ui.ts";
 import { settingsHref, settingsPages, settingsView } from "./views/settings.ts";
+import { loadLanguage } from "./i18n.ts";
+import { locale, t, tn } from "../../shared/songs/i18n.ts";
 import { peopleView } from "./views/people.ts";
 import { apiDocs } from "./views/api-docs.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
@@ -95,6 +97,8 @@ interface DesktopRequest {
   state: string;
   codeChallenge: string;
   deviceName: string;
+  /** The desktop gave its name; otherwise it is called "this desktop". */
+  named: boolean;
 }
 
 const desktopRequest = readDesktopRequest();
@@ -102,6 +106,8 @@ const desktopRequest = readDesktopRequest();
 void boot();
 
 async function boot(): Promise<void> {
+  // Every screen is drawn in the reader's language, so it comes first.
+  await loadLanguage();
   try {
     if (desktopRequest === "invalid") {
       renderDesktopInvalid();
@@ -133,7 +139,7 @@ async function boot(): Promise<void> {
       return;
     }
     const info = await api.info();
-    publicLibrary = info.public_library ? info.public_library_name ?? "Song library" : null;
+    publicLibrary = info.public_library ? info.public_library_name ?? t("Song library") : null;
     roomsOpen = info.rooms;
     if (!info.initialized) {
       renderSetup();
@@ -153,17 +159,17 @@ async function boot(): Promise<void> {
 }
 
 function renderSetup(): void {
-  setTitle("Set up");
+  setTitle(t("Set up"));
   app.innerHTML = authFrame(
-    "Set up your song server",
-    "Create your church and the first owner account. The songs stay on this server, under your church's care.",
+    t("Set up your song server"),
+    t("Create your church and the first owner account. The songs stay on this server, under your church's care."),
     `<form class="stack" id="setup-form">
-      <label>Church name<input name="church" autocomplete="organization" required /></label>
-      <label>Your name<input name="owner" autocomplete="name" required /></label>
-      <label>Username<input name="username" autocomplete="username" autocapitalize="none" required /></label>
-      <label>Password<input name="password" type="password" minlength="10" autocomplete="new-password" aria-describedby="setup-password-hint" required /></label>
-      <p class="hint field-hint" id="setup-password-hint">At least 10 characters.</p>
-      <button class="button primary wide" type="submit">Create the library</button>
+      <label>${t("Church name")}<input name="church" autocomplete="organization" required /></label>
+      <label>${t("Your name")}<input name="owner" autocomplete="name" required /></label>
+      <label>${t("Username")}<input name="username" autocomplete="username" autocapitalize="none" required /></label>
+      <label>${t("Password")}<input name="password" type="password" minlength="10" autocomplete="new-password" aria-describedby="setup-password-hint" required /></label>
+      <p class="hint field-hint" id="setup-password-hint">${t("At least 10 characters.")}</p>
+      <button class="button primary wide" type="submit">${t("Create the library")}</button>
       <p class="form-message" role="status"></p>
     </form>`,
   );
@@ -184,19 +190,19 @@ function renderSetup(): void {
 
 function renderLogin(): void {
   const desktop = pendingDesktop();
-  setTitle("Sign in");
+  setTitle(t("Sign in"));
   app.innerHTML = authFrame(
-    "Sign in",
+    t("Sign in"),
     desktop
-      ? `Sign in to connect <strong>${escapeHtml(desktop.deviceName)}</strong> to this song server.`
-      : "Your church's songs and sets, on any device.",
+      ? t("Sign in to connect <strong>{desktop}</strong> to this song server.", { desktop: escapeHtml(deviceLabel(desktop)) })
+      : t("Your church's songs and sets, on any device."),
     `<form class="stack" id="login-form">
-      <label>Username<input name="username" autocomplete="username" autocapitalize="none" required autofocus /></label>
-      <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
-      <button class="button primary wide" type="submit">Sign in</button>
+      <label>${t("Username")}<input name="username" autocomplete="username" autocapitalize="none" required autofocus /></label>
+      <label>${t("Password")}<input name="password" type="password" autocomplete="current-password" required /></label>
+      <button class="button primary wide" type="submit">${t("Sign in")}</button>
       <p class="form-message" role="status"></p>
-      ${publicLibrary && !desktop ? `<button class="button secondary wide" type="button" id="back-to-songs">Back to the songs</button>` : ""}
-      ${roomsOpen && !desktop ? `<a class="button secondary wide" href="/join">Follow the words in a room</a>` : ""}
+      ${publicLibrary && !desktop ? `<button class="button secondary wide" type="button" id="back-to-songs">${t("Back to the songs")}</button>` : ""}
+      ${roomsOpen && !desktop ? `<a class="button secondary wide" href="/join">${t("Follow the words in a room")}</a>` : ""}
     </form>`,
   );
   focusAuth();
@@ -253,8 +259,13 @@ function readDesktopRequest(): DesktopRequest | "invalid" | null {
   if (redirect.protocol !== "http:" || !loopback || !redirect.port) return "invalid";
   const codeChallenge = params.get("code_challenge") ?? "";
   if (!/^[A-Za-z0-9_-]{43,128}$/.test(codeChallenge)) return "invalid";
-  const deviceName = (params.get("device_name") ?? "").trim().slice(0, 120) || "this desktop";
-  return { redirect, state: params.get("state") ?? "", codeChallenge, deviceName };
+  const given = (params.get("device_name") ?? "").trim().slice(0, 120);
+  return { redirect, state: params.get("state") ?? "", codeChallenge, deviceName: given || "this desktop", named: Boolean(given) };
+}
+
+/** The desktop's name as shown; read before the language loads, so translated here. */
+function deviceLabel(desktop: DesktopRequest): string {
+  return desktop.named ? desktop.deviceName : t("this desktop");
 }
 
 function pendingDesktop(): DesktopRequest | null {
@@ -270,11 +281,11 @@ function returnToDesktop(desktop: DesktopRequest, result: Record<string, string>
 }
 
 function renderDesktopInvalid(): void {
-  setTitle("Desktop sign-in link not valid");
+  setTitle(t("Desktop sign-in link not valid"));
   app.innerHTML = authFrame(
-    "This desktop sign-in link is not valid",
-    "Start the connection again from the Psalm150 desktop app. Nothing has been shared.",
-    `<a class="button secondary wide" href="/">Open the song library</a>`,
+    t("This desktop sign-in link is not valid"),
+    t("Start the connection again from the Psalm150 desktop app. Nothing has been shared."),
+    `<a class="button secondary wide" href="/">${t("Open the song library")}</a>`,
   );
   focusAuth();
 }
@@ -282,18 +293,18 @@ function renderDesktopInvalid(): void {
 function renderDesktopConsent(): void {
   const desktop = pendingDesktop();
   if (!desktop || !session) return;
-  const forbiddenMessage = "Only leaders can connect a desktop. Ask a leader to sign in.";
+  const forbiddenMessage = t("Only leaders can connect a desktop. Ask a leader to sign in.");
   const canConnect = session.role !== "viewer";
-  setTitle("Connect a desktop");
+  setTitle(t("Connect a desktop"));
   app.innerHTML = authFrame(
-    "Connect this desktop?",
-    `<strong>${escapeHtml(desktop.deviceName)}</strong> will be connected to <strong>${escapeHtml(session.church_name)}</strong>'s song library. It can read the songs and sets and keep them in sync, including adding, editing and deleting songs and sets.`,
+    t("Connect this desktop?"),
+    t("<strong>{desktop}</strong> will be connected to <strong>{church}</strong>'s song library. It can read the songs and sets and keep them in sync, including adding, editing and deleting songs and sets.", { desktop: escapeHtml(deviceLabel(desktop)), church: escapeHtml(session.church_name) }),
     `<form class="stack" id="desktop-consent">
-      <p class="muted">Signed in as <strong>${escapeHtml(session.display_name)}</strong> · <button type="button" class="link-button" id="switch-account">Use another account</button></p>
+      <p class="muted">${t("Signed in as <strong>{name}</strong>", { name: escapeHtml(session.display_name) })} · <button type="button" class="link-button" id="switch-account">${t("Use another account")}</button></p>
       <p class="form-message" role="status">${canConnect ? "" : forbiddenMessage}</p>
       <div class="form-actions">
-        <button class="button secondary" type="button" id="desktop-cancel">Cancel</button>
-        ${canConnect ? `<button class="button primary" type="submit" id="desktop-connect">Connect</button>` : ""}
+        <button class="button secondary" type="button" id="desktop-cancel">${t("Cancel")}</button>
+        ${canConnect ? `<button class="button primary" type="submit" id="desktop-connect">${t("Connect")}</button>` : ""}
       </div>
     </form>`,
   );
@@ -362,11 +373,12 @@ const ROUTES: Route[] = [
   { pattern: /^\/api$/, view: apiDocs, tab: "settings", visitors: true },
 ];
 
-const TABS: Array<{ tab: Tab; label: string; icon: IconName; href: string }> = [
-  { tab: "songs", label: "Songs", icon: "songs", href: "#/songs" },
-  { tab: "sets", label: "Sets", icon: "sets", href: "#/sets" },
-  { tab: "remote", label: "Remote", icon: "remote", href: "#/remote" },
-  { tab: "settings", label: "Settings", icon: "settings", href: "#/settings" },
+/** Labels are read when drawn, in the reader's language. */
+const TABS: Array<{ tab: Tab; label: () => string; icon: IconName; href: string }> = [
+  { tab: "songs", label: () => t("Songs"), icon: "songs", href: "#/songs" },
+  { tab: "sets", label: () => t("Sets"), icon: "sets", href: "#/sets" },
+  { tab: "remote", label: () => t("Remote"), icon: "remote", href: "#/remote" },
+  { tab: "settings", label: () => t("Settings"), icon: "settings", href: "#/settings" },
 ];
 
 let cleanup: Cleanup | void;
@@ -385,8 +397,8 @@ let hashListener: (() => void) | null = null;
 
 /** "Version 0.1.0 · 15 Oct, 16:27": the build time tells deploys apart. */
 function versionLabel(): string {
-  const built = new Date(__BUILD_TIME__).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  return `Version ${escapeHtml(__APP_VERSION__)} · <time datetime="${__BUILD_TIME__}" title="Built ${escapeHtml(new Date(__BUILD_TIME__).toLocaleString())}">${escapeHtml(built)}</time>`;
+  const built = new Date(__BUILD_TIME__).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return `${t("Version {version}", { version: escapeHtml(__APP_VERSION__) })} · <time datetime="${__BUILD_TIME__}" title="${t("Built {time}", { time: escapeHtml(new Date(__BUILD_TIME__).toLocaleString(locale())) })}">${escapeHtml(built)}</time>`;
 }
 
 /**
@@ -396,8 +408,8 @@ function versionLabel(): string {
 function settingsNav(): string {
   if (!session) return "";
   const pages = settingsPages({ session, canEdit: canEditSets() });
-  return `<a class="tab nav-back" href="#/songs" title="Back">${icon("back")}<span class="tab-label">Back</span></a>
-    <p class="nav-heading">Settings</p>
+  return `<a class="tab nav-back" href="#/songs" title="${t("Back")}">${icon("back")}<span class="tab-label">${t("Back")}</span></a>
+    <p class="nav-heading">${t("Settings")}</p>
     ${pages.map((page) => `<a class="tab" href="${settingsHref(page)}" data-setting="${page.href ? page.href.slice(2) : `/settings/${page.id}`}" title="${page.label}">${icon(page.icon)}<span class="tab-label">${page.label}</span></a>`).join("")}`;
 }
 
@@ -415,28 +427,28 @@ function renderShell(): void {
   // On wide screens the sections are a rail of icons, as in the desktop app;
   // their names show beside them in the phone's drawer and as tooltips.
   const tabs = session
-    ? TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}" title="${tab.label}">${icon(tab.icon)}<span class="tab-label">${tab.label}</span></a>`).join("")
-    : `<a class="tab" href="#/songs" data-tab="songs" title="Songs">${icon("songs")}<span class="tab-label">Songs</span></a>
-      ${roomsOpen ? `<a class="tab" href="/join" title="Join a room">${icon("project")}<span class="tab-label">Join a room</span></a>` : ""}
-      <button type="button" class="tab" id="sign-in" title="Sign in">${icon("login")}<span class="tab-label">Sign in</span></button>`;
-  app.innerHTML = `<a class="skip-link" href="#page" id="skip-link">Skip to content</a>
+    ? TABS.map((tab) => `<a class="tab" href="${tab.href}" data-tab="${tab.tab}" title="${tab.label()}">${icon(tab.icon)}<span class="tab-label">${tab.label()}</span></a>`).join("")
+    : `<a class="tab" href="#/songs" data-tab="songs" title="${t("Songs")}">${icon("songs")}<span class="tab-label">${t("Songs")}</span></a>
+      ${roomsOpen ? `<a class="tab" href="/join" title="${t("Join a room")}">${icon("project")}<span class="tab-label">${t("Join a room")}</span></a>` : ""}
+      <button type="button" class="tab" id="sign-in" title="${t("Sign in")}">${icon("login")}<span class="tab-label">${t("Sign in")}</span></button>`;
+  app.innerHTML = `<a class="skip-link" href="#page" id="skip-link">${t("Skip to content")}</a>
   <div class="shell${session ? "" : " visitor"}">
-    <nav class="tabbar" id="sections" aria-label="Sections">
-      <div class="brand" aria-hidden="true" title="PSA150 · Version ${escapeHtml(__APP_VERSION__)}"><span class="brand-mark">150</span><span>PSA150</span></div>
+    <nav class="tabbar" id="sections" aria-label="${t("Sections")}">
+      <div class="brand" aria-hidden="true" title="${t("PSA150 · Version {version}", { version: escapeHtml(__APP_VERSION__) })}"><span class="brand-mark">150</span><span>PSA150</span></div>
       <div class="nav-main">${tabs}</div>
-      ${session ? `<div class="nav-settings" aria-label="Settings">${settingsNav()}</div>` : ""}
+      ${session ? `<div class="nav-settings" aria-label="${t("Settings")}">${settingsNav()}</div>` : ""}
       <p class="app-version">${versionLabel()}</p>
     </nav>
     <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
-    <aside class="browse-pane" id="browse" aria-label="Song list" hidden></aside>
+    <aside class="browse-pane" id="browse" aria-label="${t("Song list")}" hidden></aside>
     <main class="page" id="page" tabindex="-1"></main>
   </div>
-  <section class="follow-view room" id="follow-view" aria-label="The projector's words" hidden></section>
-  <aside class="dock" id="dock" aria-label="Current set and projector">
-    <p class="offline-bar" id="offline-bar" role="status" hidden>${icon("offline")}<span>Offline. Showing the songs and sets saved on this phone.</span></p>
+  <section class="follow-view room" id="follow-view" aria-label="${t("The projector's words")}" hidden></section>
+  <aside class="dock" id="dock" aria-label="${t("Current set and projector")}">
+    <p class="offline-bar" id="offline-bar" role="status" hidden>${icon("offline")}<span>${t("Offline. Showing the songs and sets saved on this phone.")}</span></p>
     <div class="current-bar" id="current-bar" hidden>
       <a class="current-link" id="current-link" hidden></a>
-      <button type="button" class="icon-button ghost current-close" id="current-close" aria-label="Put the current set away" title="No current set" hidden>${icon("close")}</button>
+      <button type="button" class="icon-button ghost current-close" id="current-close" aria-label="${t("Put the current set away")}" title="${t("No current set")}" hidden>${icon("close")}</button>
     </div>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -537,8 +549,8 @@ function markBrowsed(): void {
 
 /** Beside the list, before a song is chosen. */
 async function chooseSongView(ctx: LibraryContext): Promise<void> {
-  ctx.main.innerHTML = `<div class="page-titles quiet"><h1 tabindex="-1">Songs</h1></div>
-    <div class="empty-state pick-song">${icon("songs")}<h2>Choose a song</h2><p>Pick one from the list, or search for a title, a number or a line.</p></div>`;
+  ctx.main.innerHTML = `<div class="page-titles quiet"><h1 tabindex="-1">${t("Songs")}</h1></div>
+    <div class="empty-state pick-song">${icon("songs")}<h2>${t("Choose a song")}</h2><p>${t("Pick one from the list, or search for a title, a number or a line.")}</p></div>`;
 }
 
 /** Everyone starts at the songs. */
@@ -760,7 +772,7 @@ function bindSwipeBack(): void {
     if ((event.target as Element).closest?.(".ce-chip, .ce-grip")) return;
     if (menuIsOpen() || document.querySelector("dialog[open]")) return;
     page = document.querySelector<HTMLElement>("#page");
-    back = page?.querySelector<HTMLAnchorElement>('.app-bar a[aria-label="Back"]') ?? null;
+    back = page?.querySelector<HTMLAnchorElement>(".app-bar a.bar-back") ?? null;
     if (!page || !back) return;
     startX = event.touches[0].clientX;
     startY = event.touches[0].clientY;
@@ -838,7 +850,7 @@ async function route(): Promise<void> {
   const state = history.state as { prev?: string | null } | null;
   if (state?.prev === undefined) history.replaceState({ ...(state ?? {}), prev: shownPath === path ? null : shownPath }, "");
   // Views name their screen more exactly ("Amazing Grace · Songs · PSA150").
-  setTitle(TABS.find((tab) => tab.tab === match.entry.tab)?.label);
+  setTitle(TABS.find((tab) => tab.tab === match.entry.tab)?.label());
   main.classList.add("loading");
 
   // The new screen is drawn off the page and swapped in once it is ready, so
@@ -870,9 +882,10 @@ async function route(): Promise<void> {
     }
     failed = true;
     const notFound = error instanceof ApiError && error.status === 404;
-    setTitle(notFound ? "Not found" : "Could not load this page");
-    const home = `<a class="button secondary" href="#/songs">Go to songs</a>`;
-    next.innerHTML = `<div class="empty-state"><h1 tabindex="-1">${notFound ? "Not found" : "Could not load this page"}</h1><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
+    const heading = notFound ? t("Not found") : t("Could not load this page");
+    setTitle(heading);
+    const home = `<a class="button secondary" href="#/songs">${t("Go to songs")}</a>`;
+    next.innerHTML = `<div class="empty-state"><h1 tabindex="-1">${heading}</h1><p>${escapeHtml(errorMessage(error))}</p>${home}</div>`;
   }
   if (token !== routeToken) {
     if (typeof result === "function") result();
@@ -933,7 +946,7 @@ function libraryContext(main: HTMLElement): LibraryContext {
     libraryName: session?.church_name ?? publicLibrary ?? "",
     isPublic: Boolean(publicLibrary),
     setPublic(value) {
-      publicLibrary = value ? session?.church_name ?? "Song library" : null;
+      publicLibrary = value ? session?.church_name ?? t("Song library") : null;
     },
     canEdit: canEditSets(),
     main,
@@ -1054,13 +1067,13 @@ function renderCurrentBar(set: SetDetail | null): void {
   // Leaders go straight to editing the set; the set's own page is one Back away.
   link.href = canEditSets() ? `#/sets/${set.id}/edit` : `#/sets/${set.id}`;
   bar.dataset.count = String(songs);
-  link.setAttribute("aria-label", `Current set: ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
+  link.setAttribute("aria-label", tn(songs, "Current set: {name}, {n} song", "Current set: {name}, {n} songs", { name: set.name }));
   // When a song is added or removed (the + / ✓ on a song), the card says so
   // for a moment in place of "Current set", with a small pulse. No toast:
   // tapping the same button again undoes it.
   const change = previous === undefined ? 0 : songs - Number(previous);
-  const note = change > 0 ? "Song added" : change < 0 ? "Song removed" : "";
-  const count = `${songs} ${songs === 1 ? "song" : "songs"}`;
+  const note = change > 0 ? t("Song added") : change < 0 ? t("Song removed") : "";
+  const count = tn(songs, "{n} song", "{n} songs");
   // Compact, so the projector switch fits beside it: name over count.
   link.innerHTML = `${dateBadge(set.service_date)}
     <span class="row-main"><strong>${escapeHtml(set.name)}</strong><small class="current-label">${note || count}</small></span>`;
@@ -1070,7 +1083,9 @@ function renderCurrentBar(set: SetDetail | null): void {
   bar.classList.remove("bump");
   void bar.offsetWidth;
   bar.classList.add("bump");
-  announce(`${note} ${change > 0 ? "to" : "from"} ${set.name}, ${songs} ${songs === 1 ? "song" : "songs"}`);
+  announce(change > 0
+    ? tn(songs, "Song added to {name}, {n} song", "Song added to {name}, {n} songs", { name: set.name })
+    : tn(songs, "Song removed from {name}, {n} song", "Song removed from {name}, {n} songs", { name: set.name }));
   currentNoteTimer = window.setTimeout(() => {
     bar.classList.remove("noted");
     const label = bar.querySelector(".current-label");
@@ -1086,8 +1101,8 @@ async function dismissCurrentSet(): Promise<void> {
   const previous = await currentSet.dismiss();
   // The button is gone with the bar; keep focus on the page, not the body.
   if (hadFocus) document.querySelector<HTMLElement>("#page")?.focus({ preventScroll: true });
-  showToast(name ? `${name} is no longer the current set.` : "No current set.", {
-    action: { label: "Undo", run: () => void currentSet.choose(previous).catch(() => undefined) },
+  showToast(name ? t("{set} is no longer the current set.", { set: name }) : t("No current set."), {
+    action: { label: t("Undo"), run: () => void currentSet.choose(previous).catch(() => undefined) },
   });
 }
 
@@ -1098,7 +1113,7 @@ function showOffline(): void {
   bar.toggleAttribute("hidden", navigator.onLine);
   // A status that appears is not always read out; say it.
   if (was && !bar.hidden) announce(bar.textContent ?? "");
-  else if (!was && bar.hidden) announce("Back online.");
+  else if (!was && bar.hidden) announce(t("Back online."));
 }
 
 let lastScrollY = 0;
@@ -1244,7 +1259,7 @@ function authFrame(title: string, copy: string, form: string): string {
       <p class="lede">${copy}</p>
       ${form}
     </div>
-    <p class="fine-print">"Let everything that has breath praise the Lord." Psalm 150:6</p>
+    <p class="fine-print">${t('"Let everything that has breath praise the Lord." Psalm 150:6')}</p>
   </main>`;
 }
 
@@ -1259,8 +1274,8 @@ function focusAuth(): void {
 }
 
 function renderFatal(error: unknown): void {
-  setTitle("Not reachable");
-  app.innerHTML = `<main class="auth"><div class="auth-card"><div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div><h1 tabindex="-1">The song server is not reachable</h1><p class="lede">${escapeHtml(errorMessage(error))}</p><button class="button primary wide" id="retry">Try again</button></div></main>`;
+  setTitle(t("Not reachable"));
+  app.innerHTML = `<main class="auth"><div class="auth-card"><div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div><h1 tabindex="-1">${t("The song server is not reachable")}</h1><p class="lede">${escapeHtml(errorMessage(error))}</p><button class="button primary wide" id="retry">${t("Try again")}</button></div></main>`;
   focusAuth();
   document.querySelector("#retry")?.addEventListener("click", () => location.reload());
 }

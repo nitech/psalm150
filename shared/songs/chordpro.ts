@@ -6,6 +6,8 @@
  * stanzas a musician reads line up with the slides the desktop projects.
  */
 
+import { t } from "./i18n.ts";
+
 export interface ChordSegment {
   chord: string | null;
   text: string;
@@ -28,18 +30,18 @@ export interface DisplaySong {
   sections: DisplaySection[];
 }
 
-const SECTION_DEFAULTS: Record<string, string> = {
-  verse: "Verse",
-  chorus: "Chorus",
-  chorus2: "Chorus 2",
-  bridge: "Bridge",
-  intro: "Intro",
-  pre_chorus: "Pre-Chorus",
-  prechorus: "Pre-Chorus",
-  interlude: "Interlude",
-  outro: "Outro",
-  tab: "Tab",
-  grid: "Grid",
+const SECTION_DEFAULTS: Record<string, () => string> = {
+  verse: () => t("Verse"),
+  chorus: () => t("Chorus"),
+  chorus2: () => t("Chorus 2"),
+  bridge: () => t("Bridge"),
+  intro: () => t("Intro"),
+  pre_chorus: () => t("Pre-Chorus"),
+  prechorus: () => t("Pre-Chorus"),
+  interlude: () => t("Interlude"),
+  outro: () => t("Outro"),
+  tab: () => t("Tab"),
+  grid: () => t("Grid"),
 };
 
 const SHORT_FORMS: Record<string, string> = {
@@ -143,9 +145,9 @@ export function parseChordPro(source: string): DisplaySong {
   for (const section of sections) {
     if (section.kind === "verse" && !section.label) {
       verse += 1;
-      section.label = `Verse ${verse}`;
+      section.label = t("Verse {n}", { n: verse });
     } else if (!section.label) {
-      section.label = SECTION_DEFAULTS[section.kind] ?? capitalise(section.kind.replace(/_/g, " "));
+      section.label = SECTION_DEFAULTS[section.kind]?.() ?? capitalise(section.kind.replace(/_/g, " "));
     }
   }
   return { title, key, sections };

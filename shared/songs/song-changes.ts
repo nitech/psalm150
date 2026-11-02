@@ -11,6 +11,7 @@
  * in the mirror.
  */
 import { lineSections } from "./chordpro.ts";
+import { t, tn } from "./i18n.ts";
 import { diffLines } from "./line-diff.ts";
 
 const DIRECTIVE = /^\s*\{\s*([A-Za-z_][\w-]*)\s*(?::\s*(.*?))?\s*\}\s*$/;
@@ -30,11 +31,11 @@ type Kind = "chords" | "words" | "punctuation";
  * first version.
  */
 export function describeChange(before: string | null, after: string): string {
-  if (before === null) return "First version";
-  if (before === after) return "No changes";
+  if (before === null) return t("First version");
+  if (before === after) return t("No changes");
   const lines = diffLines(before, after);
   // Only line endings or blank lines differ.
-  if (!lines.some((line) => line.kind !== "same")) return "Spacing";
+  if (!lines.some((line) => line.kind !== "same")) return t("Spacing");
   const oldSections = lineSections(before);
   const newSections = lineSections(after);
 
@@ -98,20 +99,21 @@ export function describeChange(before: string | null, after: string): string {
 
   const { title, oldKey, newKey, keyChanged, details } = meta;
   const parts: string[] = [];
-  if (title !== null) parts.push(title ? `Renamed “${title}”` : "Title");
+  if (title !== null) parts.push(title ? t("Renamed “{title}”", { title }) : t("Title"));
   const onlyChords = kinds.has("chords") && !kinds.has("words") && !kinds.has("punctuation") && !added.length && !removed.length;
-  if (keyChanged && oldKey && newKey && onlyChords) parts.push(`Transposed ${oldKey} → ${newKey}`);
-  else if (keyChanged) parts.push(oldKey && newKey ? `Key ${oldKey} → ${newKey}` : newKey ? `Key ${newKey}` : "Key removed");
-  if (added.length) parts.push(`Added ${where(added)}`);
-  if (removed.length) parts.push(`Removed ${where(removed)}`);
-  const labels: Record<Kind, string> = { words: "Words", chords: "Chords", punctuation: "Punctuation" };
+  if (keyChanged && oldKey && newKey && onlyChords) parts.push(t("Transposed {from} → {to}", { from: oldKey, to: newKey }));
+  else if (keyChanged) {
+    parts.push(oldKey && newKey ? t("Key {from} → {to}", { from: oldKey, to: newKey }) : newKey ? t("Key {key}", { key: newKey }) : t("Key removed"));
+  }
+  if (added.length) parts.push(t("Added {sections}", { sections: where(added) }));
+  if (removed.length) parts.push(t("Removed {sections}", { sections: where(removed) }));
   for (const kind of ["words", "chords", "punctuation"] as Kind[]) {
     if (kind === "chords" && keyChanged && onlyChords) continue;
     const sections = kinds.get(kind);
-    if (sections) parts.push(sections.some(Boolean) ? `${labels[kind]} in ${where(sections.filter(Boolean))}` : labels[kind]);
+    if (sections) parts.push(kindNote(kind, sections.some(Boolean) ? where(sections.filter(Boolean)) : null));
   }
-  if (details) parts.push("Details");
-  if (!parts.length) return "Spacing";
+  if (details) parts.push(t("Details"));
+  if (!parts.length) return t("Spacing");
   return parts.length > 2 ? `${parts[0]} · ${parts[1]} · …` : parts.join(" · ");
 }
 
@@ -125,10 +127,19 @@ function lineChange(before: string, after: string): Kind {
   return "words";
 }
 
+/** "Chords in Chorus", or "Chords" when no section is named. */
+function kindNote(kind: Kind, sections: string | null): string {
+  if (kind === "words") return sections ? t("Words in {sections}", { sections }) : t("Words");
+  if (kind === "chords") return sections ? t("Chords in {sections}", { sections }) : t("Chords");
+  return sections ? t("Punctuation in {sections}", { sections }) : t("Punctuation");
+}
+
 /** "Chorus", "Verse 1 and Chorus", "4 sections". */
 function where(sections: string[]): string {
-  if (sections.length <= 2) return sections.join(" and ");
-  return `${sections.length} sections`;
+  if (sections.length === 2) return t("{first} and {second}", { first: sections[0], second: sections[1] });
+  if (sections.length < 2) return sections.join("");
+  const count = sections.length;
+  return tn(count, "{n} section", "{n} sections");
 }
 
 /** A version and the one it was saved on top of. */
