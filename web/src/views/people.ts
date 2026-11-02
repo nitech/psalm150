@@ -124,7 +124,7 @@ function showLinkSheet(ctx: AppContext, link: AccountLinkResponse, shareTitle: s
 
 function openAddSheet(ctx: AppContext): void {
   const sheet = openSheet(`<h2>${t("Add a person")}</h2>
-    <p class="muted">${t("They sign in with this username and password. Give them the password in person; they can change it under More.")}</p>
+    <p class="muted">${t("They sign in with this username and password. Give them the password in person; they can change it under Settings, Account.")}</p>
     <form id="member-form" class="stack">
       <label>${t("Name")}<input name="display_name" required maxlength="120" autocomplete="off" /></label>
       <label>${t("Username")}<input name="username" required maxlength="100" autocapitalize="none" autocomplete="off" spellcheck="false" /></label>
@@ -168,7 +168,7 @@ function openMemberSheet(ctx: AppContext, member: Member): void {
       <p class="form-message" role="status"></p>
       <button class="button primary wide" type="submit">${t("Save")}</button>
     </form>
-    ${you ? `<p class="muted">${t("Change your own password with <strong>Change your password</strong> (the lock beside your name) under More.")}</p>` : `<h3 class="list-heading">${t("New password")}</h3>
+    ${you ? `<p class="muted">${t("Change your own password with <strong>Change your password</strong> under Settings, Account.")}</p>` : `<h3 class="list-heading">${t("New password")}</h3>
     <div class="stack">
       <p class="muted">${t("Send them a link to choose a new password themselves. It works once, for 3 days.")}</p>
       <button class="button secondary wide" id="reset-link">${icon("share")}${t("Make a new password link")}</button>

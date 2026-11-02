@@ -634,30 +634,61 @@ screen**, announcing each new slide to a screen reader, and **Leave**. The
 screen is kept awake while words show. It uses `GET /public/rooms/{room}` and
 an `EventSource` on its `/events`. The details are in [rooms](rooms.md).
 
-## More
+## Settings
 
-Account (name, role, church) with **Change your password** (the lock:
-current and new password, through `PUT /account/password`; your other
-sessions end) and sign-out; **App**: **Install PSA150** where
-the browser offers installation, or how to add it to the Home Screen in
-Safari on iPhone and iPad, hidden once installed; **Appearance**: Automatic,
-Light or Dark; **Import ChordPro files** (`.pro`, `.cho`, `.chordpro`, leaders
-only) and **Export the library** (ZIP) ([import and export](import-export.md));
-**Church** (owners only): **People**, opening [People](#people);
-**Who can read the songs** (owners only): **Signed-in members** or
-**Everyone**, through `PUT /church`, with a confirmation before opening it;
-**Rooms** (owners only): **Shared** or **Off** (`public_rooms`), with a note
-on what a room is ([rooms](rooms.md));
-**Desktops** (leaders only): the active desktop tokens by room name, with the
-computer's name, last use and **Revoke**, and **Create a token by hand**, shown once with a copy button, for
-desktops that cannot open a browser ([auth and roles](auth-and-roles.md));
-**API tokens** (everyone signed in): your tokens, or the whole church's for an
-owner (with whose they are), each with its access and last use and
-**Revoke**, and **Create an API token**: a name and an access level from your
-own role down ("Everything, like an owner", "Songs, sets and desktops, like a
-leader", "Read only"), shown once with a copy button
-([auth and roles](auth-and-roles.md#api-tokens)). Offline, the section says the
-tokens show when you are online and the rest of the screen still works.
+Settings (`views/settings.ts`, `#/settings/{page}`; it was called More, and
+`#/more` still arrives here) is split into pages, listed in its own menu
+(see Shell and routes) and, on phones, at `#/settings`:
+
+- **Account**: name, role and church; **Change your password** (current and
+  new password, through `PUT /account/password`; your other sessions end) and
+  **Sign out**.
+- **Appearance**: Automatic, Light or Dark, and the **Language** (see
+  [Languages](#languages)).
+- **App** (only where it applies): **Install PSA150** where the browser offers
+  installation, or how to add it to the Home Screen in Safari on iPhone and iPad.
+- **Library**: **Import ChordPro files** (`.pro`, `.cho`, `.chordpro`, leaders
+  only) and **Export the library** (ZIP) ([import and export](import-export.md)).
+- **People** (owners): the [People](#people) screen.
+- **Sharing** (owners): **Who can read the songs** (**Signed-in members** or
+  **Everyone**, through `PUT /church`, confirmed before opening it) and
+  **Rooms** (**Shared** or **Off**, `public_rooms`; [rooms](rooms.md)).
+- **Desktops** (leaders): the active desktop tokens by room name, with the
+  computer's name, last use and **Revoke**, and **Create a token by hand**,
+  shown once with a copy button ([auth and roles](auth-and-roles.md)).
+- **API** (everyone signed in): your tokens, or the whole church's for an
+  owner, each with its access and last use and **Revoke**, and **Create an
+  API token**: a name and an access level from your own role down, shown once
+  ([auth and roles](auth-and-roles.md#api-tokens)). Offline, it says the
+  tokens show when you are online.
+- **About**: the API reference, the OpenAPI document, the server version and
+  the credits for the chord sounds.
+
+## Languages
+
+Every text on screen goes through `t()` / `tn()` from `shared/songs/i18n.ts`,
+with the English text as the key (`t("Add {title} to {set}", { title, set })`;
+`tn(count, "{n} song", "{n} songs")` for counted phrases, by the language's
+plural rules). The web client speaks English, Norsk bokmål, Norsk nynorsk,
+Svenska, Dansk, Suomi, Íslenska, Deutsch, Nederlands, Français, Español,
+Italiano, Português and Polski (`LANGUAGES` in `web/src/i18n.ts`). The
+language is the one chosen under Settings, Appearance
+(`localStorage["psa150-language"]`; a change reloads the app), else the first
+of the device's languages there is a catalog for (Norwegian without a written
+form is Bokmål), else English. `loadLanguage` loads that catalog
+(`web/src/i18n/{code}.json`, one chunk each) before the first screen; a text
+missing from a catalog shows in English. Dates and numbers follow the same
+language (`locale()`). Song words, section labels written in a song, chord
+names and chord quality names ("minor seventh") are not translated, nor is
+text from the server (error messages, the API's descriptions).
+
+`node web/scripts/i18n-keys.mjs [code]` lists every key (or the ones a
+catalog lacks), read from literal `t("…")` / `tn(n, "…", "…")` calls, so a
+text must be written out in the call, never passed in a variable.
+`web/tests/i18n.test.ts` fails when a catalog lacks a key, keeps one that is
+gone, or changes the `{names}` in a text: a new text needs its translations in
+the same change. The desktop mirrors `i18n.ts` with the other shared modules
+and stays English until it loads catalogs of its own.
 
 ## API reference
 
@@ -824,7 +855,7 @@ on that browser goes straight to the consent screen. The whole flow is in
   installed app stays signed in until the session expires (7 days by default)
   or you sign out. A session left in `sessionStorage` by an older version moves
   over on first read.
-- Per-device preferences are in `localStorage` under `psa150-*`: `theme`,
+- Per-device preferences are in `localStorage` under `psa150-*`: `theme`, `language`,
   `chords`, `desktop`, `current-set` and `follow-desktop` (the desktop followed last from the dock), and for the
   room reader `room` (the last room), `room-size`, `room-contrast`,
   `room-follow` and `room-announce`. Blocked storage is ignored.

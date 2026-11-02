@@ -4,7 +4,7 @@ import { emptyState, pageHead, type AppContext, type Cleanup } from "../context.
 import { icon } from "../icons.ts";
 import type { RemoteCommandRequest, RemoteDesktop, SetDetail } from "../types.ts";
 import { groupSets } from "../current-set.ts";
-import { errorMessage, escapeHtml, relativeDate, searchClear, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
+import { errorMessage, escapeHtml, relativeDateInline, searchClear, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
 import { t, tn } from "../../../shared/songs/i18n.ts";
 
@@ -44,7 +44,7 @@ export async function remoteList(ctx: AppContext): Promise<Cleanup> {
 
 function desktopSummary(desktop: RemoteDesktop): string {
   const computer = escapeHtml(desktop.name);
-  if (!desktop.online) return `${computer} · ${t("offline, last seen {when}", { when: relativeDate(desktop.last_seen).toLowerCase() })}`;
+  if (!desktop.online) return `${computer} · ${t("offline, last seen {when}", { when: relativeDateInline(desktop.last_seen) })}`;
   const state = desktop.state;
   const showing = state.song_title ? t("Showing {title}", { title: escapeHtml(state.song_title) }) : t("Showing a song");
   const parts = [computer, t("online"), state.projecting ? (state.blanked ? t("Blank screen") : showing) : t("Not projecting")];

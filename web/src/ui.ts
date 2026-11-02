@@ -10,6 +10,7 @@ export {
   initials,
   readPreference,
   relativeDate,
+  relativeDateInline,
   setFormBusy,
   transposeLabel,
   writePreference,

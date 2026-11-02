@@ -4,7 +4,7 @@ import { pageHead, type AppContext } from "../context.ts";
 import { icon, type IconName } from "../icons.ts";
 import { installOption, promptInstall } from "../install.ts";
 import type { Role } from "../types.ts";
-import { errorMessage, escapeHtml, initials, readPreference, relativeDate, roleName, setFormBusy, showToast, writePreference } from "../ui.ts";
+import { errorMessage, escapeHtml, initials, readPreference, relativeDateInline, roleName, setFormBusy, showToast, writePreference } from "../ui.ts";
 import { closeSheet, openSheet } from "../../../shared/songs/sheet.ts";
 import { LANGUAGES, deviceLanguage } from "../i18n.ts";
 import { t, tn } from "../../../shared/songs/i18n.ts";
@@ -218,7 +218,7 @@ const PAGES: Record<string, PageDraw> = {
     ctx.main.innerHTML = `${head}
     <p class="muted">${t("Projection computers connect with <strong>Sign in with browser</strong> in Psalm150's Settings, under Church server. They keep an offline copy of the songs and sets, and can save song and set changes back.")}</p>
     <div class="list" id="device-list">
-      ${devices.map((device) => `<div class="list-row static">${icon("remote")}<span class="row-main"><strong>${escapeHtml(device.room_name ?? device.name)}</strong><small>${device.room_name ? `${escapeHtml(device.name)} · ` : ""}${device.last_used_at ? t("last used {when}", { when: relativeDate(device.last_used_at).toLowerCase() }) : t("not used yet")}</small></span>
+      ${devices.map((device) => `<div class="list-row static">${icon("remote")}<span class="row-main"><strong>${escapeHtml(device.room_name ?? device.name)}</strong><small>${device.room_name ? `${escapeHtml(device.name)} · ` : ""}${device.last_used_at ? t("last used {when}", { when: relativeDateInline(device.last_used_at) }) : t("not used yet")}</small></span>
         <button class="button secondary small revoke" data-device="${device.id}" data-name="${escapeHtml(device.name)}" aria-label="${t("Revoke {name}", { name: escapeHtml(device.room_name ?? device.name) })}">${t("Revoke")}</button></div>`).join("") || `<p class="muted pad">${t("No desktops connected.")}</p>`}
       ${ctx.canEdit ? `<button class="list-row" id="new-token">${icon("link")}<span class="row-main"><strong>${t("Create a token by hand")}</strong><small>${t("For desktops that cannot open a browser")}</small></span></button>` : ""}
     </div>`;
@@ -247,7 +247,7 @@ const PAGES: Record<string, PageDraw> = {
     <div class="list" id="api-token-list">
       ${apiTokens === null
         ? `<p class="muted pad">${t("Your API tokens show when you are online.")}</p>`
-        : `${apiTokens.map((token) => `<div class="list-row static">${icon("link")}<span class="row-main"><strong>${escapeHtml(token.name)}</strong><small>${token.user_id === session.user_id ? "" : `${escapeHtml(token.user_display_name)} · `}${accessName(token.role)} · ${token.last_used_at ? t("last used {when}", { when: relativeDate(token.last_used_at).toLowerCase() }) : t("not used yet")}</small></span>
+        : `${apiTokens.map((token) => `<div class="list-row static">${icon("link")}<span class="row-main"><strong>${escapeHtml(token.name)}</strong><small>${token.user_id === session.user_id ? "" : `${escapeHtml(token.user_display_name)} · `}${accessName(token.role)} · ${token.last_used_at ? t("last used {when}", { when: relativeDateInline(token.last_used_at) }) : t("not used yet")}</small></span>
         <button class="button secondary small revoke-api-token" data-token="${token.id}" data-name="${escapeHtml(token.name)}" aria-label="${t("Revoke {name}", { name: escapeHtml(token.name) })}">${t("Revoke")}</button></div>`).join("") || `<p class="muted pad">${t("No API tokens.")}</p>`}
       <button class="list-row" id="new-api-token">${icon("plus")}<span class="row-main"><strong>${t("Create an API token")}</strong><small>${t("For a script or another program")}</small></span></button>`}
     </div>`;

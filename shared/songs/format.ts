@@ -50,6 +50,15 @@ export function relativeDate(value: string): string {
   return date.toLocaleDateString(locale(), { month: "short", day: "numeric" });
 }
 
+/**
+ * `relativeDate` inside a sentence ("last used yesterday"): only its first
+ * letter lowered, so nouns keep their capitals ("vor 3 Tagen").
+ */
+export function relativeDateInline(value: string): string {
+  const text = relativeDate(value);
+  return text.charAt(0).toLocaleLowerCase(locale()) + text.slice(1);
+}
+
 export function setFormBusy(form: HTMLElement, value: boolean): void {
   form.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>("input,button,textarea,select")
     .forEach((control) => { control.disabled = value; });

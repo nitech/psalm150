@@ -211,7 +211,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
                 ? filtered ? t("Try another title or a line from the lyrics, or clear the key filter.") : t("Try another title or a line from the lyrics.")
                 : filtered
                   ? t("No songs are in these keys. Try another key, or clear the filter.")
-                  : ctx.canEdit ? t("Import ChordPro files under More, or add a song.") : t("Songs will appear here once they are added."),
+                  : ctx.canEdit ? t("Import ChordPro files under Settings, Library, or add a song.") : t("Songs will appear here once they are added."),
             )}</li>`;
       }
       if (typed) {
