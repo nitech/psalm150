@@ -104,7 +104,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--psa-accent); bo
   /* Safari's toolbar grows and shrinks the top inset: follow it smoothly. */
   transition: border-color var(--psa-dur-fast), background var(--psa-dur-fast), padding-top 250ms var(--psa-ease-standard);
 }
-/* Solid, in the page's colour, so it meets the browser's bar above it
+/* Solid, in the header's colour, so it meets the browser's bar above it
    (theme-color) without a seam. */
 body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
 .search-bar .search-field { flex: 1; margin: 0; }
@@ -202,6 +202,22 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
   .app-bar.compact .bar-title { opacity: 1; transform: none; font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; }
   /* Beside Back (the set editor) the title is bar-sized, like the caret. */
   .app-bar.compact.sub .bar-title { margin-left: 0; font-family: inherit; font-size: 17px; font-weight: 600; letter-spacing: 0; }
+  /* The header is tinted, a step up from the page as the desktop's
+     toolbars are, with the button pill set into it. */
+  .app-bar, .search-bar { background: linear-gradient(180deg, rgb(198 216 140 / 0.04) 0%, transparent 100%), var(--psa-bg-subtle); }
+  .app-bar .bar-actions { background: var(--psa-bg-sunken); }
+  /* Reading screens: the button pill leaves no room for the title in the
+     row, so once the large title is scrolled away it comes in on a strip of
+     its own under the bar, over the words, and goes with the bar. */
+  .app-bar.autohide .bar-title {
+    position: absolute; top: 100%; left: 0; right: 0; margin: 0; padding: 0 var(--page-pad) 8px;
+    background: var(--psa-bg-subtle); border-bottom: 1px solid var(--psa-border);
+    font-size: 15px; font-weight: 600; line-height: 22px; text-align: center; pointer-events: none;
+    transform: translateY(-6px);
+  }
+  body.title-away .app-bar.autohide .bar-title { transform: none; }
+  body.title-away .app-bar.autohide { border-bottom-color: transparent; }
+  body.bar-away .app-bar.autohide { transform: translateY(calc(-100% - 32px)); }
 }
 .eyebrow { margin: 0 0 2px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .page-meta { margin: calc(-1 * var(--psa-space-3)) 0 var(--psa-space-4); color: var(--psa-text-secondary); font-size: 14px; }

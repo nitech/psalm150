@@ -45,7 +45,7 @@ export function songBarActions(state: SongActionState): BarAction[] {
   const actions: BarAction[] = [];
   if (state.chords) {
     const shown = state.chords.shown;
-    actions.push({ id: "chords", label: shown ? "Hide chords" : "Show chords", icon: "chordChart", fixed: true, checked: shown, className: shown ? "on" : "" });
+    actions.push({ id: "chords", label: shown ? "Hide chords" : "Show chords", icon: "chordNote", fixed: true, checked: shown, className: shown ? "on" : "" });
   }
   // − key + is too wide for a toolbar: always in ⋮, however often it is used.
   if (state.transpose) actions.push({ id: "transpose", label: "Transpose", icon: "transpose", stepper: state.transpose, menuOnly: true });

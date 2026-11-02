@@ -1194,7 +1194,8 @@ function applyTheme(): void {
   else delete document.documentElement.dataset.theme;
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   const dark = theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches);
-  if (meta) meta.content = dark ? "#060606" : "#f4f4f1";
+  // The phone header's tint (--psa-bg-subtle), so the browser bar meets it.
+  if (meta) meta.content = dark ? "#141414" : "#f0f0ec";
 }
 
 function authFrame(title: string, copy: string, form: string): string {

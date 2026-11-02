@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-11-02
+* **Song header on phones**: on reading screens (`.app-bar.autohide`) the title, once scrolled away, shows on a strip of its own under the bar, since the button pill leaves no room for it in the row; the phone header and search bar are tinted (`--psa-bg-subtle`, theme-color to match) with the pill set into it. The chords toggle is a single eighth note (`chordNote` in `shared/icons.ts`, was the chord chart). A favourite star is plain amber in both apps, no accent ring (it lost to `.icon-button.ghost.on`). Pages touched: web-client.
 * **Fewer buttons on a phone's song bar**: Transpose is always in ⋮ again, in both apps (`menuOnly` in `song-actions.ts`), and on phones no often used icon comes into the bar. Pages touched: web-client.
 
 ## 2026-11-01

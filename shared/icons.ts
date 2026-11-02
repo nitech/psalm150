@@ -27,8 +27,8 @@ export const ICON_PATHS = {
   chords: '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
   // "C → D": moving a song to another key.
   transpose: '<path d="M8.3 9.2a4 4 0 1 0 0 5.6"/><path d="M10 12h4.2"/><path d="m12.6 10.3 1.7 1.7-1.7 1.7"/><path d="M16.5 7.5v9h1a4.5 4.5 0 0 0 0-9z"/>',
-  // A guitar chord diagram (nut, strings, frets, fingers): chords on or off.
-  chordChart: '<path d="M5 3.5h14" stroke-width="3"/><path d="M5 4v17"/><path d="M19 4v17"/><path d="M9.67 4v17"/><path d="M14.33 4v17"/><path d="M5 9.5h14"/><path d="M5 15h14"/><path d="M5 21h14"/><circle cx="14.33" cy="6.75" r="1.7" fill="currentColor"/><circle cx="9.67" cy="12.25" r="1.7" fill="currentColor"/>',
+  // One eighth note, apart from the two of `songs`: chords on or off.
+  chordNote: '<circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/>',
   text: '<path d="m3 15 4-8 4 8"/><path d="M4 13h6"/><circle cx="18" cy="12" r="3"/><path d="M21 9v6"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
 
