@@ -110,6 +110,9 @@ body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
 .search-bar .search-field { flex: 1; margin: 0; }
 /* The title beside the closed search, on phones only. */
 .search-title { display: none; }
+/* The search bar's button pill is a pill on phones only; wider, its
+   field and buttons sit in the bar as they are. */
+.search-bar .search-actions { display: contents; }
 /* Under the list: search online although the library has songs that match. */
 .online-offer { display: grid; justify-items: center; margin: 0 0 var(--psa-space-6); }
 .online-offer[hidden] { display: none; }
@@ -223,11 +226,13 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
      the field takes the whole bar until it is left empty. The closed field
      is still the input, so a tap opens the keyboard at once. */
   .search-title { display: block; flex: 1; min-width: 0; margin: 0 var(--psa-space-1); font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .search-bar:not(.open) .search-field { flex: none; width: var(--psa-touch-target); }
-  .search-bar:not(.open) .search-field input { padding: 0; border-color: transparent; background: transparent; color: transparent; caret-color: transparent; cursor: pointer; }
+  .search-bar .search-actions { display: flex; flex: none; background: var(--psa-bg-sunken); }
+  .search-bar:not(.open) .search-field { flex: none; width: var(--bar-button); height: var(--bar-button); }
+  .search-bar:not(.open) .search-field input { min-height: 0; height: 100%; padding: 0; border-color: transparent; border-radius: 50%; background: transparent; color: transparent; caret-color: transparent; cursor: pointer; }
   .search-bar:not(.open) .search-field input::placeholder { color: transparent; }
-  .search-bar:not(.open) .search-field > .icon { left: 50%; transform: translate(-50%, -50%); color: var(--psa-text); }
-  .search-bar.open > :not(.search-field) { display: none; }
+  .search-bar:not(.open) .search-field > .icon { left: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); color: var(--psa-text-tertiary); }
+  .search-bar.open > :not(.search-actions), .search-bar.open .search-actions > :not(.search-field) { display: none; }
+  .search-bar.open .search-actions { flex: 1; padding: 0; border: 0; background: none; }
   /* The list on the page's own dark, as a song reads. */
   #song-results, #song-results .swipe-content { background: var(--psa-bg-canvas); }
   /* Reading screens: the button pill leaves no room for the title in the

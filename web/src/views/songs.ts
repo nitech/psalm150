@@ -65,14 +65,17 @@ interface SongRef {
 }
 
 export async function songList(ctx: LibraryContext): Promise<Cleanup> {
-  // On phones the search is the top of the screen, between ☰ and New: a
-  // magnifier beside the title that opens to the full width while in use.
+  // On phones the search is the top of the screen: a magnifier in the
+  // bar's button pill (with Live and New) that opens to the full width
+  // while in use. Wide, the pill lays out flat (styles.css).
   ctx.main.innerHTML = `${pageHead({ title: t("Songs"), church: ctx.libraryName, wideOnly: true })}
   <div class="search-bar${lastSearch ? " open" : ""}">
     ${menuButton()}
     <p class="search-title" aria-hidden="true">${t("Songs")}</p>
-    <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="${t("Title, number or a line")}" aria-label="${t("Search songs")}" enterkeyhint="search" autocomplete="off" />${searchClear}</div>
-    ${ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="${t("New song")}" title="${t("New song")}">${icon("plus")}</a>` : ""}
+    <div class="bar-actions search-actions">
+      <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="${t("Title, number or a line")}" aria-label="${t("Search songs")}" enterkeyhint="search" autocomplete="off" />${searchClear}</div>
+      ${ctx.canEdit ? `<a class="icon-button" href="#/songs/new" aria-label="${t("New song")}" title="${t("New song")}">${icon("plus")}</a>` : ""}
+    </div>
   </div>
   <div class="list-sort" id="song-sort" hidden>
     <div class="sort-columns" id="sort-columns" role="group" aria-label="${t("Sort songs")}"></div>

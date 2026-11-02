@@ -226,7 +226,7 @@ export function installLive(options: {
     const page = document.querySelector<HTMLElement>("#page");
     if (!page) return;
     const show = visible();
-    const host = page.querySelector<HTMLElement>(".app-bar .bar-actions")
+    const host = page.querySelector<HTMLElement>(".app-bar .bar-actions, .search-bar .bar-actions")
       ?? page.querySelector<HTMLElement>(".app-bar .page-actions")
       ?? page.querySelector<HTMLElement>(".search-bar");
     page.querySelectorAll<HTMLButtonElement>(".live-icon").forEach((button) => {
