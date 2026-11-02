@@ -1155,6 +1155,62 @@ pub async fn backfill_song_keys(pool: &PgPool) -> Result<u64, sqlx::Error> {
     Ok(filled)
 }
 
+/// Songs whose sections name themselves ("Kor:", "Bridge:"; see
+/// `chordpro::label_sections`) get a new revision where they are those
+/// sections. Saves do this too, so after the first run only a song restored
+/// to an old version changes. Returns how many songs changed.
+pub async fn label_song_sections(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let rows: Vec<(Uuid, Uuid, String)> = sqlx::query_as(
+        "SELECT s.id, r.id, r.chordpro
+         FROM songs s JOIN song_revisions r ON r.id = s.current_revision_id",
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut changed = 0;
+    for (song_id, current_revision_id, source) in rows {
+        let labelled = chordpro::label_sections(&source);
+        if labelled == source {
+            continue;
+        }
+        let mut transaction = pool.begin().await?;
+        let revision_id = Uuid::new_v4();
+        let inserted = insert_revision(
+            &mut transaction,
+            NewRevision {
+                revision_id,
+                song_id,
+                parent_revision_id: Some(current_revision_id),
+                actor: Actor {
+                    user_id: None,
+                    device_id: None,
+                },
+                source: &labelled,
+                parsed: &chordpro::metadata(&labelled),
+                created_at: Utc::now(),
+            },
+        )
+        .await;
+        if let Err(error) = inserted {
+            tracing::warn!(%song_id, ?error, "Could not label the song's sections");
+            continue;
+        }
+        // Only if no one saved the song meanwhile.
+        let moved = sqlx::query(
+            "UPDATE songs SET current_revision_id = $1 WHERE id = $2 AND current_revision_id = $3",
+        )
+        .bind(revision_id)
+        .bind(song_id)
+        .bind(current_revision_id)
+        .execute(&mut *transaction)
+        .await?;
+        if moved.rows_affected() == 1 {
+            transaction.commit().await?;
+            changed += 1;
+        }
+    }
+    Ok(changed)
+}
+
 async fn song_keys(pool: &PgPool, library: Library) -> Result<Vec<SongKeyCount>, AppError> {
     Ok(sqlx::query_as::<_, SongKeyCount>(&format!(
         "SELECT r.key_root AS root, r.key_minor AS minor, count(*) AS songs
@@ -1508,7 +1564,8 @@ async fn update_song(
     let auth = authenticate(&headers, &state).await?;
     let actor = auth.require_song_editor()?;
     validate_chordpro(&request.chordpro)?;
-    let parsed = chordpro::metadata(&request.chordpro);
+    let source = chordpro::label_sections(&request.chordpro);
+    let parsed = chordpro::metadata(&source);
     let revision_id = Uuid::new_v4();
     let mut transaction = state.pool.begin().await?;
 
@@ -1527,7 +1584,7 @@ async fn update_song(
             song_id,
             parent_revision_id: Some(current_revision_id),
             actor,
-            source: &request.chordpro,
+            source: &source,
             parsed: &parsed,
             created_at: Utc::now(),
         },
@@ -1788,13 +1845,14 @@ async fn import_songs(
     let mut imported = Vec::with_capacity(request.songs.len());
     let mut skipped_existing = 0;
     for song in request.songs {
-        if !existing_hashes.insert(chordpro::content_hash(&song.chordpro)) {
+        // Compared as it would be kept, so a song imported again is known.
+        let source = chordpro::label_sections(&song.chordpro);
+        if !existing_hashes.insert(chordpro::content_hash(&source)) {
             skipped_existing += 1;
             continue;
         }
         imported.push(
-            insert_song_in_transaction(&mut transaction, auth.church_id, actor, song.chordpro)
-                .await?,
+            insert_song_in_transaction(&mut transaction, auth.church_id, actor, source).await?,
         );
     }
     transaction.commit().await?;
@@ -1922,6 +1980,7 @@ async fn insert_song_in_transaction(
     source: String,
 ) -> Result<SongSummary, AppError> {
     validate_chordpro(&source)?;
+    let source = chordpro::label_sections(&source);
     let parsed = chordpro::metadata(&source);
     let song_id = Uuid::new_v4();
     let revision_id = Uuid::new_v4();

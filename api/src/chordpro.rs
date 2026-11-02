@@ -235,6 +235,134 @@ pub fn export_filename(title: &str, id: uuid::Uuid) -> String {
     format!("{slug}-{}.pro", &id.simple().to_string()[..8])
 }
 
+/// The song with sections that name themselves in their first line made the
+/// sections they say they are: a verse starting "Kor:", "Chorus" or
+/// "Chours:" becomes a chorus, one starting "Bridge:" or "Bro:" a bridge.
+/// The naming line goes (a chorus that already is one just loses it), or
+/// only its name where the words follow on the same line ("Kor: Jesus har
+/// makt,"). A number or a repeat ("Kor 2.", "BRIDGE X3") becomes the
+/// section's label. Applying it twice changes nothing.
+pub fn label_sections(source: &str) -> String {
+    let mut lines: Vec<String> = source.split_inclusive('\n').map(str::to_string).collect();
+    // The open section: its start line, its kind, and whether its first
+    // line of words has been looked at.
+    let mut open: Option<(usize, String, bool)> = None;
+    let mut renamed: Option<&'static str> = None;
+    for index in 0..lines.len() {
+        let line = lines[index].clone();
+        let ending = line_ending(&line);
+        if let Some(name) = directive_name(&line) {
+            let name = match name.as_str() {
+                "sov" => "start_of_verse".to_string(),
+                "soc" => "start_of_chorus".to_string(),
+                "sob" => "start_of_bridge".to_string(),
+                "eov" => "end_of_verse".to_string(),
+                "eoc" => "end_of_chorus".to_string(),
+                "eob" => "end_of_bridge".to_string(),
+                _ => name,
+            };
+            if let Some(kind) = name.strip_prefix("start_of_") {
+                open = Some((index, kind.to_string(), false));
+                renamed = None;
+            } else if name.starts_with("end_of_") {
+                if let Some(kind) = renamed.take() {
+                    lines[index] = format!("{{end_of_{kind}}}{ending}");
+                }
+                open = None;
+            }
+            continue;
+        }
+        let Some((start, kind, looked)) = open.as_mut() else {
+            continue;
+        };
+        if *looked || line.trim().is_empty() {
+            continue;
+        }
+        *looked = true;
+        if !matches!(kind.as_str(), "verse" | "chorus" | "chorus2" | "bridge") {
+            continue;
+        }
+        let Some(named) = section_name(&line) else {
+            continue;
+        };
+        lines[index] = if named.words.is_empty() {
+            String::new()
+        } else {
+            format!("{}{ending}", named.words)
+        };
+        let same =
+            kind.as_str() == named.kind || (named.kind == "chorus" && kind.as_str() == "chorus2");
+        if !same || named.label.is_some() {
+            let start_ending = line_ending(&lines[*start]).to_string();
+            lines[*start] = match &named.label {
+                Some(label) => format!("{{start_of_{}: {label}}}{start_ending}", named.kind),
+                None => format!("{{start_of_{}}}{start_ending}", named.kind),
+            };
+            renamed = Some(named.kind);
+        }
+    }
+    lines.concat()
+}
+
+fn line_ending(line: &str) -> &str {
+    &line[line.trim_end_matches(['\r', '\n']).len()..]
+}
+
+struct SectionName {
+    kind: &'static str,
+    label: Option<String>,
+    /// Words after the name on the same line, if any.
+    words: String,
+}
+
+/// "Kor:", "Chorus", "Ref 1:", "Bridge...", "BRIDGE X3", "Kor: Jesus har makt"
+/// as the section they name; not a line of words that starts with one
+/// ("kor me i verda går").
+fn section_name(line: &str) -> Option<SectionName> {
+    let text = line.trim();
+    let word: String = text.chars().take_while(|c| c.is_alphabetic()).collect();
+    // "Ref" and "Bro" are words of their own too: only with a colon.
+    let (kind, needs_colon) = match word.to_lowercase().as_str() {
+        "chorus" | "chours" | "chour" | "kor" | "refreng" | "refrain" => ("chorus", false),
+        "ref" => ("chorus", true),
+        "bridge" | "brige" => ("bridge", false),
+        "bro" => ("bridge", true),
+        _ => return None,
+    };
+    let mut rest = text[word.len()..].trim_start();
+    let number: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    rest = rest[number.len()..].trim_start();
+    let mut repeat = String::new();
+    if let Some(after) = rest.strip_prefix(['x', 'X']) {
+        let times: String = after.chars().take_while(char::is_ascii_digit).collect();
+        if !times.is_empty() {
+            rest = after[times.len()..].trim_start();
+            repeat = times;
+        }
+    }
+    let marks: String = rest
+        .chars()
+        .take_while(|c| matches!(c, ':' | '.'))
+        .collect();
+    let colon = marks.contains(':');
+    let words = rest[marks.len()..].trim();
+    if !colon && (needs_colon || !words.is_empty()) {
+        return None;
+    }
+    let name = if kind == "chorus" { "Chorus" } else { "Bridge" };
+    let label = match (number.is_empty(), repeat.is_empty()) {
+        (true, true) => None,
+        (false, true) => Some(format!("{name} {number}")),
+        (true, false) => Some(format!("{name} (x{repeat})")),
+        (false, false) => Some(format!("{name} {number} (x{repeat})")),
+    };
+    Some(SectionName {
+        kind,
+        label,
+        words: words.to_string(),
+    })
+}
+
 /// The name of a directive line, with or without a value (`{soc}`).
 fn directive_name(line: &str) -> Option<String> {
     let inner = line.trim().strip_prefix('{')?.strip_suffix('}')?;
@@ -344,6 +472,53 @@ No chords"
             .song_key,
             None
         );
+    }
+
+    #[test]
+    fn makes_self_named_sections_what_they_say() {
+        let source = "{title: Send meg}\n{start_of_verse}\nchours:\nSå [E]send meg\n{end_of_verse}\n\n{start_of_verse}\nBridge:\nLa mitt [B]hjerte si\n{end_of_verse}\n";
+        assert_eq!(
+            label_sections(source),
+            "{title: Send meg}\n{start_of_chorus}\nSå [E]send meg\n{end_of_chorus}\n\n{start_of_bridge}\nLa mitt [B]hjerte si\n{end_of_bridge}\n"
+        );
+    }
+
+    #[test]
+    fn drops_the_name_of_a_chorus_that_already_is_one() {
+        let source = "{start_of_chorus}\r\nKor:\r\nHalleluja\r\n{end_of_chorus}\r\n{soc}\r\nKor: Jesus har makt,\r\n{eoc}\r\n";
+        assert_eq!(
+            label_sections(source),
+            "{start_of_chorus}\r\nHalleluja\r\n{end_of_chorus}\r\n{soc}\r\nJesus har makt,\r\n{eoc}\r\n"
+        );
+    }
+
+    #[test]
+    fn keeps_numbers_and_repeats_as_labels() {
+        let source = "{start_of_verse}\nKor 2.\nA\n{end_of_verse}\n{start_of_verse}\nBRIDGE X3\nB\n{end_of_verse}\n";
+        assert_eq!(
+            label_sections(source),
+            "{start_of_chorus: Chorus 2}\nA\n{end_of_chorus}\n{start_of_bridge: Bridge (x3)}\nB\n{end_of_bridge}\n"
+        );
+    }
+
+    #[test]
+    fn leaves_words_that_only_start_like_a_name() {
+        for source in [
+            "{start_of_verse}\nkor me i verda går,\n{end_of_verse}\n",
+            "{start_of_verse}\nBro over vann\n{end_of_verse}\n",
+            "{start_of_verse}\nVerse\nKor:\n{end_of_verse}\n",
+            "Kor:\nno sections here\n",
+        ] {
+            assert_eq!(label_sections(source), source);
+        }
+        for source in [
+            "{start_of_verse}\nRef 1:\nA\n{end_of_verse}\n",
+            "{start_of_verse}\nKor 2.\nA\n{end_of_verse}\n",
+        ] {
+            let once = label_sections(source);
+            assert_ne!(once, source);
+            assert_eq!(label_sections(&once), once);
+        }
     }
 
     #[test]

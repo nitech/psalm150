@@ -24,6 +24,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if filled > 0 {
         tracing::info!(filled, "Song keys guessed from chords");
     }
+    let labelled = psa150_server::api::label_song_sections(&pool).await?;
+    if labelled > 0 {
+        tracing::info!(
+            labelled,
+            "Songs relabelled where a line named the section (\"Kor:\")"
+        );
+    }
 
     let state = AppState::new(pool, config.session_hours)
         .with_client_ip_header(config.client_ip_header)
