@@ -64,10 +64,12 @@ interface SongRef {
 }
 
 export async function songList(ctx: LibraryContext): Promise<Cleanup> {
-  // On phones the search field is the top of the screen, between ☰ and New.
+  // On phones the search is the top of the screen, between ☰ and New: a
+  // magnifier beside the title that opens to the full width while in use.
   ctx.main.innerHTML = `${pageHead({ title: "Songs", church: ctx.libraryName, wideOnly: true })}
-  <div class="search-bar">
+  <div class="search-bar${lastSearch ? " open" : ""}">
     ${menuButton()}
+    <p class="search-title" aria-hidden="true">Songs</p>
     <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="Title, number or a line" aria-label="Search songs" enterkeyhint="search" autocomplete="off" />${searchClear}</div>
     ${ctx.canEdit ? `<a class="icon-button accent" href="#/songs/new" aria-label="New song" title="New song">${icon("plus")}</a>` : ""}
   </div>
@@ -78,7 +80,8 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   </div>
   <div class="filter-summary" id="filter-summary" hidden></div>
   <ul class="list" id="song-results" aria-label="Songs" data-song-list><li><p class="muted pad">Loading…</p></li></ul>
-  <div class="load-more" id="load-more" hidden><button class="button secondary" id="more-songs">Show more songs</button></div>`;
+  <div class="load-more" id="load-more" hidden><button class="button secondary" id="more-songs">Show more songs</button></div>
+  <div class="online-offer" id="online-offer" hidden><button type="button" class="button secondary" data-online="offer">${icon("search")}<span></span></button></div>`;
 
   const input = ctx.main.querySelector<HTMLInputElement>("#song-search")!;
   const results = ctx.main.querySelector<HTMLElement>("#song-results")!;
@@ -88,6 +91,8 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   const filterButton = ctx.main.querySelector<HTMLButtonElement>("#key-filter")!;
   const filterSummary = ctx.main.querySelector<HTMLElement>("#filter-summary")!;
   const favButton = ctx.main.querySelector<HTMLButtonElement>("#fav-filter");
+  const searchBar = ctx.main.querySelector<HTMLElement>(".search-bar")!;
+  const onlineOffer = ctx.main.querySelector<HTMLElement>("#online-offer")!;
   /** Only the person's favourites (★), remembered on this device. */
   let onlyFavorites = Boolean(ctx.session) && readPreference("song-favorites") === "on";
   let timer = 0;
@@ -209,6 +214,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       }
       loaded = offset + songs.length;
       more.hidden = songs.length < PAGE_SIZE;
+      showOnlineOffer();
       if (!online) remember(append ? undefined : signature(songs));
     } catch (error) {
       if (mine !== request) return;
@@ -226,7 +232,14 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   const stopOnline = () => {
     online?.abort?.abort();
     online = null;
+    showOnlineOffer();
   };
+
+  /** Songs in the library match too: online stays a tap away, under the list. */
+  function showOnlineOffer() {
+    onlineOffer.hidden = Boolean(online) || !offersOnline() || !results.querySelector(".song-row");
+    onlineOffer.querySelector("span")!.textContent = `Search online for “${lastSearch}”`;
+  }
 
   /** The offer, the running search or what it found, in place of "No songs found". */
   const renderOnline = () => {
@@ -285,6 +298,15 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     }
   };
 
+  // Open while the field has focus or a search; an empty field closes on blur.
+  input.addEventListener("focus", () => searchBar.classList.add("open"));
+  input.addEventListener("blur", () => searchBar.classList.toggle("open", Boolean(input.value.trim())));
+  onlineOffer.addEventListener("click", () => {
+    online = { query: lastSearch, songs: null, abort: null };
+    showOnlineOffer();
+    void searchOnline();
+    window.scrollTo({ top: 0 });
+  });
   input.addEventListener("input", () => {
     lastSearch = input.value.trim();
     stopOnline();
@@ -372,6 +394,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     sortBar.hidden = memory.sortHidden;
     keepFocus(sortBar, renderSort);
     refreshToggles(ctx, results);
+    showOnlineOffer();
     void load(false, false, true);
   } else {
     await load(false);

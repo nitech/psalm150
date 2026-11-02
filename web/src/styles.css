@@ -108,6 +108,11 @@ input:focus, textarea:focus { outline: none; border-color: var(--psa-accent); bo
    (theme-color) without a seam. */
 body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
 .search-bar .search-field { flex: 1; margin: 0; }
+/* The title beside the closed search, on phones only. */
+.search-title { display: none; }
+/* Under the list: search online although the library has songs that match. */
+.online-offer { display: grid; justify-items: center; margin: 0 0 var(--psa-space-6); }
+.online-offer[hidden] { display: none; }
 
 /* ── Auth screens ───────────────────────────────────────────────────────── */
 
@@ -206,6 +211,17 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
      toolbars are, with the button pill set into it. */
   .app-bar, .search-bar { background: linear-gradient(180deg, rgb(198 216 140 / 0.04) 0%, transparent 100%), var(--psa-bg-subtle); }
   .app-bar .bar-actions { background: var(--psa-bg-sunken); }
+  /* The song list's search: closed, a magnifier beside the title; tapped,
+     the field takes the whole bar until it is left empty. The closed field
+     is still the input, so a tap opens the keyboard at once. */
+  .search-title { display: block; flex: 1; min-width: 0; margin: 0 var(--psa-space-1); font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-bar:not(.open) .search-field { flex: none; width: var(--psa-touch-target); }
+  .search-bar:not(.open) .search-field input { padding: 0; border-color: transparent; background: transparent; color: transparent; caret-color: transparent; cursor: pointer; }
+  .search-bar:not(.open) .search-field input::placeholder { color: transparent; }
+  .search-bar:not(.open) .search-field > .icon { left: 50%; transform: translate(-50%, -50%); color: var(--psa-text); }
+  .search-bar.open > :not(.search-field) { display: none; }
+  /* The list on the page's own dark, as a song reads. */
+  #song-results, #song-results .swipe-content { background: var(--psa-bg-canvas); }
   /* Reading screens: the button pill leaves no room for the title in the
      row, so once the large title is scrolled away it comes in on a strip of
      its own under the bar, over the words, and goes with the bar. */
