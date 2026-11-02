@@ -204,12 +204,17 @@ export function installLive(options: {
     button.innerHTML = `${icon(glyph)}${mode === "idle" && onAir ? `<span class="live-dot" aria-hidden="true"></span>` : ""}${mode === "both" ? `<span class="live-dot control" aria-hidden="true"></span>` : ""}${viewers ? `<span class="count-pill" aria-hidden="true">${viewers}</span>` : ""}`;
   };
 
-  /** Where the button goes on the screen shown now: its top bar's actions, or the song list's search bar. */
+  /**
+   * Where the button goes on the screen shown now: first in its toolbar's
+   * pill (a song), else its top bar's actions, or the song list's search bar.
+   */
   const ensureButton = (): void => {
     const page = document.querySelector<HTMLElement>("#page");
     if (!page) return;
     const show = visible();
-    const host = page.querySelector<HTMLElement>(".app-bar .page-actions") ?? page.querySelector<HTMLElement>(".search-bar");
+    const host = page.querySelector<HTMLElement>(".app-bar .bar-actions")
+      ?? page.querySelector<HTMLElement>(".app-bar .page-actions")
+      ?? page.querySelector<HTMLElement>(".search-bar");
     page.querySelectorAll<HTMLButtonElement>(".live-icon").forEach((button) => {
       if (!show || button.parentElement !== host) button.remove();
     });

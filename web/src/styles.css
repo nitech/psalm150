@@ -433,6 +433,11 @@ body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-s
 .live-dot.control { background: var(--psa-accent); }
 .live-icon .count-pill { background: #e5484d; color: #fff; }
 .search-bar .live-icon { flex: none; }
+/* In a toolbar's pill (song screens): its mode colours over the pill's
+   quiet ones, the dot tucked into the smaller button. */
+.bar-actions .live-icon[data-mode="follow"], .bar-actions .live-icon[data-mode="control"] { color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.bar-actions .live-icon:is([data-mode="lead"], [data-mode="both"]) { color: #e5484d; background: color-mix(in srgb, #e5484d 12%, transparent); }
+.bar-actions .live-dot { top: 5px; right: 5px; width: 6px; height: 6px; border-color: var(--psa-bg-subtle); }
 /* The Live sheet: Watch (one choice) and Lead (two switches). */
 .live-group { display: grid; gap: var(--psa-space-2); margin-bottom: var(--psa-space-4); }
 .live-group h3 { margin: 0; color: var(--psa-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
