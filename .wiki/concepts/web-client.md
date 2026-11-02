@@ -305,9 +305,9 @@ are not affected.
 - **Song bar** (`shared/songs/song-actions.ts`, the same in the desktop app; the bar is one pill like the desktop's button groups): few icons. Fixed: Back, the current set's **+**/**✓**
   (leaders, when a set is current), for songs with chords a **chords
   on/off** switch (a chord diagram icon, `chordChart`; lit when on,
-  remembered), **Share** and (leaders) **Edit**. With a leader's five fixed
-  icons only one used-often icon comes into the bar (`barActions`'
-  `maxFrequent`), two otherwise. Everything else is in **⋮** with icon and
+  remembered), **Share** and (leaders) **Edit**. On phones no used-often
+  icon comes into the bar (`barActions`' `maxFrequent` 0), so the bar stays
+  short; wider, up to two. Everything else is in **⋮** with icon and
   text: **Transpose** (icon "C → D", `transpose`; a row with − and + to tap and the key between them; the
   menu stays open while stepping), Add to a (another) set, Copy the words,
   and for leaders on a song with no chords **Chords from the web** (below). Transpose is always in ⋮ ("− G +"), never in the bar, however much it is used: it is too wide for a phone's bar (`menuOnly`). The key

@@ -652,8 +652,9 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       share: true,
       edit: ctx.canEdit ? { href: `#/songs/${song.id}/edit` } : undefined,
     });
-    // Phones have room for one used-often icon beside a leader's four fixed ones.
-    return barActions("song", bar, ctx.canEdit ? 1 : 2);
+    // A phone's bar has room for the fixed icons and ⋮ only; wider, the
+    // often used ones come in beside them.
+    return barActions("song", bar, matchMedia("(max-width: 899px)").matches ? 0 : 2);
   };
   const actions = (display: DisplaySong) => `<span class="bar-song-actions" id="song-bar">${songBar(display)}</span>`;
 
