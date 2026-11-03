@@ -1,8 +1,8 @@
 [package]
 name = "psa150-server"
-version = "0.1.108"
+version = "0.1.109"
 edition = "2024"
-description = "Self-hostable, API-first song library for PSA150"
+description = "Self-hostable, API-first song library for Psalm150"
 license = "MIT"
 publish = false
 
