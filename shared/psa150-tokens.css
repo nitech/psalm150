@@ -144,7 +144,7 @@
   --psa-secondary-text: var(--psa-second-400);
 
   --psa-chord: var(--psa-second-400);
-  --psa-favorite: var(--psa-second-400);
+  --psa-favorite: var(--psa-gold-400);
 
   --psa-positive: #46c081;
   --psa-positive-soft: rgba(70, 192, 129, 0.12);
@@ -199,7 +199,7 @@
   --psa-secondary-text: var(--psa-second-800);
 
   --psa-chord: var(--psa-second-800);
-  --psa-favorite: var(--psa-second-700);
+  --psa-favorite: var(--psa-gold-700);
 
   --psa-positive: #17724a;
   --psa-positive-soft: rgba(31, 138, 85, 0.1);
@@ -249,7 +249,7 @@
     --psa-secondary-text: var(--psa-second-800);
 
     --psa-chord: var(--psa-second-800);
-    --psa-favorite: var(--psa-second-700);
+    --psa-favorite: var(--psa-gold-700);
 
     --psa-positive: #17724a;
     --psa-positive-soft: rgba(31, 138, 85, 0.1);
