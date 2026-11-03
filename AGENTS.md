@@ -7,6 +7,7 @@ Song books for small churches, in one repository:
 | `desktop/` | The desktop app (Tauri 2, Rust and Lit) that projects the words | `desktop/AGENTS.md`, `desktop/.wiki/` |
 | `api/`, `web/` | The optional song server: a Rust/Axum API on PostgreSQL and a Vite/TypeScript web client that uses only the public API | this file, `.wiki/` |
 | `shared/` | Code both apps use as it is: design tokens, icons, song modules, chord sounds, the `psa150-lyrics` crate | this file |
+| `site/` | The public site (psalm150.app): one static Vite page from the same tokens and brand | `site/README.md` |
 
 Package manager for `desktop/` and `web/` is **bun**. Keep things small: the
 desktop installer is a few MB and the server runs on a Raspberry Pi, so add

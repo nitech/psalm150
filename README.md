@@ -116,6 +116,7 @@ desktop/   The desktop app (Tauri 2: Rust core in src-tauri/, Lit frontend in sr
 api/       The song server's API (Rust, Axum, PostgreSQL migrations)
 web/       The song server's web client (TypeScript, Vite)
 shared/    Code both apps use: song modules, sounds, tokens, icons, lyrics crate
+site/      The public site (psalm150.app): one static page from the same tokens
 docs/      Server architecture, API and delivery notes
 ```
 

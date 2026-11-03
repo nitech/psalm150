@@ -1,6 +1,8 @@
 /api/target/
 /web/dist/
 /web/node_modules/
+/site/node_modules/
+/site/dist/
 .env
 *.local
 # Song recordings from a local run (PSA150_MEDIA_DIR)
