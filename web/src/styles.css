@@ -85,7 +85,11 @@ input, textarea, select {
 input[type="date"] { display: block; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; text-align: left; }
 input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 input::placeholder, textarea::placeholder { color: var(--psa-text-placeholder); }
-input:focus, textarea:focus { outline: none; border-color: var(--psa-accent); box-shadow: var(--psa-focus-ring); }
+input:focus, textarea:focus { outline: none; }
+/* A focused field shows it in its own border, in the accent, rather than a
+   ring around it; checkboxes, with no border of their own, keep the ring. */
+input:not([type="checkbox"], [type="radio"], [type="range"]):focus, textarea:focus { border-color: var(--psa-focus-color); box-shadow: none; }
+input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { box-shadow: var(--psa-focus-ring); }
 
 .search-field { position: relative; margin-bottom: var(--psa-space-4); }
 .search-field .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--psa-text-tertiary); pointer-events: none; }
@@ -167,9 +171,13 @@ body.menu-dragging .tabbar, body.menu-dragging .nav-scrim { transition: none; }
 }
 .tab { position: relative; }
 .tab .icon { width: 22px; height: 22px; }
-.tab.on { background: var(--psa-accent-soft); color: var(--psa-accent-text); }
-/* The current section has a bar at its edge, not only a tint. */
-.tab.on::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--psa-accent-text); }
+.tab.on { color: var(--psa-text); }
+/* The active item's mark, as in the desktop: a short line flush with the
+   item's left edge, centred, half its height; no tint, no rounded frame.
+   Also the song open beside the list and the chosen chord source. */
+.tab.on::before,
+.chord-sources .list-row.on::before,
+.browse-pane #song-results > li.on::before { content: ""; position: absolute; left: 0; top: 25%; width: 3px; height: 50%; border-radius: 0 3px 3px 0; background: var(--psa-accent); }
 button.tab { width: 100%; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
 button.tab:not(.on) { background: none; }
 /* Settings has its own menu in the same place: Back, then its pages. */
@@ -770,7 +778,7 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
 .chords-search { display: flex; align-items: center; gap: var(--psa-space-2); margin-bottom: var(--psa-space-2); }
 .chords-search .search-field { flex: 1; margin: 0; }
 .chord-sources .list-row + .list-row { border-top: 1px solid var(--psa-border); }
-.chord-sources .list-row.on { background: var(--psa-accent-soft); box-shadow: inset 3px 0 0 var(--psa-accent-text); }
+.chord-sources .list-row { position: relative; }
 .chord-sources .list-row:disabled { opacity: 0.55; }
 .chord-preview-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--psa-space-3); margin: var(--psa-space-4) 0; padding: var(--psa-space-3) var(--psa-space-4); border-radius: var(--psa-radius-sm); background: var(--psa-bg-surface); border: 1px solid var(--psa-border); }
 .chord-preview-head p { flex: 1 1 18em; margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
@@ -834,7 +842,6 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   .tab { display: grid; place-items: center; width: var(--rail-w); height: 44px; padding: 0; border-radius: 0; color: var(--psa-text-tertiary); }
   .tab .icon { width: 22px; height: 22px; }
   .tab:hover, .tab.on { background: none; color: var(--psa-text); }
-  .tab.on::before { left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 0 2px 2px 0; background: var(--psa-accent); box-shadow: 0 0 8px var(--psa-accent-glow); }
   .tab:focus-visible { border-radius: 0; box-shadow: inset 0 0 0 2px var(--psa-focus-color); }
   /* Settings' menu is wider, with its pages' names: there are more of
      them than icons alone could tell apart. */
@@ -844,7 +851,7 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   body.settings-nav .tab { display: flex; justify-content: flex-start; gap: var(--psa-space-3); width: auto; height: 40px; padding: 0 var(--psa-space-3); border-radius: var(--psa-radius-sm); font-size: 14px; color: var(--psa-text-secondary); }
   body.settings-nav .tab .icon { width: 18px; height: 18px; }
   body.settings-nav .tab .tab-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
-  body.settings-nav .tab.on { background: var(--psa-accent-soft); color: var(--psa-text); }
+  body.settings-nav .tab.on { color: var(--psa-text); }
   body.settings-nav .tab.on::before { left: -8px; }
   .nav-scrim, .menu-button, .app-bar.menu-only { display: none; }
   /* With its phone-only bar hidden, the title starts the page. */
@@ -894,8 +901,8 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   .browse-pane #song-results .list-row, .browse-pane #song-results .row-link { min-height: 40px; padding-left: 10px; }
   .browse-pane #song-results .song-row { padding-left: 0; }
   @media (hover: hover) { .browse-pane #song-results > li:hover, .browse-pane .song-row:hover { background: var(--psa-bg-elevated); } }
-  /* The song open beside the list: a gold edge round its row. */
-  .browse-pane #song-results > li.on { background: var(--psa-accent-soft); box-shadow: inset 0 0 0 1px var(--psa-accent-medium); }
+  /* The song open beside the list: the active mark and a brighter title. */
+  .browse-pane #song-results > li { position: relative; }
   .browse-pane #song-results > li.on .row-main strong { color: var(--psa-text-strong); }
   .browse-pane #song-results .list-row > .icon:last-child { display: none; }
   .browse-pane .load-more { margin-bottom: var(--psa-space-6); }

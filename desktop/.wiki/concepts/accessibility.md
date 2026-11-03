@@ -32,7 +32,7 @@ sources:
   - id: conf
     resource: /src-tauri/tauri.conf.json
     title: zoomHotkeysEnabled on the main window
-generated: { by: agent, at: 2026-11-03T10:30:00Z }
+generated: { by: agent, at: 2026-11-03T14:00:00Z }
 ---
 
 # Accessibility
@@ -119,8 +119,10 @@ interface; see [exceptions](#known-exceptions). The console is always dark
 ### Focus visible and not hidden (2.4.7, 2.4.11)
 
 A global `:focus-visible` outline (2 px, `--focus-color`, the gold of
-`--psa-focus-color`) marks every control; text fields, the select and the
-song actions use `--focus-ring` (`--psa-focus-ring`); rows and options inside
+`--psa-focus-color`) marks every control. Text fields, search fields and the select show focus in
+their own border, turned `--focus-color`, rather than a ring around them;
+checkboxes (no border of their own) and the song actions use `--focus-ring`
+(`--psa-focus-ring`); rows and options inside
 scroll areas draw it inset so it is not clipped. `outline: none` is used only
 where a replacement is drawn. The song body has `scroll-padding-top` while
 the correction bar or "On screen" line is pinned, so a focused or active line
@@ -134,8 +136,10 @@ is not hidden under it.
   selected song, the room chip label, the setlist count on a hovered item)
   switches to the secondary or primary grey.
 - Field, select and search edges use `--border-control` (3:1 or more).
-- States are not shown by colour alone: the selected song row and chosen
-  select option have a gold edge; pressed toolbar buttons (Project while
+- States are not shown by colour alone: the active item (the icon bar's
+  view, the Settings page, the selected song, a list's chosen option) has a
+  short line at its left edge, centred and half its height, and brighter
+  text; pressed toolbar buttons (Project while
   projecting, Blank) a solid gold border; the room chip is dashed when the
   words are not shared; the VSB sync icon gets a dot on error; changed words
   in ad hoc editing are underlined; the keyboard's option in a list has a

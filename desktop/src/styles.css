@@ -560,8 +560,9 @@ body.workspace-resizing {
 
 .search-wrap input:focus {
   outline: none;
+  border-color: var(--focus-color);
   background: var(--bg-elevated);
-  box-shadow: var(--focus-ring);
+  box-shadow: none;
 }
 
 .search-wrap input::placeholder {
@@ -764,6 +765,7 @@ body.workspace-resizing {
 }
 
 .song-list li {
+  position: relative;
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -790,25 +792,14 @@ body.workspace-resizing {
   outline-offset: -2px;
 }
 
-/* Selected song: tint plus a gold edge on the left (not colour alone). */
-.song-list li.active {
-  background: var(--accent-gold-soft);
-  border-color: rgba(var(--psa-accent-rgb), 0.12);
-  box-shadow: inset 3px 0 0 var(--accent-gold);
-}
-
-.song-list li.active:hover,
-.song-list li.active:focus-visible {
-  background: rgba(var(--psa-accent-rgb), 0.16);
-  border-color: rgba(var(--psa-accent-rgb), 0.16);
-}
+/* Selected song: the active mark (below) and a brighter title, not colour
+   alone. */
 
 .song-list li.active .song-list-title {
   color: var(--text-primary);
   font-weight: 500;
 }
 
-/* Tertiary grey falls under 4.5:1 on the gold tint. */
 .song-list li.active .song-list-num,
 .song-list li.active .song-list-key {
   color: var(--text-secondary);
@@ -1571,6 +1562,20 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
+}
+
+/* A focused field shows it in its own border, in the accent, rather than a
+   ring around it. */
+input:not([type="checkbox"], [type="radio"], [type="range"]):focus,
+textarea:focus,
+select:focus {
+  border-color: var(--focus-color);
+  box-shadow: none;
+}
+
+/* Checkboxes have no border of their own: the ring, for the keyboard. */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
   box-shadow: var(--focus-ring);
 }
 
@@ -2156,7 +2161,7 @@ select option {
 }
 
 .settings-search:focus-within {
-  box-shadow: var(--focus-ring);
+  border-color: var(--focus-color);
 }
 
 .settings-search svg {
@@ -2223,6 +2228,7 @@ select option {
 }
 
 .settings-nav nav button {
+  position: relative;
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
@@ -2245,9 +2251,7 @@ select option {
 }
 
 .settings-nav nav button.active {
-  background: var(--accent-gold-soft);
   color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--accent-gold);
 }
 
 .settings-nav-icon {
@@ -2415,8 +2419,9 @@ select option {
 .select-trigger:focus-visible,
 .select.open .select-trigger {
   outline: none;
+  border-color: var(--focus-color);
   background: var(--bg-elevated);
-  box-shadow: var(--focus-ring);
+  box-shadow: none;
 }
 
 .select-value {
@@ -2442,6 +2447,7 @@ select option {
 }
 
 .select-list li {
+  position: relative;
   margin: 3px 0;
   padding: 7px 10px;
   border-radius: var(--radius-md);
@@ -2453,10 +2459,9 @@ select option {
     color var(--dur-fast) var(--ease-standard);
 }
 
-/* Chosen option: brighter text and a gold edge (not colour alone). */
+/* Chosen option: brighter text and the active mark (not colour alone). */
 .select-list li.selected {
   color: var(--text-primary);
-  box-shadow: inset 3px 0 0 var(--accent-gold);
 }
 
 .select-list li.highlighted,
@@ -2473,7 +2478,6 @@ select option {
 
 .select-list li.selected.highlighted,
 .select-list li.selected:hover {
-  background: var(--accent-gold-soft);
   color: var(--text-primary);
 }
 
@@ -3477,17 +3481,22 @@ body.stage-projection {
   color: var(--text-primary);
 }
 
-/* Active view: a gold edge on the left, like VS Code's indicator. */
-.activity-btn.active::before {
+/* The active item's mark, the same everywhere (the icon bar, the Settings
+   menu, the selected song, a list's chosen option): a short line flush with
+   the item's left edge, centred, half the item's height. No tint and no
+   rounded frame around the item. */
+.activity-btn.active::before,
+.settings-nav nav button.active::before,
+.song-list li.active::before,
+.select-list li.selected::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  border-radius: 0 2px 2px 0;
+  top: 25%;
+  width: 3px;
+  height: 50%;
+  border-radius: 0 3px 3px 0;
   background: var(--accent-gold);
-  box-shadow: 0 0 8px var(--accent-gold-glow);
 }
 
 .activity-btn:focus-visible {

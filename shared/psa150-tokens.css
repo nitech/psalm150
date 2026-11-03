@@ -49,21 +49,56 @@
   --psa-dur-fast: 120ms;
   --psa-dur-base: 200ms;
 
-  /* Brand colours. Gold is the accent: what you press, what is chosen, the
-     focus ring and the brand mark. Sky is the second colour: chords and
-     favourites. Same hues in both themes; the light theme uses deeper shades
-     so text on the page keeps its contrast. */
+  /* Palettes. Each has a light shade for dark backgrounds (400) and deep
+     ones for text on light backgrounds (700, 800), and its 400 and 700 as
+     r, g, b for tints. */
   --psa-gold-300: #efca85;
   --psa-gold-400: #e6b860;
   --psa-gold-500: #d6a64c;
   --psa-gold-600: #c0903a;
   --psa-gold-700: #9a6c19;
   --psa-gold-800: #7a5410;
+  --psa-gold-rgb: 230, 184, 96;
+  --psa-gold-rgb-deep: 154, 108, 25;
   --psa-sky-300: #acd3f0;
   --psa-sky-400: #8ec3ea;
   --psa-sky-500: #6fb0e0;
+  --psa-sky-600: #4d93c6;
   --psa-sky-700: #2b72a6;
   --psa-sky-800: #1f5b87;
+  --psa-sky-rgb: 142, 195, 234;
+  --psa-sky-rgb-deep: 43, 114, 166;
+
+  /* Which palette plays which part. The brand colour is the accent: what you
+     press, what is chosen, the focus ring and the brand mark. The second
+     colour is for chords and favourites. Everything else follows these
+     lines, so to try another colour point them at another palette (or set
+     data-accent on <html>, below). */
+  --psa-brand-300: var(--psa-gold-300);
+  --psa-brand-400: var(--psa-gold-400);
+  --psa-brand-500: var(--psa-gold-500);
+  --psa-brand-600: var(--psa-gold-600);
+  --psa-brand-700: var(--psa-gold-700);
+  --psa-brand-800: var(--psa-gold-800);
+  --psa-brand-rgb: var(--psa-gold-rgb);
+  --psa-brand-rgb-deep: var(--psa-gold-rgb-deep);
+  --psa-second-400: var(--psa-sky-400);
+  --psa-second-700: var(--psa-sky-700);
+  --psa-second-800: var(--psa-sky-800);
+  --psa-second-rgb: var(--psa-sky-rgb);
+  --psa-second-rgb-deep: var(--psa-sky-rgb-deep);
+}
+
+/* Sky as the brand colour too: <html data-accent="sky">, to compare. */
+:root[data-accent="sky"] {
+  --psa-brand-300: var(--psa-sky-300);
+  --psa-brand-400: var(--psa-sky-400);
+  --psa-brand-500: var(--psa-sky-500);
+  --psa-brand-600: var(--psa-sky-600);
+  --psa-brand-700: var(--psa-sky-700);
+  --psa-brand-800: var(--psa-sky-800);
+  --psa-brand-rgb: var(--psa-sky-rgb);
+  --psa-brand-rgb-deep: var(--psa-sky-rgb-deep);
 }
 
 /* Dark theme: the default. */
@@ -91,29 +126,29 @@
   --psa-text-tertiary: #a3a3a3;
   --psa-text-placeholder: #8c8c8c;
 
-  --psa-accent: var(--psa-gold-400);
-  --psa-accent-hover: var(--psa-gold-300);
-  --psa-accent-pressed: var(--psa-gold-500);
-  /* The far end of a gold gradient (the brand mark). */
-  --psa-accent-deep: var(--psa-gold-600);
+  --psa-accent: var(--psa-brand-400);
+  --psa-accent-hover: var(--psa-brand-300);
+  --psa-accent-pressed: var(--psa-brand-500);
+  /* The far end of an accent gradient (the brand mark). */
+  --psa-accent-deep: var(--psa-brand-600);
   /* The accent as r, g, b for other tints: rgba(var(--psa-accent-rgb), 0.35). */
-  --psa-accent-rgb: 230, 184, 96;
-  --psa-accent-soft: rgba(230, 184, 96, 0.12);
-  --psa-accent-medium: rgba(230, 184, 96, 0.22);
-  --psa-accent-glow: rgba(230, 184, 96, 0.25);
-  --psa-accent-text: var(--psa-gold-400);
+  --psa-accent-rgb: var(--psa-brand-rgb);
+  --psa-accent-soft: rgba(var(--psa-brand-rgb), 0.12);
+  --psa-accent-medium: rgba(var(--psa-brand-rgb), 0.22);
+  --psa-accent-glow: rgba(var(--psa-brand-rgb), 0.25);
+  --psa-accent-text: var(--psa-brand-400);
   --psa-on-accent: #1a1a1a;
 
-  --psa-secondary: var(--psa-sky-400);
-  --psa-secondary-soft: rgba(142, 195, 234, 0.12);
-  --psa-secondary-text: var(--psa-sky-400);
+  --psa-secondary: var(--psa-second-400);
+  --psa-secondary-soft: rgba(var(--psa-second-rgb), 0.12);
+  --psa-secondary-text: var(--psa-second-400);
 
-  --psa-chord: var(--psa-sky-400);
-  --psa-favorite: var(--psa-sky-400);
+  --psa-chord: var(--psa-second-400);
+  --psa-favorite: var(--psa-second-400);
 
   --psa-positive: #46c081;
   --psa-positive-soft: rgba(70, 192, 129, 0.12);
-  /* Orange, so a warning is never mistaken for the gold accent. */
+  /* Orange, so a warning is never mistaken for the accent. */
   --psa-warning: #f2994a;
   --psa-danger: #f0646a;
   --psa-danger-soft: rgba(224, 69, 76, 0.12);
@@ -122,7 +157,7 @@
   --psa-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
   --psa-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
   --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
-  --psa-focus-color: var(--psa-gold-400);
+  --psa-focus-color: var(--psa-brand-400);
 }
 
 /* Light theme. */
@@ -148,23 +183,23 @@
   --psa-text-tertiary: #686868;
   --psa-text-placeholder: #6a6a6a;
 
-  --psa-accent: var(--psa-gold-400);
-  --psa-accent-hover: var(--psa-gold-300);
-  --psa-accent-pressed: var(--psa-gold-500);
-  --psa-accent-deep: var(--psa-gold-600);
-  --psa-accent-rgb: 154, 108, 25;
-  --psa-accent-soft: rgba(154, 108, 25, 0.1);
-  --psa-accent-medium: rgba(154, 108, 25, 0.18);
-  --psa-accent-glow: rgba(154, 108, 25, 0.2);
-  --psa-accent-text: var(--psa-gold-800);
+  --psa-accent: var(--psa-brand-400);
+  --psa-accent-hover: var(--psa-brand-300);
+  --psa-accent-pressed: var(--psa-brand-500);
+  --psa-accent-deep: var(--psa-brand-600);
+  --psa-accent-rgb: var(--psa-brand-rgb-deep);
+  --psa-accent-soft: rgba(var(--psa-brand-rgb-deep), 0.1);
+  --psa-accent-medium: rgba(var(--psa-brand-rgb-deep), 0.18);
+  --psa-accent-glow: rgba(var(--psa-brand-rgb-deep), 0.2);
+  --psa-accent-text: var(--psa-brand-800);
   --psa-on-accent: #1a1a1a;
 
-  --psa-secondary: var(--psa-sky-700);
-  --psa-secondary-soft: rgba(43, 114, 166, 0.1);
-  --psa-secondary-text: var(--psa-sky-800);
+  --psa-secondary: var(--psa-second-700);
+  --psa-secondary-soft: rgba(var(--psa-second-rgb-deep), 0.1);
+  --psa-secondary-text: var(--psa-second-800);
 
-  --psa-chord: var(--psa-sky-800);
-  --psa-favorite: var(--psa-sky-700);
+  --psa-chord: var(--psa-second-800);
+  --psa-favorite: var(--psa-second-700);
 
   --psa-positive: #17724a;
   --psa-positive-soft: rgba(31, 138, 85, 0.1);
@@ -176,7 +211,7 @@
   --psa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --psa-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.1);
   --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
-  --psa-focus-color: var(--psa-gold-700);
+  --psa-focus-color: var(--psa-brand-700);
 }
 
 /* No explicit theme: follow the system. */
@@ -203,18 +238,18 @@
     --psa-text-tertiary: #686868;
     --psa-text-placeholder: #6a6a6a;
 
-    --psa-accent-rgb: 154, 108, 25;
-    --psa-accent-soft: rgba(154, 108, 25, 0.1);
-    --psa-accent-medium: rgba(154, 108, 25, 0.18);
-    --psa-accent-glow: rgba(154, 108, 25, 0.2);
-    --psa-accent-text: var(--psa-gold-800);
+    --psa-accent-rgb: var(--psa-brand-rgb-deep);
+    --psa-accent-soft: rgba(var(--psa-brand-rgb-deep), 0.1);
+    --psa-accent-medium: rgba(var(--psa-brand-rgb-deep), 0.18);
+    --psa-accent-glow: rgba(var(--psa-brand-rgb-deep), 0.2);
+    --psa-accent-text: var(--psa-brand-800);
 
-    --psa-secondary: var(--psa-sky-700);
-    --psa-secondary-soft: rgba(43, 114, 166, 0.1);
-    --psa-secondary-text: var(--psa-sky-800);
+    --psa-secondary: var(--psa-second-700);
+    --psa-secondary-soft: rgba(var(--psa-second-rgb-deep), 0.1);
+    --psa-secondary-text: var(--psa-second-800);
 
-    --psa-chord: var(--psa-sky-800);
-    --psa-favorite: var(--psa-sky-700);
+    --psa-chord: var(--psa-second-800);
+    --psa-favorite: var(--psa-second-700);
 
     --psa-positive: #17724a;
     --psa-positive-soft: rgba(31, 138, 85, 0.1);
@@ -226,7 +261,7 @@
     --psa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
     --psa-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.1);
     --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
-    --psa-focus-color: var(--psa-gold-700);
+    --psa-focus-color: var(--psa-brand-700);
   }
 }
 

@@ -41,7 +41,7 @@ sources:
   - id: icons
     resource: /src/icons.ts
     title: Toolbar icon set (Lucide geometry)
-generated: { by: agent, at: 2026-11-03T10:30:00Z }
+generated: { by: agent, at: 2026-11-03T14:00:00Z }
 ---
 
 # Operator console
@@ -80,7 +80,8 @@ double-click toggles the default and the widest width.
   projecting**, and Settings. Messages (toasts) float at the bottom.
 - **Activity bar** (as in VS Code, left of the song list): Search, Setlist,
   History and Favourites choose what the song list shows; the active one has
-  a gold edge. The VSB sync icon sits at the bottom when a database is linked
+  a short line at its left edge (the active mark, as in Settings and the song
+  list). The VSB sync icon sits at the bottom when a database is linked
   ([VSB sync](vsb-sync.md)).
 - **Song actions** sit on the song title row instead: Edit (icon),
   **Chords from the web** (chord icon; only for a library song that may be

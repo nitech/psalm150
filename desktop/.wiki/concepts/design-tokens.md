@@ -17,7 +17,7 @@ sources:
   - id: reference
     resource: /designsystem.json
     title: PSA150 Design System reference (not loaded by the app)
-generated: { by: agent, at: 2026-11-03T10:30:00Z }
+generated: { by: agent, at: 2026-11-03T14:00:00Z }
 ---
 
 # Design tokens
@@ -62,6 +62,16 @@ shades for text, for contrast: `--psa-gold-800` for accent text,
 `index.html`, `audience.html` and `stage.html` all set `data-theme="dark"`,
 so the console and both projection windows are always dark whatever the
 system setting. The light theme is used by the server's web client.
+
+## Trying other colours
+
+The palettes (`--psa-gold-*`, `--psa-sky-*`, each with `-rgb` and
+`-rgb-deep` triplets for tints) are only used by a few lines at the top of
+the file that say which palette plays which part: `--psa-brand-*` (the
+accent) and `--psa-second-*` (chords and favourites). Every theme token
+follows them, so pointing those lines at another palette changes both apps.
+`<html data-accent="sky">` makes sky the brand colour without editing
+anything, which is how the gold and sky screenshots were compared.
 
 ## How the console uses them
 
