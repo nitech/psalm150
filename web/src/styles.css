@@ -653,10 +653,13 @@ body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px 
 .room-tools [aria-disabled="true"] { cursor: not-allowed; opacity: 0.45; }
 .room-body { flex: 1; width: min(100%, 860px); margin: 0 auto; padding: var(--psa-space-5) var(--page-pad) 45vh; font-family: var(--psa-font-lyrics); font-size: calc(18px * var(--room-scale)); line-height: 1.45; }
 .room-song { margin: 0 0 var(--psa-space-4); font-family: var(--psa-font-display); font-size: 0.8em; line-height: 1.2; color: var(--psa-text-secondary); overflow-wrap: anywhere; }
-.room-slide { margin: 0 0 var(--psa-space-3); padding: var(--psa-space-3) var(--psa-space-4); border-left: 6px solid transparent; border-radius: var(--psa-radius-md); color: var(--psa-text-secondary); transition: background var(--psa-dur-base) var(--psa-ease-standard), color var(--psa-dur-base) var(--psa-ease-standard); }
-.room-slide.current { border-left-color: var(--psa-accent-text); background: var(--psa-accent-soft); color: var(--psa-text-strong, var(--psa-text)); }
+.room-slide { position: relative; margin: 0 0 var(--psa-space-3); padding: var(--psa-space-3) var(--psa-space-4); color: var(--psa-text-secondary); transition: color var(--psa-dur-base) var(--psa-ease-standard); }
+/* The verse on screen: a thin line beside its words, as the desktop marks the
+   projected stanza. No tint and no rounded frame around it. */
+.room-slide.current { color: var(--psa-text-strong, var(--psa-text)); }
+.room-slide.current::before { content: ""; position: absolute; inset-block: var(--psa-space-3); left: 0; width: 3px; border-radius: var(--psa-radius-full); background: var(--psa-accent-text); }
 .room-slide.current .room-label { color: var(--psa-text-secondary); }
-.room[data-status="blank"] .room-slide.current { border-left-color: var(--psa-border-strong); background: var(--psa-bg-sunken); }
+.room[data-status="blank"] .room-slide.current::before { background: var(--psa-border-strong); }
 .room-label { margin: 0 0 4px; font-family: var(--psa-font-ui); font-size: max(12px, 0.5em); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--psa-text-tertiary); }
 .room-line { margin: 0; overflow-wrap: anywhere; }
 .room-waiting { padding: var(--psa-space-8) 0; text-align: center; }
@@ -664,7 +667,8 @@ body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px 
 .room-waiting p { margin: 0; font-size: max(16px, 0.65em); color: var(--psa-text-secondary); }
 /* High contrast: yellow on black for the current words, white for the rest. */
 .room.contrast { --psa-bg-canvas: #000; --psa-bg-glass: #000; --psa-bg-sunken: #222; --psa-bg-elevated: #222; --psa-bg-surface: #000; --psa-text: #fff; --psa-text-strong: #fff; --psa-text-secondary: #fff; --psa-text-tertiary: #ddd; --psa-border: #fff; --psa-border-strong: #fff; --psa-accent: #ffd400; --psa-on-accent: #000; --psa-accent-soft: #000; --psa-accent-medium: #ffd400; --psa-accent-text: #ffd400; --psa-focus-color: #ffd400; }
-.room.contrast .room-slide.current { color: #ffd400; border-left-width: 10px; }
+.room.contrast .room-slide.current { color: #ffd400; }
+.room.contrast .room-slide.current::before { width: 6px; }
 .room.contrast .icon-button { border-color: #fff; color: #fff; background: #000; }
 .room.contrast .room-tools [aria-pressed="true"] { background: #ffd400; border-color: #ffd400; color: #000; }
 @media (prefers-reduced-motion: reduce) { .room-slide { transition: none; } }
