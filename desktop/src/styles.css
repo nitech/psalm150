@@ -1,12 +1,12 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Psalm150 console styles.
    Colours, type, radii and motion come from the shared PSA150 design tokens
-   (shared/psa150-tokens.css, mirrored from the PSA150 Song Server). The
+   (shared/psa150-tokens.css, shared with the song server). The
    names below are the console's own aliases for those tokens; the console
    always uses the dark theme (index.html sets data-theme="dark").
    ───────────────────────────────────────────────────────────────────────────── */
 
-@import "./shared/psa150-tokens.css";
+@import "../../shared/psa150-tokens.css";
 
 :root {
   color-scheme: dark;
@@ -2747,7 +2747,7 @@ psa150-modal.duplicate-modal .modal-card-wide {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Song editor (src/components/song-editor.ts)
-   The editor itself and its CSS are the song server's (src/shared/songs/,
+   The editor itself and its CSS are shared with the web client (shared/songs/,
    songs.css). Here it takes the song pane's layout: the mode switch where
    the title is, the editor's bar (section, details, Save) and Cancel in the
    pane's toolbar, the song scrolling below.
@@ -3786,7 +3786,7 @@ body.stage-projection {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Song pane: the words, and how to play a chord beside or under them
-   (the shared chord viewer's panel, src/shared/songs/chord-viewer.ts).
+   (the shared chord viewer's panel, shared/songs/chord-viewer.ts).
    ───────────────────────────────────────────────────────────────────────────── */
 
 .song-pane {

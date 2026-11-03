@@ -1,8 +1,7 @@
 /**
  * Chords from a song found online, laid over a song of ours that has none.
- * Shared by the web client and the desktop (mirrored there by
- * `bun run sync:shared`), so both lay chords the same way. It needs nothing
- * but plain TypeScript.
+ * Shared by the web client and the desktop, so both lay chords the same
+ * way. It needs nothing but plain TypeScript.
  *
  * Our words, spelling and verses stay exactly as they are; only chords are
  * added, and `{key}` set or changed. Each of our lines is matched with the

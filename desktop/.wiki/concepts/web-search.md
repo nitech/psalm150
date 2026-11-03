@@ -6,11 +6,11 @@ tags: [search, web, online, chordpro]
 status: stable
 sources:
   - id: chord-match
-    resource: /src/shared/chord-match.ts
-    title: Laying online chords over a song (mirror of the server's shared/chord-match.ts)
+    resource: /../shared/chord-match.ts
+    title: Laying online chords over a song (shared with the web client)
   - id: crate
-    resource: /src-tauri/crates/psa150-lyrics/src/lib.rs
-    title: Mirrored lookup crate (canonical in the song server's shared/lyrics)
+    resource: /../shared/lyrics/src/lib.rs
+    title: The lookup crate, shared with the song server
   - id: cmd
     resource: /src-tauri/src/commands/web_search_cmd.rs
     title: Async search_web_songs and its round-trip test
@@ -26,7 +26,7 @@ sources:
   - id: ids
     resource: /src/components/song-list-ids.ts
     title: __web__N row ids
-generated: { by: agent, at: 2026-10-23T12:10:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Online song search
@@ -36,10 +36,8 @@ generated: { by: agent, at: 2026-10-23T12:10:00Z }
 The lookup runs **inside the desktop**. It never asks a song server, because
 the desktop must work for churches that never set one up
 ([standalone](standalone.md)). The code is the Rust crate `psa150-lyrics`,
-shared with the song server: the server repo's `shared/lyrics/` is canonical
-and `bun run sync:shared` mirrors it into `src-tauri/crates/psa150-lyrics/`
-(a path dependency; `bun run check:shared` and the "Shared files" workflow
-catch drift). **Never edit the mirror**: change the server repo, then sync.
+shared with the song server: both use the monorepo's `shared/lyrics/` as a
+Cargo path dependency.
 The song server's wiki page `concepts/online-search.md` describes how the
 search works: sites, parsing, ranking.
 
@@ -113,9 +111,8 @@ A library song with words and no chords gets a **Chords from the web**
 button on its title row (not for web results, nor when edits are not
 allowed). It opens a dialog that searches `search_web_songs` for the song's
 title at once; the field can be changed and searched again (Esc closes).
-Each version found is laid over the song by `src/shared/chord-match.ts`,
-the same code the song server's web client uses (canonical in the server's
-`shared/`, mirrored by `bun run sync:shared`, tested there):
+Each version found is laid over the song by `shared/chord-match.ts`,
+the same code the song server's web client uses (tested there):
 
 - Each of the song's lines takes the chords of the online line most like it
   by its words (any order, at least 0.6 alike), each chord on the same word.

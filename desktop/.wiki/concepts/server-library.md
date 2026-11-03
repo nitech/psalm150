@@ -20,13 +20,13 @@ sources:
   - id: app
     resource: /src/components/app.ts
     title: Settings, Church server (renderServerConnect, signInServerLibrary, shared-sets note)
-generated: { by: agent, at: 2026-10-05T18:00:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Server library
 
 A console can use a Psalm150 song server
-([PSALM150-server](https://github.com/nitech/PSA150-server)) as its library
+(`api/` and `web/` at the root of this monorepo) as its library
 instead of a local folder. The server's songs are downloaded into an offline
 copy under app data (`server-libraries/<hash>/songs`), which is indexed and
 projected like any songs folder. Browsing and projecting keep working when the
@@ -52,7 +52,8 @@ Settings, Church server (while not connected):
    the code plus its PKCE verifier (S256; the challenge is
    `BASE64URL(SHA256(verifier))`) at `POST /api/v1/desktop-auth/token` for an
    ordinary `psa_d_` desktop token. The server side is described in the
-   server repo's wiki (auth and roles, desktop browser sign-in).
+   song server's wiki (`/.wiki/` at the monorepo's root: auth and roles,
+   desktop browser sign-in).
 3. The token is stored in `server-device-token` and the library is
    synchronised as below.
 

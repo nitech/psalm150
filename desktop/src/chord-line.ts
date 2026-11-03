@@ -1,5 +1,5 @@
 import type { LyricLine } from "./api";
-import { transposeChord } from "./shared/songs/chordpro.ts";
+import { transposeChord } from "../../shared/songs/chordpro.ts";
 
 /** A piece of a line: the chord played at its start (if any) and its words. */
 export interface ChordSegment {
@@ -9,7 +9,7 @@ export interface ChordSegment {
 
 /**
  * A lyric line cut where its chords are played, the way the song server's
- * reader shows it (src/shared/songs/song-preview.ts): each chord over the
+ * reader shows it (shared/songs/song-preview.ts): each chord over the
  * words from its place to the next chord. Positions count characters, as
  * the parser stores them; a chord past the end sits over nothing.
  */

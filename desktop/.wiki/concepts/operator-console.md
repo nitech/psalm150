@@ -24,7 +24,7 @@ sources:
     resource: /src/styles.css
     title: Console aliases for the shared tokens, layout
   - id: tokens
-    resource: /src/shared/psa150-tokens.css
+    resource: /../shared/psa150-tokens.css
     title: Shared PSA150 design tokens
   - id: stanza-number-input
     resource: /src/stanza-number-input.ts
@@ -41,7 +41,7 @@ sources:
   - id: icons
     resource: /src/icons.ts
     title: Toolbar icon set (Lucide geometry)
-generated: { by: agent, at: 2026-10-05T21:30:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Operator console
@@ -336,7 +336,7 @@ The Settings dialog shows the version, quietly under its title (`subheading` on 
 
 ## Song editor
 
-The song server's editor, the same code (`src/shared/songs/`, mirrored):
+The song server's editor, the same code (`shared/songs/`):
 Visual, Chords (place and drag chords, chord bubble, chord sound) and
 ChordPro with problems and a preview. `psa150-song-editor` takes the song
 pane's place while the list stays: the mode switch where the title is, the
@@ -363,7 +363,7 @@ and `get_song_revision` read them with the device token.
 
 ## Chords, recordings and the words
 
-The song's actions are the shared toolbar (`src/shared/songs/song-actions.ts`
+The song's actions are the shared toolbar (`shared/songs/song-actions.ts`
 and `bar-menu.ts`, the same as the song server's web client): chords, the
 active set's + / ✓ (else the favourite star) and Edit in the bar; every
 action with its name in ⋮ (Transpose, Add to a set, the star, Record, Chords
@@ -374,7 +374,7 @@ projection.
 The chords button (in the toolbar, songs with chords) shows chords over the
 words (`chord-line.ts`, preference `console-chords`, off by default); each is
 a button that shows how to play it (shared chord viewer with guitar/piano
-diagrams and sound from `public/sounds/`) in a panel beside the words when the
+diagrams and sound from `shared/sounds/`) in a panel beside the words when the
 song pane is 900 px or wider, under them otherwise, so the song still scrolls
 (`.song-main` with `chordDock`; a sheet when the window is under 620 px tall). Lines with chords showing cannot
 be corrected in place. − key + transposes: the projection's transpose for the

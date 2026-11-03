@@ -6,8 +6,8 @@ tags: [build, test, ci, github-actions]
 status: stable
 sources:
   - id: ci
-    resource: /.github/workflows/ci.yml
-    title: CI workflow
+    resource: /.github/workflows/server.yml
+    title: Song server workflow
   - id: test
     resource: /api/tests/api_flow.rs
     title: Integration tests, from private_library_flow to openapi_describes_every_operation
@@ -23,7 +23,7 @@ sources:
   - id: hook
     resource: /.githooks/pre-commit
     title: Version bump on every commit
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Build and CI
@@ -53,8 +53,9 @@ docker compose up --build
 
 ## Version
 
-Every commit bumps the patch version (`0.1.4` → `0.1.5`) through
-`.githooks/pre-commit`, which needs `git config core.hooksPath .githooks` once
+Every commit that changes `api/`, `web/` or `shared/` bumps the patch version
+(`0.1.4` → `0.1.5`) through `.githooks/pre-commit` (commits to the desktop or
+the site alone leave it), which needs `git config core.hooksPath .githooks` once
 per clone. It writes the same version to `api/Cargo.toml` (`version` in
 `/api/v1/health` and `/api/v1/info`), the `psa150-server` entry in
 `api/Cargo.lock` (the Docker build runs `cargo build --locked`, which fails if
@@ -156,7 +157,12 @@ from a Windows checkout.
 - Nothing covers export content, most limits, isolation between two
   churches beyond members and revisions, or the web views.
 
-## CI (`.github/workflows/ci.yml`, on every push and PR)
+## CI (`.github/workflows/server.yml`, on pushes and PRs that touch the server)
+
+The workflow runs when `api/`, `web/`, `shared/`, the `Dockerfile`,
+`compose.yaml`, `.dockerignore` or the workflow itself changes. The desktop
+has its own workflows (`desktop.yml`, `release.yml`). The Docker build context
+leaves out `desktop/`, `site/`, `docs/` and the wikis (`.dockerignore`).
 
 | Job | Does |
 | --- | --- |

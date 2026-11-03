@@ -1,13 +1,13 @@
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { api } from "./api";
-import { installChordViewer } from "./shared/songs/chord-viewer.ts";
-import { setSongHost, type ToastOptions } from "./shared/songs/host.ts";
-import { installLyricsCopy } from "./shared/songs/song-preview.ts";
-import type { Recordings } from "./shared/songs/song-media.ts";
+import { installChordViewer } from "../../shared/songs/chord-viewer.ts";
+import { setSongHost, type ToastOptions } from "../../shared/songs/host.ts";
+import { installLyricsCopy } from "../../shared/songs/song-preview.ts";
+import type { Recordings } from "../../shared/songs/song-media.ts";
 
 /**
  * Sets up the song modules shared with the song server's web client
- * (src/shared/songs/): their toasts go to the console's toast, confirming
+ * (shared/songs/): their toasts go to the console's toast, confirming
  * uses the app's own dialog, a tapped chord opens how to play it, and web
  * links open in the browser instead of inside the app.
  */

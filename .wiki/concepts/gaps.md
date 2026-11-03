@@ -27,7 +27,7 @@ sources:
   - id: access
     resource: /api/src/access.rs
     title: Sessions, API tokens, members
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Gaps and backlog
@@ -64,7 +64,6 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
   publishes nothing ([build and CI](build-and-ci.md)).
 - **Name**: the client and the repo folder are Psalm150, but the crate, image,
   env vars, token prefixes, the session storage key and README still say PSA150.
-  The README calls the client repo `PSA150-client`.
 
 ## Behaviour gaps seen in the code
 

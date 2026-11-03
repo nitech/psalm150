@@ -1,9 +1,8 @@
 /* Controls the song modules use (buttons, form messages, the segmented
    switch, menus), loaded before each app's own stylesheet.
 
-   Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors
-   this folder at src/shared/songs/ with `bun run sync:shared`; edit it here,
-   never in the mirror. Colours, type and radii come from psa150-tokens.css. */
+   Both the web client and the desktop use this folder as it is. Colours,
+   type and radii come from psa150-tokens.css. */
 
 /* Icons drawn here (icon.ts) have no size of their own; the desktop's own
    icons carry width and height and keep them. */

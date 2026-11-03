@@ -10,9 +10,7 @@
  * Each app loads a catalog for the language it chose (`setLanguage`);
  * without one, everything is English.
  *
- * Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors this
- * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
- * in the mirror.
+ * Both the web client and the desktop use this folder as it is.
  */
 
 export type Message = string | Partial<Record<Intl.LDMLPluralRule, string>>;

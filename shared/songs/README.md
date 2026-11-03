@@ -6,10 +6,9 @@ ChordPro with its preview), the song as it reads with chords to tap, how to
 play a chord (diagrams and sound), recordings of how the song is played and
 its YouTube video.
 
-The web client imports these files from here. The desktop repo mirrors this
-folder at `src/shared/songs/` (and `web/public/sounds/` at `public/sounds/`)
-with `bun run sync:shared`, and its CI fails when the mirror differs, so the
-two apps cannot drift apart. Edit here, never in the mirror.
+Both apps import these files from here, so they cannot drift apart. The
+instrument sounds for playing chords are in `../sounds/`; `../vite-sounds.mjs`
+serves them at `/sounds/` in each app.
 
 - `host.ts`: what each app provides (toasts, confirming, keeping the screen
   on). Call `setSongHost` once at start.
@@ -18,4 +17,4 @@ two apps cannot drift apart. Edit here, never in the mirror.
 - `song-controls.css` loads before the app's own stylesheet, `songs.css`
   after it. Both use the tokens in `../psa150-tokens.css`.
 - No imports from outside this folder except `../icons.ts` and
-  `../chord-match.ts`, which are mirrored too.
+  `../chord-match.ts`.

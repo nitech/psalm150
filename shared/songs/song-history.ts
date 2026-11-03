@@ -11,9 +11,7 @@
  * The song server keeps every revision. The web client reads them with its
  * session, the desktop through its device token (`SongHistory`).
  *
- * Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors this
- * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
- * in the mirror.
+ * Both the web client and the desktop use this folder as it is.
  */
 import { announce } from "./a11y.ts";
 import { daysSince, errorMessage, escapeHtml, relativeDate } from "./format.ts";

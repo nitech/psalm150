@@ -32,14 +32,17 @@ bun x tsc --noEmit -p .
 - The app must work stand-alone, without a song server
   ([.wiki/concepts/standalone.md](.wiki/concepts/standalone.md)). Never make
   a feature depend on the server; share code with it instead.
-- `src/shared/` (including `songs/`), `public/sounds/` and
-  `src-tauri/crates/psa150-lyrics/` are mirrors of the song server's
-  `shared/` (and `web/public/sounds/`); edit there and run `bun run sync:shared`.
+- This app lives in `desktop/` of the Psalm150 monorepo. Code shared with
+  the song server's web client is in the root `shared/` (imported as
+  `../../shared/…`; the sounds through `shared/vite-sounds.mjs`; the
+  `psa150-lyrics` crate as a path dependency). A change there also changes
+  the web client: run its build and tests too (`cd ../web`). See the root
+  `AGENTS.md`.
 - Only ChordPro files are written to the songs folder.
 - Chorus filling (sections as written, as the song server shows them) and
   the blank-line stanza rule exist in both Rust
   (`projection/mod.rs`, `library/chordpro.rs`) and TypeScript
   (`performance-sections.ts`, `stanza-markers.ts`); change them together.
 - Components render into light DOM; all styling lives in `src/styles.css`,
-  except the mirrored `src/shared/songs/*.css` (loaded around it in `main.ts`).
+  except the shared `shared/songs/*.css` (loaded around it in `main.ts`).
 - Docs and wiki describe behaviour, not models. Say "the agent".

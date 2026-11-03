@@ -21,7 +21,7 @@ sources:
     resource: /src/styles.css
     title: Focus ring, control edges, state cues, reduced motion, narrow layout
   - id: tokens
-    resource: /src/shared/psa150-tokens.css
+    resource: /../shared/psa150-tokens.css
     title: Contrast-checked tokens (--psa-border-control, --psa-focus-ring)
   - id: shortcuts
     resource: /src/shortcuts.ts
@@ -32,7 +32,7 @@ sources:
   - id: conf
     resource: /src-tauri/tauri.conf.json
     title: zoomHotkeysEnabled on the main window
-generated: { by: agent, at: 2026-10-05T21:30:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Accessibility

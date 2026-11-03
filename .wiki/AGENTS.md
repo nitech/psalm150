@@ -9,7 +9,7 @@ alike.
 ## Where it lives
 
 `.wiki/` is the bundle. `overview.md` is the way in, `index.md` the catalog,
-`log.md` the chronology. Older prose lives in `/README.md`, `/TODO.md` and
+`log.md` the chronology. Older prose lives in `/docs/song-server.md`, `/TODO.md` and
 `/docs/` — cite those as `sources`; do not copy them in.
 
 ## When to update

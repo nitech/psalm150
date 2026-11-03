@@ -29,7 +29,7 @@ sources:
   - id: app
     resource: /src/components/app.ts
     title: Settings "Phone remote" section, Church server checkboxes and room settings, room chip, remote-project handler
-generated: { by: agent, at: 2026-10-05T21:30:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Remote control
@@ -119,7 +119,7 @@ installs have remote control on until the operator turns it off. The hint
 says leaders signed in to the song server can change slides, blank the screen
 and project songs from their phones, and that everything also works without
 the server. The desktop only makes outgoing requests with its device token;
-the phone side lives in the server repo.
+the phone side is the song server's (`api/` and `web/` at the monorepo's root).
 
 Two background tasks are spawned in `setup()`:
 
@@ -172,7 +172,7 @@ The song server gives every connected PC a room name, a flower such as
 by it in the server's remote, and anyone may type it at `<server>/join` to
 follow the words this PC projects on their own phone, in large text. The rules
 on the server side (who may rename, the church owner's switch, what a room
-shows) are in the server repo's wiki, page "Rooms".
+shows) are in the song server's wiki (`/.wiki/` at the monorepo's root), page "Rooms".
 
 - **Reading it.** The report loop asks `GET /api/v1/remote/desktop` on
   connecting and then every 60 s (`ROOM_REFRESH`), so a name a leader changed

@@ -2,6 +2,7 @@
   "name": "psalm150",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,9 +10,7 @@
     "preview": "vite preview",
     "tauri": "node scripts/tauri.mjs",
     "test": "vitest run",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "sync:shared": "node scripts/sync-shared.mjs",
-    "check:shared": "node scripts/sync-shared.mjs --check"
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",

@@ -10,9 +10,7 @@
  * and in the menu alike, so the screen handles both with one click handler.
  * The web client uses it in every top bar; the desktop in the song pane.
  *
- * Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors this
- * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
- * in the mirror.
+ * Both the web client and the desktop use this folder as it is.
  */
 import { icon, type IconName } from "./icon.ts";
 import { escapeHtml, readPreference, writePreference } from "./format.ts";

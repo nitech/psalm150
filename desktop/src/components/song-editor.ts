@@ -1,11 +1,11 @@
 import { html, nothing, type TemplateResult } from "lit";
-import { mountChordEditor, type ChordEditor } from "../shared/songs/chord-editor.ts";
+import { mountChordEditor, type ChordEditor } from "../../../shared/songs/chord-editor.ts";
 import { icon } from "../icons";
 import { Psa150Element } from "./base";
 
 /**
  * The song editor, the same as the song server's web client
- * (src/shared/songs/chord-editor.ts): Visual, Chords and ChordPro with its
+ * (shared/songs/chord-editor.ts): Visual, Chords and ChordPro with its
  * preview. It takes the song pane's place and its layout: the mode switch,
  * the editor's bar (section, details, Save) and Cancel sit in the pane's
  * header row where the song's buttons are; the song scrolls below. Cancel

@@ -1,13 +1,16 @@
 #!/bin/sh
-# Bumps the patch version on every commit, in the three places that hold it:
-# api/Cargo.toml (the API's /health and /info), api/Cargo.lock (the Docker
-# build runs `cargo build --locked`) and web/package.json (the web client's
-# menu). A version already changed in api/Cargo.toml in this commit is kept
-# and copied to the others, so a hand-made minor or major bump goes through.
-# SKIP_VERSION_BUMP=1 skips the hook.
+# Bumps the song server's patch version on every commit that changes it
+# (api/, web/ or shared/), in the three places that hold it: api/Cargo.toml
+# (the API's /health and /info), api/Cargo.lock (the Docker build runs
+# `cargo build --locked`) and web/package.json (the web client's menu). A
+# version already changed in api/Cargo.toml in this commit is kept and copied
+# to the others, so a hand-made minor or major bump goes through. Commits to
+# the desktop or the site alone leave it as it is (the desktop's version comes
+# from its release workflow). SKIP_VERSION_BUMP=1 skips the hook.
 # Enabled per clone with: git config core.hooksPath .githooks
 set -e
 [ -n "$SKIP_VERSION_BUMP" ] && exit 0
+git diff --cached --name-only | grep -q -E '^(api|web|shared)/' || exit 0
 
 cargo_version() { sed -n 's/^version = "\(.*\)"\r\{0,1\}$/\1/p' | head -n 1; }
 

@@ -17,7 +17,7 @@ sources:
   - id: sets
     resource: /api/src/sets.rs
     title: sets_snapshot, create_set (client id), update_set (base_version)
-generated: { by: agent, at: 2026-09-27T12:00:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Desktop sync
@@ -65,8 +65,8 @@ Connecting for the first time and pressing sync later both run the same two
 steps. The original local folder is never changed. The desktop keeps it as the
 path to return to when the server is disconnected.
 
-The client side lives in the `PSA150` desktop repo, in
-`src-tauri/src/commands/server_library.rs`. It checks the URL (http/https, a
+The client side lives in the desktop app (`desktop/` in this monorepo), in
+`desktop/src-tauri/src/commands/server_library.rs`. It checks the URL (http/https, a
 host, no credentials), applies a 10 s connect and 120 s request timeout, and
 caps the size of the export download. The client's own wiki covers its
 settings and cache.

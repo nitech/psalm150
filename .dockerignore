@@ -5,3 +5,9 @@ api/target
 shared/lyrics/target
 web/node_modules
 web/dist
+# The image is the song server only.
+desktop
+site
+docs
+.wiki
+**/node_modules

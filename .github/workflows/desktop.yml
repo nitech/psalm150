@@ -1,0 +1,30 @@
+name: Desktop
+
+# Type-checks, builds and tests the desktop app's frontend on every change to
+# it or to the shared/ code it builds with, so a change made for the web
+# client cannot quietly break the desktop. The Rust core is built by the
+# release workflow on main.
+on:
+  push:
+    paths:
+      - "desktop/**"
+      - "shared/**"
+      - ".github/workflows/desktop.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "shared/**"
+      - ".github/workflows/desktop.yml"
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bun run test

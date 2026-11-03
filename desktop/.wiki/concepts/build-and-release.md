@@ -27,7 +27,7 @@ sources:
     resource: /src-tauri/capabilities/projection.json
     title: Capabilities for audience/stage
   - id: workflow
-    resource: /.github/workflows/release.yml
+    resource: /../.github/workflows/release.yml
     title: Release workflow
   - id: readme
     resource: /README.md
@@ -35,7 +35,7 @@ sources:
   - id: skill
     resource: /.agents/skills/tauri-v2/SKILL.md
     title: Vendored Tauri v2 skill (pinned in skills-lock.json)
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Build and release
@@ -88,8 +88,11 @@ the app with a simulated display.
 
 ## Release
 
-`release.yml` runs on every push to `main` (not for changes to Markdown,
-`docs/` or `.wiki/` only) and on manual dispatch, one run at a time.
+`release.yml` (at the monorepo's root) runs on every push to `main` that
+changes `desktop/` or the `shared/` code it builds with (not for changes to
+Markdown, `desktop/docs/` or a `.wiki/` only; server-only pushes publish
+nothing) and on manual dispatch, one run at a time. Its steps run in
+`desktop/` (`projectPath: desktop` for the Tauri action).
 
 1. `create` works out the version: `<major>.<minor>` from
    `tauri.conf.json` plus `github.run_number`, so it always goes up. It

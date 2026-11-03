@@ -1,6 +1,9 @@
 # Directory Update Log
 
 ## 2026-11-03
+* **One repository**: the song server joined the Psalm150 monorepo (nitech/psalm150) with its history; `api/`, `web/`, `shared/`, the `Dockerfile` and `compose.yaml` keep their paths, and the desktop app is in `desktop/`. The desktop no longer mirrors `shared/`: both apps use it as it is. The chord sounds moved from `web/public/sounds/` to `shared/sounds/` and reach `/sounds/` in each app through the `shared/vite-sounds.mjs` Vite plugin (same URLs, so the service worker is unchanged). CI is `.github/workflows/server.yml`, run only for server paths; the version hook bumps only for commits touching `api/`, `web/` or `shared/`; the image leaves the desktop and site out. The project is MIT licensed. Pages touched: overview, build-and-ci, web-client, online-search, desktop-sync, gaps, index.
+
+## 2026-11-03
 * **Search at the far right**: in the phone song list's button pill the magnifier comes last, after Live and New. Pages touched: web-client.
 
 ## 2026-11-02

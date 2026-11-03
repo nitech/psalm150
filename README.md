@@ -1,133 +1,133 @@
-# PSA150 Song Server
+# Psalm150
 
-PSA150 Song Server is an optional, self-hostable, API-first song service for
-individual churches. It adds shared libraries, plans, revision history,
-publishing, and song provenance without making the PSA150 desktop application
-dependent on a server.
+> Let every thing that hath breath praise the LORD. Praise ye the LORD.
+> — Psalm 150:6 (KJV)
 
-The project is implementing its first private-library vertical slice.
+**Song books for small churches.** Psalm150 puts the words on the screen for
+the congregation, the chords in front of the musicians, and the church's song
+book in everyone's pocket. It is free, it is small, and it runs on what a
+small church already has: a laptop by the projector and, if you like, a
+Raspberry Pi in a cupboard.
 
-## PSA150 mission
+Psalm150 exists to help song leaders and church members write, prepare, sing
+and share songs. Its tools are there to support worshippers in glorifying the
+one Lord, Jesus Christ. Freely ye have received, freely give (Matthew 10:8):
+the whole thing is free, and open under the MIT license.
 
-PSA150 exists to help song leaders and church members write, prepare, sing, and
-share songs. Its practical tools are intended to support worshippers in
-glorifying the one Lord, Jesus Christ.
+## What's in it
 
-The Song Server is one part of that wider system. It supports shared song work
-and publishing; it is not the purpose of PSA150 by itself.
+### The desktop app — `desktop/`
 
-## Product principles
+The program on the computer by the projector. Search the song book, press
+Project, and the words are on the screen.
 
-- **Offline first:** the desktop application can always use a local ChordPro
-  library and run a complete service without a server or Internet connection.
-- **Church independence:** a church normally owns and operates its own server.
-  One server may deliberately host several isolated churches, but no church is
-  placed in a larger organization by default.
-- **Lightweight operation:** the first supported deployment consists of one API
-  service and PostgreSQL. Redis, message brokers, object storage, external
-  search services, and hosted identity providers are not required.
-- **API first:** every first-party interface uses the same versioned API that is
-  available to desktop clients, church websites, and other integrations.
-- **Portable data:** a church can import and export ordinary ChordPro files and
-  retain its data without continuing to operate PSA150 Song Server.
-- **Explicit sharing:** importing a published song creates an independent copy.
-  Imported songs never receive automatic changes from their source.
-- **AI remains a tool:** future AI-assisted features may help with transcription,
-  lyric synchronization, comparison, and related audio-to-text work. AI is not
-  PSA150's main tool, never replaces human leadership or responsibility, and is
-  never required for the core product.
+- Words on the congregation's screen, chords on an optional stage screen for
+  the musicians, the operator's console on the laptop.
+- **No server, no internet needed.** A folder of ChordPro files is the song
+  book (a Dropbox folder works fine). It runs a whole service offline.
+- Brings over an old Visual Song Book `.mdb` song book.
+- Sets for the service, a phone as a remote, and songs found online when you
+  ask, with chords from the web laid over your own words.
+- Windows, macOS and Linux. The Windows installer is about **7 MB** (10–11 MB
+  on macOS and Linux): built with [Tauri](https://tauri.app), it uses the web
+  view the system already has instead of shipping a browser.
+- Updates itself in the background and installs when the program is closed,
+  never in the middle of a service.
 
-## Library authority
+**Download:** [the latest release](https://github.com/nitech/psalm150/releases/latest).
 
-PSA150 supports two independent library modes:
+### The song server — `api/` and `web/` (optional)
 
-| Library mode | Canonical source | Desktop behavior |
+For a church that wants one shared song book for everyone. The desktop app
+works without it.
+
+- One Rust program and PostgreSQL, started with Docker Compose. No Redis, no
+  message queue, no cloud account. It runs on a Raspberry Pi;
+  [the dev server](https://dev-server.example) does.
+- The church's songs with their full history, and sets for each service that
+  a leader can share on a link.
+- A web app for phones in 14 languages: the song book with chords, diagrams
+  and sound, transposing, recordings of how a song is played.
+- **Rooms:** anyone in the church can follow the projected words on their own
+  phone, as large as they need, by typing the room's name at `/join`. No
+  account, no app.
+- Desktops connect to it and keep an offline copy, so a service never depends
+  on the network.
+- Everything goes through one documented API (`/api/docs` on any server).
+
+More in [docs/song-server.md](docs/song-server.md).
+
+### Shared code — `shared/`
+
+What the two apps have in common, used by both as it is: the song editor and
+reader, chords with diagrams and sound, design tokens and icons, and the
+online song lookup (`shared/lyrics`, a Rust crate).
+
+## Principles
+
+- **Small.** Few dependencies, small downloads, a server that fits on a
+  Raspberry Pi. Nothing a small church has to pay for or look after without
+  a good reason.
+- **Offline first.** The projector computer never waits for a server or the
+  internet.
+- **The church owns its songs.** ChordPro files in, ChordPro files out.
+- **People lead.** Tools help; they never take over from the song leader.
+
+## Run a song server
+
+On any machine with Docker (the dev server runs on a Raspberry Pi):
+
+```sh
+git clone https://github.com/nitech/psalm150.git
+cd psalm150
+cp .env.example .env      # set a long, random POSTGRES_PASSWORD
+docker compose up --build -d
+```
+
+Open `http://<the machine>:8080` for first-run setup. To reach it from
+outside the church building, put it behind a reverse proxy or a tunnel; see
+[docs/song-server.md](docs/song-server.md).
+
+## Develop
+
+You need [Bun](https://bun.sh), Rust (`rustup`), and Docker or PostgreSQL for
+the server. On Windows, the desktop also needs the
+[Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+with the C++ workload.
+
+| Part | Start | Test |
 | --- | --- | --- |
-| Folder-backed | One ChordPro file per song in a local, network, or synchronized folder | Reads and writes the canonical files directly |
-| Server-backed | PostgreSQL on the configured PSA150 Song Server | Maintains an offline-capable local replica and synchronizes when the server is reachable |
+| Desktop | `cd desktop && bun install && bun run tauri dev` | `bun run test`, `bun run test:rust` |
+| Server API | `cargo run --manifest-path api/Cargo.toml` (needs `DATABASE_URL`) | `cargo test --manifest-path api/Cargo.toml --all-features` |
+| Web client | `cd web && bun install && bun run dev` (proxies `/api` to port 8080) | `bun run test` |
+| Lyrics crate | | `cargo test --manifest-path shared/lyrics/Cargo.toml` |
 
-The projection computer owns live performance state in both modes. The Song
-Server is never required to advance slides, blank a display, or complete an
-already prepared service.
+A change in `shared/` reaches both apps, so build and test both. Run
+`git config core.hooksPath .githooks` once per clone; it bumps the server's
+version on commits that change it.
 
-## Initial scope
-
-- Church-owned songs stored as ChordPro source text.
-- Immutable song revision history and explicit conflict handling.
-- Provenance between originals, translations, adaptations, arrangements,
-  corrections, and added verses.
-- Shared service sets (plans) that viewers read and leaders edit, and that a
-  leader may share on a link for anyone to read, or to add and remove songs.
-- Simple owner, leader, and viewer access.
-- Optional public profiles and public, unlisted, or private song sharing.
-- Import, export, backup, restore, and database migration tooling.
-- A versioned REST/JSON API with an OpenAPI description.
-- An optional web interface built entirely on the public API.
-- Docker images for `linux/amd64` and `linux/arm64`.
-
-General-purpose social networking, live projection, and automatic upstream
-updates to imported songs are not server responsibilities. The server may relay
-remote-control commands from a leader's phone to a desktop that allows it, but
-the desktop keeps control of the projection and works without the server. Each
-desktop also has a room, named after a flower: anyone who types its name at
-`/join` can follow the projected words on their own phone, as large as they
-need, without an account.
-
-AI-assisted audio and lyric processing is future scope, not part of the initial
-server release. The foundational song, planning, projection, and sharing
-workflows must remain useful without an AI provider, subscription, or Internet
-connection.
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [API](docs/api.md)
-- [Phase 1](docs/phase-1.md)
-- [Implementation plan](TODO.md)
-
-## Repository layout
+Pushing to `main` publishes: a change to `desktop/` or `shared/` becomes a
+desktop release that installed copies download
+([how](desktop/README.md#releasing--auto-updates)), and a change to the
+server is deployed to the dev server.
 
 ```text
-api/        Rust/Axum API and PostgreSQL migrations
-web/        Independent mobile-first Vite web client
-docs/       Architecture and delivery notes
+desktop/   The desktop app (Tauri 2: Rust core in src-tauri/, Lit frontend in src/)
+api/       The song server's API (Rust, Axum, PostgreSQL migrations)
+web/       The song server's web client (TypeScript, Vite)
+shared/    Code both apps use: song modules, sounds, tokens, icons, lyrics crate
+docs/      Server architecture, API and delivery notes
 ```
 
-The projects build independently. For the smallest production deployment, the
-API container serves the web client's compiled static files. Headless users may
-run the API without those files.
+Notes for AI agents are in [AGENTS.md](AGENTS.md) and
+[desktop/AGENTS.md](desktop/AGENTS.md), with compiled knowledge in `.wiki/`
+and `desktop/.wiki/`.
 
-## Run with Docker Compose
+## License
 
-Copy `.env.example` to `.env`, choose a strong `POSTGRES_PASSWORD`, and run:
+[MIT](LICENSE). The piano and guitar recordings for playing chords are
+CC BY 3.0, credited in [shared/sounds/CREDITS.txt](shared/sounds/CREDITS.txt).
+Libraries keep their own licenses.
 
-```sh
-docker compose up --build
-```
-
-Open `http://localhost:8080` for first-run setup. PostgreSQL is not exposed on a
-host port. API documentation is at `/api/docs` (the OpenAPI document itself is
-at `/api/openapi.json`).
-
-Everything the server does is in that API. For scripts and integrations, make
-an API token under **More → API tokens** in the web interface (or with
-`POST /api/v1/api-tokens`) and send it as `Authorization: Bearer psa_a_…`. It
-acts as you, with your role or a lower one; see [API](docs/api.md). Owners
-manage people under **More → People**.
-
-Behind a reverse proxy, set `PSA150_CLIENT_IP_HEADER` (for example
-`X-Forwarded-For`) so that limits on failed sign-ins apply to each client
-rather than to everyone at once. The proxy must also pass server-sent events
-(`text/event-stream`, used by the remote and by rooms) through without
-buffering them and keep those connections open.
-
-## Develop locally
-
-Run PostgreSQL, set `DATABASE_URL`, and start the projects independently:
-
-```sh
-cargo run --manifest-path api/Cargo.toml
-cd web && bun install && bun run dev
-```
-
-Vite proxies `/api` requests to the Rust API on port 8080.
+Psalm150 comes without songs. The songs you add belong to the people who
+wrote them, so keep your church's song license (such as CCLI) in order.

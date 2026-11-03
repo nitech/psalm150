@@ -2,9 +2,7 @@
    PSA150 design tokens: shared by the Psalm150 desktop app and the PSA150
    Song Server web client.
 
-   Canonical copy: PSA150-server/shared/psa150-tokens.css.
-   The desktop repo mirrors it at src/shared/ with `bun run sync:shared`;
-   edit it here, never in the mirror.
+   Both the web client and the desktop use this file as it is.
 
    Two themes share one accent and one vocabulary:
    - dark  (default for the desktop console and for phones in a dark room)

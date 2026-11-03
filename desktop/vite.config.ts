@@ -1,10 +1,12 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
+import { sharedSounds } from "../shared/vite-sounds.mjs";
 
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   clearScreen: false,
+  plugins: [sharedSounds()],
   server: {
     port: 1420,
     strictPort: true,

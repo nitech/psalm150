@@ -1,9 +1,8 @@
 //! Finds a song online and turns its page into ChordPro.
 //!
 //! Shared by the Psalm150 desktop app (which must work without a song
-//! server) and the song server (for its web client). The server repo's
-//! `shared/lyrics/` is canonical; the desktop mirrors it with
-//! `bun run sync:shared`.
+//! server) and the song server (for its web client), both as a path
+//! dependency.
 //!
 //! [`search`] asks a search engine for chord and lyric pages, fetches the
 //! best few in parallel, reads each with [`page::read`] and converts the text

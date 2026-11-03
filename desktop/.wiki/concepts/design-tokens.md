@@ -1,13 +1,13 @@
 ---
 type: Concept
 title: Design tokens
-description: The shared PSA150 design tokens — one CSS file owned by the song server repo and mirrored (with the shared icons) in src/shared/, dark and light themes, how styles.css aliases them, and designsystem.json as a reference only.
+description: The shared PSA150 design tokens — one CSS file in the monorepo's shared/ folder (next to the shared icons) used by both apps, dark and light themes, how styles.css aliases them, and designsystem.json as a reference only.
 tags: [design, css, tokens, theme, server]
 status: stable
 sources:
   - id: tokens
-    resource: /src/shared/psa150-tokens.css
-    title: Mirror of the server's --psa-* tokens, dark and light themes
+    resource: /../shared/psa150-tokens.css
+    title: The --psa-* tokens both apps use, dark and light themes
   - id: css
     resource: /src/styles.css
     title: Imports the tokens; console aliases in :root
@@ -17,7 +17,7 @@ sources:
   - id: reference
     resource: /designsystem.json
     title: PSA150 Design System reference (not loaded by the app)
-generated: { by: agent, at: 2026-10-05T21:30:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Design tokens
@@ -26,16 +26,12 @@ Psalm150 and the PSA150 Song Server web client share one look: a near-black
 canvas (or warm off-white in the light theme) with one lime accent
 (`#C6D88C`) for active and selected state.
 
-## One file, two repos
+## One file, two apps
 
-The song server repo's `shared/psa150-tokens.css` is the **canonical copy**,
-next to `shared/icons.ts` (icon paths). This repo keeps a mirror of both in
-`src/shared/`: `bun run sync:shared` copies them from a server checkout
-(`../PSA150-server`, or `PSA150_SERVER_DIR`) and `bun run check:shared`
-fails when they differ. The `Shared UI` workflow runs the check on every
-push; it needs a `PSA150_SERVER_DEPLOY_KEY` secret (a read-only deploy key on the server
-repo) and is skipped with a warning without one. Edit the files in the server
-repo, never in the mirror. `src/icons.ts` wraps the shared paths in Lit.
+`shared/psa150-tokens.css` at the monorepo's root holds the tokens, next to
+`shared/icons.ts` (icon paths). The desktop and the song server's web client
+both use them as they are, with no copies. `src/icons.ts` wraps the shared
+paths in Lit.
 
 It defines only `--psa-*` custom properties:
 
@@ -64,7 +60,7 @@ system setting. The light theme is used by the server's web client.
 
 ## How the console uses them
 
-`styles.css` starts with `@import "./shared/psa150-tokens.css"` and keeps its own
+`styles.css` starts with `@import "../../shared/psa150-tokens.css"` and keeps its own
 variable names (`--bg-surface`, `--text-secondary`, `--accent-lime`,
 `--radius-md`, `--font-ui`, …) as aliases of the `--psa-*` tokens, so
 component CSS did not change. A few values are still local to `styles.css`

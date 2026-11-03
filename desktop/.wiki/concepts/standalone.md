@@ -1,17 +1,17 @@
 ---
 type: Principle
 title: Works without a server
-description: The desktop must do everything it offers on its own, with no song server; how code both need is shared (mirrored from the server repo's shared/) instead of moved to the server.
+description: The desktop must do everything it offers on its own, with no song server; how code both need is shared (the monorepo's shared/ folder, used by both apps) instead of moved to the server.
 tags: [principle, architecture, server, shared]
 status: stable
 sources:
-  - id: sync
-    resource: /scripts/sync-shared.mjs
-    title: Mirrors the server's shared/ folder (tokens, icons, the lyrics crate)
+  - id: shared
+    resource: /../shared/
+    title: Code both apps use as it is (tokens, icons, song modules, sounds, the lyrics crate)
   - id: workflow
-    resource: /.github/workflows/shared.yml
-    title: Fails when a mirror drifts
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+    resource: /../.github/workflows/desktop.yml
+    title: Builds and tests the desktop frontend on every change to it or to shared/
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Works without a server
@@ -29,15 +29,18 @@ It must never become the only way the desktop can do something.
 When the desktop and the server (or its web client) need the same logic,
 share the code. Do not make the desktop call the server for it.
 
-- The server repo's `shared/` is canonical. `bun run sync:shared` mirrors it:
-  `psa150-tokens.css` and `icons.ts` into `src/shared/`
-  ([design tokens](design-tokens.md)), `shared/songs/` into
-  `src/shared/songs/` (the song editor, chord sheet and sound, recordings,
-  sheets and their CSS; set up by `src/song-host.ts`), the server's
-  `web/public/sounds/` into `public/sounds/`, and the `shared/lyrics` crate into
-  `src-tauri/crates/psa150-lyrics/`, a Cargo path dependency.
-- Never edit a mirror. Change the server repo, then sync.
-  `bun run check:shared` and the "Shared files" workflow fail on drift.
+- The desktop and the song server live in one repository (the desktop in
+  `desktop/`), and both use the root `shared/` folder as it is, with no copies:
+  `psa150-tokens.css` and `icons.ts` ([design tokens](design-tokens.md)),
+  `shared/songs/` (the song editor, chord sheet and sound, recordings, sheets
+  and their CSS; set up by `src/song-host.ts`), the chord sounds in
+  `shared/sounds/` (served at `/sounds/` by `shared/vite-sounds.mjs`, a Vite
+  plugin both apps load), and the `shared/lyrics` crate, a Cargo path
+  dependency (`../../shared/lyrics`).
+- A change in `shared/` reaches both apps at once. The "Desktop" workflow
+  builds and tests the desktop frontend on every change to `desktop/` or
+  `shared/`, so a change made for the web client cannot quietly break it, and
+  a push to main that touches either publishes a desktop release.
 - Shared Rust code must build in both places. It must not depend on Tauri,
   the database or the server's Axum stack, and it must use an async HTTP
   client so it runs off the desktop's main thread.

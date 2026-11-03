@@ -1,11 +1,11 @@
 import { html } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { ICON_PATHS, type IconName } from "./shared/icons";
+import { ICON_PATHS, type IconName } from "../../shared/icons";
 
 export type { IconName };
 
 /**
- * A shared stroke icon (src/shared/icons.ts, mirrored from the song server).
+ * A shared stroke icon (shared/icons.ts, shared with the song server).
  * The paths are static constants, so `unsafeSVG` never sees user input. They
  * inherit `currentColor`, so buttons colour them through CSS.
  */

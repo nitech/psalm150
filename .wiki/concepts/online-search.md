@@ -26,7 +26,7 @@ sources:
   - id: songs-view
     resource: /web/src/views/songs.ts
     title: The offer, the search and the editor draft
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Online song search
@@ -37,10 +37,9 @@ and searching on every pause in typing made the desktop lag.
 
 ## One lookup, two homes
 
-The lookup is the Rust crate `psa150-lyrics` in `shared/lyrics/`. This repo is
-canonical. The desktop mirrors the folder into
-`src-tauri/crates/psa150-lyrics/` with `bun run sync:shared` (`check:shared`
-in its CI), the same way it mirrors the design tokens.
+The lookup is the Rust crate `psa150-lyrics` in `shared/lyrics/`. The API and
+the desktop both use it as a Cargo path dependency, the same way both apps use
+the design tokens.
 
 **The desktop must work without a song server.** Many churches never set one
 up. So the desktop runs the crate in its own process; it never asks the

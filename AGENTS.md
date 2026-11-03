@@ -1,18 +1,33 @@
-# Psalm150 Song Server — agent instructions
+# Psalm150 — agent instructions
 
-Optional, self-hosted song library for the Psalm150 desktop app: a Rust/Axum
-API on PostgreSQL (`api/`) and an independent Vite/TypeScript web client
-(`web/`) that uses only the public API. Package manager for `web/` is **bun**.
+Song books for small churches, in one repository:
+
+| Folder | What | Its own instructions |
+| --- | --- | --- |
+| `desktop/` | The desktop app (Tauri 2, Rust and Lit) that projects the words | `desktop/AGENTS.md`, `desktop/.wiki/` |
+| `api/`, `web/` | The optional song server: a Rust/Axum API on PostgreSQL and a Vite/TypeScript web client that uses only the public API | this file, `.wiki/` |
+| `shared/` | Code both apps use as it is: design tokens, icons, song modules, chord sounds, the `psa150-lyrics` crate | this file |
+
+Package manager for `desktop/` and `web/` is **bun**. Keep things small: the
+desktop installer is a few MB and the server runs on a Raspberry Pi, so add
+no dependency, service or background process that a small church would have
+to carry without a clear need.
+
+Pushing `main` deploys the server to the dev server (Dokploy, when `api/`,
+`web/` or `shared/` changed) and, when `desktop/` or `shared/` changed,
+publishes a desktop release that every installed copy downloads
+(`.github/workflows/release.yml`). A change in `shared/` does both.
 
 ## Wiki
 
-Compiled knowledge lives in `.wiki/` (schema: `.wiki/AGENTS.md`; start at
+The song server's compiled knowledge lives in `.wiki/` (the desktop's in
+`desktop/.wiki/`; schema: `.wiki/AGENTS.md`; start at
 `.wiki/overview.md`, catalog in `.wiki/index.md`). After any non-trivial
 change to architecture, contracts (HTTP endpoints, request/response schemas,
 token formats, roles, env vars, the PostgreSQL schema, the import/export format,
 the desktop sync protocol) or operator-visible behaviour, update the touched
 pages, `index.md` and `log.md` in the same turn. Skip trivial and no-behaviour
-diffs. Human docs stay in `docs/`, `README.md` and `TODO.md`; the wiki links
+diffs. Human docs stay in `docs/` (the server's overview is `docs/song-server.md`), `README.md` and `TODO.md`; the wiki links
 to them rather than copying.
 
 ## Commands
@@ -26,7 +41,8 @@ cargo fmt --manifest-path api/Cargo.toml --all -- --check
 cd web && bun install && bun run dev                       # proxies /api to :8080
 cd web && bun run build                                    # tsc --noEmit + vite build
 cd web && bun run test                                     # vitest
-git config core.hooksPath .githooks                        # once per clone: bump the version on every commit
+git config core.hooksPath .githooks                        # once per clone: bump the server version on server commits
+cd desktop && bun run build && bun run test                # the desktop frontend, after any change in shared/
 ```
 
 ## Rules that are easy to break
@@ -86,10 +102,11 @@ git config core.hooksPath .githooks                        # once per clone: bum
   `ApiDoc` `paths(...)` / `components(...)` lists, and `web/src/types.ts`
   mirrors `api/src/models.rs` by hand.
 - Migrations in `api/migrations/` are append-only; they run at startup.
-- `shared/` (design tokens, icons, `chord-match.ts` for chords from the
-  web, and the `shared/lyrics` online song lookup crate) is canonical for
-  both apps. The desktop mirrors it with
-  `bun run sync:shared`; edit here, then sync the desktop.
+- `shared/` (design tokens, icons, song modules, `chord-match.ts` for chords
+  from the web, the chord sounds and the `shared/lyrics` online song lookup
+  crate) is used by both apps as it is, with no copies. A change there must
+  build and pass the tests in both `web/` and `desktop/`, and it publishes a
+  desktop release when pushed to main.
 - The desktop must work without a song server. Never move something the
   desktop needs into the server only; share the code instead (as
   `shared/lyrics` is shared).

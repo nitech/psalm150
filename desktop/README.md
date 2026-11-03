@@ -1,6 +1,8 @@
-# Psalm150
+# Psalm150 desktop app
 
 Cross-platform church worship projection app built with Tauri 2 (Rust + TypeScript).
+It is part of the Psalm150 monorepo (see the [README](../README.md)); the
+commands below run in `desktop/`.
 
 ## Requirements
 
@@ -63,7 +65,7 @@ bun run test:rust
 
 ## Releasing & auto-updates
 
-Every push to `main` builds and publishes a release (`.github/workflows/release.yml`); pushes that only touch Markdown, `docs/` or `.wiki/` are skipped. The version is `<major>.<minor>` from `src-tauri/tauri.conf.json` plus the workflow run number, so it always goes up; bump major or minor there by hand.
+Every push to `main` that changes `desktop/` or the `shared/` code it builds with publishes a release (`.github/workflows/release.yml` at the monorepo's root); pushes that only touch Markdown, `docs/` or `.wiki/`, or only the song server, are skipped. The version is `<major>.<minor>` from `src-tauri/tauri.conf.json` plus the workflow run number, so it always goes up; bump major or minor there by hand.
 
 Installed copies check `latest.json` on GitHub Releases ([Tauri updater](https://v2.tauri.app/plugin/updater/)) 30 s after start and then every hour. A new version is downloaded and verified in the background, and an **Update ready** chip appears in the console header. The update installs when the operator closes Psalm150 (it does not reopen), or straight away from the chip's **Restart now**. It never interrupts a service on its own. Debug builds never update.
 

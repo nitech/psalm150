@@ -30,7 +30,7 @@ sources:
     resource: /.env.example
     title: Example environment
   - id: readme
-    resource: /README.md
+    resource: /docs/song-server.md
     title: Run instructions
 generated: { by: agent, at: 2026-10-23T09:30:00Z }
 ---

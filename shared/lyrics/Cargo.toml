@@ -3,6 +3,7 @@ name = "psa150-lyrics"
 version = "0.1.0"
 edition = "2021"
 description = "Finds a song online and turns its page into ChordPro (shared by the Psalm150 desktop app and song server)"
+license = "MIT"
 publish = false
 
 [lib]

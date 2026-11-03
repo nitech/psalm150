@@ -82,7 +82,7 @@ import {
   parseLyric,
   type ChordMatch,
   type KeyChoice,
-} from "../shared/chord-match";
+} from "../../../shared/chord-match";
 import { StanzaNumberInput } from "../stanza-number-input";
 import {
   projectionStructureSignature,
@@ -99,16 +99,16 @@ import "./song-editor";
 import type { Psa150SongEditor } from "./song-editor";
 import { chordSegments, lineHasChords } from "../chord-line";
 import { desktopRecordings, installSongModules } from "../song-host";
-import { NEW_SONG_TEMPLATE } from "../shared/songs/chord-editor.ts";
-import { copyText, readPreference, writePreference } from "../shared/songs/format.ts";
-import { canRecord, mountSongMedia, type SongMedia } from "../shared/songs/song-media.ts";
-import { openSongHistory } from "../shared/songs/song-history.ts";
-import { barActions, bindBarActions, reopenMenu } from "../shared/songs/bar-menu.ts";
-import { songBarActions, type SongActionState } from "../shared/songs/song-actions.ts";
-import { closeChordDock } from "../shared/songs/chord-viewer.ts";
-import { prepareSong, songText } from "../shared/songs/song-preview.ts";
-import { transposeChord } from "../shared/songs/chordpro.ts";
-import type { ToastOptions } from "../shared/songs/host.ts";
+import { NEW_SONG_TEMPLATE } from "../../../shared/songs/chord-editor.ts";
+import { copyText, readPreference, writePreference } from "../../../shared/songs/format.ts";
+import { canRecord, mountSongMedia, type SongMedia } from "../../../shared/songs/song-media.ts";
+import { openSongHistory } from "../../../shared/songs/song-history.ts";
+import { barActions, bindBarActions, reopenMenu } from "../../../shared/songs/bar-menu.ts";
+import { songBarActions, type SongActionState } from "../../../shared/songs/song-actions.ts";
+import { closeChordDock } from "../../../shared/songs/chord-viewer.ts";
+import { prepareSong, songText } from "../../../shared/songs/song-preview.ts";
+import { transposeChord } from "../../../shared/songs/chordpro.ts";
+import type { ToastOptions } from "../../../shared/songs/host.ts";
 
 /** What the song editor is doing: changing a song, writing a new one, or checking one found online. */
 type EditorKind = "edit" | "new" | "web";
@@ -2578,7 +2578,7 @@ export class Psa150App extends Psa150Element {
     this.scheduleToastHide();
   }
 
-  /** A toast from the song modules shared with the song server (src/shared/songs/). */
+  /** A toast from the song modules shared with the song server (shared/songs/). */
   private showSongToast(message: string, options: ToastOptions) {
     this.showToast(message, options.error ? "error" : "info", options.action ?? null);
   }

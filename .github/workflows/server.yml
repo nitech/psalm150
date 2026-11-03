@@ -1,8 +1,27 @@
-name: CI
+name: Song server
 
+# The API, the web client, the shared lookup crate and the Docker image.
+# Runs when any of them (or shared/, which the web client builds with)
+# changes.
 on:
   push:
+    paths:
+      - "api/**"
+      - "web/**"
+      - "shared/**"
+      - "Dockerfile"
+      - "compose.yaml"
+      - ".dockerignore"
+      - ".github/workflows/server.yml"
   pull_request:
+    paths:
+      - "api/**"
+      - "web/**"
+      - "shared/**"
+      - "Dockerfile"
+      - "compose.yaml"
+      - ".dockerignore"
+      - ".github/workflows/server.yml"
 
 jobs:
   api:
@@ -38,7 +57,7 @@ jobs:
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-features
 
-  # The online song lookup, shared with the desktop (which mirrors it).
+  # The online song lookup, shared with the desktop.
   lyrics:
     runs-on: ubuntu-latest
     defaults:

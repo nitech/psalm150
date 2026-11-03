@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { RecordingLink, SongRecording } from "./shared/songs/song-media.ts";
-import type { RevisionSummary } from "./shared/songs/song-history.ts";
+import type { RecordingLink, SongRecording } from "../../shared/songs/song-media.ts";
+import type { RevisionSummary } from "../../shared/songs/song-history.ts";
 
 /** A new version, downloaded and verified, waiting to be installed. */
 export interface UpdateInfo {

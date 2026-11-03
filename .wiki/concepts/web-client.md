@@ -70,17 +70,17 @@ sources:
     title: Web app manifest and icons
   - id: tokens
     resource: /shared/psa150-tokens.css
-    title: Shared design tokens (canonical; the desktop mirrors them)
+    title: Shared design tokens (both apps use them)
   - id: shared-icons
     resource: /shared/icons.ts
-    title: Shared icon paths (canonical; the desktop mirrors them)
+    title: Shared icon paths (both apps use them)
   - id: styles
     resource: /web/src/styles.css
     title: Layout and components
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-10-23T13:20:00Z }
+generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
 # Web client
@@ -354,7 +354,7 @@ are not affected.
   from the tuning (EADGBE, `GUITAR_TUNING`; dim when not played). Piano shows root position and
   the inversions near middle C, a slash bass in the left hand just below. ▷
   plays the shape from recordings of the real instruments (`chord-audio.ts`,
-  `web/public/sounds/`: Salamander Grand Piano every third semitone C2–C6,
+  `shared/sounds/`, served at `/sounds/` by `shared/vite-sounds.mjs`: Salamander Grand Piano every third semitone C2–C6,
   an acoustic guitar from tonejs-instruments every second semitone E2–D5,
   both CC BY 3.0 and credited under More → About and in
   `sounds/CREDITS.txt`; shortened, mono, 64 kbit/s MP3, about 1.25 MB in
@@ -369,7 +369,7 @@ are not affected.
   for a song without chords. It searches online (`GET /songs/online`) for
   the song's title at once; the field can be changed and searched again.
   Each version found is laid over **our** song by `shared/chord-match.ts`
-  (shared with the desktop, which mirrors it)
+  (shared with the desktop)
   (tested): each of our lines takes the chords of the online line most like
   it by its words (in any order; at least 0.6 alike; of equal ones the next
   after the last match), every chord going to the same word, as far into it,
@@ -687,7 +687,7 @@ catalog lacks), read from literal `t("…")` / `tn(n, "…", "…")` calls, so a
 text must be written out in the call, never passed in a variable.
 `web/tests/i18n.test.ts` fails when a catalog lacks a key, keeps one that is
 gone, or changes the `{names}` in a text: a new text needs its translations in
-the same change. The desktop mirrors `i18n.ts` with the other shared modules
+the same change. The desktop uses `i18n.ts` with the other shared modules
 and stays English until it loads catalogs of its own.
 
 ## API reference
@@ -874,8 +874,8 @@ on that browser goes straight to the consent screen. The whole flow is in
 ## Shared song modules
 
 Everything done with one song lives in `shared/songs/` and is the same code
-in the desktop app, which mirrors the folder (and `web/public/sounds/`) with
-`bun run sync:shared`: the editor (`chord-editor.ts`, `words-editor.ts`,
+in the desktop app, which imports the folder (and the sounds in
+`shared/sounds/`) as it is: the editor (`chord-editor.ts`, `words-editor.ts`,
 `chord-doc.ts`, `chord-picker.ts`), the song as it reads (`song-preview.ts`,
 `chordpro.ts`; reader classes `.reader*`), how to play a chord
 (`chord-viewer.ts`, `chord-shapes.ts`, `chord-audio.ts`), recordings and the
@@ -890,10 +890,8 @@ the reader's bar actions and re-exports the rest. See
 ## Design tokens and themes
 
 `shared/psa150-tokens.css` (design tokens) and `shared/icons.ts` (icon paths)
-are the canonical copies for both apps. `web/src/icons.ts` wraps the paths in
-an SVG string; the desktop wraps them in Lit and keeps a mirror in its
-`src/shared/`, refreshed with `bun run sync:shared` and checked in its CI.
-Edit the files here, never in the mirror. `<html data-theme="light|dark">`
+are used by both apps as they are. `web/src/icons.ts` wraps the paths in
+an SVG string; the desktop wraps them in Lit. `<html data-theme="light|dark">`
 picks a theme; without the attribute the system setting decides. "Automatic"
 removes the attribute. The `theme-color` meta follows the chosen theme.
 

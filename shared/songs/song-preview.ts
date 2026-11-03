@@ -2,9 +2,7 @@
  * A song as it reads: chords over the words (each chord a button that shows
  * how to play it, chord-viewer.ts), the key and transposing.
  *
- * Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors this
- * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
- * in the mirror.
+ * Both the web client and the desktop use this folder as it is.
  */
 import { hasChords, parseChordPro, transposeSong, type DisplaySong } from "./chordpro.ts";
 import { guessKey } from "../chord-match.ts";

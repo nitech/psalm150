@@ -1,19 +1,24 @@
 name: Release
 
-# Every push to main publishes a signed release. Installed apps poll
+# Every push to main that changes the desktop app (desktop/, or the shared/
+# code it builds with) publishes a signed release. Installed apps poll
 # releases/latest/download/latest.json, download the new build in the
-# background and install it when the operator closes Psalm150.
+# background and install it when the operator closes Psalm150. Changes to the
+# server or the docs alone publish nothing.
 #
-# The version is <major>.<minor> from src-tauri/tauri.conf.json plus the run
-# number, so it always goes up. Bump major or minor there by hand.
+# The version is <major>.<minor> from desktop/src-tauri/tauri.conf.json plus
+# the run number, so it always goes up. Bump major or minor there by hand.
 
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "**.md"
-      - ".wiki/**"
-      - "docs/**"
+    paths:
+      - "desktop/**"
+      - "shared/**"
+      - ".github/workflows/release.yml"
+      - "!**.md"
+      - "!**/.wiki/**"
+      - "!desktop/docs/**"
   workflow_dispatch:
 
 # One release at a time, in push order; never cancel a half-built release.
@@ -32,6 +37,9 @@ jobs:
       release_id: ${{ steps.release.outputs.id }}
       desktop_api: ${{ steps.version.outputs.desktop_api }}
       server_endpoints: ${{ steps.endpoints.outputs.list }}
+    defaults:
+      run:
+        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -96,6 +104,9 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
+    defaults:
+      run:
+        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -107,7 +118,7 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: desktop/src-tauri
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -136,6 +147,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          projectPath: desktop
           releaseId: ${{ needs.create.outputs.release_id }}
           includeUpdaterJson: true
           updaterJsonPreferNsis: true

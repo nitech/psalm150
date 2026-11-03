@@ -44,7 +44,7 @@ be added later, but Phase 1 presents a single-church setup.
 7. Stop the server and project a complete prepared service from that replica.
 8. Restart the server and pull its latest song revisions.
 
-The server implements steps 1–5. The companion `PSA150-client` repository now
+The server implements steps 1–5. The desktop app (`desktop/`) now
 implements steps 6–8 as a read-only Phase 1 replica: users connect with a
 revocable desktop token, merge exact local-only songs from the remembered local
 folder, and explicitly download server changes. Editing existing server songs

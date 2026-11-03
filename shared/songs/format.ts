@@ -2,9 +2,7 @@
  * Small text and page helpers used by the song modules in both apps (the
  * song server's web client and the Psalm150 desktop app).
  *
- * Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors this
- * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
- * in the mirror.
+ * Both the web client and the desktop use this folder as it is.
  */
 import { locale, t, tn } from "./i18n.ts";
 

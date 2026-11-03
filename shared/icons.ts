@@ -4,8 +4,7 @@
  * inner markup of an `<svg viewBox="0 0 24 24">`; each app wraps it in its own
  * `icon()` helper. The paths inherit `currentColor`.
  *
- * Canonical copy: PSA150-server/shared/icons.ts. The desktop repo mirrors it
- * at src/shared/ with `bun run sync:shared`; edit it here, never in the mirror.
+ * Both the web client and the desktop use this file as it is.
  * Keep this file free of imports so both apps can use it as is.
  */
 export const ICON_PATHS = {

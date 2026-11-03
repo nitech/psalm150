@@ -6,9 +6,7 @@
  * version saved on top of an older one (a translation branching off, say)
  * gets a lane of its own, and the lanes join where they share a version.
  *
- * Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors this
- * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
- * in the mirror.
+ * Both the web client and the desktop use this folder as it is.
  */
 import { lineSections } from "./chordpro.ts";
 import { t, tn } from "./i18n.ts";

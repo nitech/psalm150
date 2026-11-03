@@ -1,9 +1,7 @@
 /**
  * Sheets: a bottom sheet on phones, a centred dialog on wide screens.
  *
- * Canonical copy: PSA150-server/shared/songs/. The desktop repo mirrors this
- * folder at src/shared/songs/ with `bun run sync:shared`; edit it here, never
- * in the mirror.
+ * Both the web client and the desktop use this folder as it is.
  */
 import { escapeHtml } from "./format.ts";
 import { t } from "./i18n.ts";
