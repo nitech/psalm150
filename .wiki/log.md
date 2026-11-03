@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-03
+* **Search at the far right**: in the phone song list's button pill the magnifier comes last, after Live and New. Pages touched: web-client.
+
 ## 2026-11-02
 * **Song list header like the others**: on phones the search magnifier, Live and New sit in the same button pill as a song's toolbar (`.search-actions`, flat from 900 px), and New is a quiet icon instead of a lime one. Pages touched: web-client.
 * **The web client in 14 languages**: every text on screen goes through `t()` / `tn()` (`shared/songs/i18n.ts`, English text as the key, plural rules per language); catalogs for nb, nn, sv, da, fi, is, de, nl, fr, es, it, pt and pl in `web/src/i18n/`, one loaded at a time before the first screen. The language follows the device unless chosen under Settings, Appearance (`psa150-language`). Dates and numbers follow it. `web/scripts/i18n-keys.mjs` lists the keys; `web/tests/i18n.test.ts` fails on a missing or stale key or changed `{names}`. Pages touched: web-client, index.
