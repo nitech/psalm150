@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   PSA150 design tokens: shared by the Psalm150 desktop app and the PSA150
-   Song Server web client.
+   Psalm150 design tokens: shared by the desktop app and the song server's
+   web client.
 
    Both the web client and the desktop use this file as it is.
 
@@ -49,13 +49,21 @@
   --psa-dur-fast: 120ms;
   --psa-dur-base: 200ms;
 
-  /* Brand accent (same hue in both themes; the light theme uses a deeper
-     shade so text on the page keeps its contrast). */
-  --psa-lime-300: #cfe09b;
-  --psa-lime-400: #c6d88c;
-  --psa-lime-500: #b3c977;
-  --psa-lime-700: #5f6f2a;
-  --psa-lime-800: #4a5720;
+  /* Brand colours. Gold is the accent: what you press, what is chosen, the
+     focus ring and the brand mark. Sky is the second colour: chords and
+     favourites. Same hues in both themes; the light theme uses deeper shades
+     so text on the page keeps its contrast. */
+  --psa-gold-300: #efca85;
+  --psa-gold-400: #e6b860;
+  --psa-gold-500: #d6a64c;
+  --psa-gold-600: #c0903a;
+  --psa-gold-700: #9a6c19;
+  --psa-gold-800: #7a5410;
+  --psa-sky-300: #acd3f0;
+  --psa-sky-400: #8ec3ea;
+  --psa-sky-500: #6fb0e0;
+  --psa-sky-700: #2b72a6;
+  --psa-sky-800: #1f5b87;
 }
 
 /* Dark theme: the default. */
@@ -83,20 +91,30 @@
   --psa-text-tertiary: #a3a3a3;
   --psa-text-placeholder: #8c8c8c;
 
-  --psa-accent: var(--psa-lime-400);
-  --psa-accent-hover: var(--psa-lime-300);
-  --psa-accent-pressed: var(--psa-lime-500);
-  --psa-accent-soft: rgba(198, 216, 140, 0.12);
-  --psa-accent-medium: rgba(198, 216, 140, 0.22);
-  --psa-accent-glow: rgba(198, 216, 140, 0.25);
-  --psa-accent-text: var(--psa-lime-400);
+  --psa-accent: var(--psa-gold-400);
+  --psa-accent-hover: var(--psa-gold-300);
+  --psa-accent-pressed: var(--psa-gold-500);
+  /* The far end of a gold gradient (the brand mark). */
+  --psa-accent-deep: var(--psa-gold-600);
+  /* The accent as r, g, b for other tints: rgba(var(--psa-accent-rgb), 0.35). */
+  --psa-accent-rgb: 230, 184, 96;
+  --psa-accent-soft: rgba(230, 184, 96, 0.12);
+  --psa-accent-medium: rgba(230, 184, 96, 0.22);
+  --psa-accent-glow: rgba(230, 184, 96, 0.25);
+  --psa-accent-text: var(--psa-gold-400);
   --psa-on-accent: #1a1a1a;
 
-  --psa-chord: var(--psa-lime-400);
+  --psa-secondary: var(--psa-sky-400);
+  --psa-secondary-soft: rgba(142, 195, 234, 0.12);
+  --psa-secondary-text: var(--psa-sky-400);
+
+  --psa-chord: var(--psa-sky-400);
+  --psa-favorite: var(--psa-sky-400);
 
   --psa-positive: #46c081;
   --psa-positive-soft: rgba(70, 192, 129, 0.12);
-  --psa-warning: #d0c24c;
+  /* Orange, so a warning is never mistaken for the gold accent. */
+  --psa-warning: #f2994a;
   --psa-danger: #f0646a;
   --psa-danger-soft: rgba(224, 69, 76, 0.12);
   --psa-on-danger: #060606;
@@ -104,7 +122,7 @@
   --psa-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
   --psa-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
   --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
-  --psa-focus-color: var(--psa-lime-400);
+  --psa-focus-color: var(--psa-gold-400);
 }
 
 /* Light theme. */
@@ -130,20 +148,27 @@
   --psa-text-tertiary: #686868;
   --psa-text-placeholder: #6a6a6a;
 
-  --psa-accent: var(--psa-lime-400);
-  --psa-accent-hover: var(--psa-lime-300);
-  --psa-accent-pressed: var(--psa-lime-500);
-  --psa-accent-soft: rgba(95, 111, 42, 0.1);
-  --psa-accent-medium: rgba(95, 111, 42, 0.18);
-  --psa-accent-glow: rgba(95, 111, 42, 0.2);
-  --psa-accent-text: var(--psa-lime-800);
+  --psa-accent: var(--psa-gold-400);
+  --psa-accent-hover: var(--psa-gold-300);
+  --psa-accent-pressed: var(--psa-gold-500);
+  --psa-accent-deep: var(--psa-gold-600);
+  --psa-accent-rgb: 154, 108, 25;
+  --psa-accent-soft: rgba(154, 108, 25, 0.1);
+  --psa-accent-medium: rgba(154, 108, 25, 0.18);
+  --psa-accent-glow: rgba(154, 108, 25, 0.2);
+  --psa-accent-text: var(--psa-gold-800);
   --psa-on-accent: #1a1a1a;
 
-  --psa-chord: var(--psa-lime-800);
+  --psa-secondary: var(--psa-sky-700);
+  --psa-secondary-soft: rgba(43, 114, 166, 0.1);
+  --psa-secondary-text: var(--psa-sky-800);
+
+  --psa-chord: var(--psa-sky-800);
+  --psa-favorite: var(--psa-sky-700);
 
   --psa-positive: #17724a;
   --psa-positive-soft: rgba(31, 138, 85, 0.1);
-  --psa-warning: #6b5f0e;
+  --psa-warning: #9a4a0a;
   --psa-danger: #c0343b;
   --psa-danger-soft: rgba(192, 52, 59, 0.1);
   --psa-on-danger: #ffffff;
@@ -151,7 +176,7 @@
   --psa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --psa-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.1);
   --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
-  --psa-focus-color: var(--psa-lime-700);
+  --psa-focus-color: var(--psa-gold-700);
 }
 
 /* No explicit theme: follow the system. */
@@ -178,16 +203,22 @@
     --psa-text-tertiary: #686868;
     --psa-text-placeholder: #6a6a6a;
 
-    --psa-accent-soft: rgba(95, 111, 42, 0.1);
-    --psa-accent-medium: rgba(95, 111, 42, 0.18);
-    --psa-accent-glow: rgba(95, 111, 42, 0.2);
-    --psa-accent-text: var(--psa-lime-800);
+    --psa-accent-rgb: 154, 108, 25;
+    --psa-accent-soft: rgba(154, 108, 25, 0.1);
+    --psa-accent-medium: rgba(154, 108, 25, 0.18);
+    --psa-accent-glow: rgba(154, 108, 25, 0.2);
+    --psa-accent-text: var(--psa-gold-800);
 
-    --psa-chord: var(--psa-lime-800);
+    --psa-secondary: var(--psa-sky-700);
+    --psa-secondary-soft: rgba(43, 114, 166, 0.1);
+    --psa-secondary-text: var(--psa-sky-800);
+
+    --psa-chord: var(--psa-sky-800);
+    --psa-favorite: var(--psa-sky-700);
 
     --psa-positive: #17724a;
     --psa-positive-soft: rgba(31, 138, 85, 0.1);
-    --psa-warning: #6b5f0e;
+    --psa-warning: #9a4a0a;
     --psa-danger: #c0343b;
     --psa-danger-soft: rgba(192, 52, 59, 0.1);
     --psa-on-danger: #ffffff;
@@ -195,7 +226,7 @@
     --psa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
     --psa-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.1);
     --psa-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
-    --psa-focus-color: var(--psa-lime-700);
+    --psa-focus-color: var(--psa-gold-700);
   }
 }
 

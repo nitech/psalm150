@@ -1,3 +1,4 @@
+import { BRAND_MARK } from "../../../shared/brand.ts";
 import { announce as say, setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError, type SongServerApi } from "../api.ts";
 import { icon } from "../icons.ts";
@@ -37,7 +38,7 @@ export function renderJoin(app: HTMLElement, api: SongServerApi, message = ""): 
   const last = readPreference("room") ?? "";
   app.innerHTML = `<main class="auth">
     <div class="auth-card">
-      <div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div>
+      <div class="brand large"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span>Psalm150</span></div>
       <h1>${t("Follow the words")}</h1>
       <p class="lede">${t("Type the room name shown by your church, such as <strong>Lily</strong>, to read the words on the screen on this phone, as large as you like.")}</p>
       <form class="stack" id="join-form">

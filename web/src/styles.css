@@ -1,4 +1,4 @@
-/* PSA150 Song Server web client. Mobile first; colours, type, radii and
+/* Psalm150 Song Server web client. Mobile first; colours, type, radii and
    motion come from psa150-tokens.css (shared with the desktop console). */
 
 * { box-sizing: border-box; }
@@ -62,9 +62,11 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 /* ── Brand ──────────────────────────────────────────────────────────────── */
 
 .brand { display: flex; align-items: center; gap: var(--psa-space-2); font-weight: 700; letter-spacing: 0.08em; font-size: 13px; }
-.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--psa-radius-xs); background: var(--psa-accent); color: var(--psa-on-accent); font-size: 12px; font-weight: 800; letter-spacing: 0; }
+.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--psa-radius-xs); background: var(--psa-accent); color: var(--psa-on-accent); }
+/* The Wind mark (shared/brand.ts), drawn in the mark's colour. */
+.brand-mark svg { width: 68%; height: auto; }
 .brand.large { font-size: 15px; margin-bottom: var(--psa-space-6); }
-.brand.large .brand-mark { width: 40px; height: 40px; font-size: 15px; border-radius: var(--psa-radius-sm); }
+.brand.large .brand-mark { width: 40px; height: 40px; border-radius: var(--psa-radius-sm); }
 
 /* ── Controls ───────────────────────────────────────────────────────────── */
 
@@ -276,8 +278,8 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .song-row { padding: 0 var(--psa-space-3) 0 0; }
 .row-link { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; min-height: 60px; padding: 10px 0 10px var(--psa-space-4); color: inherit; text-decoration: none; }
 .add-toggle.on, .add-toggle.on:hover:not(:disabled) { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
-/* ☆ / ★: a favourite has a filled amber star, as in the desktop app. */
-.list-sort #fav-filter.on { color: var(--psa-warning); }
+/* ☆ / ★: a favourite has a filled sky-blue star, as in the desktop app. */
+.list-sort #fav-filter.on { color: var(--psa-favorite); }
 #fav-filter.on .icon { fill: currentColor; }
 .load-more { display: grid; justify-items: center; margin: 0 0 var(--psa-space-4); }
 .load-more[hidden] { display: none; }
@@ -806,7 +808,7 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
    Last, so it overrides the phone-first rules above. */
 
 /* Wide screens: the desktop app's layout. A narrow rail of icons at the left
-   (the section in use marked by a lime edge, its name a tooltip), and the
+   (the section in use marked by a gold edge, its name a tooltip), and the
    screen in a pane with a hairline edge on the dark, dotted ground. The
    page's words keep a reading width inside it (`--gutter`). */
 @media (min-width: 900px) {
@@ -827,7 +829,7 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   }
   .tabbar .brand { margin: 0 0 var(--psa-space-3); }
   .tabbar .brand > span:last-child { display: none; }
-  .tabbar .brand-mark { background: linear-gradient(135deg, var(--psa-accent) 0%, #96ac58 100%); box-shadow: 0 4px 16px var(--psa-accent-glow), inset 0 1px 1px rgb(255 255 255 / 0.25); }
+  .tabbar .brand-mark { background: linear-gradient(135deg, var(--psa-accent) 0%, var(--psa-accent-deep) 100%); box-shadow: 0 4px 16px var(--psa-accent-glow), inset 0 1px 1px rgb(255 255 255 / 0.25); }
   .tab-label, .app-version { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .tab { display: grid; place-items: center; width: var(--rail-w); height: 44px; padding: 0; border-radius: 0; color: var(--psa-text-tertiary); }
   .tab .icon { width: 22px; height: 22px; }
@@ -855,7 +857,7 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   }
   .page > :first-child:not(.app-bar, .play, .swipe-view) { margin-top: var(--psa-space-8); }
   /* The pane's head: as tall as the desktop's, a hairline under it and a
-     faint lime light from above. */
+     faint gold light from above. */
   .app-bar, .search-bar { margin-inline: calc(-1 * var(--gutter)); padding-inline: calc(var(--gutter) - 6px); }
   .app-bar { border-bottom-color: var(--psa-border-subtle); border-radius: var(--psa-radius-lg) var(--psa-radius-lg) 0 0; background: linear-gradient(180deg, rgb(198 216 140 / 0.04) 0%, transparent 100%), var(--pane-bg); }
   .search-bar { background: var(--pane-bg); }
@@ -892,7 +894,7 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   .browse-pane #song-results .list-row, .browse-pane #song-results .row-link { min-height: 40px; padding-left: 10px; }
   .browse-pane #song-results .song-row { padding-left: 0; }
   @media (hover: hover) { .browse-pane #song-results > li:hover, .browse-pane .song-row:hover { background: var(--psa-bg-elevated); } }
-  /* The song open beside the list: a lime edge round its row. */
+  /* The song open beside the list: a gold edge round its row. */
   .browse-pane #song-results > li.on { background: var(--psa-accent-soft); box-shadow: inset 0 0 0 1px var(--psa-accent-medium); }
   .browse-pane #song-results > li.on .row-main strong { color: var(--psa-text-strong); }
   .browse-pane #song-results .list-row > .icon:last-child { display: none; }

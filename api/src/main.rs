@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(path = %config.media_dir.display(), "Recordings are kept here");
 
     let listener = TcpListener::bind(config.bind).await?;
-    tracing::info!(address = %config.bind, "PSA150 Song Server listening");
+    tracing::info!(address = %config.bind, "Psalm150 Song Server listening");
 
     // The peer address limits failed sign-ins per client.
     axum::serve(

@@ -41,7 +41,7 @@ sources:
   - id: icons
     resource: /src/icons.ts
     title: Toolbar icon set (Lucide geometry)
-generated: { by: agent, at: 2026-11-03T08:30:00Z }
+generated: { by: agent, at: 2026-11-03T10:30:00Z }
 ---
 
 # Operator console
@@ -80,7 +80,7 @@ double-click toggles the default and the widest width.
   projecting**, and Settings. Messages (toasts) float at the bottom.
 - **Activity bar** (as in VS Code, left of the song list): Search, Setlist,
   History and Favourites choose what the song list shows; the active one has
-  a lime edge. The VSB sync icon sits at the bottom when a database is linked
+  a gold edge. The VSB sync icon sits at the bottom when a database is linked
   ([VSB sync](vsb-sync.md)).
 - **Song actions** sit on the song title row instead: Edit (icon),
   **Chords from the web** (chord icon; only for a library song that may be
@@ -123,12 +123,12 @@ stays a song-number search. Parsing lives in `search-query.ts`.
 
 ## Favourite star and add to setlist
 
-The star toggles the song's favourite (`toggle_favorite`; filled amber when
+The star toggles the song's favourite (`toggle_favorite`; filled sky blue when
 set, like the star column in the list, which refreshes). Favourites are
 loaded with `list_favorites` on start-up and library changes.
 
 Library songs (not web previews) show an **add to setlist** button: the
-plain + (grey) when the song is not in the **active setlist**, a ✓ (lime)
+plain + (grey) when the song is not in the **active setlist**, a ✓ (gold)
 when it is. Clicking the check removes the song from the active setlist at once.
 Clicking the plus opens a popup listing every setlist
 (tick = contains the song; click to add or remove; Esc closes it and returns
@@ -247,7 +247,7 @@ active projection session first.
 `projecting = true` after Project. When the selected song is also active, the
 song pane switches from the flat view to **stanza view** (blocks from
 [performance sections](performance-sections.md)). Each stanza has its number
-key in a small box on its left (lime for the one on screen); intro and
+key in a small box on its left (gold for the one on screen); intro and
 interlude blocks have none. The active stanza is highlighted and scrolled into
 view; clicking another stanza jumps (`show_slide`); clicking a line of the
 active stanza puts the caret there for [ad hoc editing](adhoc-editing.md).
@@ -257,7 +257,7 @@ Layout.
 **Order column**: right of the stanzas, under "Order", the
 [sung order](performance-sections.md#sung-order) as a list of steps, each
 with its stanza's number key, section label and first line. The step on
-screen is lime, steps already sung are dimmed, and a click shows a step
+screen is gold, steps already sung are dimmed, and a click shows a step
 (`show_order_position`). The arrow keys walk down this list.
 
 There are **no stanza buttons**: the number keys (above) and clicking a stanza

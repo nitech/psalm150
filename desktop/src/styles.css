@@ -39,19 +39,19 @@
   --focus-ring: var(--psa-focus-ring);
 
   /* PSA150 accent: active / selected, used sparingly */
-  --accent-lime: var(--psa-accent);
-  --accent-lime-bright: var(--psa-accent-hover);
-  --accent-lime-pressed: var(--psa-accent-pressed);
-  --accent-lime-soft: var(--psa-accent-soft);
-  --accent-lime-medium: var(--psa-accent-medium);
-  --accent-lime-glow: var(--psa-accent-glow);
+  --accent-gold: var(--psa-accent);
+  --accent-gold-bright: var(--psa-accent-hover);
+  --accent-gold-pressed: var(--psa-accent-pressed);
+  --accent-gold-soft: var(--psa-accent-soft);
+  --accent-gold-medium: var(--psa-accent-medium);
+  --accent-gold-glow: var(--psa-accent-glow);
   --accent-on: var(--psa-on-accent);
 
   /* Legacy token aliases */
-  --accent-primary: var(--accent-lime);
-  --accent-primary-soft: var(--accent-lime-soft);
-  --accent-primary-medium: var(--accent-lime-medium);
-  --accent-primary-glow: var(--accent-lime-glow);
+  --accent-primary: var(--accent-gold);
+  --accent-primary-soft: var(--accent-gold-soft);
+  --accent-primary-medium: var(--accent-gold-medium);
+  --accent-primary-glow: var(--accent-gold-glow);
 
   --accent-secondary: var(--psa-positive);
   --accent-secondary-soft: var(--psa-positive-soft);
@@ -70,7 +70,7 @@
   --shadow-md: var(--psa-shadow-md);
   --shadow-lg: var(--psa-shadow-lg);
   --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 24px var(--accent-lime-glow);
+  --shadow-glow: 0 0 24px var(--accent-gold-glow);
   --glow-danger: 0 0 40px rgba(224, 69, 76, 0.35);
 
   /* Shared height of the search heading and the song-name heading. */
@@ -138,7 +138,7 @@ body {
   overflow: hidden;
   background-color: var(--bg-deep);
   background-image:
-    radial-gradient(circle at 50% 0%, rgba(198, 216, 140, 0.05) 0%, transparent 55%),
+    radial-gradient(circle at 50% 0%, rgba(var(--psa-accent-rgb), 0.05) 0%, transparent 55%),
     radial-gradient(circle, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 100% 100%, 24px 24px;
   font-feature-settings: "ss01", "cv01", "tnum";
@@ -181,9 +181,9 @@ body {
   width: 30px;
   height: 30px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--accent-lime) 0%, #96ac58 100%);
+  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--psa-accent-deep) 100%);
   box-shadow:
-    0 4px 16px var(--accent-lime-glow),
+    0 4px 16px var(--accent-gold-glow),
     inset 0 1px 1px rgba(255, 255, 255, 0.25);
   display: grid;
   place-items: center;
@@ -193,6 +193,8 @@ body {
 }
 
 .brand-mark svg {
+  width: 20px;
+  height: 14px;
   color: var(--accent-on);
 }
 
@@ -234,19 +236,19 @@ body {
   color: var(--text-primary);
 }
 
-/* Pressed (projecting, blanked): a solid lime edge as well as the tint, so the
+/* Pressed (projecting, blanked): a solid gold edge as well as the tint, so the
    state does not rest on colour alone. */
 .toolbar-btn.pressed,
 .toolbar-btn.ghost.pressed {
-  background: var(--accent-lime-soft);
-  border-color: var(--accent-lime);
-  color: var(--accent-lime);
+  background: var(--accent-gold-soft);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 .toolbar-icon.pressed {
-  background: var(--accent-lime-soft);
-  border-color: rgba(198, 216, 140, 0.35);
-  color: var(--accent-lime);
+  background: var(--accent-gold-soft);
+  border-color: rgba(var(--psa-accent-rgb), 0.35);
+  color: var(--accent-gold);
 }
 
 .toolbar-icon.attention {
@@ -280,8 +282,8 @@ body {
 .vsb-progress span {
   display: block;
   height: 100%;
-  background: var(--accent-lime);
-  box-shadow: 0 0 8px var(--accent-lime-glow);
+  background: var(--accent-gold);
+  box-shadow: 0 0 8px var(--accent-gold-glow);
   transition: width var(--dur-base) var(--ease-standard);
 }
 
@@ -401,9 +403,9 @@ body {
 }
 
 .toast.success {
-  color: var(--accent-lime);
-  border-color: rgba(198, 216, 140, 0.35);
-  background: var(--accent-lime-soft);
+  color: var(--accent-gold);
+  border-color: rgba(var(--psa-accent-rgb), 0.35);
+  background: var(--accent-gold-soft);
 }
 
 .toast.error {
@@ -622,7 +624,7 @@ body.workspace-resizing {
 
 .combobox-list li.highlighted,
 .combobox-list li:hover {
-  background: var(--accent-lime-soft);
+  background: var(--accent-gold-soft);
   color: var(--text-primary);
 }
 
@@ -653,8 +655,8 @@ body.workspace-resizing {
   transform: translateY(-50%);
   padding: 3px 9px;
   border-radius: var(--radius-full);
-  background: var(--accent-lime-soft);
-  color: var(--accent-lime);
+  background: var(--accent-gold-soft);
+  color: var(--accent-gold);
   font-size: 0.72rem;
   font-weight: 600;
   pointer-events: none;
@@ -705,7 +707,7 @@ body.workspace-resizing {
 }
 
 .song-list-header-cell.active {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
 }
 
 .song-list-header-cell:focus-visible {
@@ -788,17 +790,17 @@ body.workspace-resizing {
   outline-offset: -2px;
 }
 
-/* Selected song: tint plus a lime edge on the left (not colour alone). */
+/* Selected song: tint plus a gold edge on the left (not colour alone). */
 .song-list li.active {
-  background: var(--accent-lime-soft);
-  border-color: rgba(198, 216, 140, 0.12);
-  box-shadow: inset 3px 0 0 var(--accent-lime);
+  background: var(--accent-gold-soft);
+  border-color: rgba(var(--psa-accent-rgb), 0.12);
+  box-shadow: inset 3px 0 0 var(--accent-gold);
 }
 
 .song-list li.active:hover,
 .song-list li.active:focus-visible {
-  background: rgba(198, 216, 140, 0.16);
-  border-color: rgba(198, 216, 140, 0.16);
+  background: rgba(var(--psa-accent-rgb), 0.16);
+  border-color: rgba(var(--psa-accent-rgb), 0.16);
 }
 
 .song-list li.active .song-list-title {
@@ -806,7 +808,7 @@ body.workspace-resizing {
   font-weight: 500;
 }
 
-/* Tertiary grey falls under 4.5:1 on the lime tint. */
+/* Tertiary grey falls under 4.5:1 on the gold tint. */
 .song-list li.active .song-list-num,
 .song-list li.active .song-list-key {
   color: var(--text-secondary);
@@ -851,7 +853,7 @@ body.workspace-resizing {
 .song-list-star {
   flex-shrink: 0;
   font-size: 0.72rem;
-  color: var(--warning);
+  color: var(--psa-favorite);
 }
 
 .song-list li.empty-list {
@@ -905,7 +907,7 @@ body.workspace-resizing {
   height: 28px;
   margin-bottom: 8px;
   border: 2px solid var(--border-default);
-  border-top-color: var(--accent-lime);
+  border-top-color: var(--accent-gold);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
@@ -964,7 +966,7 @@ body.workspace-resizing {
   padding: 0 20px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, rgba(198, 216, 140, 0.04) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(var(--psa-accent-rgb), 0.04) 0%, transparent 100%);
 }
 
 /* Correction bar and "On screen" line: pinned at the top of the song body so
@@ -1064,8 +1066,8 @@ body.workspace-resizing {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent-lime);
-  box-shadow: 0 0 8px var(--accent-lime-glow);
+  background: var(--accent-gold);
+  box-shadow: 0 0 8px var(--accent-gold-glow);
 }
 
 .song-body {
@@ -1126,7 +1128,7 @@ body.workspace-resizing {
   inset-block: 0;
   left: -10px;
   width: 3px;
-  background: var(--accent-lime);
+  background: var(--accent-gold);
   border-radius: var(--radius-full);
 }
 
@@ -1149,8 +1151,8 @@ body.workspace-resizing {
 }
 
 .song-stanza.active .stanza-key {
-  border-color: var(--accent-lime);
-  background: var(--accent-lime);
+  border-color: var(--accent-gold);
+  background: var(--accent-gold);
   color: #161616;
 }
 
@@ -1202,7 +1204,7 @@ body.workspace-resizing {
 }
 
 .stanza-order-step.current {
-  background: rgba(198, 216, 140, 0.12);
+  background: rgba(var(--psa-accent-rgb), 0.12);
   color: var(--text-strong);
 }
 
@@ -1221,8 +1223,8 @@ body.workspace-resizing {
 }
 
 .stanza-order-step.current .stanza-order-key {
-  border-color: var(--accent-lime);
-  background: var(--accent-lime);
+  border-color: var(--accent-gold);
+  background: var(--accent-gold);
   color: #161616;
 }
 
@@ -1271,7 +1273,7 @@ body.workspace-resizing {
 }
 
 .song-section.chorus .song-section-label::before {
-  background: var(--accent-lime);
+  background: var(--accent-gold);
 }
 
 .song-section.chorus2 .song-section-label::before {
@@ -1293,7 +1295,7 @@ body.workspace-resizing {
 .song-chords {
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  color: var(--accent-lime);
+  color: var(--psa-chord);
   letter-spacing: 0.06em;
   min-height: 1.2em;
   opacity: 0.85;
@@ -1331,11 +1333,11 @@ body.workspace-resizing {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent-lime);
+  color: var(--accent-gold);
   padding: 4px 10px;
-  background: var(--accent-lime-soft);
+  background: var(--accent-gold-soft);
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(198, 216, 140, 0.2);
+  border: 1px solid rgba(var(--psa-accent-rgb), 0.2);
   display: inline-block;
 }
 
@@ -1390,14 +1392,14 @@ body.workspace-resizing {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--accent-lime);
+  background: var(--accent-gold);
   opacity: 0;
   transition: opacity 0.2s ease;
 }
 
 .slide-preview:first-child::before {
   opacity: 1;
-  box-shadow: 0 0 8px var(--accent-lime-glow);
+  box-shadow: 0 0 8px var(--accent-gold-glow);
 }
 
 .preview-label {
@@ -1459,25 +1461,25 @@ button.compact {
   font-size: 0.78rem;
 }
 
-/* Primary Button — lime accent */
+/* Primary Button — gold accent */
 button.primary {
-  background: var(--accent-lime);
+  background: var(--accent-gold);
   color: var(--accent-on);
   font-weight: 500;
   box-shadow:
-    0 4px 16px var(--accent-lime-glow),
+    0 4px 16px var(--accent-gold-glow),
     inset 0 1px 1px rgba(255, 255, 255, 0.25);
 }
 
 button.primary:hover {
-  background: var(--accent-lime-bright);
+  background: var(--accent-gold-bright);
   box-shadow:
-    0 6px 24px var(--accent-lime-glow),
+    0 6px 24px var(--accent-gold-glow),
     inset 0 1px 1px rgba(255, 255, 255, 0.25);
 }
 
 button.primary:active {
-  background: var(--accent-lime-pressed);
+  background: var(--accent-gold-pressed);
 }
 
 /* Secondary Button */
@@ -1508,14 +1510,14 @@ button.ghost:hover {
 
 /* Live Button */
 button.live {
-  background: var(--accent-lime);
+  background: var(--accent-gold);
   color: var(--accent-on);
   font-weight: 500;
-  box-shadow: 0 4px 16px var(--accent-lime-glow);
+  box-shadow: 0 4px 16px var(--accent-gold-glow);
 }
 
 button.live:hover {
-  box-shadow: 0 6px 24px var(--accent-lime-glow);
+  box-shadow: 0 6px 24px var(--accent-gold-glow);
 }
 
 /* Icon Button */
@@ -1611,8 +1613,8 @@ select option {
   width: 30px;
   height: 30px;
   border-radius: var(--radius-sm);
-  background: var(--accent-lime-soft);
-  color: var(--accent-lime);
+  background: var(--accent-gold-soft);
+  color: var(--accent-gold);
 }
 
 .view-close {
@@ -1722,7 +1724,7 @@ select option {
 
 .setlist-menu-item:hover,
 .setlist-menu-item:focus-visible {
-  background: var(--accent-lime-soft);
+  background: var(--accent-gold-soft);
 }
 
 .setlist-menu-item:focus-visible {
@@ -1737,7 +1739,7 @@ select option {
 .setlist-menu-check {
   display: grid;
   place-items: center;
-  color: var(--accent-lime);
+  color: var(--accent-gold);
 }
 
 .setlist-menu-name {
@@ -1832,7 +1834,7 @@ select option {
   border-radius: 0;
   background: none;
   transition: none;
-  accent-color: var(--accent-lime);
+  accent-color: var(--accent-gold);
 }
 
 .settings-check input[type="checkbox"]:hover {
@@ -1856,10 +1858,10 @@ select option {
   padding: 14px 16px 15px;
   overflow: hidden;
   border: 1px solid var(--border-default);
-  border-left: 2px solid var(--accent-lime);
+  border-left: 2px solid var(--accent-gold);
   border-radius: var(--radius-md);
   background:
-    linear-gradient(100deg, var(--accent-lime-soft), transparent 62%),
+    linear-gradient(100deg, var(--accent-gold-soft), transparent 62%),
     var(--bg-subtle);
 }
 
@@ -1903,7 +1905,7 @@ select option {
 }
 
 .server-sync-kicker {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
   font-size: 0.61rem;
   font-weight: 700;
   letter-spacing: 0.13em;
@@ -1928,8 +1930,8 @@ select option {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #8fa45c, var(--accent-lime-bright));
-  box-shadow: 0 0 14px var(--accent-lime-glow);
+  background: linear-gradient(90deg, #8fa45c, var(--accent-gold-bright));
+  box-shadow: 0 0 14px var(--accent-gold-glow);
   transition: width var(--dur-slow, 320ms) var(--ease-decelerate);
 }
 
@@ -1947,9 +1949,9 @@ select option {
   height: 13px;
   flex: 0 0 auto;
   border: 1px solid var(--border-strong);
-  border-top-color: var(--accent-lime);
+  border-top-color: var(--accent-gold);
   border-radius: 50%;
-  box-shadow: 0 0 10px var(--accent-lime-glow);
+  box-shadow: 0 0 10px var(--accent-gold-glow);
   animation: server-sync-orbit 720ms linear infinite;
 }
 
@@ -1974,7 +1976,7 @@ select option {
 }
 
 .server-probe.ok {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
 }
 
 .server-probe.error {
@@ -2168,20 +2170,20 @@ select option {
 }
 
 .settings-nav nav button.active {
-  background: var(--accent-lime-soft);
+  background: var(--accent-gold-soft);
   color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--accent-lime);
+  box-shadow: inset 2px 0 0 var(--accent-gold);
 }
 
 .settings-nav-icon {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
   font-size: 1rem;
   line-height: 1;
   text-align: center;
 }
 
 .settings-match {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
   font-size: 1.05rem;
   line-height: 0.7;
 }
@@ -2376,10 +2378,10 @@ select option {
     color var(--dur-fast) var(--ease-standard);
 }
 
-/* Chosen option: brighter text and a lime edge (not colour alone). */
+/* Chosen option: brighter text and a gold edge (not colour alone). */
 .select-list li.selected {
   color: var(--text-primary);
-  box-shadow: inset 3px 0 0 var(--accent-lime);
+  box-shadow: inset 3px 0 0 var(--accent-gold);
 }
 
 .select-list li.highlighted,
@@ -2396,7 +2398,7 @@ select option {
 
 .select-list li.selected.highlighted,
 .select-list li.selected:hover {
-  background: var(--accent-lime-soft);
+  background: var(--accent-gold-soft);
   color: var(--text-primary);
 }
 
@@ -2516,7 +2518,7 @@ psa150-modal.duplicate-modal .modal-card-wide {
 }
 
 .duplicate-groups button.active {
-  border-color: var(--accent-lime);
+  border-color: var(--accent-gold);
   color: var(--text-primary);
 }
 
@@ -2634,7 +2636,7 @@ psa150-modal.duplicate-modal .modal-card-wide {
 }
 
 .import-report-row.imported .import-report-status {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
 }
 
 .import-report-row.failed .import-report-status {
@@ -2707,9 +2709,9 @@ psa150-modal.duplicate-modal .modal-card-wide {
 .progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent-lime) 0%, #96ac58 100%);
+  background: linear-gradient(90deg, var(--accent-gold) 0%, var(--psa-accent-deep) 100%);
   transition: width var(--dur-slow, 320ms) var(--ease-decelerate);
-  box-shadow: 0 0 12px var(--accent-lime-glow);
+  box-shadow: 0 0 12px var(--accent-gold-glow);
 }
 
 .progress-meta {
@@ -3038,7 +3040,7 @@ psa150-song-editor {
 }
 
 .update-btn {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
 }
 
 .active-set-menu {
@@ -3284,8 +3286,8 @@ body.audience-projection {
   width: 4px;
   height: clamp(16px, 2.2vh, 20px);
   opacity: 1;
-  background: var(--accent-lime);
-  box-shadow: 0 0 16px var(--accent-lime-glow);
+  background: var(--accent-gold);
+  box-shadow: 0 0 16px var(--accent-gold-glow);
 }
 
 .audience-progress-segment.upcoming {
@@ -3304,7 +3306,7 @@ body.stage-projection {
   min-height: 100vh;
   padding: clamp(20px, 3vw, 36px);
   background:
-    linear-gradient(180deg, rgba(198, 216, 140, 0.05) 0%, transparent 120px),
+    linear-gradient(180deg, rgba(var(--psa-accent-rgb), 0.05) 0%, transparent 120px),
     #060606;
 }
 
@@ -3321,7 +3323,7 @@ body.stage-projection {
 }
 
 .stage-section {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
   font-weight: 600;
 }
 
@@ -3340,7 +3342,7 @@ body.stage-projection {
 
 .chords {
   font-family: "JetBrains Mono", ui-monospace, monospace;
-  color: var(--accent-lime);
+  color: var(--psa-chord);
   font-size: 0.95rem;
   min-height: 1.35em;
   letter-spacing: 0.06em;
@@ -3412,7 +3414,7 @@ body.stage-projection {
   color: var(--text-primary);
 }
 
-/* Active view: a lime edge on the left, like VS Code's indicator. */
+/* Active view: a gold edge on the left, like VS Code's indicator. */
 .activity-btn.active::before {
   content: "";
   position: absolute;
@@ -3421,8 +3423,8 @@ body.stage-projection {
   bottom: 8px;
   width: 2px;
   border-radius: 0 2px 2px 0;
-  background: var(--accent-lime);
-  box-shadow: 0 0 8px var(--accent-lime-glow);
+  background: var(--accent-gold);
+  box-shadow: 0 0 8px var(--accent-gold-glow);
 }
 
 .activity-btn:focus-visible {
@@ -3490,8 +3492,8 @@ body.stage-projection {
 }
 
 .shortcut-row.recording {
-  border-color: rgba(198, 216, 140, 0.35);
-  background: var(--accent-lime-soft);
+  border-color: rgba(var(--psa-accent-rgb), 0.35);
+  background: var(--accent-gold-soft);
 }
 
 .shortcut-label {
@@ -3515,8 +3517,8 @@ body.stage-projection {
 }
 
 .shortcut-row.recording .shortcut-key {
-  border-color: var(--accent-lime);
-  color: var(--accent-lime);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 .shortcut-fixed-heading {
@@ -3644,8 +3646,8 @@ body.stage-projection {
 }
 
 .chords-dialog .chords-source.on {
-  background: rgba(198, 216, 140, 0.12);
-  box-shadow: inset 3px 0 0 var(--accent-lime);
+  background: rgba(var(--psa-accent-rgb), 0.12);
+  box-shadow: inset 3px 0 0 var(--accent-gold);
 }
 
 .chords-dialog .chords-source:disabled {
@@ -3692,7 +3694,7 @@ body.stage-projection {
 }
 
 .chords-dialog .chords-summary a {
-  color: var(--accent-lime);
+  color: var(--accent-gold);
 }
 
 .chords-dialog .chords-key {
@@ -3728,7 +3730,7 @@ body.stage-projection {
 }
 
 .chords-dialog .chords-key-option.on {
-  background: var(--accent-lime);
+  background: var(--accent-gold);
   color: #161616;
 }
 
@@ -3781,7 +3783,7 @@ body.stage-projection {
   padding-right: 4px;
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  color: var(--accent-lime);
+  color: var(--psa-chord);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ export function settingsPages(ctx: Pick<AppContext, "session" | "canEdit">): Set
   const pages: Array<SettingsPage | false> = [
     { id: "account", label: t("Account"), icon: "lock", hint: t("Your name, password and signing out") },
     { id: "appearance", label: t("Appearance"), icon: "sun", hint: t("Light or dark, and language") },
-    installOption() !== "none" && { id: "app", label: t("App"), icon: "install", hint: t("Open PSA150 like an app") },
+    installOption() !== "none" && { id: "app", label: t("App"), icon: "install", hint: t("Open Psalm150 like an app") },
     { id: "library", label: t("Library"), icon: "songs", hint: ctx.canEdit ? t("Import and export songs") : t("Export the songs") },
     owner && { id: "people", label: t("People"), icon: "people", hint: t("Add people and choose what they can do"), href: "#/people" },
     owner && { id: "sharing", label: t("Sharing"), icon: "follow", hint: t("Who can read the songs, and rooms") },
@@ -123,13 +123,13 @@ const PAGES: Record<string, PageDraw> = {
     ctx.main.innerHTML = `${head}
     <div class="list">
       ${install === "prompt"
-        ? `<button class="list-row" id="install">${icon("install")}<span class="row-main"><strong>${t("Install PSA150")}</strong><small>${t("Opens like an app, stays signed in and keeps the current set for offline use")}</small></span></button>`
+        ? `<button class="list-row" id="install">${icon("install")}<span class="row-main"><strong>${t("Install Psalm150")}</strong><small>${t("Opens like an app, stays signed in and keeps the current set for offline use")}</small></span></button>`
         : install === "ios"
           ? `<div class="list-row static">${icon("install")}<span class="row-main"><strong>${t("Add to your Home Screen")}</strong><small>${t("In Safari, tap Share, then Add to Home Screen. It opens like an app and keeps the current set for offline use.")}</small></span></div>`
-          : `<div class="list-row static">${icon("install")}<span class="row-main"><strong>${t("PSA150 is installed")}</strong><small>${t("It opens like an app from your home screen.")}</small></span></div>`}
+          : `<div class="list-row static">${icon("install")}<span class="row-main"><strong>${t("Psalm150 is installed")}</strong><small>${t("It opens like an app from your home screen.")}</small></span></div>`}
     </div>`;
     ctx.main.querySelector("#install")?.addEventListener("click", () => void ctx.run(async () => {
-      if (await promptInstall()) showToast(t("PSA150 is installed."));
+      if (await promptInstall()) showToast(t("Psalm150 is installed."));
       ctx.navigate(here, true);
     }));
   },
@@ -272,7 +272,7 @@ const PAGES: Record<string, PageDraw> = {
       <li><a class="list-row" href="#/api">${icon("text")}<span class="row-main"><strong>${t("API reference")}</strong><small>${t("Everything this server does, for scripts and other programs")}</small></span>${icon("next")}</a></li>
       <li><a class="list-row" href="/api/openapi.json" download="psa150-openapi.json">${icon("download")}<span class="row-main"><strong>${t("OpenAPI document")}</strong><small>${t("The API as JSON, for tools such as Postman or Swagger")}</small></span></a></li>
     </ul>
-    <p class="fine-print">${t("PSA150 Song Server")}${info ? ` ${escapeHtml(info.version)}` : ""} · ${ctx.isPublic ? t("songs open to everyone, sets private to your church") : t("private to your church")}</p>
+    <p class="fine-print">${t("Psalm150 Song Server")}${info ? ` ${escapeHtml(info.version)}` : ""} · ${ctx.isPublic ? t("songs open to everyone, sets private to your church") : t("private to your church")}</p>
     <p class="fine-print">${t("Chord sounds: <a href=\"https://sfzinstruments.github.io/pianos/salamander\" target=\"_blank\" rel=\"noopener\">Salamander Grand Piano</a> by Alexander Holm and the acoustic guitar from <a href=\"https://github.com/nbrosowsky/tonejs-instruments\" target=\"_blank\" rel=\"noopener\">tonejs-instruments</a> by Nicholaus Brosowsky, both <a href=\"https://creativecommons.org/licenses/by/3.0/\" target=\"_blank\" rel=\"noopener\">CC BY 3.0</a>; shortened and made mono.")}</p>`;
   },
 };

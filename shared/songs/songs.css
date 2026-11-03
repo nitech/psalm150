@@ -127,7 +127,7 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .ce-text:focus-visible { box-shadow: none; }
 .ce-chips { position: absolute; inset: 0; pointer-events: none; }
 /* A small speech bubble centred over the place the chord is played, its tail pointing down at it. */
-.ce-chip { --ce-shift: -50%; position: absolute; z-index: 1; top: 0; left: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--psa-accent-soft); color: var(--psa-chord); font-size: 14px; font-weight: 700; line-height: 16px; white-space: nowrap; pointer-events: auto; touch-action: none; cursor: grab; transform: translateX(var(--ce-shift)); transform-origin: 50% 100%; -webkit-user-select: none; user-select: none; }
+.ce-chip { --ce-shift: -50%; position: absolute; z-index: 1; top: 0; left: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--psa-secondary-soft); color: var(--psa-chord); font-size: 14px; font-weight: 700; line-height: 16px; white-space: nowrap; pointer-events: auto; touch-action: none; cursor: grab; transform: translateX(var(--ce-shift)); transform-origin: 50% 100%; -webkit-user-select: none; user-select: none; }
 /* The tail: a turned square cut to its lower half, in the chip's own fill and border.
    It starts just under the chip so the see-through fill does not darken where they meet;
    with a border it reaches up over it, so the border opens into the tail. */
@@ -243,7 +243,7 @@ body:has(.editor.busy) .ce-bar-save { opacity: 0.5; pointer-events: none; }
 .h-mark, .h-note { color: var(--psa-text-tertiary); }
 .h-dir { color: var(--psa-accent-text); }
 .h-section { border-radius: 3px; background: var(--psa-accent-medium); color: var(--psa-text); }
-.h-chord { border-radius: 3px; background: var(--psa-accent-soft); color: var(--psa-chord); }
+.h-chord { border-radius: 3px; background: var(--psa-secondary-soft); color: var(--psa-chord); }
 .h-problem { text-decoration: underline wavy var(--psa-danger); text-decoration-skip-ink: none; text-underline-offset: 5px; }
 .ce-issues { display: grid; gap: 6px; margin: var(--psa-space-3) 0 0; padding: 0; list-style: none; font-size: 14px; }
 .ce-issues:empty { display: none; }

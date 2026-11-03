@@ -86,7 +86,7 @@ function openInviteSheet(ctx: AppContext): void {
     try {
       const link = await ctx.api.createInvite(String(data.get("role")) as Role, String(data.get("display_name")).trim());
       closeSheet(sheet);
-      showLinkSheet(ctx, link, t("Join {church} on PSA150", { church: ctx.session.church_name }));
+      showLinkSheet(ctx, link, t("Join {church} on Psalm150", { church: ctx.session.church_name }));
     } catch (error) {
       setFormBusy(form, false);
       form.querySelector<HTMLElement>(".form-message")!.textContent = errorMessage(error);
@@ -234,7 +234,7 @@ function openMemberSheet(ctx: AppContext, member: Member): void {
     try {
       const link = await ctx.api.createResetLink(member.user_id);
       closeSheet(sheet);
-      showLinkSheet(ctx, link, t("New password for PSA150"));
+      showLinkSheet(ctx, link, t("New password for Psalm150"));
     } catch (error) {
       button.disabled = false;
       sheet.querySelector<HTMLElement>("#reset-message")!.textContent = errorMessage(error);

@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#c6d88c"/><g fill="none" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(-2 0)"><path d="M14 26 19 21v22"/><path d="M37.5 21H27.5l-1.5 10c2-1.4 4-2 6-2 4 0 6.5 3 6.5 7s-3 7-7 7c-2.5 0-4.5-1-6-2.5"/><ellipse cx="48" cy="32" rx="6" ry="11"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#262626"/><stop offset="1" stop-color="#0a0a0a"/></linearGradient></defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#tile)"/>
+  <rect x="6" y="6" width="1012" height="1012" rx="222" fill="none" stroke="#fff" stroke-opacity=".09" stroke-width="12"/>
+  <path transform="translate(40 -30)" d="M200 700 H560 A180 180 0 0 0 740 520 A180 180 0 0 0 560 340 A129.6 129.6 0 0 0 430.4 469.6 A86.4 86.4 0 0 0 516.8 556 A48.6 48.6 0 0 0 565.4 507.4" fill="none" stroke="#e6b860" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -32,7 +32,7 @@ sources:
   - id: conf
     resource: /src-tauri/tauri.conf.json
     title: zoomHotkeysEnabled on the main window
-generated: { by: agent, at: 2026-11-03T08:30:00Z }
+generated: { by: agent, at: 2026-11-03T10:30:00Z }
 ---
 
 # Accessibility
@@ -118,7 +118,7 @@ interface; see [exceptions](#known-exceptions). The console is always dark
 
 ### Focus visible and not hidden (2.4.7, 2.4.11)
 
-A global `:focus-visible` outline (2 px, `--focus-color`, the lime of
+A global `:focus-visible` outline (2 px, `--focus-color`, the gold of
 `--psa-focus-color`) marks every control; text fields, the select and the
 song actions use `--focus-ring` (`--psa-focus-ring`); rows and options inside
 scroll areas draw it inset so it is not clipped. `outline: none` is used only
@@ -130,13 +130,13 @@ is not hidden under it.
 
 - Text uses the token greys, all at least 4.5:1 on the console surfaces.
   The placeholder grey passes on `--bg-elevated`, which fields turn on hover
-  and focus. Tertiary text on lime-tinted rows (song number and key of the
+  and focus. Tertiary text on gold-tinted rows (song number and key of the
   selected song, the room chip label, the setlist count on a hovered item)
   switches to the secondary or primary grey.
 - Field, select and search edges use `--border-control` (3:1 or more).
 - States are not shown by colour alone: the selected song row and chosen
-  select option have a lime edge; pressed toolbar buttons (Project while
-  projecting, Blank) a solid lime border; the room chip is dashed when the
+  select option have a gold edge; pressed toolbar buttons (Project while
+  projecting, Blank) a solid gold border; the room chip is dashed when the
   words are not shared; the VSB sync icon gets a dot on error; changed words
   in ad hoc editing are underlined; the keyboard's option in a list has a
   focus outline.
@@ -196,7 +196,7 @@ remote PIN accept paste; the phone remembers the PIN.
 large text buttons; the PIN has a label; results go to a `role="status"` line
 that also describes the PIN field, which is marked `aria-invalid` with a hint
 where to find the PIN after a 401. The field edge is `#737373` (3:1) and a
-lime focus ring shows keyboard focus. No zoom lock; it reflows to 320 px.
+gold focus ring shows keyboard focus. No zoom lock; it reflows to 320 px.
 
 ## How to test
 
@@ -227,7 +227,7 @@ lime focus ring shows keyboard focus. No zoom lock; it reflows to 320 px.
   are Esc and arrows (forwarded to the projection), and they are not meant to
   be read with a screen reader, so landmark and heading best practices are
   not applied. The default themes have ample contrast (lyrics `#f4f4f4` on
-  `#060606`; the overlay and stanza-counter pills; stage chords in lime;
+  `#060606`; the overlay and stanza-counter pills; stage chords in sky blue;
   the dimmed stanza arrow at 3:1). Theme colours an operator picks or imports
   are not checked.
 - **Language of song text** (3.1.2): lyrics may be in another language than

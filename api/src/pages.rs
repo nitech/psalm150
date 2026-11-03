@@ -213,7 +213,7 @@ mod tests {
     use super::*;
 
     const HTML: &str =
-        "<html><head><meta charset=\"UTF-8\" /><title>PSA150</title></head><body></body></html>";
+        "<html><head><meta charset=\"UTF-8\" /><title>Psalm150</title></head><body></body></html>";
 
     #[test]
     fn replaces_the_title_and_escapes() {
@@ -226,7 +226,7 @@ mod tests {
                 public_library: true,
             }),
         );
-        assert!(!page.contains("<title>PSA150</title>"));
+        assert!(!page.contains("<title>Psalm150</title>"));
         assert!(
             page.contains(
                 "<title>Grace &amp; &quot;Truth&quot; · Ordets &lt;Tabernakel&gt;</title>"

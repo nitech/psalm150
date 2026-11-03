@@ -117,10 +117,10 @@
 .bar-divider { flex: none; width: 1px; height: 18px; margin: 0 3px; background: var(--psa-border); }
 .icon-button.frequent { position: relative; }
 .icon-button.frequent::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--psa-accent-text); }
-/* ☆ / ★: a favourite has a filled amber star, as in the desktop app: no
+/* ☆ / ★: a favourite has a filled sky-blue star, as in the desktop app: no
    ring or tint around it, unlike other buttons that are on. */
 .fav-toggle { color: var(--psa-text-tertiary); }
-.fav-toggle.on, .icon-button.fav-toggle.on, .icon-button.fav-toggle.on:hover:not(:disabled), .bar-actions .icon-button.fav-toggle.on:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--psa-warning); }
+.fav-toggle.on, .icon-button.fav-toggle.on, .icon-button.fav-toggle.on:hover:not(:disabled), .bar-actions .icon-button.fav-toggle.on:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--psa-favorite); }
 .fav-toggle.on .icon { fill: currentColor; }
 /* Transpose: − key +, in the bar a pill of its own and in the menu one row
    with two places to tap. */

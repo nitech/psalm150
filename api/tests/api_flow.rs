@@ -775,7 +775,7 @@ async fn song_permalink_page(pool: PgPool) {
     std::fs::create_dir_all(&web).expect("web dir");
     std::fs::write(
         web.join("index.html"),
-        "<html><head><title>PSA150</title></head><body><div id=\"app\"></div></body></html>",
+        "<html><head><title>Psalm150</title></head><body><div id=\"app\"></div></body></html>",
     )
     .expect("index");
     let app = app(AppState::new(pool, 1), web.clone());
@@ -841,7 +841,7 @@ async fn song_permalink_page(pool: PgPool) {
     // A stopped or made-up link only loads the app, which says it is gone.
     let (status, html) = page("/shared/0123456789abcdef0123456789abcdef".into()).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(html.contains("<title>PSA150</title>"));
+    assert!(html.contains("<title>Psalm150</title>"));
 
     send(
         &app,
@@ -858,7 +858,7 @@ async fn song_permalink_page(pool: PgPool) {
     // Unknown or malformed ids still load the app, which says "Not found".
     let (status, html) = page("/songs/not-a-song".into()).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(html.contains("<title>PSA150</title>"));
+    assert!(html.contains("<title>Psalm150</title>"));
     std::fs::remove_dir_all(web).ok();
 }
 

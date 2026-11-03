@@ -1,3 +1,4 @@
+import { BRAND_MARK } from "../../shared/brand.ts";
 import "../../shared/psa150-tokens.css";
 import "../../shared/songs/song-controls.css";
 import "./styles.css";
@@ -434,7 +435,7 @@ function renderShell(): void {
   app.innerHTML = `<a class="skip-link" href="#page" id="skip-link">${t("Skip to content")}</a>
   <div class="shell${session ? "" : " visitor"}">
     <nav class="tabbar" id="sections" aria-label="${t("Sections")}">
-      <div class="brand" aria-hidden="true" title="${t("PSA150 · Version {version}", { version: escapeHtml(__APP_VERSION__) })}"><span class="brand-mark">150</span><span>PSA150</span></div>
+      <div class="brand" aria-hidden="true" title="${t("Psalm150 · Version {version}", { version: escapeHtml(__APP_VERSION__) })}"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span>Psalm150</span></div>
       <div class="nav-main">${tabs}</div>
       ${session ? `<div class="nav-settings" aria-label="${t("Settings")}">${settingsNav()}</div>` : ""}
       <p class="app-version">${versionLabel()}</p>
@@ -849,7 +850,7 @@ async function route(): Promise<void> {
   const slide = takeBrowserAnimated() ? null : slideBetween(shownPath, path);
   const state = history.state as { prev?: string | null } | null;
   if (state?.prev === undefined) history.replaceState({ ...(state ?? {}), prev: shownPath === path ? null : shownPath }, "");
-  // Views name their screen more exactly ("Amazing Grace · Songs · PSA150").
+  // Views name their screen more exactly ("Amazing Grace · Songs · Psalm150").
   setTitle(TABS.find((tab) => tab.tab === match.entry.tab)?.label());
   main.classList.add("loading");
 
@@ -1254,7 +1255,7 @@ function applyTheme(): void {
 function authFrame(title: string, copy: string, form: string): string {
   return `<main class="auth">
     <div class="auth-card">
-      <div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div>
+      <div class="brand large"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span>Psalm150</span></div>
       <h1 tabindex="-1">${escapeHtml(title)}</h1>
       <p class="lede">${copy}</p>
       ${form}
@@ -1275,7 +1276,7 @@ function focusAuth(): void {
 
 function renderFatal(error: unknown): void {
   setTitle(t("Not reachable"));
-  app.innerHTML = `<main class="auth"><div class="auth-card"><div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div><h1 tabindex="-1">${t("The song server is not reachable")}</h1><p class="lede">${escapeHtml(errorMessage(error))}</p><button class="button primary wide" id="retry">${t("Try again")}</button></div></main>`;
+  app.innerHTML = `<main class="auth"><div class="auth-card"><div class="brand large"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span>Psalm150</span></div><h1 tabindex="-1">${t("The song server is not reachable")}</h1><p class="lede">${escapeHtml(errorMessage(error))}</p><button class="button primary wide" id="retry">${t("Try again")}</button></div></main>`;
   focusAuth();
   document.querySelector("#retry")?.addEventListener("click", () => location.reload());
 }

@@ -4,12 +4,12 @@ import { toastDuration } from "../src/ui.ts";
 
 describe("pageTitle", () => {
   it("puts the most specific part first and the app last", () => {
-    expect(pageTitle("Amazing Grace", "Songs")).toBe("Amazing Grace · Songs · PSA150");
+    expect(pageTitle("Amazing Grace", "Songs")).toBe("Amazing Grace · Songs · Psalm150");
   });
 
   it("leaves out empty parts", () => {
-    expect(pageTitle(undefined, " ", "Sets", null)).toBe("Sets · PSA150");
-    expect(pageTitle()).toBe("PSA150");
+    expect(pageTitle(undefined, " ", "Sets", null)).toBe("Sets · Psalm150");
+    expect(pageTitle()).toBe("Psalm150");
   });
 });
 

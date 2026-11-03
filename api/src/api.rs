@@ -61,7 +61,7 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
 #[derive(OpenApi)]
 #[openapi(
     info(
-        title = "PSA150 Song Server API",
+        title = "Psalm150 Song Server API",
         version = "0.1.0",
         description = "Everything the song server does, for any client. Operations marked with \
             the `bearer` scheme need `Authorization: Bearer <token>`: a `psa_s_` session from \

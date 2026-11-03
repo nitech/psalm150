@@ -99,6 +99,7 @@ import "./song-editor";
 import type { Psa150SongEditor } from "./song-editor";
 import { chordSegments, lineHasChords } from "../chord-line";
 import { desktopRecordings, installSongModules } from "../song-host";
+import { BRAND_MARK } from "../../../shared/brand.ts";
 import { NEW_SONG_TEMPLATE } from "../../../shared/songs/chord-editor.ts";
 import { copyText, readPreference, writePreference } from "../../../shared/songs/format.ts";
 import { canRecord, mountSongMedia, type SongMedia } from "../../../shared/songs/song-media.ts";
@@ -3092,17 +3093,7 @@ export class Psa150App extends Psa150Element {
       >
         ${this.renderVsbProgress()}
         <div class="brand" title=${this.appVersion ? `Psalm150 ${this.appVersion}` : "Psalm150"}>
-          <div class="brand-mark">
-            <svg width="18" height="18" viewBox="200 180 700 680" fill="currentColor" stroke="none" aria-hidden="true">
-              <rect x="352" y="196" width="104" height="632" rx="24" />
-              <rect x="228" y="340" width="352" height="100" rx="24" />
-              <ellipse cx="626" cy="742" rx="66" ry="52" transform="rotate(-22 626 742)" />
-              <ellipse cx="800" cy="676" rx="66" ry="52" transform="rotate(-22 800 676)" />
-              <rect x="662" y="498" width="34" height="240" />
-              <rect x="836" y="432" width="34" height="240" />
-              <path d="M662 498 L870 432 L870 512 L662 578 Z" />
-            </svg>
-          </div>
+          <div class="brand-mark">${unsafeHTML(BRAND_MARK)}</div>
           <strong class="brand-name">Psalm150</strong>
         </div>
         <div class="header-end app-no-drag">

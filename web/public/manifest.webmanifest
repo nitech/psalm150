@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "PSA150 Songs",
-  "short_name": "PSA150",
+  "name": "Psalm150 Songs",
+  "short_name": "Psalm150",
   "description": "Your church's songs and sets, on any device.",
   "start_url": "/#/songs",
   "scope": "/",

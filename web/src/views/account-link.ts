@@ -1,3 +1,4 @@
+import { BRAND_MARK } from "../../../shared/brand.ts";
 import { setTitle } from "../../../shared/songs/a11y.ts";
 import { ApiError, type SongServerApi } from "../api.ts";
 import type { AccountLinkKind, PublicAccountLink, Session } from "../types.ts";
@@ -94,7 +95,7 @@ export async function renderAccountLink(
 function frame(title: string, copy: string, body: string): string {
   return `<main class="auth">
     <div class="auth-card">
-      <div class="brand large"><span class="brand-mark" aria-hidden="true">150</span><span>PSA150</span></div>
+      <div class="brand large"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span>Psalm150</span></div>
       <h1 tabindex="-1">${escapeHtml(title)}</h1>
       <p class="lede">${copy}</p>
       ${body}

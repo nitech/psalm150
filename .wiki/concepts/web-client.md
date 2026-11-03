@@ -80,7 +80,7 @@ sources:
   - id: vite
     resource: /web/vite.config.ts
     title: Dev server on 5173 proxying /api to 8080
-generated: { by: agent, at: 2026-11-03T08:30:00Z }
+generated: { by: agent, at: 2026-11-03T10:30:00Z }
 ---
 
 # Web client
@@ -129,7 +129,7 @@ subtitle is `public_library_name` from `/info`.
 Signed in, the app is a shell with four sections: **Songs**, **Sets**,
 **Remote** and **Settings** (visitors: **Songs** and **Sign in**). At 900 px and
 wider they are a narrow rail of icons as in the desktop app (the one in use
-marked by a lime edge, names as tooltips; the version and build time are in
+marked by a gold edge, names as tooltips; the version and build time are in
 the brand's tooltip and for screen readers), and each screen sits in a pane
 with a hairline edge on the dotted dark ground (`--pane-bg`, `--gutter` keeps
 the reading width). At 1100 px and wider the songs are laid out as on the
@@ -803,7 +803,7 @@ and make read-only API tokens. Owners alone see **Church** (People, and
 - `web/public/` holds `favicon.ico`, `favicon.svg`, `apple-touch-icon.png`
   (180 px), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` and
   `manifest.webmanifest` (standalone, start at `#/songs`, dark theme colour).
-  The icons are the lime "150" mark.
+  The icons are the Wind mark, gold on the dark tile (`shared/brand/`); the header shows it in `.brand-mark` (`shared/brand.ts`).
 - `sw.js` (registered in production builds only):
   - the page: network first, the saved copy offline;
   - `/assets/` (hashed): from the cache once saved; the current bundle is

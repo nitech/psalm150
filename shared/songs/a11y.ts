@@ -4,9 +4,9 @@
  * screen redraws, and the arrow keys of a radio group.
  */
 
-const APP_NAME = "PSA150";
+const APP_NAME = "Psalm150";
 
-/** "Amazing Grace · Songs · PSA150": most specific first, empty parts left out. */
+/** "Amazing Grace · Songs · Psalm150": most specific first, empty parts left out. */
 export function pageTitle(...parts: Array<string | null | undefined>): string {
   return [...parts.map((part) => part?.trim()).filter(Boolean), APP_NAME].join(" · ");
 }
