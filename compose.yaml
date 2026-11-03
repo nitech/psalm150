@@ -1,0 +1,43 @@
+name: psa150
+
+services:
+  server:
+    build:
+      context: .
+    image: psa150/song-server:local
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://psa150:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@database:5432/psa150
+      PSA150_BIND: 0.0.0.0:8080
+      PSA150_WEB_DIST: /app/web/dist
+      PSA150_MEDIA_DIR: /app/data/media
+      PSA150_SESSION_HOURS: ${PSA150_SESSION_HOURS:-168}
+      PSA150_CLIENT_IP_HEADER: ${PSA150_CLIENT_IP_HEADER:-}
+      RUST_LOG: ${RUST_LOG:-psa150_server=info,tower_http=info}
+    ports:
+      - "${PSA150_PORT:-8080}:8080"
+    volumes:
+      # Song recordings. Back this up together with the database.
+      - psa150-media:/app/data/media
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: psa150
+      POSTGRES_USER: psa150
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - psa150-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psa150 -d psa150"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  psa150-postgres:
+  psa150-media:

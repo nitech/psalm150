@@ -1,0 +1,411 @@
+import { announce } from "../../shared/songs/a11y.ts";
+import { closeSheet, openSheet } from "../../shared/songs/sheet.ts";
+import type { SongServerApi } from "./api.ts";
+import type { CurrentSet } from "./current-set.ts";
+import type { Follow } from "./follow.ts";
+import { icon } from "./icons.ts";
+import type { RemoteDesktop, SetDetail, SetLive } from "./types.ts";
+import { errorMessage, escapeHtml, readPreference, showToast, writePreference } from "./ui.ts";
+import { t, tn } from "../../shared/songs/i18n.ts";
+
+/**
+ * What this phone does with the projector and the people around it, in one
+ * place: a Live button in every screen's top bar shows it by its icon, and
+ * tapping it opens a sheet to change it.
+ *
+ * - **Follow** the projector: its words fill this screen (follow.ts).
+ * - **Lead** a set: everyone with its shared link moves to the item this
+ *   phone shows in the set's service view.
+ * - **Control** the projector: a desktop projects the item this phone shows
+ *   in a set's service view.
+ *
+ * Following stands alone; leading and controlling go together or apart.
+ * Turning one on says what it turns off. Leading and controlling last while
+ * the app is open, from screen to screen.
+ */
+export interface Live {
+  /** Redraws the card (the desktops or the current set changed). */
+  draw(): void;
+  /** The set service view shows this item: leaders and the projector follow. */
+  showItem(set: SetDetail, index: number): void;
+  /** The service view is closed. */
+  leaveSet(set: SetDetail): void;
+  leading(setId: string): boolean;
+  /** The desktop under control, if any. */
+  readonly controlled: RemoteDesktop | null;
+  /** Opens the sheet. */
+  open(): void;
+  /** Hears every change (the service view redraws its buttons). */
+  subscribe(listener: () => void): () => void;
+  /** Everything off (signed out). */
+  stop(): void;
+}
+
+interface Lead {
+  set: SetDetail;
+  itemId: string | null;
+  info: SetLive | null;
+}
+
+export function installLive(options: {
+  api: SongServerApi;
+  follow: Follow;
+  currentSet: CurrentSet;
+  /** Owners and leaders lead and control; everyone signed in follows. */
+  canLead: () => boolean;
+}): Live {
+  const { api, follow, currentSet, canLead } = options;
+  let lead: Lead | null = null;
+  let controlId: string | null = null;
+  /** The set's service view open now, and its item. */
+  let shown: { set: SetDetail; index: number } | null = null;
+  /** The item last sent to the projector, so a redraw does not send it again. */
+  let projected = "";
+  let sheet: HTMLDialogElement | null = null;
+  let timer = 0;
+  const listeners = new Set<() => void>();
+
+  const online = () => follow.desktops.filter((desktop) => desktop.online);
+  const steerable = () => online().filter((desktop) => desktop.state.accepts_commands);
+  const controlled = (): RemoteDesktop | null => follow.desktops.find((desktop) => desktop.device_id === controlId) ?? null;
+  /** A desktop by its room name, or "the projector". */
+  const projector = (desktop: RemoteDesktop | null | undefined): string => desktop?.room_name ?? t("the projector");
+  /** The set to lead: the one open in the service view, else the current set. */
+  const leadable = (): SetDetail | null => shown?.set ?? currentSet.value;
+
+  const changed = () => {
+    draw();
+    drawSheet();
+    for (const listener of listeners) listener();
+  };
+
+  /* ── Leading ─────────────────────────────────────────────────────────── */
+
+  const report = async () => {
+    if (!lead) return;
+    const current = lead;
+    const itemId = current.itemId ?? current.set.items[0]?.id;
+    if (!itemId) return;
+    try {
+      current.info = await api.leadSet(current.set.id, itemId);
+    } catch {
+      return;
+    }
+    if (lead === current) changed();
+  };
+
+  const startLead = async (set: SetDetail) => {
+    follow.off();
+    const index = shown?.set.id === set.id ? shown.index : 0;
+    const itemId = set.items[index]?.id ?? null;
+    if (!itemId) throw new Error(t("This set is empty."));
+    lead = { set, itemId, info: null };
+    changed();
+    try {
+      lead.info = await api.leadSet(set.id, itemId);
+      changed();
+    } catch (error) {
+      lead = null;
+      changed();
+      throw error;
+    }
+    window.clearInterval(timer);
+    // The server lets go a minute after the last word.
+    timer = window.setInterval(() => void report(), 5000);
+    announce(set.shared ? t("Leading {set}", { set: set.name }) : t("Leading {set}. Share the set on a link so others can follow you.", { set: set.name }));
+  };
+
+  const stopLead = async () => {
+    if (!lead) return;
+    const was = lead;
+    lead = null;
+    window.clearInterval(timer);
+    changed();
+    await api.stopLeadingSet(was.set.id).catch(() => undefined);
+    announce(t("No longer leading {set}", { set: was.set.name }));
+  };
+
+  /* ── Controlling ─────────────────────────────────────────────────────── */
+
+  const project = async (force = false) => {
+    const desktop = controlled();
+    if (!desktop || !shown) return;
+    const key = `${desktop.device_id}:${shown.set.id}:${shown.index}`;
+    if (!force && key === projected) return;
+    projected = key;
+    try {
+      await api.sendRemoteCommand(desktop.device_id, { action: "project_set_item", set_id: shown.set.id, item_index: shown.index });
+    } catch (error) {
+      projected = "";
+      showToast(`${desktop.room_name}: ${errorMessage(error)}`, true);
+    }
+  };
+
+  const startControl = (deviceId: string) => {
+    follow.off();
+    controlId = deviceId;
+    writePreference("desktop", deviceId);
+    projected = "";
+    changed();
+    void project(true);
+    announce(t("Controlling {desktop}", { desktop: projector(controlled()) }));
+  };
+
+  const stopControl = () => {
+    if (!controlId) return;
+    const name = projector(controlled());
+    controlId = null;
+    projected = "";
+    changed();
+    announce(t("No longer controlling {desktop}", { desktop: name }));
+  };
+
+  /* ── Following ───────────────────────────────────────────────────────── */
+
+  const startFollow = async (deviceId?: string) => {
+    const values = { set: lead?.set.name ?? "", desktop: projector(controlled()) };
+    const dropping = lead && controlId
+      ? t("Stopped leading {set} and controlling {desktop} to follow the projector.", values)
+      : lead ? t("Stopped leading {set} to follow the projector.", values)
+        : controlId ? t("Stopped controlling {desktop} to follow the projector.", values) : "";
+    if (dropping) {
+      await stopLead();
+      stopControl();
+      showToast(dropping);
+    }
+    if (sheet) closeSheet(sheet);
+    follow.setOn(true, deviceId);
+  };
+
+  /* ── The button in the top bar ─────────────────────────────────────── */
+
+  /** Whether the Live button shows at all. */
+  const visible = () => follow.on || Boolean(lead) || Boolean(controlId) || online().length > 0 || (canLead() && Boolean(leadable()));
+
+  /**
+   * One icon button in every screen's top bar, its icon by mode: a screen
+   * (with a red dot while the projector shows words), an eye while
+   * following, the broadcast sign in red while leading (with how many
+   * follow), a screen with ▶ while controlling.
+   */
+  const drawButton = (button: HTMLButtonElement) => {
+    const desktop = controlled() ?? follow.target;
+    const state = desktop?.state;
+    const onAir = Boolean(state?.projecting && !state.blanked);
+    const mode = follow.on ? "follow" : lead && controlId ? "both" : lead ? "lead" : controlId ? "control" : "idle";
+    const viewers = lead?.info?.viewers ?? 0;
+    const setName = lead?.set.name ?? t("a set");
+    const words = {
+      follow: t("Following {desktop}", { desktop: projector(follow.target) }),
+      both: t("Leading {set} and controlling {desktop}", { set: setName, desktop: projector(controlled()) }),
+      lead: t("Leading {set}", { set: setName }),
+      control: t("Controlling {desktop}", { desktop: projector(controlled()) }),
+      idle: !desktop ? t("Live: no projector")
+        : !state?.projecting ? t("Live: {desktop} is not projecting", { desktop: desktop.room_name })
+          : state.blanked ? t("Live: {desktop} shows a blank screen", { desktop: desktop.room_name })
+            : state.song_title ? t("Live: {desktop} shows {title}", { desktop: desktop.room_name, title: state.song_title })
+              : t("Live: {desktop} shows words", { desktop: desktop.room_name }),
+    }[mode];
+    const glyph = mode === "follow" ? "eye" : mode === "lead" || mode === "both" ? "follow" : mode === "control" ? "project" : "remote";
+    const key = `${mode}:${glyph}:${onAir}:${viewers}:${words}`;
+    if (button.dataset.key === key) return;
+    button.dataset.key = key;
+    button.dataset.mode = mode;
+    button.setAttribute("aria-label", viewers
+      ? tn(viewers, "{words}, {n} following you. Change what this phone does with the projector", "{words}, {n} following you. Change what this phone does with the projector", { words })
+      : t("{words}. Change what this phone does with the projector", { words }));
+    button.title = words;
+    button.innerHTML = `${icon(glyph)}${mode === "idle" && onAir ? `<span class="live-dot" aria-hidden="true"></span>` : ""}${mode === "both" ? `<span class="live-dot control" aria-hidden="true"></span>` : ""}${viewers ? `<span class="count-pill" aria-hidden="true">${viewers}</span>` : ""}`;
+  };
+
+  /**
+   * Where the button goes on the screen shown now: first in its toolbar's
+   * pill (a song), else its top bar's actions, or the song list's search bar.
+   */
+  const ensureButton = (): void => {
+    const page = document.querySelector<HTMLElement>("#page");
+    if (!page) return;
+    const show = visible();
+    const host = page.querySelector<HTMLElement>(".app-bar .bar-actions, .search-bar .bar-actions")
+      ?? page.querySelector<HTMLElement>(".app-bar .page-actions")
+      ?? page.querySelector<HTMLElement>(".search-bar");
+    page.querySelectorAll<HTMLButtonElement>(".live-icon").forEach((button) => {
+      if (!show || button.parentElement !== host) button.remove();
+    });
+    if (!show || !host) return;
+    let button = host.querySelector<HTMLButtonElement>(".live-icon");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "icon-button ghost live-icon";
+      button.setAttribute("aria-haspopup", "dialog");
+      // In the search bar it goes before New; in a top bar, first.
+      const before = host.classList.contains("search-bar") ? host.querySelector(":scope > a.icon-button") : host.firstChild;
+      host.insertBefore(button, before);
+    }
+    drawButton(button);
+  };
+
+  const draw = () => ensureButton();
+
+  /* ── The sheet ───────────────────────────────────────────────────────── */
+
+  /** A desktop to pick, by room name; only those online. */
+  const desktopChoices = (name: string, list: RemoteDesktop[], chosen: string | null, disabled: boolean) => list.length > 1
+    ? `<div class="live-desktops" role="radiogroup" aria-label="${t("Which projector")}">${list.map((desktop) => `<button type="button" role="radio" class="chip${desktop.device_id === chosen ? " on" : ""}" aria-checked="${desktop.device_id === chosen}" data-${name}="${desktop.device_id}"${disabled ? " disabled" : ""}>${escapeHtml(desktop.room_name)}</button>`).join("")}</div>`
+    : "";
+
+  const sheetHtml = (): string => {
+    const followTarget = follow.target;
+    const followList = online();
+    const steer = steerable();
+    const steerChoice = controlId ?? readPreference("desktop") ?? steer[0]?.device_id ?? null;
+    const set = lead?.set ?? leadable();
+    const following = lead?.info?.viewers ?? 0;
+    const leadHint = lead
+      ? lead.set.shared
+        ? tn(following, "{n} following you", "{n} following you")
+        : tn(following, "{n} following you. Share the set on a link so others can follow.", "{n} following you. Share the set on a link so others can follow.")
+      : !set ? t("Choose a current set (or open a set) to lead it.")
+        : set.shared ? t("Everyone with the set's shared link moves to the item you show.") : t("Share the set on a link first, so others can follow you.");
+    const controlName = controlled()?.room_name;
+    const controlHint = controlId
+      ? controlName ? t("{desktop} shows the item you open in a set.", { desktop: controlName }) : t("The projector shows the item you open in a set.")
+      : steer.length ? t("The projector shows the item you open in a set's service view.") : t("No projector accepts remote control right now.");
+    return `<h2>${t("Live")}</h2>
+      <section class="live-group" aria-labelledby="live-watch">
+        <h3 id="live-watch">${t("Watch")}</h3>
+        <button type="button" class="live-row" role="radio" aria-checked="${follow.on}" data-live="follow"${followList.length ? "" : " disabled"}>
+          <span class="live-mark" aria-hidden="true">${follow.on ? icon("check") : ""}</span>
+          <span class="row-main"><strong>${t("Follow the projector")}</strong><small>${followList.length ? t("The words on {desktop} fill this screen.", { desktop: escapeHtml(projector(followTarget)) }) : t("No projector is connected.")}</small></span>
+        </button>
+        ${desktopChoices("follow-desktop", followList, followTarget?.device_id ?? null, false)}
+      </section>
+      ${canLead() ? `<section class="live-group" aria-labelledby="live-lead">
+        <h3 id="live-lead">${t("Lead")}</h3>
+        <button type="button" class="live-row" role="switch" aria-checked="${Boolean(lead)}" data-live="lead"${set ? "" : " disabled"}>
+          <span class="row-main"><strong>${set ? t("Lead {set}", { set: escapeHtml(set.name) }) : t("Lead a set")}</strong><small>${escapeHtml(leadHint)}</small></span>
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        </button>
+        <button type="button" class="live-row" role="switch" aria-checked="${Boolean(controlId)}" data-live="control"${steer.length || controlId ? "" : " disabled"}>
+          <span class="row-main"><strong>${t("Control the projector")}</strong><small>${escapeHtml(controlHint)}</small></span>
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        </button>
+        ${desktopChoices("control-desktop", steer, steerChoice, false)}
+        ${controlId ? `<a class="button secondary small live-remote" href="#/remote/${controlId}">${icon("remote")}${t("Open the remote")}</a>` : ""}
+      </section>` : ""}
+      ${follow.on || lead || controlId ? `<button type="button" class="button secondary wide" data-live="off">${t("Turn everything off")}</button>` : ""}`;
+  };
+
+  function drawSheet(): void {
+    if (!sheet?.open) return;
+    const body = sheet.querySelector<HTMLElement>(".live-content");
+    if (!body) return;
+    const focused = document.activeElement instanceof HTMLElement && body.contains(document.activeElement)
+      ? (document.activeElement.dataset.live ? `[data-live="${document.activeElement.dataset.live}"]` : null)
+      : null;
+    body.innerHTML = sheetHtml();
+    if (focused) body.querySelector<HTMLElement>(focused)?.focus();
+  }
+
+  const open = () => {
+    if (sheet?.open) return;
+    sheet = openSheet(`<div class="live-content"></div>`);
+    sheet.classList.add("live-sheet");
+    drawSheet();
+    sheet.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      const followDesktop = target.closest<HTMLElement>("[data-follow-desktop]")?.dataset.followDesktop;
+      if (followDesktop) return void startFollow(followDesktop);
+      const controlDesktop = target.closest<HTMLElement>("[data-control-desktop]")?.dataset.controlDesktop;
+      if (controlDesktop) {
+        if (controlId) startControl(controlDesktop);
+        else {
+          writePreference("desktop", controlDesktop);
+          drawSheet();
+        }
+        return;
+      }
+      const action = target.closest<HTMLElement>("[data-live]")?.dataset.live;
+      if (!action) return;
+      void (async () => {
+        try {
+          if (action === "follow") {
+            if (follow.on) follow.off();
+            else await startFollow();
+          } else if (action === "lead") {
+            const set = leadable();
+            if (lead) await stopLead();
+            else if (set) await startLead(set);
+          } else if (action === "control") {
+            if (controlId) stopControl();
+            else {
+              const list = steerable();
+              const preferred = readPreference("desktop");
+              const desktop = list.find((entry) => entry.device_id === preferred) ?? list[0];
+              if (desktop) startControl(desktop.device_id);
+            }
+          } else if (action === "off") {
+            follow.off();
+            await stopLead();
+            stopControl();
+            if (sheet) closeSheet(sheet);
+          }
+        } catch (error) {
+          showToast(errorMessage(error), true);
+        }
+        drawSheet();
+      })();
+    });
+    sheet.addEventListener("close", () => { sheet = null; });
+  };
+
+  document.addEventListener("click", (event) => {
+    if ((event.target as HTMLElement).closest(".live-icon")) open();
+  });
+  // Every screen draws its own top bar (and redraws it): the button goes back in.
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      ensureButton();
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+  currentSet.subscribe(() => changed());
+
+  return {
+    draw: changed,
+    showItem(set, index) {
+      shown = { set, index };
+      if (lead?.set.id === set.id) {
+        const itemId = set.items[index]?.id ?? null;
+        if (itemId !== lead.itemId) {
+          lead.itemId = itemId;
+          void report();
+        }
+      }
+      void project();
+    },
+    leaveSet(set) {
+      if (shown?.set.id === set.id) shown = null;
+    },
+    leading: (setId) => lead?.set.id === setId,
+    get controlled() {
+      return controlled();
+    },
+    open,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    stop() {
+      follow.off();
+      void stopLead();
+      controlId = null;
+      projected = "";
+      changed();
+    },
+  };
+}

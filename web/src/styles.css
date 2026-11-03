@@ -1,0 +1,945 @@
+/* PSA150 Song Server web client. Mobile first; colours, type, radii and
+   motion come from psa150-tokens.css (shared with the desktop console). */
+
+* { box-sizing: border-box; }
+
+:root {
+  /* Layout measures shared by the sticky and fixed parts of the shell. */
+  --page-pad: var(--psa-space-4);
+  --bar-h: 56px;
+  /* No tab bar on phones (the sections are in the ☰ drawer); only the home
+     indicator's area is kept clear at the bottom. */
+  --tabbar-h: env(safe-area-inset-bottom);
+  --dock-h: 0px; /* set from the dock's real height by main.ts */
+}
+
+/* Focus and in-page jumps stop clear of the sticky bar at the top and the
+   dock (and toasts) at the bottom (WCAG 2.4.11). --dock-h is set on html. */
+html {
+  -webkit-text-size-adjust: 100%;
+  /* No double-tap zoom (the page does not zoom; see the viewport in index.html). */
+  touch-action: manipulation;
+  scroll-padding-top: calc(env(safe-area-inset-top) + var(--bar-h) + 16px);
+  scroll-padding-bottom: calc(var(--tabbar-h) + var(--dock-h) + 72px);
+}
+html:has(body[data-route$="/edit"]), html:has(body[data-route$="/new"]) { scroll-padding-bottom: 110px; }
+html:has(body[data-route^="/sets/id/play"]) { scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--psa-bg-canvas);
+  color: var(--psa-text);
+  font-family: var(--psa-font-ui);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a { color: var(--psa-accent-text); }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.45; }
+:focus-visible { outline: none; box-shadow: var(--psa-focus-ring); border-radius: var(--psa-radius-xs); }
+/* Rows inside a clipped list draw the ring inside their edges. */
+.list-row:focus-visible, .row-link:focus-visible { box-shadow: inset 0 0 0 2px var(--psa-focus-color), inset 0 0 0 4px var(--psa-bg-canvas); border-radius: 0; }
+/* Headings take focus only to start reading there (route changes, skip link). */
+h1[tabindex="-1"]:focus { outline: none; box-shadow: none; }
+/* The skip link shows when it has focus. */
+.skip-link { position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 8px; z-index: 100; padding: 10px 16px; border-radius: var(--psa-radius-sm); background: var(--psa-bg-surface); color: var(--psa-text); font-weight: 700; text-decoration: none; box-shadow: var(--psa-focus-ring); transform: translateY(calc(-100% - 24px)); }
+.skip-link:focus { transform: none; }
+code { font-family: var(--psa-font-mono); font-size: 0.9em; }
+
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: var(--psa-radius-full); background: var(--psa-accent-soft); color: var(--psa-accent-text); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 2px; }
+.pad { padding: var(--psa-space-4); }
+.fine-print { margin: var(--psa-space-6) 0 var(--psa-space-4); color: var(--psa-text-tertiary); font-size: 12px; text-align: center; }
+/* A hint under a field, such as a password's length. */
+.stack > label + .field-hint { margin-top: calc(6px - var(--psa-space-4)); }
+.notice { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-radius: var(--psa-radius-sm); background: var(--psa-accent-soft); color: var(--psa-text); font-size: 14px; }
+
+/* ── Brand ──────────────────────────────────────────────────────────────── */
+
+.brand { display: flex; align-items: center; gap: var(--psa-space-2); font-weight: 700; letter-spacing: 0.08em; font-size: 13px; }
+.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--psa-radius-xs); background: var(--psa-accent); color: var(--psa-on-accent); font-size: 12px; font-weight: 800; letter-spacing: 0; }
+.brand.large { font-size: 15px; margin-bottom: var(--psa-space-6); }
+.brand.large .brand-mark { width: 40px; height: 40px; font-size: 15px; border-radius: var(--psa-radius-sm); }
+
+/* ── Controls ───────────────────────────────────────────────────────────── */
+
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 var(--psa-space-3); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-full); background: var(--psa-bg-surface); font-size: 14px; font-weight: 600; }
+.chip .icon { width: 16px; height: 16px; }
+.chip.on { background: var(--psa-accent-soft); border-color: var(--psa-accent-text); color: var(--psa-accent-text); }
+
+label { display: grid; gap: 6px; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
+input, textarea, select {
+  width: 100%; min-height: var(--psa-touch-target); padding: 10px 14px;
+  border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-sm);
+  background: var(--psa-bg-surface); color: var(--psa-text); font-size: 16px;
+}
+/* Safari on iPhone gives date fields a minimum width wider than the
+   column and centres the date; keep them inside it, like other fields. */
+input[type="date"] { display: block; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+input::placeholder, textarea::placeholder { color: var(--psa-text-placeholder); }
+input:focus, textarea:focus { outline: none; border-color: var(--psa-accent); box-shadow: var(--psa-focus-ring); }
+
+.search-field { position: relative; margin-bottom: var(--psa-space-4); }
+.search-field .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--psa-text-tertiary); pointer-events: none; }
+.search-field input { padding-left: 44px; padding-right: 44px; border-radius: var(--psa-radius-full); }
+.search-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+/* × at the right empties the field; shown only while there is text. */
+.search-clear { position: absolute; right: 4px; top: 50%; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--psa-text-tertiary); transform: translateY(-50%); }
+.search-field .search-clear .icon { position: static; width: 18px; height: 18px; transform: none; color: inherit; }
+.search-field input:placeholder-shown ~ .search-clear { display: none; }
+@media (hover: hover) { .search-clear:hover { color: var(--psa-text); background: var(--psa-bg-sunken); } }
+.search-clear:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+/* The song list's top: search (and New), stuck to the top while the list scrolls. */
+.search-bar {
+  position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: var(--psa-space-2);
+  margin: 0 calc(-1 * var(--page-pad)) var(--psa-space-2);
+  padding: calc(var(--psa-space-3) + env(safe-area-inset-top)) var(--page-pad) var(--psa-space-2);
+  background: var(--psa-bg-canvas); border-bottom: 1px solid transparent;
+  /* Safari's toolbar grows and shrinks the top inset: follow it smoothly. */
+  transition: border-color var(--psa-dur-fast), background var(--psa-dur-fast), padding-top 250ms var(--psa-ease-standard);
+}
+/* Solid, in the header's colour, so it meets the browser's bar above it
+   (theme-color) without a seam. */
+body.scrolled .search-bar { border-bottom-color: var(--psa-border); }
+.search-bar .search-field { flex: 1; margin: 0; }
+/* The title beside the closed search, on phones only. */
+.search-title { display: none; }
+/* The search bar's button pill is a pill on phones only; wider, its
+   field and buttons sit in the bar as they are. */
+.search-bar .search-actions { display: contents; }
+/* Under the list: search online although the library has songs that match. */
+.online-offer { display: grid; justify-items: center; margin: 0 0 var(--psa-space-6); }
+.online-offer[hidden] { display: none; }
+
+/* ── Auth screens ───────────────────────────────────────────────────────── */
+
+.auth { min-height: 100dvh; display: grid; place-content: center; padding: var(--psa-space-6) var(--psa-space-4); }
+.auth-card { width: min(100vw - 32px, 420px); padding: var(--psa-space-8) var(--psa-space-6); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-xl); background: var(--psa-bg-surface); box-shadow: var(--psa-shadow-md); }
+.auth-card h1 { margin: 0; font-family: var(--psa-font-display); font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; }
+.lede { margin: var(--psa-space-3) 0 var(--psa-space-6); color: var(--psa-text-secondary); }
+.form-actions { display: flex; gap: var(--psa-space-3); justify-content: flex-end; align-items: center; }
+.form-actions > .button { flex: 1; }
+
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+
+.shell { min-height: 100dvh; }
+.page { width: min(100%, 760px); margin: 0 auto; padding: 0 var(--page-pad) calc(var(--tabbar-h) + var(--dock-h) + 24px); }
+.page > :first-child:not(.app-bar, .play, .swipe-view) { margin-top: var(--psa-space-4); }
+/* The page itself takes focus only as a place to start reading (after a
+   sheet closes, the skip link); it is not a control, so no ring. */
+.page:focus, .page:focus-visible { outline: none; box-shadow: none; }
+.page.loading { opacity: 0.6; transition: opacity var(--psa-dur-base) 150ms; }
+
+/* Phones: the sections live in a drawer that slides in from the left (☰),
+   and slides back with a swipe (main.ts), so the screen is all content. */
+.tabbar {
+  position: fixed; inset: 0 auto 0 0; z-index: 50; width: min(82vw, 300px);
+  display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overscroll-behavior: contain;
+  padding: calc(var(--psa-space-5) + env(safe-area-inset-top)) var(--psa-space-3) calc(var(--psa-space-5) + env(safe-area-inset-bottom));
+  background: var(--psa-bg-surface); border-right: 1px solid var(--psa-border); box-shadow: var(--psa-shadow-md);
+  transform: translateX(-100%); visibility: hidden; touch-action: pan-y;
+  transition: transform var(--psa-dur-base) var(--psa-ease-standard), visibility 0s linear var(--psa-dur-base);
+}
+body.menu-open .tabbar {
+  transform: translateX(var(--menu-drag, 0px)); visibility: visible;
+  transition: transform var(--psa-dur-base) var(--psa-ease-standard);
+}
+.nav-scrim {
+  position: fixed; inset: 0; z-index: 45; background: rgb(0 0 0 / 0.5); opacity: 0; pointer-events: none;
+  transition: opacity var(--psa-dur-base) var(--psa-ease-standard); touch-action: pan-y;
+}
+body.menu-open .nav-scrim { opacity: var(--menu-shade, 1); pointer-events: auto; }
+/* While a finger drags the drawer, it follows the finger exactly. */
+body.menu-dragging .tabbar, body.menu-dragging .nav-scrim { transition: none; }
+.tabbar .brand { display: flex; margin: 0 var(--psa-space-2) var(--psa-space-6); }
+.tab {
+  display: grid; grid-auto-flow: column; justify-content: start; align-items: center; gap: var(--psa-space-3);
+  padding: 12px var(--psa-space-3); border-radius: var(--psa-radius-sm);
+  color: var(--psa-text-secondary); text-decoration: none; font-size: 16px; font-weight: 600;
+}
+.tab { position: relative; }
+.tab .icon { width: 22px; height: 22px; }
+.tab.on { background: var(--psa-accent-soft); color: var(--psa-accent-text); }
+/* The current section has a bar at its edge, not only a tint. */
+.tab.on::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--psa-accent-text); }
+button.tab { width: 100%; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
+button.tab:not(.on) { background: none; }
+/* Settings has its own menu in the same place: Back, then its pages. */
+.nav-settings { display: none; }
+body.settings-nav .nav-main { display: none; }
+body.settings-nav .nav-settings { display: contents; }
+.nav-heading { margin: var(--psa-space-4) var(--psa-space-3) var(--psa-space-1); color: var(--psa-text-tertiary); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+/* Foot of the menu: the version and build. */
+.app-version { margin: auto 0 0; padding: var(--psa-space-4) var(--psa-space-3) 0; color: var(--psa-text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ── Page header ────────────────────────────────────────────────────────── */
+
+/* A sticky bar (back, title once scrolled, actions) above a large title that
+   scrolls with the page. */
+.app-bar {
+  position: sticky; top: 0; z-index: 20;
+  margin: 0 calc(-1 * var(--page-pad)); padding: env(safe-area-inset-top) calc(var(--page-pad) - 6px) 0;
+  background: var(--psa-bg-canvas);
+  border-bottom: 1px solid transparent;
+  transition: transform var(--psa-dur-base) var(--psa-ease-standard), border-color var(--psa-dur-fast), background var(--psa-dur-fast), padding-top 250ms var(--psa-ease-standard);
+}
+/* Solid like the search bar, so the top of the screen is one colour. */
+body.scrolled .app-bar { border-bottom-color: var(--psa-border); }
+.app-bar-row { display: flex; align-items: center; gap: var(--psa-space-1); height: var(--bar-h); }
+.bar-title {
+  flex: 1; min-width: 0; margin: 0 var(--psa-space-2); font-weight: 700; font-size: 16px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0; transform: translateY(4px); transition: opacity var(--psa-dur-fast), transform var(--psa-dur-fast);
+}
+body.title-away .bar-title { opacity: 1; transform: none; }
+/* Reading screens: the bar slides away while reading down. */
+body.bar-away .app-bar.autohide { transform: translateY(-100%); }
+/* It comes back while a control in it has focus. */
+body.bar-away .app-bar.autohide:focus-within { transform: none; }
+.page-titles { min-width: 0; margin: var(--psa-space-2) 0 var(--psa-space-4); }
+.page-titles h1 { margin: 0; font-family: var(--psa-font-display); font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.page-actions { display: flex; gap: var(--psa-space-1); margin-left: auto; }
+/* Phones: no church name over the tab screens, and compact screens (the song
+   list) keep their title in the bar instead of a large title. */
+@media (max-width: 899px) {
+  .wide-only { display: none; }
+  /* The bar (or the search) stands in for the large title; the heading
+     stays for screen readers. */
+  .page-titles.compact, .page-titles.wide-only { display: block; position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .app-bar.compact .bar-title { opacity: 1; transform: none; font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; }
+  /* Beside Back (the set editor) the title is bar-sized, like the caret. */
+  .app-bar.compact.sub .bar-title { margin-left: 0; font-family: inherit; font-size: 17px; font-weight: 600; letter-spacing: 0; }
+  /* The header is tinted, a step up from the page as the desktop's
+     toolbars are, with the button pill set into it. */
+  .app-bar, .search-bar { background: linear-gradient(180deg, rgb(198 216 140 / 0.04) 0%, transparent 100%), var(--psa-bg-subtle); }
+  .app-bar .bar-actions { background: var(--psa-bg-sunken); }
+  /* Where the large title is left out, what follows keeps its distance
+     from the bar. */
+  .page > .app-bar + .page-titles.compact + :not(.list-heading) { margin-top: var(--psa-space-4); }
+  /* The song list's search: closed, a magnifier beside the title; tapped,
+     the field takes the whole bar until it is left empty. The closed field
+     is still the input, so a tap opens the keyboard at once. */
+  .search-title { display: block; flex: 1; min-width: 0; margin: 0 var(--psa-space-1); font-family: var(--psa-font-display); font-size: 22px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-bar .search-actions { display: flex; flex: none; background: var(--psa-bg-sunken); }
+  /* The magnifier last, at the far right. */
+  .search-bar .search-actions > .search-field { order: 1; }
+  .search-bar:not(.open) .search-field { flex: none; width: var(--bar-button); height: var(--bar-button); }
+  .search-bar:not(.open) .search-field input { min-height: 0; height: 100%; padding: 0; border-color: transparent; border-radius: 50%; background: transparent; color: transparent; caret-color: transparent; cursor: pointer; }
+  .search-bar:not(.open) .search-field input::placeholder { color: transparent; }
+  .search-bar:not(.open) .search-field > .icon { left: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); color: var(--psa-text-tertiary); }
+  .search-bar.open > :not(.search-actions), .search-bar.open .search-actions > :not(.search-field) { display: none; }
+  .search-bar.open .search-actions { flex: 1; padding: 0; border: 0; background: none; }
+  /* The list on the page's own dark, as a song reads. */
+  #song-results, #song-results .swipe-content { background: var(--psa-bg-canvas); }
+  /* Reading screens: the button pill leaves no room for the title in the
+     row, so once the large title is scrolled away it comes in on a strip of
+     its own under the bar, over the words, and goes with the bar. */
+  .app-bar.autohide .bar-title {
+    position: absolute; top: 100%; left: 0; right: 0; margin: 0; padding: 0 var(--page-pad) 8px;
+    background: var(--psa-bg-subtle); border-bottom: 1px solid var(--psa-border);
+    font-size: 15px; font-weight: 600; line-height: 22px; text-align: center; pointer-events: none;
+    transform: translateY(-6px);
+  }
+  body.title-away .app-bar.autohide .bar-title { transform: none; }
+  body.title-away .app-bar.autohide { border-bottom-color: transparent; }
+  body.bar-away .app-bar.autohide { transform: translateY(calc(-100% - 32px)); }
+}
+.eyebrow { margin: 0 0 2px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.page-meta { margin: calc(-1 * var(--psa-space-3)) 0 var(--psa-space-4); color: var(--psa-text-secondary); font-size: 14px; }
+
+/* ── Lists ──────────────────────────────────────────────────────────────── */
+
+.list { display: grid; margin: 0 0 var(--psa-space-4); padding: 0; list-style: none; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); overflow: hidden; }
+.list > * + *, .list > li + li { border-top: 1px solid var(--psa-border-subtle); }
+/* Lists are tapped and dragged, not read closely: no text selection to get
+   in the way of a drag or a long press. */
+.list, .list * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.list :is(input, textarea) { -webkit-user-select: text; user-select: text; }
+.list-heading { margin: var(--psa-space-6) 0 var(--psa-space-2); color: var(--psa-text-secondary); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+#share-body .list-heading { margin: 0; }
+.list-heading-row { display: flex; align-items: end; justify-content: space-between; gap: var(--psa-space-3); }
+.list-row {
+  display: flex; align-items: center; gap: var(--psa-space-3); width: 100%; min-height: 60px;
+  padding: 10px var(--psa-space-4); border: 0; background: none; color: var(--psa-text); text-align: left; text-decoration: none;
+}
+@media (hover: hover) { button.list-row:hover, a.list-row:hover, .song-row:hover { background: var(--psa-bg-elevated); } }
+.list-row:active, .row-link:active { background: var(--psa-bg-elevated); }
+.list-row > .icon:last-child { color: var(--psa-text-tertiary); }
+.list-row.added { background: var(--psa-accent-soft); }
+.list-row.added small, .list-row.added .row-lead { color: var(--psa-text-secondary); }
+.song-row { padding: 0 var(--psa-space-3) 0 0; }
+.row-link { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; min-height: 60px; padding: 10px 0 10px var(--psa-space-4); color: inherit; text-decoration: none; }
+.add-toggle.on, .add-toggle.on:hover:not(:disabled) { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
+/* ☆ / ★: a favourite has a filled amber star, as in the desktop app. */
+.list-sort #fav-filter.on { color: var(--psa-warning); }
+#fav-filter.on .icon { fill: currentColor; }
+.load-more { display: grid; justify-items: center; margin: 0 0 var(--psa-space-4); }
+.load-more[hidden] { display: none; }
+.list-row.added .icon { color: var(--psa-accent-text); }
+.row-lead { min-width: 28px; color: var(--psa-text-tertiary); font-variant-numeric: tabular-nums; font-size: 14px; text-align: right; }
+/* Songs without a number use the full width, unless the list shows numbers. */
+.row-lead:empty { display: none; }
+.has-numbers .row-lead { display: block; min-width: var(--num-w); }
+
+/* Column sort above the song list, as on the desktop: No and Song. */
+.list-sort { --num-w: 36px; display: flex; align-items: center; gap: var(--psa-space-3); padding: 0 var(--psa-space-4) var(--psa-space-2); }
+.list-sort[hidden] { display: none; }
+.list-sort button {
+  display: inline-flex; align-items: center; justify-content: flex-start; gap: 4px; min-height: 32px; padding: 0;
+  border: 0; background: none; color: var(--psa-text-tertiary); font: inherit; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+}
+.list-sort button.on { color: var(--psa-accent-text); }
+.list-sort .sort-number { min-width: var(--num-w); justify-content: flex-end; }
+/* Key sorts at the right edge, over the rows' keys; Filter after it. */
+.sort-columns { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; }
+.list-sort .sort-key { margin-left: auto; }
+.list-sort .filter-toggle { gap: 6px; padding-left: var(--psa-space-3); border-left: 1px solid var(--psa-border); border-radius: 0; }
+.list-sort .filter-toggle .icon { width: 14px; height: 14px; }
+.list-sort .filter-toggle.on { color: var(--psa-accent-text); }
+.filter-summary { display: flex; flex-wrap: wrap; gap: var(--psa-space-2); padding: 0 var(--psa-space-4) var(--psa-space-3); }
+.filter-summary[hidden] { display: none; }
+.filter-summary .chip { min-height: 32px; cursor: pointer; }
+.row-key { flex: none; max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; }
+.key-modes { margin-bottom: var(--psa-space-4); }
+.key-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--psa-space-2); margin-bottom: var(--psa-space-3); }
+@media (min-width: 640px) { .key-grid { grid-template-columns: repeat(6, 1fr); } }
+.key-choice {
+  display: grid; justify-items: center; gap: 2px; min-height: 56px; padding: 6px 4px;
+  border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface);
+  color: var(--psa-text); font: inherit; cursor: pointer;
+}
+.key-choice strong { font-size: 17px; font-weight: 700; }
+.key-choice small { min-height: 1em; color: var(--psa-text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.key-choice.on { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); color: var(--psa-accent-text); }
+.key-choice.on small { color: var(--psa-accent-text); }
+.key-choice:disabled { opacity: 0.4; cursor: default; }
+@media (hover: hover) { .key-choice:hover:not(:disabled):not(.on) { background: var(--psa-bg-elevated); } }
+.key-grid + .hint { margin-bottom: var(--psa-space-4); }
+#song-results { --num-w: 36px; }
+/* Phones: the song list runs edge to edge, its header with it. */
+@media (max-width: 899px) {
+  #song-results { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); border-left: 0; border-right: 0; border-radius: 0; }
+  .list-sort { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); }
+}
+/* One line per song: as tall as a comfortable tap, no taller. */
+#song-results .list-row, #song-results .row-link { min-height: var(--psa-touch-target); padding-top: 6px; padding-bottom: 6px; }
+#song-results .song-row { padding-top: 0; padding-bottom: 0; }
+/* Swipe left to delete (swipe-delete.ts), on touch screens; a mouse gets
+   the row's × button (.swipe-alt) instead. */
+[data-swipe-row] { position: relative; overflow: hidden; }
+.swipe-content { position: relative; z-index: 1; background: var(--psa-bg-surface); transform: translateX(var(--swipe, 0px)); }
+.swipe-settling > .swipe-content { transition: transform 220ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+.swipe-delete { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; border: 0; background: var(--psa-danger); color: var(--psa-on-danger); font: inherit; font-weight: 700; }
+/* Past the point where letting go deletes, the label follows the row's edge. */
+.swipe-full > .swipe-delete { justify-content: flex-start; padding-left: calc(100% + var(--swipe, 0px) + 22px); transition: padding 120ms; }
+.swipe-folding { transition: height 260ms var(--psa-ease-standard), opacity 260ms; opacity: 0; }
+.edit-row[data-swipe-row] { padding: 0; }
+.edit-row > .swipe-content { padding: var(--psa-space-2) var(--psa-space-3); }
+@media (pointer: fine) { .swipe-delete { display: none; } }
+@media (pointer: coarse) { .swipe-alt { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; } }
+.row-main strong.missing { color: var(--psa-danger); font-style: italic; }
+.date-badge { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: var(--psa-radius-sm); background: var(--psa-accent-soft); color: var(--psa-accent-text); line-height: 1; }
+.date-badge strong { font-size: 18px; }
+.date-badge small { font-size: 11px; line-height: 1.1; text-align: center; text-transform: uppercase; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--psa-text-tertiary); flex: none; }
+.status-dot.online { background: var(--psa-positive); box-shadow: 0 0 0 4px var(--psa-positive-soft); }
+.empty-state { padding: var(--psa-space-8) var(--psa-space-4); text-align: center; }
+.empty-state :is(h1, h2) { margin: 0 0 var(--psa-space-2); font-size: 18px; }
+.empty-state p { margin: 0 auto var(--psa-space-4); max-width: 36ch; color: var(--psa-text-secondary); }
+/* No songs match: the offer to search online, and its progress. */
+.online-state .button .icon { width: 18px; height: 18px; }
+.online-state .spinner { display: block; width: 28px; height: 28px; margin: 0 auto var(--psa-space-3); border: 2px solid var(--psa-border); border-top-color: var(--psa-accent); border-radius: 50%; animation: online-spin 0.9s linear infinite; }
+@keyframes online-spin { to { transform: rotate(360deg); } }
+#song-results .list-heading { margin: 0; padding: var(--psa-space-3) var(--psa-space-4) var(--psa-space-2); }
+.online-source { margin: 0 0 var(--psa-space-3); color: var(--psa-text-secondary); }
+
+/* ── Sets ───────────────────────────────────────────────────────────────── */
+
+.numbered { counter-reset: none; }
+.current-note { display: flex; gap: var(--psa-space-2); align-items: flex-start; margin: 0 0 var(--psa-space-4); color: var(--psa-accent-text); font-size: 14px; font-weight: 600; }
+.current-note .icon { width: 18px; height: 18px; margin-top: 1px; }
+.current-note .link-button { font-weight: 500; }
+.set-note { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-left: 3px solid var(--psa-accent); border-radius: var(--psa-radius-xs); background: var(--psa-bg-surface); }
+.set-form { display: grid; gap: var(--psa-space-4); }
+/* The set editor saves as you go: a quiet word in the bar says so. */
+.save-status { min-width: 4.5em; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; opacity: 0; transition: opacity 300ms; }
+.save-status.shown { opacity: 1; }
+.set-form .list { margin: 0; }
+/* Name and date side by side; the date takes what it needs. */
+.set-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 10.5rem); gap: var(--psa-space-3); }
+.edit-row { padding: var(--psa-space-2) var(--psa-space-3); }
+.edit-row-main { display: flex; align-items: center; gap: var(--psa-space-2); min-height: 48px; }
+.row-tools { display: flex; gap: 4px; }
+.grip { display: grid; place-items: center; width: 36px; height: 44px; margin-left: -6px; padding: 0; flex: none; border: 0; border-radius: var(--psa-radius-xs); background: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
+.grip:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+/* A song's title opens the song. */
+.edit-row-title { color: inherit; text-decoration: none; }
+@media (hover: hover) { .edit-row-title:hover { text-decoration: underline; } }
+/* The title takes two lines before it is cut. */
+.edit-row .row-main strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+/* Reordering (sets.ts): the row picked up floats as a ghost under the finger
+   and its place shrinks to a green line with room around it; the others
+   slide aside so the line is where it will land. On letting go the place
+   opens to a full row and the ghost settles into it. */
+.list.reordering > .edit-row { transition: transform 200ms var(--psa-ease-standard), height 200ms var(--psa-ease-standard); }
+.list.reordering > .edit-row.drag-origin { position: relative; z-index: 1; overflow: hidden; padding-block: 0; border-top-color: transparent; background: none; }
+.list.reordering > .edit-row.drag-origin > * { visibility: hidden; }
+.list.reordering > .edit-row.drag-origin::after { content: ""; position: absolute; left: var(--psa-space-3); right: var(--psa-space-3); top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--psa-accent); transition: opacity 150ms; }
+.list.landing > .edit-row.drag-origin::after { opacity: 0; }
+.drag-ghost { position: fixed; z-index: 80; margin: 0; list-style: none; pointer-events: none; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); box-shadow: 0 12px 28px rgb(0 0 0 / 0.22), 0 4px 10px rgb(0 0 0 / 0.12); opacity: 0.96; will-change: transform; }
+.drag-ghost .grip { cursor: grabbing; color: var(--psa-accent-text); }
+.drag-ghost.settling { transition: transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1.1), box-shadow 220ms; box-shadow: var(--psa-shadow-sm); }
+body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .list.reordering > .edit-row, .drag-ghost.settling { transition: none; }
+}
+.form-actions.sticky {
+  position: sticky; bottom: calc(var(--tabbar-h) + 10px); z-index: 5;
+  padding: var(--psa-space-3) 0; background: linear-gradient(transparent, var(--psa-bg-canvas) 30%);
+}
+@media (min-width: 900px) { .form-actions.sticky { bottom: 0; } }
+
+/* ── Dock: offline notice and the current set, at the bottom ────────────── */
+
+.dock {
+  position: fixed; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 25;
+  display: grid; gap: 6px; padding: 0 8px 8px; pointer-events: none;
+}
+.dock > * { pointer-events: auto; }
+.dock > [hidden] { display: none; }
+.dock:not(:has(> :not([hidden]))) { padding: 0; }
+.offline-bar { display: flex; align-items: center; gap: var(--psa-space-2); margin: 0; padding: 8px 14px; border: 1px solid var(--psa-warning); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); color: var(--psa-text); font-size: 13px; font-weight: 600; }
+.offline-bar .icon { width: 18px; height: 18px; color: var(--psa-warning); }
+.current-bar {
+  display: flex; align-items: center; gap: var(--psa-space-1); min-height: 48px; padding: 4px;
+  border: 1px solid var(--psa-accent-medium); border-radius: var(--psa-radius-lg);
+  /* Frosted glass: the page moving behind it shows through blurred, never legible.
+     No ancestor may be a backdrop root (filter, opacity, view-transition-name). */
+  background: color-mix(in srgb, var(--psa-bg-elevated) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.8); -webkit-backdrop-filter: blur(18px) saturate(1.8);
+  box-shadow: var(--psa-shadow-md); color: var(--psa-text); text-decoration: none;
+}
+.current-link { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--psa-space-3); align-self: stretch; border-radius: var(--psa-radius-md); color: inherit; text-decoration: none; }
+.current-bar [hidden] { display: none; }
+.current-link { gap: var(--psa-space-2); padding-left: 2px; }
+.current-close { flex: none; color: var(--psa-text-secondary); }
+.current-bar .date-badge { width: 36px; height: 36px; }
+.current-bar .row-main { line-height: 1.2; }
+.current-bar .row-main strong { font-size: 15px; }
+.current-bar .row-main small { color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; }
+.current-bar.noted { border-color: var(--psa-accent); }
+.current-bar.noted .current-label { color: var(--psa-accent-text); }
+.follow-live { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--psa-text-tertiary); }
+.follow-live.live { background: #e5484d; box-shadow: 0 0 0 3px rgb(229 72 77 / 0.25); }
+/* The Live button in every top bar (live.ts): its icon says the mode. Idle
+   it is quiet, with a red dot while the projector shows words; following is
+   accent, leading red (the count is how many follow), controlling accent. */
+.live-icon { position: relative; color: var(--psa-text-secondary); }
+.live-icon[data-mode="follow"], .live-icon[data-mode="control"] { color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.live-icon:is([data-mode="lead"], [data-mode="both"]) { color: #e5484d; background: color-mix(in srgb, #e5484d 12%, transparent); }
+.live-dot { position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border: 2px solid var(--psa-bg-canvas); border-radius: 50%; background: #e5484d; box-sizing: content-box; }
+.live-dot.control { background: var(--psa-accent); }
+.live-icon .count-pill { background: #e5484d; color: #fff; }
+.search-bar .live-icon { flex: none; }
+/* In a toolbar's pill (song screens): its mode colours over the pill's
+   quiet ones, the dot tucked into the smaller button. */
+.bar-actions .live-icon[data-mode="follow"], .bar-actions .live-icon[data-mode="control"] { color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.bar-actions .live-icon:is([data-mode="lead"], [data-mode="both"]) { color: #e5484d; background: color-mix(in srgb, #e5484d 12%, transparent); }
+.bar-actions .live-dot { top: 5px; right: 5px; width: 6px; height: 6px; border-color: var(--psa-bg-subtle); }
+/* The Live sheet: Watch (one choice) and Lead (two switches). */
+.live-group { display: grid; gap: var(--psa-space-2); margin-bottom: var(--psa-space-4); }
+.live-group h3 { margin: 0; color: var(--psa-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.live-row { display: flex; align-items: center; gap: var(--psa-space-3); width: 100%; min-height: 60px; padding: 10px 14px; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); color: var(--psa-text); font: inherit; text-align: left; }
+.live-row:disabled { opacity: 0.5; }
+.live-row[aria-checked="true"] { border-color: var(--psa-accent-text); background: var(--psa-accent-soft); }
+.live-row[data-live="lead"][aria-checked="true"] { border-color: #e5484d; background: color-mix(in srgb, #e5484d 8%, var(--psa-bg-surface)); }
+.live-row .row-main strong { white-space: normal; }
+.live-row .row-main small { white-space: normal; }
+.live-mark { display: grid; flex: none; width: 22px; height: 22px; place-items: center; border: 2px solid var(--psa-border-strong); border-radius: 50%; color: var(--psa-accent-text); }
+.live-row[aria-checked="true"] .live-mark { border-color: var(--psa-accent-text); }
+.live-mark .icon { width: 14px; height: 14px; }
+.live-row[role="switch"][aria-checked="true"] .switch-track { background: var(--psa-accent); }
+.live-row[role="switch"][aria-checked="true"] .switch-thumb { transform: translateX(16px); }
+.live-row[data-live="lead"][aria-checked="true"] .switch-track { background: #e5484d; }
+.live-desktops { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
+.live-remote { justify-self: start; }
+/* The projector's words lie over the page, which stays where it was. */
+.follow-view { position: fixed; inset: 0 0 calc(var(--tabbar-h) + var(--dock-h)) 0; z-index: 22; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.follow-view[hidden] { display: none; }
+.follow-bar .room-title h2 { margin: 0; font-family: var(--psa-font-display); font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
+.follow-bar .follow-live { width: 10px; height: 10px; }
+.follow-view:not([data-status="live"]) .follow-bar .follow-live { background: var(--psa-text-tertiary); box-shadow: none; }
+body.following { overflow: hidden; }
+.current-bar.bump { animation: bump 420ms var(--psa-ease-standard); }
+@keyframes bump { 40% { transform: scale(1.03); border-color: var(--psa-accent); } }
+/* Forms have their own bottom bars. */
+body[data-route$="/edit"] .dock, body[data-route$="/new"] .dock { display: none; }
+/* A set's own page and its service view need no reminder of the current set;
+   the projector switch and an offline notice still show. In the service view
+   the dock sits on its step bar. */
+body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) :is(.current-link, .current-close) { display: none; }
+body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .current-bar { display: none; }
+body:is([data-route="/sets/id"], [data-route^="/sets/id/play"]) .dock:not(:has(> .offline-bar:not([hidden]))) { padding: 0; }
+body[data-route^="/sets/id/play"]:has(.play-nav) .dock { bottom: calc(66px + env(safe-area-inset-bottom)); }
+body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66px + env(safe-area-inset-bottom) + var(--dock-h)); }
+@media (min-width: 900px) {
+  .dock { left: var(--rail-w); bottom: 0; padding: 0 var(--psa-space-6) var(--psa-space-4); }
+  .follow-view { left: var(--rail-w); }
+  .dock > * { width: min(100%, 712px); margin-inline: auto; }
+}
+
+.editor { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--psa-space-3); }
+.editor textarea { min-height: 55vh; padding: var(--psa-space-4); font-family: var(--psa-font-mono); font-size: 15px; line-height: 1.55; resize: vertical; }
+
+/* Wide screens: the switch sits in the middle of the bar, whatever is beside it.
+   Phones: a low switch filling the bar beside Back, like iOS's segmented controls. */
+.app-bar-row:has(.ce-modes) { position: relative; }
+/* No title in the bar here: the switch has its place, and the song's title starts the page. */
+.app-bar-row:has(.ce-modes) .bar-title { display: none; }
+@media (max-width: 899px) {
+  .page-actions:has(> .ce-modes) { flex: 1; min-width: 0; margin-left: var(--psa-space-1); }
+  .segmented.ce-modes { width: 100%; padding: 3px; }
+  .segmented.ce-modes button { min-height: 32px; font-size: 14px; }
+}
+@media (min-width: 900px) {
+  .page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
+}
+@media (min-width: 900px) {
+  /* The bar at the bottom and its panel line up with it: the middle of the page beside the rail. */
+  body > .ce-bar, body > .ce-well { left: calc(50% + var(--rail-w) / 2); }
+}
+/* Back says "Back" where a header has room for it (the wide editor below). */
+.bar-back-text { display: none; }
+/* Wide screens (DOCKED in words-editor.ts): the editor's header is one bar
+   across the whole page — Back with its word on the left, the mode switch in
+   the middle, the section, details and Save on the right — and the song
+   below keeps its reading width. Narrower, it is the phone layout: the
+   switch beside Back and the floating bar at the bottom. */
+@media (min-width: 1100px) {
+  .page:has(> .app-bar .ce-modes) { width: auto; }
+  /* More room to edit than to read: the words a little wider, and ChordPro
+     with its preview beside it as wide as the screen allows. */
+  .page:has(> .app-bar .ce-modes) > :not(.app-bar) { width: min(100%, 880px); margin-inline: auto; }
+  .page:has(> .app-bar .ce-modes):has(.ce[data-mode="code"]) > :not(.app-bar) { width: min(100%, 1480px); }
+  /* Not white on white in the light theme: the header takes the rail's grey. */
+  .app-bar:has(.ce-modes) { padding-inline: var(--psa-space-4); border-bottom-color: var(--psa-border); background: var(--pane-bg, var(--rail-bg)); }
+  .app-bar:has(.ce-modes) .app-bar-row { height: 64px; }
+  .app-bar:has(.ce-modes) .bar-back { display: inline-flex; align-items: center; width: auto; gap: 4px; padding: 0 14px 0 8px; border-radius: var(--psa-radius-full); font-weight: 600; text-decoration: none; color: var(--psa-text); }
+  .app-bar:has(.ce-modes) .bar-back-text { display: inline; }
+  .app-bar .segmented.ce-modes { box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--psa-bg-surface); }
+}
+.page-titles.quiet { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Service view: no tab bar, a step bar at the bottom instead. */
+body[data-route^="/sets/id/play"] .tabbar { display: none; }
+body[data-route^="/sets/id/play"] .page, .page:has(.play-nav) { padding-bottom: calc(84px + env(safe-area-inset-bottom) + var(--dock-h)); }
+/* Leading a set: how many shared-link pages watch, on the lead button. */
+.lead-button { position: relative; }
+.count-pill { position: absolute; top: -6px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--psa-radius-full); background: var(--psa-accent); color: var(--psa-on-accent); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+/* A shared-link page that follows a leader says whom, above the page. */
+.live-banner { display: flex; align-items: center; gap: var(--psa-space-2); width: min(100%, 760px); margin: 0 auto; padding: calc(var(--psa-space-2) + env(safe-area-inset-top)) var(--page-pad) 0; color: var(--psa-accent-text); font-size: 13px; font-weight: 600; }
+.live-banner[hidden] { display: none; }
+.live-banner::before { content: ""; width: 8px; height: 8px; flex: none; border-radius: 50%; background: currentColor; }
+.play .reader { font-size: 20px; }
+.blank-slide { display: grid; place-items: center; min-height: 40vh; border: 1px dashed var(--psa-border-strong); border-radius: var(--psa-radius-lg); color: var(--psa-text-tertiary); }
+.play-nav {
+  position: fixed; inset: auto 0 0 0; z-index: 30;
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--psa-space-2);
+  padding: var(--psa-space-2) var(--psa-space-3) calc(var(--psa-space-2) + env(safe-area-inset-bottom));
+  /* Solid page colour, so it runs on into the strip under the browser's own
+     bar at the bottom without a seam (like the top bar). */
+  background: var(--psa-bg-canvas);
+  border-top: 1px solid var(--psa-border);
+}
+/* Compact steps: the chevron at the outer edge, then a small label over the
+   title it leads to, both lined up on the same side. */
+.play-step { display: flex; align-items: center; gap: var(--psa-space-1); min-width: 0; min-height: 48px; padding: 4px var(--psa-space-3) 4px var(--psa-space-2); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); color: var(--psa-text); text-align: left; }
+.play-step.next { justify-content: flex-end; padding: 4px var(--psa-space-2) 4px var(--psa-space-3); text-align: right; background: var(--psa-accent-soft); border-color: var(--psa-accent-medium); }
+.play-step .icon { flex: none; width: 20px; height: 20px; }
+.play-step span { display: grid; gap: 1px; min-width: 0; line-height: 1.2; }
+.play-step span > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-step strong { font-size: 14px; font-weight: 600; }
+.play-step small { color: var(--psa-text-secondary); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+@media (min-width: 900px) {
+  .play-nav { left: var(--rail-w); }
+  body[data-route^="/sets/id/play"] .shell { grid-template-columns: 1fr; }
+  body[data-route^="/sets/id/play"] .play-nav { left: 0; }
+  body[data-route^="/sets/id/play"] :is(.dock, .follow-view) { left: 0; }
+}
+
+/* ── Remote ─────────────────────────────────────────────────────────────── */
+
+.live-card { margin-bottom: var(--psa-space-4); padding: var(--psa-space-5); border: 1px solid var(--psa-accent-medium); border-radius: var(--psa-radius-lg); background: var(--psa-accent-soft); }
+.live-card h2 { margin: 0; font-size: 22px; overflow-wrap: anywhere; }
+.live-card p:last-child { margin: var(--psa-space-1) 0 0; color: var(--psa-text-secondary); }
+.live-card.blanked { border-color: var(--psa-border-strong); background: var(--psa-bg-surface); }
+.remote-pad { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: var(--psa-space-3); }
+.pad-button { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 96px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-lg); background: var(--psa-bg-surface); font-weight: 700; }
+.pad-button .icon { width: 28px; height: 28px; }
+.pad-button.primary { background: var(--psa-accent); border-color: transparent; color: var(--psa-on-accent); }
+.pad-button.on { background: var(--psa-danger-soft); border-color: var(--psa-danger); color: var(--psa-danger); }
+.pad-button:active:not(:disabled) { transform: scale(0.98); }
+.slide-grid { display: flex; flex-wrap: wrap; gap: var(--psa-space-2); }
+.slide-chip { min-height: 40px; padding: 0 var(--psa-space-4); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-full); background: var(--psa-bg-surface); font-weight: 600; font-size: 14px; }
+.slide-chip.on { background: var(--psa-accent); border: 2px solid var(--psa-accent-text); color: var(--psa-on-accent); }
+
+/* ── More ───────────────────────────────────────────────────────────────── */
+
+.card { padding: var(--psa-space-4); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); }
+.account-card { display: flex; align-items: center; gap: var(--psa-space-3); }
+.account-card > div { display: grid; flex: 1; min-width: 0; }
+.account-card small { color: var(--psa-text-secondary); }
+.avatar { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--psa-accent-soft); color: var(--psa-accent-text); font-weight: 700; }
+.list-row.static { cursor: default; }
+code.token { display: block; margin: var(--psa-space-3) 0; padding: var(--psa-space-3); border-radius: var(--psa-radius-sm); background: var(--psa-bg-sunken); overflow-wrap: anywhere; user-select: all; }
+
+/* ── Sheets, toast ──────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + var(--dock-h) + 12px); z-index: 60;
+  display: flex; align-items: center; gap: var(--psa-space-3);
+  width: max-content; max-width: min(calc(100vw - 32px), 480px); padding: 12px 18px; border-radius: var(--psa-radius-lg);
+  background: var(--psa-text); color: var(--psa-bg-canvas); font-size: 14px; font-weight: 600;
+  opacity: 0; pointer-events: none; transform: translate(-50%, 12px);
+  transition: opacity var(--psa-dur-base), transform var(--psa-dur-base) var(--psa-ease-decelerate);
+}
+.toast.visible { opacity: 1; transform: translate(-50%, 0); }
+.toast.error { background: var(--psa-danger); color: var(--psa-on-danger); }
+.toast-close { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: var(--psa-radius-full); background: transparent; color: inherit; }
+.toast-close .icon { width: 18px; height: 18px; }
+.toast.has-action { pointer-events: auto; padding-right: 8px; }
+.toast-action { min-height: 32px; padding: 0 12px; border: 0; border-radius: var(--psa-radius-full); background: var(--psa-accent); color: var(--psa-on-accent); font-weight: 700; font-size: 14px; }
+body.is-busy { cursor: progress; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+body[data-route^="/sets/id/play"] .toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
+/* Above the song editor's bar of chords and buttons. */
+body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
+
+/* ── Remote: the words on screen now ─────────────────────────────────────── */
+.live-words { margin-top: var(--psa-space-3); font-family: var(--psa-font-lyrics); font-size: 17px; line-height: 1.45; }
+.live-words p { margin: 0; overflow-wrap: anywhere; }
+.live-card .live-words p:last-child { margin: 0; color: var(--psa-text); }
+
+/* ── Rooms (/join): following a projection on your own phone ─────────────── */
+.room { --room-scale: 1.5; min-height: 100dvh; display: flex; flex-direction: column; background: var(--psa-bg-canvas); color: var(--psa-text); }
+.room-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-3); padding: calc(var(--psa-space-2) + env(safe-area-inset-top)) var(--page-pad) var(--psa-space-2); border-bottom: 1px solid var(--psa-border); background: var(--psa-bg-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.room-title { flex: 1 1 auto; min-width: 0; }
+.room-title h1 { margin: 0; font-family: var(--psa-font-display); font-size: 22px; line-height: 1.2; overflow-wrap: anywhere; }
+.room-status { padding: 4px 10px; border-radius: var(--psa-radius-full); background: var(--psa-bg-sunken); color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.room[data-status="live"] .room-status { background: var(--psa-accent); color: var(--psa-on-accent); }
+.room-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.room-tools [aria-pressed="true"] { background: var(--psa-accent-soft); border: 2px solid var(--psa-accent-text); color: var(--psa-accent-text); }
+.room-tools [aria-disabled="true"] { cursor: not-allowed; opacity: 0.45; }
+.room-body { flex: 1; width: min(100%, 860px); margin: 0 auto; padding: var(--psa-space-5) var(--page-pad) 45vh; font-family: var(--psa-font-lyrics); font-size: calc(18px * var(--room-scale)); line-height: 1.45; }
+.room-song { margin: 0 0 var(--psa-space-4); font-family: var(--psa-font-display); font-size: 0.8em; line-height: 1.2; color: var(--psa-text-secondary); overflow-wrap: anywhere; }
+.room-slide { margin: 0 0 var(--psa-space-3); padding: var(--psa-space-3) var(--psa-space-4); border-left: 6px solid transparent; border-radius: var(--psa-radius-md); color: var(--psa-text-secondary); transition: background var(--psa-dur-base) var(--psa-ease-standard), color var(--psa-dur-base) var(--psa-ease-standard); }
+.room-slide.current { border-left-color: var(--psa-accent-text); background: var(--psa-accent-soft); color: var(--psa-text-strong, var(--psa-text)); }
+.room-slide.current .room-label { color: var(--psa-text-secondary); }
+.room[data-status="blank"] .room-slide.current { border-left-color: var(--psa-border-strong); background: var(--psa-bg-sunken); }
+.room-label { margin: 0 0 4px; font-family: var(--psa-font-ui); font-size: max(12px, 0.5em); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--psa-text-tertiary); }
+.room-line { margin: 0; overflow-wrap: anywhere; }
+.room-waiting { padding: var(--psa-space-8) 0; text-align: center; }
+.room-waiting h2 { margin: 0 0 var(--psa-space-2); font-size: 1em; line-height: 1.25; }
+.room-waiting p { margin: 0; font-size: max(16px, 0.65em); color: var(--psa-text-secondary); }
+/* High contrast: yellow on black for the current words, white for the rest. */
+.room.contrast { --psa-bg-canvas: #000; --psa-bg-glass: #000; --psa-bg-sunken: #222; --psa-bg-elevated: #222; --psa-bg-surface: #000; --psa-text: #fff; --psa-text-strong: #fff; --psa-text-secondary: #fff; --psa-text-tertiary: #ddd; --psa-border: #fff; --psa-border-strong: #fff; --psa-accent: #ffd400; --psa-on-accent: #000; --psa-accent-soft: #000; --psa-accent-medium: #ffd400; --psa-accent-text: #ffd400; --psa-focus-color: #ffd400; }
+.room.contrast .room-slide.current { color: #ffd400; border-left-width: 10px; }
+.room.contrast .icon-button { border-color: #fff; color: #fff; background: #000; }
+.room.contrast .room-tools [aria-pressed="true"] { background: #ffd400; border-color: #ffd400; color: #000; }
+@media (prefers-reduced-motion: reduce) { .room-slide { transition: none; } }
+
+/* ── API reference (#/api) ───────────────────────────────────────────────── */
+.api-intro { margin-bottom: var(--psa-space-4); }
+.api-intro p { margin: 0 0 var(--psa-space-3); }
+.api-facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--psa-space-2) var(--psa-space-4); margin: 0; font-size: 14px; }
+.api-facts dt { color: var(--psa-text-secondary); font-weight: 600; }
+.api-facts dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .api-facts { grid-template-columns: 1fr; } .api-facts dd { margin-bottom: var(--psa-space-2); } }
+.api-group { margin-bottom: var(--psa-space-5); }
+.api-group > .muted { margin: 0 0 var(--psa-space-2); font-size: 14px; }
+.api-ops { margin: 0; padding: 0; list-style: none; border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); overflow: hidden; }
+.api-ops > li + li { border-top: 1px solid var(--psa-border-subtle); }
+.api-op > summary { display: grid; grid-template-columns: 4.5em 1fr; align-items: baseline; gap: 2px var(--psa-space-3); min-height: 44px; padding: var(--psa-space-3) var(--psa-space-4); cursor: pointer; list-style: none; }
+.api-op > summary::-webkit-details-marker { display: none; }
+.api-op > summary:focus-visible { box-shadow: inset 0 0 0 2px var(--psa-focus-color), inset 0 0 0 4px var(--psa-bg-canvas); border-radius: 0; }
+.api-op[open] > summary { background: var(--psa-bg-subtle); }
+.api-method { justify-self: start; padding: 2px 6px; border: 1px solid var(--psa-border-control); border-radius: var(--psa-radius-xs); font-family: var(--psa-font-mono); font-size: 12px; font-weight: 700; color: var(--psa-text); }
+.api-method[data-method="get"] { border-color: var(--psa-positive); color: var(--psa-positive); }
+.api-method[data-method="delete"] { border-color: var(--psa-danger); color: var(--psa-danger); }
+.api-path { font-weight: 600; overflow-wrap: anywhere; }
+.api-summary { grid-column: 2; color: var(--psa-text-secondary); font-size: 14px; }
+.api-op-body { padding: 0 var(--psa-space-4) var(--psa-space-4); font-size: 14px; }
+.api-op-body > p { margin: var(--psa-space-3) 0 0; }
+.api-op-body h3 { margin: var(--psa-space-4) 0 var(--psa-space-2); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--psa-text-secondary); }
+.api-access { color: var(--psa-text-secondary); }
+.api-fields { margin: 0; padding: 0 0 0 var(--psa-space-4); border-left: 2px solid var(--psa-border-strong); list-style: none; }
+.api-fields > li { padding: 4px 0; }
+.api-field { font-weight: 700; }
+.api-type { color: var(--psa-text-secondary); font-size: 13px; }
+.api-field-text { margin-top: 2px; }
+.api-nested { margin-top: 4px; }
+.api-nested > summary { width: fit-content; min-height: 24px; padding: 2px 0; color: var(--psa-accent-text); font-weight: 600; cursor: pointer; }
+.api-responses { margin: 0; }
+.api-responses dt { margin-top: var(--psa-space-2); font-weight: 600; }
+.api-responses dd { margin: 2px 0 0; }
+.api-responses dd:empty { display: none; }
+.api-example { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--psa-space-2); }
+.api-example pre { flex: 1 1 240px; min-width: 0; margin: 0; padding: var(--psa-space-3); border-radius: var(--psa-radius-sm); background: var(--psa-bg-sunken); overflow-x: auto; font-size: 13px; line-height: 1.5; }
+.api-example pre:focus-visible { box-shadow: var(--psa-focus-ring); }
+
+/* ── App-like movement on phones (transitions.ts) ───────────────────────────
+   Screens are swapped inside a view transition. The bars keep their place
+   and cross-fade (their own view-transition-name); the rest of the screen
+   slides: in from the right when going deeper, out to the right going back,
+   sideways between a set's items. */
+@media (max-width: 899px) and (prefers-reduced-motion: no-preference) {
+  /* Between a set's items the bar stays and cross-fades. Going deeper or
+     back it slides with its screen: the other screen may have no bar (the
+     song list), and a bar fading in after the slide looks like a jump. */
+  html[data-slide="next"] .app-bar, html[data-slide="prev"] .app-bar { view-transition-name: app-bar; }
+  .play-nav { view-transition-name: play-nav; }
+  /* On the dock's bars, not the dock: a named element is a backdrop root, so
+     a name on the dock would leave the current set bar nothing to frost. */
+  .current-bar { view-transition-name: current-bar; }
+  .offline-bar { view-transition-name: offline-bar; }
+  .live-banner { view-transition-name: live-banner; }
+
+  ::view-transition-group(*) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1); }
+  html[data-slide] ::view-transition-old(root),
+  html[data-slide] ::view-transition-new(root) {
+    animation-duration: 340ms;
+    animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1);
+    animation-fill-mode: both;
+    mix-blend-mode: normal;
+  }
+  /* Deeper: the new screen comes in over the old, which drifts left. */
+  html[data-slide="push"]::view-transition-old(root) { animation-name: vt-to-left-part; }
+  html[data-slide="push"]::view-transition-new(root) { animation-name: vt-from-right; box-shadow: -10px 0 30px rgb(0 0 0 / 0.25); }
+  /* Back: the old screen leaves to the right, over the one coming back. */
+  html[data-slide="pop"]::view-transition-old(root) { animation-name: vt-to-right; z-index: 2; box-shadow: -10px 0 30px rgb(0 0 0 / 0.25); }
+  html[data-slide="pop"]::view-transition-new(root) { animation-name: vt-from-left-part; }
+  /* A set's items: side by side, like pages. */
+  html[data-slide="next"]::view-transition-old(root) { animation-name: vt-to-left; }
+  html[data-slide="next"]::view-transition-new(root) { animation-name: vt-from-right; }
+  html[data-slide="prev"]::view-transition-old(root) { animation-name: vt-to-right; }
+  html[data-slide="prev"]::view-transition-new(root) { animation-name: vt-from-left; }
+}
+@keyframes vt-from-right { from { transform: translateX(100%); } }
+@keyframes vt-from-left { from { transform: translateX(-100%); } }
+@keyframes vt-from-left-part { from { transform: translateX(-28%); opacity: 0.6; } }
+@keyframes vt-to-left { to { transform: translateX(-100%); } }
+@keyframes vt-to-right { to { transform: translateX(100%); } }
+@keyframes vt-to-left-part { to { transform: translateX(-28%); opacity: 0.6; } }
+
+/* Swiping through songs (a set, a list): the song (not the bars) follows the
+   finger, and the neighbour (.swipe-peek) comes in beside it. */
+.swipe-view { position: relative; touch-action: pan-y; }
+.page:has(> .swipe-view) { overflow-x: clip; }
+.swipe-view.dragging > :not(.app-bar, .play-nav),
+.swipe-view.settling > :not(.app-bar, .play-nav) { transform: translateX(var(--drag, 0px)); will-change: transform; }
+.swipe-view.settling > :not(.app-bar, .play-nav) { transition: transform 240ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+.swipe-peek { position: absolute; width: 100%; pointer-events: none; }
+.swipe-peek .page-titles { margin-top: 0; }
+/* A list's songs, one after another: phones swipe, mice step with these
+   (under the song, clear of the current set's card). */
+.song-nav { display: grid; grid-template-columns: 1fr 1fr; gap: var(--psa-space-2); margin: var(--psa-space-6) 0 var(--psa-space-4); }
+@media (pointer: coarse) { .song-nav { display: none; } }
+
+/* The installed app's swipe back: the screen follows the finger. `left`
+   rather than a transform, so the fixed bars inside stay where they are. */
+#page.swiping-back, #page.settling-back { position: relative; left: var(--back, 0px); box-shadow: -10px 0 30px rgb(0 0 0 / 0.25); }
+#page.settling-back { transition: left 240ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+
+/* Taps answer at once: no grey flash, no double-tap zoom wait. */
+a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+/* Chords from the web (views/find-chords.ts). */
+.chords-search { display: flex; align-items: center; gap: var(--psa-space-2); margin-bottom: var(--psa-space-2); }
+.chords-search .search-field { flex: 1; margin: 0; }
+.chord-sources .list-row + .list-row { border-top: 1px solid var(--psa-border); }
+.chord-sources .list-row.on { background: var(--psa-accent-soft); box-shadow: inset 3px 0 0 var(--psa-accent-text); }
+.chord-sources .list-row:disabled { opacity: 0.55; }
+.chord-preview-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--psa-space-3); margin: var(--psa-space-4) 0; padding: var(--psa-space-3) var(--psa-space-4); border-radius: var(--psa-radius-sm); background: var(--psa-bg-surface); border: 1px solid var(--psa-border); }
+.chord-preview-head p { flex: 1 1 18em; margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
+.chord-preview-head strong { color: var(--psa-text); }
+.chord-key { flex: 1 1 100%; display: grid; gap: var(--psa-space-2); }
+.chord-key-note { margin: 0; color: var(--psa-text-secondary); font-size: 14px; }
+.chord-key-note strong { color: var(--psa-text); }
+.chord-key-choice { justify-self: start; grid-auto-columns: auto; }
+.chord-key-choice button { padding: 0 var(--psa-space-3); }
+@media (min-width: 900px) {
+  /* ChordPro with its preview may be wider than the pane allows for words. */
+  .page:has(> .app-bar .ce-modes):has(.ce[data-mode="code"]) { width: auto; }
+}
+@media (min-width: 900px) {
+  .tabbar .tab { justify-content: center; }
+}
+@media (min-width: 1100px) {
+  /* The current set's card and the projector's words stay over the song's pane. */
+  body.split :is(.dock, .follow-view) { left: calc(var(--rail-w) + var(--browse-w) + var(--pane-gap)); }
+}
+/* On a phone the chord panel shares the screen with the words: a smaller drawing. */
+@media (max-width: 899px) {
+  .page > .chord-dock .chord-shape { min-height: 0; padding: 30px 44px 30px; }
+  .page > .chord-dock .chord-diagram { max-height: 150px; }
+}
+/* The current set's card rises above a chord panel along the bottom. */
+@media (min-width: 900px) and (max-width: 1399px) {
+  body:has(.page > .chord-dock:not([hidden])) .dock { bottom: calc(var(--chord-dock-h, 0px) + var(--pane-gap)); }
+}
+@media (min-width: 900px) and (max-width: 1099px) {
+  body:has(.page > .chord-dock:not([hidden])) .dock { bottom: calc(var(--chord-dock-h, 0px) + 3 * var(--pane-gap)); }
+}
+
+/* ── Wide screens: the desktop's layout ─────────────────────────────────────
+   Last, so it overrides the phone-first rules above. */
+
+/* Wide screens: the desktop app's layout. A narrow rail of icons at the left
+   (the section in use marked by a lime edge, its name a tooltip), and the
+   screen in a pane with a hairline edge on the dark, dotted ground. The
+   page's words keep a reading width inside it (`--gutter`). */
+@media (min-width: 900px) {
+  :root {
+    --page-pad: var(--psa-space-6); --tabbar-h: 0px; --rail-w: 56px; --pane-gap: 12px;
+    --pane-bg: color-mix(in srgb, var(--psa-bg-surface) 72%, var(--psa-bg-canvas));
+  }
+  body {
+    background-image: radial-gradient(circle at 50% 0%, rgb(198 216 140 / 0.05) 0%, transparent 55%), radial-gradient(circle, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+    background-size: 100% 100%, 24px 24px; background-attachment: fixed;
+  }
+  .shell { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); align-items: start; }
+  .tabbar, body.menu-open .tabbar {
+    /* `top` after `inset`, which would otherwise reset it and let the rail scroll away. */
+    position: sticky; inset: auto; top: 0; z-index: auto; width: auto; height: 100dvh;
+    align-items: center; gap: 4px; padding: 10px 0; overflow: visible;
+    background: var(--psa-bg-glass); border-right: 1px solid var(--psa-border-subtle); box-shadow: none; transform: none; visibility: visible; transition: none;
+  }
+  .tabbar .brand { margin: 0 0 var(--psa-space-3); }
+  .tabbar .brand > span:last-child { display: none; }
+  .tabbar .brand-mark { background: linear-gradient(135deg, var(--psa-accent) 0%, #96ac58 100%); box-shadow: 0 4px 16px var(--psa-accent-glow), inset 0 1px 1px rgb(255 255 255 / 0.25); }
+  .tab-label, .app-version { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tab { display: grid; place-items: center; width: var(--rail-w); height: 44px; padding: 0; border-radius: 0; color: var(--psa-text-tertiary); }
+  .tab .icon { width: 22px; height: 22px; }
+  .tab:hover, .tab.on { background: none; color: var(--psa-text); }
+  .tab.on::before { left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 0 2px 2px 0; background: var(--psa-accent); box-shadow: 0 0 8px var(--psa-accent-glow); }
+  .tab:focus-visible { border-radius: 0; box-shadow: inset 0 0 0 2px var(--psa-focus-color); }
+  /* Settings' menu is wider, with its pages' names: there are more of
+     them than icons alone could tell apart. */
+  body.settings-nav { --rail-w: 220px; }
+  body.settings-nav .tabbar { align-items: stretch; padding: 10px var(--psa-space-2); }
+  body.settings-nav .tabbar .brand { align-self: start; margin-left: 10px; }
+  body.settings-nav .tab { display: flex; justify-content: flex-start; gap: var(--psa-space-3); width: auto; height: 40px; padding: 0 var(--psa-space-3); border-radius: var(--psa-radius-sm); font-size: 14px; color: var(--psa-text-secondary); }
+  body.settings-nav .tab .icon { width: 18px; height: 18px; }
+  body.settings-nav .tab .tab-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  body.settings-nav .tab.on { background: var(--psa-accent-soft); color: var(--psa-text); }
+  body.settings-nav .tab.on::before { left: -8px; }
+  .nav-scrim, .menu-button, .app-bar.menu-only { display: none; }
+  /* With its phone-only bar hidden, the title starts the page. */
+  .page > .app-bar.menu-only:first-child + .page-titles { margin-top: var(--psa-space-8); }
+  .page {
+    --gutter: max(var(--page-pad), (100vw - var(--rail-w) - 2 * var(--pane-gap) - 760px) / 2);
+    width: auto; min-height: calc(100dvh - 2 * var(--pane-gap)); margin: var(--pane-gap);
+    padding: 0 var(--gutter) calc(var(--dock-h) + var(--psa-space-8));
+    border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-lg); background: var(--pane-bg);
+  }
+  .page > :first-child:not(.app-bar, .play, .swipe-view) { margin-top: var(--psa-space-8); }
+  /* The pane's head: as tall as the desktop's, a hairline under it and a
+     faint lime light from above. */
+  .app-bar, .search-bar { margin-inline: calc(-1 * var(--gutter)); padding-inline: calc(var(--gutter) - 6px); }
+  .app-bar { border-bottom-color: var(--psa-border-subtle); border-radius: var(--psa-radius-lg) var(--psa-radius-lg) 0 0; background: linear-gradient(180deg, rgb(198 216 140 / 0.04) 0%, transparent 100%), var(--pane-bg); }
+  .search-bar { background: var(--pane-bg); }
+  body.scrolled .app-bar { border-bottom-color: var(--psa-border); }
+  .app-bar-row { height: 64px; }
+  .page-titles h1 { font-weight: 400; letter-spacing: -0.01em; }
+  /* The song editor sets its own widths. */
+  .page:has(> .app-bar .ce-modes) { --gutter: var(--page-pad); }
+  .app-bar:has(.ce-modes) { background: var(--pane-bg); }
+}
+:root { --rail-bg: var(--psa-bg-canvas); }
+
+/* Wider still, the songs as on the desktop: the list in a pane of its own
+   (it stays as it is while songs open), the song chosen in the pane beside
+   it, under a head with its title and toolbar. Each pane scrolls inside. */
+@media (min-width: 1100px) {
+  body.split { --browse-w: clamp(320px, 28vw, 440px); }
+  body.split .shell { grid-template-columns: var(--rail-w) var(--browse-w) minmax(0, 1fr); }
+  .browse-pane[hidden] { display: none; }
+  .browse-pane {
+    --page-pad: 14px; --gutter: 14px;
+    position: sticky; top: var(--pane-gap); height: calc(100dvh - 2 * var(--pane-gap)); margin: var(--pane-gap) 0 var(--pane-gap) var(--pane-gap);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-lg); background: var(--pane-bg);
+  }
+  .browse-pane .page-titles { display: none; }
+  .browse-pane .search-bar { height: 73px; margin: 0 0 var(--psa-space-2); padding: 0 14px; border-bottom: 1px solid var(--psa-border-subtle); }
+  .browse-pane .search-field input { min-height: 44px; border-radius: var(--psa-radius-lg); background: var(--psa-bg-subtle); font-size: 15px; }
+  .browse-pane .list-sort { padding-inline: 14px; }
+  .browse-pane .filter-summary { padding-inline: 14px; }
+  .browse-pane #song-results { margin: 0 8px 8px; border: 0; border-radius: 0; background: none; overflow: visible; }
+  .browse-pane #song-results > li + li { border-top: 0; }
+  .browse-pane #song-results > li { border-radius: var(--psa-radius-md); }
+  .browse-pane #song-results .list-row, .browse-pane #song-results .row-link { min-height: 40px; padding-left: 10px; }
+  .browse-pane #song-results .song-row { padding-left: 0; }
+  @media (hover: hover) { .browse-pane #song-results > li:hover, .browse-pane .song-row:hover { background: var(--psa-bg-elevated); } }
+  /* The song open beside the list: a lime edge round its row. */
+  .browse-pane #song-results > li.on { background: var(--psa-accent-soft); box-shadow: inset 0 0 0 1px var(--psa-accent-medium); }
+  .browse-pane #song-results > li.on .row-main strong { color: var(--psa-text-strong); }
+  .browse-pane #song-results .list-row > .icon:last-child { display: none; }
+  .browse-pane .load-more { margin-bottom: var(--psa-space-6); }
+
+  /* The song's pane: its head and words scroll inside it; how to play a
+     chord sits under them, or beside them when there is room. */
+  body.split .page {
+    --gutter: var(--page-pad);
+    display: flex; flex-direction: column; height: calc(100dvh - 2 * var(--pane-gap)); min-height: 0;
+    padding: 0; overflow: hidden;
+  }
+  body.split .page > .swipe-view { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--gutter) var(--psa-space-8); }
+  body.split .page > .chord-dock { position: relative; inset: auto; flex: none; max-height: 48%; overflow-y: auto; border: 0; border-top: 1px solid var(--psa-border-subtle); border-radius: 0; box-shadow: none; background: var(--psa-bg-subtle); }
+  /* The title is in the head, always; no Back (the list is beside it) and no steps to the next song. */
+  body.split .page .app-bar { position: sticky; top: 0; transform: none; }
+  body.split .page .app-bar-row { height: 72px; gap: var(--psa-space-4); }
+  body.split .page .bar-back, body.split .page .song-nav { display: none; }
+  body.split .page .bar-title { margin: 0 0 0 6px; opacity: 1; transform: none; font-family: var(--psa-font-display); font-size: clamp(1.25rem, 2.2vw, 1.65rem); font-weight: 400; letter-spacing: -0.01em; color: var(--psa-text-strong); }
+  body.split .page .swipe-view > .page-titles { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* Number and key at the top right of the words, as on the desktop. */
+  body.split .page .page-meta { float: right; max-width: 40%; margin: var(--psa-space-5) 0 var(--psa-space-3) var(--psa-space-6); color: var(--psa-text-tertiary); font-size: 13px; text-align: right; }
+  body.split .page .swipe-view > .page-meta + * { margin-top: var(--psa-space-5); }
+  body.split .page .reader { margin-top: var(--psa-space-5); }
+  body.split .page > .page-titles.quiet + .pick-song { flex: 1; display: grid; place-content: center; justify-items: center; color: var(--psa-text-secondary); }
+  .pick-song .icon { width: 36px; height: 36px; margin-bottom: var(--psa-space-3); color: var(--psa-text-tertiary); }
+}
+/* Room for the chord beside the words. */
+@media (min-width: 1400px) {
+  body.split .page { flex-direction: row; }
+  body.split .page > .chord-dock { width: 340px; max-height: none; border-top: 0; border-left: 1px solid var(--psa-border-subtle); }
+}
+
+/* How to play a chord (chord-viewer.ts): a panel along the bottom, over the
+   current set's card, so the song still scrolls above it. The page keeps
+   room under its last line. Too short a screen (a phone on its side) has
+   no room for it: the chord opens in a sheet. */
+.chord-dock {
+  position: fixed; z-index: 24; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--dock-h));
+  max-height: 55dvh; overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: calc(var(--psa-space-4) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--psa-border); box-shadow: 0 -12px 32px rgb(0 0 0 / 0.3);
+}
+.page:has(> .chord-dock:not([hidden])) { padding-bottom: calc(var(--chord-dock-h, 0px) + var(--dock-h) + var(--psa-space-6)); }
+@media (min-width: 1100px) { body.split .page:has(> .chord-dock:not([hidden])) { padding-bottom: 0; } }
+@media (max-height: 560px) { .chord-dock { --chord-dock: none; } }
+/* Wide, without the list beside it: the chord panel floats along the bottom of the pane. */
+@media (min-width: 900px) {
+  .chord-dock { left: calc(var(--rail-w) + 2 * var(--pane-gap)); right: calc(2 * var(--pane-gap)); bottom: calc(var(--dock-h) + 2 * var(--pane-gap)); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-lg); }
+}

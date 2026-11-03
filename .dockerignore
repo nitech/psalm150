@@ -1,0 +1,7 @@
+.git
+.github
+.env
+api/target
+shared/lyrics/target
+web/node_modules
+web/dist
