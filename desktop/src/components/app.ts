@@ -12,6 +12,7 @@ import {
   type DuplicateGroup,
   SIMULATED_DISPLAY_ID,
   type DisplayInfo,
+  type DisplaysChanged,
   type ImportProgress,
   type ImportReport,
   type LibraryStatus,
@@ -143,7 +144,7 @@ const SETTINGS_SECTIONS: ReadonlyArray<{
   { id: "library", label: "Library", icon: "♫", keywords: "songs folder chordpro import mdb rescan duplicates numbers" },
   { id: "server", label: "Church server", icon: "↗", keywords: "server url token sync download offline cache church room name flower join share remote control phone" },
   { id: "vsb", label: "Visual Song Book", icon: "⇄", keywords: "vsb visual song book mdb access database sync synchronize two-way backup" },
-  { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display chords read only editing" },
+  { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display projector auto select new connected chords read only editing" },
   { id: "search", label: "Search", icon: "⌕", keywords: "web internet online local songs match" },
   { id: "remote", label: "Phone remote", icon: "◌", keywords: "phone remote wifi network tailscale pin slides" },
   { id: "reports", label: "Reports", icon: "▤", keywords: "print songbook ccli csv export" },
@@ -197,6 +198,7 @@ export class Psa150App extends Psa150Element {
     webSearchEnabled: { state: true },
     displays: { state: true },
     audienceMonitor: { state: true },
+    autoSelectDisplay: { state: true },
     stageMonitor: { state: true },
     keys: { state: true },
     query: { state: true },
@@ -294,6 +296,7 @@ export class Psa150App extends Psa150Element {
   declare webSearchEnabled: boolean;
   declare displays: DisplayInfo[];
   declare audienceMonitor: string;
+  declare autoSelectDisplay: boolean;
   declare stageMonitor: string;
   declare keys: string[];
   declare query: string;
@@ -395,6 +398,7 @@ export class Psa150App extends Psa150Element {
   private unlistenLibrary: UnlistenFn | null = null;
   private unlistenProjection: UnlistenFn | null = null;
   private unlistenProjectionClosed: UnlistenFn | null = null;
+  private unlistenDisplays: UnlistenFn | null = null;
   private unlistenProjectionEscaped: UnlistenFn | null = null;
   private unlistenExternalLibrary: UnlistenFn | null = null;
   private unlistenWindowResize: UnlistenFn | null = null;
@@ -453,6 +457,7 @@ export class Psa150App extends Psa150Element {
     this.webSearchEnabled = true;
     this.displays = [];
     this.audienceMonitor = "";
+    this.autoSelectDisplay = true;
     this.stageMonitor = "";
     this.keys = [];
     this.query = "";
@@ -599,6 +604,15 @@ export class Psa150App extends Psa150Element {
       this.unlistenProjection = await listen<ProjectionSnapshot>("projection-updated", (event) => {
         this.applyProjectionSnapshot(event.payload);
       });
+      // A display connected or removed: fresh lists, and a word when the new
+      // one now shows the words.
+      this.unlistenDisplays = await listen<DisplaysChanged>("displays-changed", (event) => {
+        const change = event.payload;
+        this.displays = change.displays;
+        this.audienceMonitor = change.audienceMonitor ?? "";
+        this.stageMonitor = change.stageMonitor ?? "";
+        if (change.selected) this.showToast(`Congregation display: ${change.selected}`);
+      });
       this.unlistenProjectionClosed = await listen("projection-closed", () => {
         this.stanzaNumberInput.reset();
         this.projecting = false;
@@ -649,6 +663,7 @@ export class Psa150App extends Psa150Element {
     this.unlistenLibrary?.();
     this.unlistenProjection?.();
     this.unlistenProjectionClosed?.();
+    this.unlistenDisplays?.();
     this.unlistenProjectionEscaped?.();
     this.unlistenExternalLibrary?.();
     this.unlistenWindowResize?.();
@@ -1598,6 +1613,7 @@ export class Psa150App extends Psa150Element {
     this.readOnly = Boolean(config.read_only) || Boolean(this.serverLibrary);
     this.webSearchEnabled = config.web_search_enabled !== false;
     this.audienceMonitor = config.audience_monitor ?? "";
+    this.autoSelectDisplay = config.auto_select_display !== false;
     this.stageMonitor = config.stage_monitor ?? "";
     this.showSongNumbers = config.show_song_numbers !== false;
     this.vsbSync = config.vsb_sync ?? null;
@@ -1611,6 +1627,11 @@ export class Psa150App extends Psa150Element {
   private async onAudienceMonitorChange(monitorId: string) {
     this.audienceMonitor = monitorId;
     await api.setAudienceMonitor(monitorId || null);
+  }
+
+  private async onAutoSelectDisplayChange(enabled: boolean) {
+    this.autoSelectDisplay = enabled;
+    await api.setAutoSelectDisplay(enabled);
   }
 
   private async onStageMonitorChange(monitorId: string) {
@@ -4374,8 +4395,13 @@ export class Psa150App extends Psa150Element {
         break;
       case "projection":
         content = html`
-          <div class="settings-row"><span class="settings-row-label" id="audience-display-label">Congregation</span><psa150-select labelledby="audience-display-label" .options=${this.audienceDisplayOptions()} .value=${this.audienceMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}></psa150-select></div>
-          <div class="settings-row"><span class="settings-row-label" id="stage-display-label">Stage</span><psa150-select labelledby="stage-display-label" .options=${this.stageDisplayOptions()} .value=${this.stageMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}></psa150-select></div>
+          <div class="settings-displays">
+            <span class="settings-row-label" id="audience-display-label">Congregation</span>
+            <psa150-select labelledby="audience-display-label" .options=${this.audienceDisplayOptions()} .value=${this.audienceMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onAudienceMonitorChange(e.detail)}></psa150-select>
+            <label class="settings-switch" title="When a display is connected, show the words on it"><input type="checkbox" role="switch" .checked=${this.autoSelectDisplay} @change=${(e: Event) => this.onAutoSelectDisplayChange((e.target as HTMLInputElement).checked)} /><span class="settings-switch-track" aria-hidden="true"></span><span>Auto-select new display</span></label>
+            <span class="settings-row-label" id="stage-display-label">Stage</span>
+            <psa150-select labelledby="stage-display-label" .options=${this.stageDisplayOptions()} .value=${this.stageMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}></psa150-select>
+          </div>
           <label class="settings-check"><input type="checkbox" .checked=${this.projectToStage} @change=${(e: Event) => this.onProjectToStageChange((e.target as HTMLInputElement).checked)} /><span>Also show stage window when projecting (musician chords)</span></label>
           <label class="settings-check"><input type="checkbox" .checked=${this.readOnly} ?disabled=${Boolean(this.serverLibrary)} @change=${(e: Event) => this.onReadOnlyChange((e.target as HTMLInputElement).checked)} /><span>Read-only library (prevent edits and deletes)</span></label>`;
         break;

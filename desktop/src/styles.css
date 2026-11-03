@@ -2050,6 +2050,81 @@ select option {
   max-width: 100%;
 }
 
+/* The congregation and stage displays: their lists in one column, so they
+   line up, and the congregation's "Auto-select new display" switch beside
+   its list. */
+.settings-displays {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 240px) auto;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+
+.settings-displays psa150-select {
+  min-width: 0;
+}
+
+/* A light switch: a checkbox drawn as a track and a knob, gold when on. */
+.settings-switch {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settings-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.settings-switch-track {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  transition: background var(--psa-dur-fast) var(--psa-ease-standard),
+    border-color var(--psa-dur-fast) var(--psa-ease-standard);
+}
+
+.settings-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform var(--psa-dur-fast) var(--psa-ease-standard);
+}
+
+.settings-switch input:checked + .settings-switch-track {
+  border-color: var(--accent-gold);
+  background: var(--accent-gold);
+}
+
+.settings-switch input:checked + .settings-switch-track::after {
+  transform: translateX(14px);
+  background: var(--accent-on);
+}
+
+.settings-switch input:focus-visible + .settings-switch-track {
+  box-shadow: var(--focus-ring);
+}
+
 /* Settings is a compact command centre: persistent navigation on the left,
    and one focused setting group on the right. */
 .settings-layout {
@@ -3103,7 +3178,7 @@ body.audience-projection {
   padding:
     max(var(--psa150-margin-top), clamp(32px, 6vw, 72px))
     max(var(--psa150-margin-right), clamp(32px, 6vw, 72px))
-    calc(max(var(--psa150-margin-bottom), clamp(32px, 6vw, 72px)) + var(--audience-reserve, 0px))
+    max(var(--psa150-margin-bottom), clamp(32px, 6vw, 72px))
     max(var(--psa150-margin-left), clamp(32px, 6vw, 72px));
   text-align: center;
   background: var(--psa150-bg);
@@ -3114,8 +3189,9 @@ body.audience-projection {
 /* Lines lay out at their natural width and never wrap. `fit()` in audience.ts
    measures every stanza of the song and sets --psa150-fit-font: the largest
    size at which all of them fit, so each lyric line stays on one row and the
-   size holds through the song. The screen padding applies the theme margins
-   and leaves room for the corner overlays (--audience-reserve). */
+   size holds through the song. The screen padding applies the theme margins;
+   the footer in the corners sits over the song, and `clearFooter()` moves a
+   stanza only when its letters would run into it. */
 .audience-content {
   position: relative;
   z-index: 1;
@@ -3175,58 +3251,50 @@ body.audience-projection {
   }
 }
 
-.audience-overlay {
+/* The footer: song number and key bottom left, the stanza counter bottom
+   right. Plain white text as large as the song's words, no frame, over the
+   bottom of the screen rather than on a strip of its own. */
+.audience-overlay,
+.audience-stanza-counter {
   position: fixed;
-  left: clamp(20px, 3vw, 40px);
-  bottom: clamp(20px, 3vw, 36px);
+  bottom: clamp(16px, 2.4vw, 32px);
   z-index: 2;
   display: flex;
-  align-items: center;
-  gap: 0.75em;
-  max-width: min(1100px, 62vw);
-  padding: 10px 24px;
-  border-radius: var(--radius-full);
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  background: #000000;
-  font-size: clamp(1rem, 1.7vw, 1.9rem);
+  align-items: baseline;
+  font-family: var(--psa150-font-family);
+  /* The size the words have on screen, including a stanza shrunk to fit. */
+  font-size: calc(var(--psa150-fit-font, 3rem) * var(--audience-scale, 1));
+  font-weight: var(--psa150-font-weight, 500);
+  letter-spacing: -0.02em;
   line-height: 1.2;
   color: #ffffff;
-  letter-spacing: 0.02em;
+}
+
+.audience-overlay {
+  left: clamp(20px, 3vw, 40px);
+  gap: 0.6em;
+  max-width: 45vw;
   text-align: left;
 }
 
-/* The song number, large enough to read from the back. */
-.audience-song-number {
-  flex: none;
-  font-size: 1.6em;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.audience-stanza-counter {
+  right: clamp(20px, 3vw, 40px);
+  gap: 0.3em;
 }
 
+.audience-song-number,
+.audience-song-key {
+  flex: none;
+}
+
+/* Copyright and CCLI, when shown: small print beside the number. */
 .audience-overlay-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.audience-stanza-counter {
-  position: fixed;
-  right: clamp(20px, 3vw, 40px);
-  bottom: clamp(20px, 3vw, 36px);
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: clamp(10px, 1.5vw, 16px);
-  padding: 10px 26px;
-  border-radius: var(--radius-full);
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  background: #000000;
-  font-size: clamp(1.4rem, 2.8vw, 3.2rem);
-  font-weight: 700;
-  line-height: 1.2;
-  color: #ffffff;
-  letter-spacing: 0.04em;
+  font-size: clamp(0.9rem, 1.4vw, 1.5rem);
+  font-weight: 500;
 }
 
 .audience-stanza-arrow {
@@ -3240,11 +3308,6 @@ body.audience-projection {
   opacity: 0.45;
 }
 
-.audience-stanza-count {
-  font-variant-numeric: tabular-nums;
-  min-width: 3.5em;
-  text-align: center;
-}
 
 .audience-progress {
   pointer-events: none;

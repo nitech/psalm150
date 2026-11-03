@@ -126,6 +126,18 @@ pub fn set_audience_monitor(
 }
 
 #[tauri::command]
+pub fn set_auto_select_display(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    with_state(&state, |runtime| {
+        runtime.config.auto_select_display = enabled;
+        runtime.config.save(&app)
+    })
+}
+
+#[tauri::command]
 pub fn set_stage_monitor(
     app: AppHandle,
     state: State<'_, AppState>,

@@ -139,16 +139,7 @@ export class Psa150Audience extends Psa150Element {
     const content = this.querySelector<HTMLElement>(".audience-content");
     if (!screen || !content || !this.slide) return;
 
-    // The corner overlays get their own strip at the bottom.
-    const overlay = this.querySelector<HTMLElement>(".audience-overlay");
-    const counter = this.querySelector<HTMLElement>(".audience-stanza-counter");
-    const reserve = Math.max(
-      overlay ? overlay.offsetHeight + 24 : 0,
-      counter ? counter.offsetHeight + 24 : 0,
-    );
     const root = document.documentElement.style;
-    root.setProperty("--audience-reserve", `${reserve}px`);
-
     const screenStyle = getComputedStyle(screen);
     const padX = parseFloat(screenStyle.paddingLeft) + parseFloat(screenStyle.paddingRight);
     const padY = parseFloat(screenStyle.paddingTop) + parseFloat(screenStyle.paddingBottom);
@@ -176,15 +167,65 @@ export class Psa150Audience extends Psa150Element {
 
     // Never cut words off, should a measurement be off.
     content.style.transform = "";
+    root.setProperty("--audience-scale", "1");
     const overflow = Math.min(
       width / Math.max(1, content.scrollWidth),
       height / Math.max(1, content.scrollHeight),
     );
-    if (overflow < 0.999) {
-      content.style.transformOrigin = "center center";
-      content.style.transform = `scale(${overflow})`;
-    }
+    const scale = overflow < 0.999 ? overflow : 1;
+    if (scale < 1) this.transformContent(content, 0, scale);
+    this.clearFooter(screen, content, scale, parseFloat(screenStyle.paddingTop));
   };
+
+  private transformContent(content: HTMLElement, lift: number, scale: number) {
+    content.style.transformOrigin = "center center";
+    content.style.transform = `translateY(${-lift}px) scale(${scale})`;
+    // The footer keeps the size the words have on screen.
+    document.documentElement.style.setProperty("--audience-scale", String(scale));
+  }
+
+  /**
+   * The footer (song number and key, stanza counter) sits over the bottom of
+   * the screen, not on a strip of its own. A stanza whose letters would run
+   * into it moves up, or shrinks a little when there is no room above, so the
+   * song keeps one size and every other stanza uses the whole height.
+   */
+  private clearFooter(screen: HTMLElement, content: HTMLElement, scale: number, padTop: number) {
+    const labels = [".audience-overlay", ".audience-stanza-counter"]
+      .map((selector) => this.querySelector<HTMLElement>(selector)?.getBoundingClientRect())
+      .filter((box): box is DOMRect => Boolean(box && box.width && box.height));
+    if (!labels.length) return;
+    const lines = [...content.querySelectorAll<HTMLElement>(".audience-line")];
+    // A quarter of the song's font between the letters and a label.
+    const gap = parseFloat(getComputedStyle(lines[0] ?? content).fontSize) * 0.25;
+    // How far the letters reach into a label, line by line on screen (their
+    // own width, not the block's).
+    let reach = 0;
+    for (const line of lines) {
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      for (const box of range.getClientRects()) {
+        for (const label of labels) {
+          if (box.right > label.left - gap && box.left < label.right + gap) {
+            reach = Math.max(reach, box.bottom + gap - label.top);
+          }
+        }
+      }
+    }
+    if (reach <= 0) return;
+    const block = content.getBoundingClientRect();
+    const ceiling = screen.getBoundingClientRect().top + padTop;
+    if (reach <= block.top - ceiling) {
+      this.transformContent(content, reach, scale);
+      return;
+    }
+    // No room above: shrink the stanza until it ends above the footer.
+    const floor = Math.min(...labels.map((label) => label.top)) - gap;
+    const shrunk = scale * Math.max(0.1, (floor - ceiling) / block.height);
+    const height = (block.height * shrunk) / scale;
+    const center = block.top + block.height / 2;
+    this.transformContent(content, center - height / 2 - ceiling, shrunk);
+  }
 
   /** The song's stanzas, one entry per different set of words, and the one on screen. */
   private songWords(current: string): string[] {
@@ -240,31 +281,33 @@ export class Psa150Audience extends Psa150Element {
     return Boolean(fit && needsWrap(fit.fit, fit.words.indexOf(slideWords(slide))));
   }
 
-  /** The song number, large, then the title and the rest. */
+  /**
+   * Bottom left: the song number and key, as large as the words. No title: the
+   * song is on screen. Copyright and CCLI, when the theme shows them, follow
+   * in small print.
+   */
   private renderOverlay(slide: SlidePayload) {
     const theme = this.theme;
-    const parts: string[] = [];
-    if (theme?.show_title_overlay !== false && slide.overlay.title) {
-      parts.push(slide.overlay.title);
-    }
-    if (theme?.show_key_overlay !== false && slide.overlay.key) {
-      parts.push(slide.overlay.key);
-    }
+    const key = theme?.show_key_overlay !== false ? slide.overlay.key : null;
+    const notes: string[] = [];
     if (theme?.show_copyright_overlay !== false && slide.overlay.copyright) {
-      parts.push(slide.overlay.copyright);
+      notes.push(slide.overlay.copyright);
     }
     if (theme?.show_ccli_overlay && slide.overlay.ccli) {
-      parts.push(`CCLI ${slide.overlay.ccli}`);
+      notes.push(`CCLI ${slide.overlay.ccli}`);
     }
     const number = slide.overlay.song_num;
-    if (number == null && parts.length === 0) return nothing;
+    if (number == null && !key && notes.length === 0) return nothing;
     return html`<div class="audience-overlay">
       ${number != null
         ? html`<span class="audience-song-number"
             ><span class="visually-hidden">Song </span>${number}</span
           >`
         : nothing}
-      ${parts.length ? html`<span class="audience-overlay-text">${parts.join(" - ")}</span>` : nothing}
+      ${key
+        ? html`<span class="audience-song-key"><span class="visually-hidden">Key </span>${key}</span>`
+        : nothing}
+      ${notes.length ? html`<span class="audience-overlay-text">${notes.join(" - ")}</span>` : nothing}
     </div>`;
   }
 

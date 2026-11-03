@@ -17,7 +17,7 @@ sources:
   - id: api
     resource: /src/api.ts
     title: AppConfig TypeScript shape
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+generated: { by: agent, at: 2026-11-03T12:00:00Z }
 ---
 
 # Config and theme
@@ -37,6 +37,7 @@ fields marked `#[serde(default)]` may be absent in old files.
 | `vsb_sync` | none | Settings (Visual Song Book) via `set_vsb_database`; `last_synced_at`, `last_summary`, `last_error` by each run | [VSB sync](vsb-sync.md) |
 | `audience_monitor` | none (= primary) | Settings (Congregation) | `open_audience_window`; `"__simulated__"` = window |
 | `stage_monitor` | none | Settings (Stage) | `open_stage_window` (only when set) |
+| `auto_select_display` | **true** | Settings (Projection, switch beside Congregation) via `set_auto_select_display` | a newly connected display becomes `audience_monitor` ([projection windows](projection-windows.md#new-displays)) |
 | `remote_enabled`, `remote_port` (8757), `remote_pin` | off | Settings (Phone remote) via `start_remote` / `stop_remote` | auto-started in `setup()` when enabled; see [remote control](remote-control.md) |
 | `server_remote` (Rust field `server_remote_enabled`) | **true** | Settings (Church server) via `set_server_remote_enabled` | `accepts_commands` in the state report and the command long poll, only while a server library is connected ([remote control](remote-control.md#through-the-song-server)). The old key `server_remote_enabled`, which was false by default, is ignored, so existing installs start with it on |
 | `server_room_sharing` | **true** | Settings (Church server) via `set_server_room_sharing` | `shares_room` in the state report: whether anyone may follow the projected words in this PC's [room](remote-control.md#room). The state report runs while this or `server_remote` is on |

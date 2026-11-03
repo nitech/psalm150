@@ -1,8 +1,13 @@
+use std::time::Duration;
+
 use serde::Serialize;
 use tauri::window::Monitor;
 use tauri::{
-    AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow,
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size,
+    WebviewWindow,
 };
+
+use crate::{with_state, AppState};
 
 /// Saved in config when the user picks "Simulated display" instead of a physical monitor.
 pub const SIMULATED_DISPLAY_ID: &str = "__simulated__";
@@ -201,4 +206,250 @@ pub fn apply_monitor_to_window(
         place_window_on_monitor(&window, &monitor)?;
     }
     Ok(())
+}
+
+/// A display as the watcher sees it: `key` stays the same when the display
+/// moves or changes resolution (the system's name for it, else its id); `id`
+/// is what the config stores.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Seen {
+    key: String,
+    id: String,
+}
+
+fn seen(monitor: &Monitor) -> Seen {
+    let id = display_id(monitor);
+    Seen {
+        key: monitor.name().cloned().unwrap_or_else(|| id.clone()),
+        id,
+    }
+}
+
+/// The display to project to after `current` replaced `settled`: one that was
+/// just connected and is not in `avoid` (the primary display and the one the
+/// console is on). None unless the number of displays grew, so a display that
+/// only moved or changed resolution is never taken for a new one.
+fn newly_connected(settled: &[Seen], current: &[Seen], avoid: &[&str]) -> Option<String> {
+    if current.len() <= settled.len() {
+        return None;
+    }
+    current
+        .iter()
+        .filter(|display| !settled.iter().any(|old| old.key == display.key))
+        .find(|display| !avoid.contains(&display.id.as_str()))
+        .map(|display| display.id.clone())
+}
+
+/// The saved display's id now, when it changed: the system may move a display
+/// as another is connected, so it is found again by its key. None when the id
+/// still holds, or the display is gone.
+fn follow(saved: Option<&str>, settled: &[Seen], current: &[Seen]) -> Option<String> {
+    let saved = saved.filter(|id| !id.is_empty())?;
+    if current.iter().any(|display| display.id == saved) {
+        return None;
+    }
+    let key = &settled.iter().find(|display| display.id == saved)?.key;
+    current
+        .iter()
+        .find(|display| &display.key == key)
+        .map(|display| display.id.clone())
+}
+
+/// Sent to the console (`displays-changed`) when displays come or go.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplaysChanged {
+    pub displays: Vec<DisplayInfo>,
+    pub audience_monitor: Option<String>,
+    pub stage_monitor: Option<String>,
+    /// The label of a display just made the congregation display.
+    pub selected: Option<String>,
+}
+
+/// How often the watcher looks at the displays.
+const DISPLAY_WATCH_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Watches displays being connected and disconnected. A change counts once it
+/// has held for one more look, as the system settles a new screen. A newly
+/// connected display becomes the congregation display unless
+/// `auto_select_display` is off; projection windows follow their display when
+/// the system moves it; the console hears of every change.
+pub fn spawn_watcher(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let mut settled: Option<Vec<Seen>> = None;
+        let mut pending: Option<Vec<Seen>> = None;
+        loop {
+            std::thread::sleep(DISPLAY_WATCH_INTERVAL);
+            let Some(main) = app.get_webview_window("main") else {
+                continue;
+            };
+            let Ok(monitors) = main.available_monitors() else {
+                continue;
+            };
+            let current: Vec<Seen> = monitors.iter().map(seen).collect();
+            let Some(before) = settled.clone() else {
+                settled = Some(current);
+                continue;
+            };
+            if current == before {
+                pending = None;
+                continue;
+            }
+            if pending.as_ref() != Some(&current) {
+                pending = Some(current);
+                continue;
+            }
+            pending = None;
+            settled = Some(current.clone());
+            if let Err(error) = displays_changed(&app, &main, &before, &current) {
+                eprintln!("[displays] {error}");
+            }
+        }
+    });
+}
+
+fn displays_changed(
+    app: &AppHandle,
+    main: &WebviewWindow,
+    before: &[Seen],
+    current: &[Seen],
+) -> Result<(), String> {
+    let primary = main
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| display_id(&m));
+    let console = main
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|m| display_id(&m));
+    let avoid: Vec<&str> = [primary.as_deref(), console.as_deref()]
+        .into_iter()
+        .flatten()
+        .collect();
+    let state = app.state::<AppState>();
+    let (audience, stage, chosen, audience_moved, stage_moved) = with_state(&state, |runtime| {
+        let config = &mut runtime.config;
+        let chosen = if config.auto_select_display {
+            newly_connected(before, current, &avoid)
+        } else {
+            None
+        };
+        let audience = chosen
+            .clone()
+            .or_else(|| follow(config.audience_monitor.as_deref(), before, current));
+        let stage = follow(config.stage_monitor.as_deref(), before, current);
+        let (audience_moved, stage_moved) = (audience.is_some(), stage.is_some());
+        if let Some(id) = audience {
+            config.audience_monitor = Some(id);
+        }
+        if let Some(id) = stage {
+            config.stage_monitor = Some(id);
+        }
+        if audience_moved || stage_moved {
+            config.save(app)?;
+        }
+        Ok((
+            config.audience_monitor.clone(),
+            config.stage_monitor.clone(),
+            chosen,
+            audience_moved,
+            stage_moved,
+        ))
+    })?;
+    for (label, moved, monitor) in [
+        ("audience", audience_moved, &audience),
+        ("stage", stage_moved, &stage),
+    ] {
+        let visible = app
+            .get_webview_window(label)
+            .and_then(|window| window.is_visible().ok())
+            .unwrap_or(false);
+        if moved && visible {
+            apply_monitor_to_window(app, label, monitor.as_deref())?;
+        }
+    }
+    let displays = list_displays(app)?;
+    let selected = chosen.and_then(|id| {
+        displays
+            .iter()
+            .find(|display| display.id == id)
+            .map(|display| display.label.clone())
+    });
+    app.emit(
+        "displays-changed",
+        DisplaysChanged {
+            displays,
+            audience_monitor: audience,
+            stage_monitor: stage,
+            selected,
+        },
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn display(key: &str, id: &str) -> Seen {
+        Seen {
+            key: key.into(),
+            id: id.into(),
+        }
+    }
+
+    #[test]
+    fn a_connected_display_is_chosen_but_not_the_primary_or_the_consoles() {
+        let laptop = display("DISPLAY1", "0,0,1920,1080");
+        let projector = display("DISPLAY2", "1920,0,1280,720");
+        let before = vec![laptop.clone()];
+        let after = vec![laptop, projector.clone()];
+        assert_eq!(
+            newly_connected(&before, &after, &["0,0,1920,1080"]),
+            Some(projector.id.clone())
+        );
+        assert_eq!(
+            newly_connected(&before, &after, &[projector.id.as_str()]),
+            None
+        );
+    }
+
+    #[test]
+    fn a_display_that_only_changed_is_not_new() {
+        let before = vec![
+            display("DISPLAY1", "0,0,1920,1080"),
+            display("DISPLAY2", "1920,0,1280,720"),
+        ];
+        // The projector's resolution changed: same count, same names.
+        let resized = vec![
+            display("DISPLAY1", "0,0,1920,1080"),
+            display("DISPLAY2", "1920,0,1920,1080"),
+        ];
+        assert_eq!(newly_connected(&before, &resized, &[]), None);
+        // One went away.
+        assert_eq!(newly_connected(&before, &before[..1], &[]), None);
+    }
+
+    #[test]
+    fn the_saved_display_is_followed_when_it_moves() {
+        let before = vec![
+            display("DISPLAY1", "0,0,1920,1080"),
+            display("DISPLAY2", "1920,0,1280,720"),
+        ];
+        let moved = vec![
+            display("DISPLAY1", "0,0,1920,1080"),
+            display("DISPLAY2", "-1280,0,1280,720"),
+        ];
+        assert_eq!(
+            follow(Some("1920,0,1280,720"), &before, &moved),
+            Some("-1280,0,1280,720".into())
+        );
+        // Still where it was, the primary (empty) or gone: nothing to follow.
+        assert_eq!(follow(Some("1920,0,1280,720"), &before, &before), None);
+        assert_eq!(follow(Some(""), &before, &moved), None);
+        assert_eq!(follow(Some("1920,0,1280,720"), &before, &before[..1]), None);
+    }
 }

@@ -29,7 +29,7 @@ generated: { by: agent, at: 2026-10-23T09:30:00Z }
 | Lines of song 227 wrap wrongly when projecting to the hall | Fixed 2026-08-29: [audience display](audience-display.md) |
 | Show 1/7, 2/7… with up/down arrows bottom-right | Done: stanza counter |
 | Chords in text must not reach the congregation | Done and tested |
-| Bottom-left: song name, key, song number | Done: overlay pill |
+| Bottom-left: song name, key, song number | Done: song number and key in the footer; the title is left out on purpose (the song is on screen) |
 | Search the web when a song is missing; offer alternatives; project or save | Done: [online song search](web-search.md), offered and run only when asked |
 | Switch the package manager to bun and remove npm traces | Mostly done: `bun.lock`, scripts; `src-tauri/2` is a leftover npm log |
 

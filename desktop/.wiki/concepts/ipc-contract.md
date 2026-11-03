@@ -14,7 +14,7 @@ sources:
   - id: client
     resource: /src/projection-client.ts
     title: Wrappers used by the audience page
-generated: { by: agent, at: 2026-10-23T09:30:00Z }
+generated: { by: agent, at: 2026-11-03T12:00:00Z }
 ---
 
 # IPC contract
@@ -121,6 +121,7 @@ while the browser is open.
 | `set_read_only`, `set_project_to_stage`, `set_web_search_enabled`, `set_show_song_numbers` | bool | yes |
 | `list_displays` | → `Vec<DisplayInfo { id, label, name, width, height, isPrimary }>` | yes |
 | `set_audience_monitor`, `set_stage_monitor` | `monitorId: Option<String>` (re-places a visible window) | yes |
+| `set_auto_select_display` | `enabled: bool` | yes |
 | `get_theme` | → `SlideTheme` | audience page |
 | `get_shortcuts`, `save_shortcuts` | → / `shortcuts: ShortcutConfig` (combos like `Alt+S`) | yes |
 | `save_theme` | | no |
@@ -142,6 +143,7 @@ while the browser is open.
 | `library-changed` | none | console refreshes status and list |
 | `library-external-changed` | none | an open duplicate view marks its results stale |
 | `projection-closed` | none | console sets `projecting = false` |
+| `displays-changed` | `DisplaysChanged { displays, audienceMonitor, stageMonitor, selected }` | console refreshes its display lists; `selected` (a label) shows "Congregation display: …" |
 | `projection-escaped` | none | global Escape closed the projection; console clears and focuses search |
 | `projection-updated` | `ProjectionSnapshot { revision, session_id, projection, theme, audience, stage }` | console, audience and stage; older revisions are ignored |
 | `import-progress` | `{ current, total, song_title }` | console import modal |

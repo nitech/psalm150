@@ -17,7 +17,7 @@ sources:
   - id: deadlock-doc
     resource: /docs/solutions/ui-bugs/tauri-secondary-window-deadlock-windows.md
     title: Why windows are pre-created (WebView2 deadlock)
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-11-03T12:00:00Z }
 ---
 
 # Projection windows
@@ -50,6 +50,20 @@ intercepted (`CloseRequested` → `prevent_close` → `close_projection_windows`
   projector before it filled the screen). The current snapshot is sent before
   `show()`, so the window appears full size with the right slide. The console
   re-takes focus afterwards so keyboard navigation keeps working.
+
+### New displays
+
+`display::spawn_watcher` (started in `setup()`) looks at the displays every
+2 s and acts on a change once it has held for one more look, as the system
+settles a new screen. When the number of displays grew, a newly connected one
+(not the primary, not the one the console is on) becomes `audience_monitor`,
+unless `auto_select_display` is off (Settings, Projection: "Auto-select new
+display" beside the Congregation list); a visible audience window moves there
+at once. A display is recognised by its system name (such as `DISPLAY2`), so one that
+only changed resolution is never taken for a new one, and a saved display the
+system moved is followed to its new id (audience and stage). Every change is
+sent to the console as `displays-changed`, which refreshes its lists and says
+which display now shows the words.
 
 `open_stage_window` only repositions when `stage_monitor` is set ("Stage
 (Simulated Display)" 900x640, cascade 1). The console opens it when

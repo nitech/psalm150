@@ -185,6 +185,7 @@ pub fn run() {
             });
 
             commands::vsb_sync_cmd::spawn_background_sync(app.handle());
+            display::spawn_watcher(app.handle());
             commands::server_sets::spawn_background(app.handle());
             commands::server_remote::spawn_background(app.handle());
             updater::spawn_background(app.handle());
@@ -283,6 +284,7 @@ pub fn run() {
             commands::config_cmd::get_shortcuts,
             commands::config_cmd::list_displays,
             commands::config_cmd::set_audience_monitor,
+            commands::config_cmd::set_auto_select_display,
             commands::config_cmd::set_stage_monitor,
             commands::ccli_cmd::export_ccli_report,
             commands::print_cmd::print_songbook_html,

@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Audience display
-description: The congregation window — white on black, one font size per song as large as every stanza fits, lines never broken, overlay pill with a large song number, stanza counter, keyboard.
+description: The congregation window — white on black, one font size per song as large as every stanza fits, lines never broken, a footer (song number and key, stanza counter) over the bottom corners at the size of the words, keyboard.
 tags: [projection, audience, css, layout]
 status: stable
 sources:
@@ -20,7 +20,7 @@ sources:
   - id: fit-test
     resource: /tests/audience-fit.test.ts
     title: planSongFit unit tests
-generated: { by: agent, at: 2026-09-13T14:00:00Z }
+generated: { by: agent, at: 2026-11-03T12:00:00Z }
 ---
 
 # Audience display
@@ -37,9 +37,8 @@ Colours ignore the theme: the words are always pure white (`#ffffff`) on pure
 black (`#000000`), for the most contrast a projector gives, and there is no
 vignette or tint behind them. With no library open the call fails silently
 and the CSS defaults apply (Geist, weight 500, white on black). Screen padding
-per side is `max(theme margin, clamp(32px, 6vw, 72px))`; the bottom adds
-`--audience-reserve`, the height of the corner overlays plus 24 px, so the
-words never run under them.
+per side is `max(theme margin, clamp(32px, 6vw, 72px))`. The footer has no
+strip of its own: the words use the whole height (see [footer](#footer)).
 
 ## Fit: one size for the song, as large as it fits
 
@@ -85,21 +84,30 @@ at `max_chars_per_row` assuming `projection_width` (1920) and the theme font in
 CSS px. The audience window now sizes the words itself, so those splits are
 only where long sections break into slides; see [gaps](gaps.md).
 
-## Overlay pill (bottom-left)
+## Footer
 
-Black with a white edge and white text, `clamp(1rem, 1.7vw, 1.9rem)`. The
-song number comes first, at 1.6 times that and bold
-(`.audience-song-number`). Then the other parts joined with ` - `, cut with an
-ellipsis when too long: title (unless `show_title_overlay` is false), key
-(unless `show_key_overlay` is false), copyright (unless
-`show_copyright_overlay` is false), `CCLI n` (only if `show_ccli_overlay`). No
-theme loaded means everything but CCLI is shown.
+Plain white text in the two bottom corners, no frame, in the song's font,
+weight and size: `--psa150-fit-font` times `--audience-scale`, the scale of
+the stanza on screen, so the footer always matches the words.
+
+- **Bottom left** (`.audience-overlay`): the song number, then the key (unless
+  `show_key_overlay` is false). No title: the song is on screen. Copyright
+  (unless `show_copyright_overlay` is false) and `CCLI n` (only if
+  `show_ccli_overlay`) follow in small print.
+- **Bottom right** (`.audience-stanza-counter`): `n / total` with arrows
+  that dim at the ends (below).
+
+The footer sits over the bottom of the screen, not on a strip of its own.
+After each layout `clearFooter()` looks at each visual line's own width
+(`Range.getClientRects`, not the block's) against the two labels, with a
+quarter of the font as margin. Only when letters would run into a label is
+the stanza moved up, or, with no room above, shrunk until it ends above the
+footer (`transform`); the song's font and every other stanza stay as they
+are.
 
 ## Stanza counter (bottom-right)
 
-Black with a white edge, bold white `n / total` at
-`clamp(1.4rem, 2.8vw, 3.2rem)` (about 51 px at 1080p), with arrows that dim
-at the ends: the step of the
+`n / total` with arrows that dim at the ends: the step of the
 [sung order](performance-sections.md#sung-order) on screen
 (`order_position + 1` of `order.length`, so a repeated chorus counts each
 time), or [stanza markers](performance-sections.md) when there is no order.

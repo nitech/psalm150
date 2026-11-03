@@ -287,6 +287,15 @@ export interface DisplayInfo {
   isPrimary: boolean;
 }
 
+/** `displays-changed`: displays came or went (the Rust display watcher). */
+export interface DisplaysChanged {
+  displays: DisplayInfo[];
+  audienceMonitor?: string | null;
+  stageMonitor?: string | null;
+  /** The label of a display just made the congregation display. */
+  selected?: string | null;
+}
+
 /** Phone remote server state, as returned by start_remote / get_remote_status. */
 export interface RemoteStatus {
   running: boolean;
@@ -306,6 +315,8 @@ export interface AppConfig {
   project_to_stage: boolean;
   audience_monitor?: string | null;
   stage_monitor?: string | null;
+  /** A newly connected display becomes the congregation display (default on). */
+  auto_select_display?: boolean;
   remote_enabled: boolean;
   /** Leaders may steer this PC through the connected song server (default on). */
   server_remote?: boolean;
@@ -523,6 +534,7 @@ export const api = {
   listDisplays: () => invoke<DisplayInfo[]>("list_displays"),
   setAudienceMonitor: (monitorId: string | null) =>
     invoke<void>("set_audience_monitor", { monitorId }),
+  setAutoSelectDisplay: (enabled: boolean) => invoke<void>("set_auto_select_display", { enabled }),
   setStageMonitor: (monitorId: string | null) =>
     invoke<void>("set_stage_monitor", { monitorId }),
   exportCcliReport: (from: string, to: string) =>

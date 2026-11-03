@@ -33,6 +33,10 @@ pub struct AppConfig {
     pub show_song_numbers: bool,
     pub audience_monitor: Option<String>,
     pub stage_monitor: Option<String>,
+    /// Make a newly connected display the congregation display. On unless the
+    /// operator turns it off (Settings, Projection).
+    #[serde(default = "default_true")]
+    pub auto_select_display: bool,
     pub remote_enabled: bool,
     /// Let leaders steer this desktop from their phones through the
     /// connected song server (server library only). On unless the operator
@@ -78,6 +82,7 @@ impl Default for AppConfig {
             show_song_numbers: default_show_song_numbers(),
             audience_monitor: None,
             stage_monitor: None,
+            auto_select_display: true,
             remote_enabled: false,
             server_remote_enabled: true,
             server_room_sharing: true,
