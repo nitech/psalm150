@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="{{html_lang}}" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {{auto_language}}
+    <title>{{title}}</title>
+    <meta name="description" content="{{description}}" />
+    <link rel="canonical" href="{{canonical}}" />
+    <link rel="alternate" hreflang="en" href="https://psalm150.app/" />
+    <link rel="alternate" hreflang="nb" href="https://psalm150.app/no/" />
+    <link rel="alternate" hreflang="x-default" href="https://psalm150.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="{{og_locale}}" />
+    <meta property="og:title" content="{{title}}" />
+    <meta property="og:description" content="{{og_description}}" />
+    <meta property="og:image" content="/shots/console.webp" />
+    <meta name="theme-color" content="#060606" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">{{skip}}</a>
+
+    <header class="top">
+      <div class="wrap top-row">
+        <a class="logo" href="{{home}}" aria-label="{{home_label}}">
+          <span class="mark"><!-- brand-mark --></span>
+          <span>Psalm150</span>
+        </a>
+        <nav class="nav" aria-label="{{nav_label}}">
+          <a href="#desktop">{{nav_desktop}}</a>
+          <a href="#server">{{nav_server}}</a>
+          <a href="https://github.com/nitech/psalm150">{{nav_source}}</a>
+        </nav>
+        <a class="lang" href="{{other_href}}" hreflang="{{other_lang}}" lang="{{other_lang}}" aria-label="{{other_label}}" data-language="{{other_lang}}">{{other_name}}</a>
+        <a class="button small" href="#download">{{download}}</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap">
+        <h1>{{hero_title}}</h1>
+        <p class="lead">{{hero_lead}}</p>
+        <div class="cta">
+          <a class="button" id="hero-download" href="#download" data-template="{{download_for}}">{{download}}</a>
+          <a class="more" href="#download">{{hero_more}}</a>
+        </div>
+        <p class="fine" id="hero-fine" data-template="{{hero_fine_version}}">{{hero_fine}}</p>
+        <!-- The splash: pressing anywhere on it plays the film (the button covers it). -->
+        <div class="hero-shots">
+          <img class="shot window" src="/shots/console.webp" width="2160" height="1350" alt="{{console_alt}}" />
+          <img class="shot phone" src="/shots/phone.webp" width="780" height="1688" alt="{{phone_alt}}" />
+          <button class="play" type="button" id="play-film" aria-haspopup="dialog" aria-label="{{film_play_label}}">
+            <span class="play-badge"><span class="play-icon" aria-hidden="true"></span>{{film_play}}<span class="play-length">{{film_length}}</span></span>
+          </button>
+        </div>
+        <dialog class="film" id="film" aria-label="{{film_label}}">
+          <video controls playsinline preload="none" poster="{{film_poster}}">
+            <source src="{{film_src}}" type="video/mp4" />
+            <track kind="captions" src="{{film_captions}}" srclang="{{html_lang}}" label="{{film_captions_label}}" />
+          </video>
+          <button class="film-close" type="button" aria-label="{{film_close}}"><span aria-hidden="true">×</span></button>
+        </dialog>
+      </section>
+
+      <section class="verse wrap">
+        <blockquote>
+          <p>{{verse}}</p>
+          <cite>{{verse_cite}}</cite>
+        </blockquote>
+        <p class="verse-note">{{verse_note}}</p>
+      </section>
+
+      <section class="sunday wrap" aria-labelledby="sunday-title">
+        <p class="kicker">{{sunday_kicker}}</p>
+        <h2 id="sunday-title">{{sunday_title}}</h2>
+        <img class="shot projector" src="/shots/projector.webp" width="1600" height="900" loading="lazy" alt="{{projector_alt}}" />
+        <div class="three">
+          <div>
+            <h3>{{words_title}}</h3>
+            <p>{{words_text}}</p>
+          </div>
+          <div>
+            <h3>{{chords_title}}</h3>
+            <p>{{chords_text}}</p>
+          </div>
+          <div>
+            <h3>{{phones_title}}</h3>
+            <p>{{phones_text}}</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="features wrap" id="desktop" aria-labelledby="desktop-title">
+        <p class="kicker">{{desktop_kicker}}</p>
+        <h2 id="desktop-title">{{desktop_title}}</h2>
+        <p class="section-lead">{{desktop_lead}}</p>
+        <ul class="cards">
+          <li>
+            <h3>{{offline_title}}</h3>
+            <p>{{offline_text}}</p>
+          </li>
+          <li>
+            <h3>{{sets_title}}</h3>
+            <p>{{sets_text}}</p>
+          </li>
+          <li>
+            <h3>{{remote_title}}</h3>
+            <p>{{remote_text}}</p>
+          </li>
+          <li>
+            <h3>{{web_title}}</h3>
+            <p>{{web_text}}</p>
+          </li>
+          <li>
+            <h3>{{vsb_title}}</h3>
+            <p>{{vsb_text}}</p>
+          </li>
+          <li>
+            <h3>{{updates_title}}</h3>
+            <p>{{updates_text}}</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="small wrap" aria-labelledby="small-title">
+        <p class="kicker">{{small_kicker}}</p>
+        <h2 id="small-title">{{small_title}}</h2>
+        <ul class="numbers">
+          <li><strong id="windows-size">7 MB</strong><span>{{number_download}}</span></li>
+          <li><strong>0</strong><span>{{number_accounts}}</span></li>
+          <li><strong>1</strong><span>{{number_pi}}</span></li>
+          <li><strong>14</strong><span>{{number_languages}}</span></li>
+        </ul>
+      </section>
+
+      <section class="server wrap" id="server" aria-labelledby="server-title">
+        <div>
+          <p class="kicker">{{server_kicker}}</p>
+          <h2 id="server-title">{{server_title}}</h2>
+          <p>{{server_text}}</p>
+          <ol class="steps">
+            <li>{{step_computer}}</li>
+            <li>
+              {{step_start}}
+              <pre><code>git clone https://github.com/nitech/psalm150.git
+cd psalm150 &amp;&amp; cp .env.example .env
+docker compose up --build -d</code></pre>
+              <span class="step-note">{{step_password}}</span>
+            </li>
+            <li>{{step_open}}</li>
+          </ol>
+          <a class="more" href="https://github.com/nitech/psalm150/blob/main/docs/song-server.md">{{server_more}}</a>
+        </div>
+        <img class="shot phone" src="/shots/phone-list.webp" width="780" height="1688" loading="lazy" alt="{{list_alt}}" />
+      </section>
+
+      <section class="yours wrap" aria-labelledby="yours-title">
+        <h2 id="yours-title">{{yours_title}}</h2>
+        <p>{{yours_text}}</p>
+        <p>{{yours_free}}</p>
+      </section>
+
+      <section class="download wrap" id="download" aria-labelledby="download-title">
+        <h2 id="download-title">{{download_title}}</h2>
+        <p class="section-lead" id="release-line" data-template="{{release_line_version}}">{{release_line}}</p>
+        <div class="platforms">
+          <div class="platform" data-os="windows">
+            <h3 data-mine="{{your_system}}">Windows</h3>
+            <p>{{windows_versions}}</p>
+            <a class="button" data-asset="windows" href="https://github.com/nitech/psalm150/releases/latest">{{windows_button}}</a>
+            <small data-size="windows"></small>
+          </div>
+          <div class="platform" data-os="mac">
+            <h3 data-mine="{{your_system}}">macOS</h3>
+            <p>{{mac_versions}}</p>
+            <div class="buttons">
+              <a class="button" data-asset="mac-arm" href="https://github.com/nitech/psalm150/releases/latest">Apple silicon</a>
+              <a class="button quiet" data-asset="mac-intel" href="https://github.com/nitech/psalm150/releases/latest">Intel</a>
+            </div>
+            <small data-size="mac-arm"></small>
+          </div>
+          <div class="platform" data-os="linux">
+            <h3 data-mine="{{your_system}}">Linux</h3>
+            <p>{{linux_versions}}</p>
+            <div class="buttons">
+              <a class="button" data-asset="deb" href="https://github.com/nitech/psalm150/releases/latest">.deb</a>
+              <a class="button quiet" data-asset="rpm" href="https://github.com/nitech/psalm150/releases/latest">.rpm</a>
+              <a class="button quiet" data-asset="appimage" href="https://github.com/nitech/psalm150/releases/latest">AppImage</a>
+            </div>
+            <small data-size="deb"></small>
+          </div>
+        </div>
+        <p class="fine">{{unsigned}}</p>
+        <p class="fine">{{licence_note}}</p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-row">
+        <a class="logo" href="{{home}}" aria-label="{{home_label}}">
+          <span class="mark"><!-- brand-mark --></span>
+          <span>Psalm150</span>
+        </a>
+        <p>{{foot_line}}</p>
+        <nav class="foot-nav" aria-label="{{foot_label}}">
+          <a href="{{other_href}}" hreflang="{{other_lang}}" lang="{{other_lang}}" data-language="{{other_lang}}">{{other_name}}</a>
+          <a href="https://github.com/nitech/psalm150">GitHub</a>
+          <a href="https://github.com/nitech/psalm150/releases">{{foot_releases}}</a>
+          <a href="https://github.com/nitech/psalm150/blob/main/docs/song-server.md">{{foot_server}}</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -124,6 +124,18 @@ img {
   color: var(--psa-text);
 }
 
+/* The other language: this page in Norwegian, or in English. */
+.lang {
+  color: var(--psa-text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.lang:hover {
+  color: var(--psa-text);
+}
+
 /* ── Buttons and links ─────────────────────────────────────────────────── */
 
 .button {
@@ -245,6 +257,140 @@ h1 {
   right: 0;
   bottom: 0;
   width: 23%;
+}
+
+/* The splash plays the film: the button covers all of it, and its badge sits
+   in the middle of the console. */
+.hero-shots .play {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.hero-shots .play:focus-visible {
+  outline: 2px solid var(--psa-focus-color);
+  outline-offset: 6px;
+}
+
+.play-badge {
+  position: absolute;
+  left: 46%;
+  top: 47%;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 22px 10px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(6, 6, 6, 0.74);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.7);
+  color: var(--psa-text);
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  transition: background var(--psa-dur-fast) var(--psa-ease-standard);
+}
+
+.play-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--psa-accent);
+  transition: background var(--psa-dur-fast) var(--psa-ease-standard);
+}
+
+/* A triangle pointing right, nudged to look centred. */
+.play-icon::before {
+  content: "";
+  margin-left: 4px;
+  border-style: solid;
+  border-width: 9px 0 9px 14px;
+  border-color: transparent transparent transparent var(--psa-on-accent);
+}
+
+.play-length {
+  color: var(--psa-text-tertiary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-shots .play:hover .play-badge {
+  background: rgba(24, 24, 24, 0.86);
+}
+
+.hero-shots .play:hover .play-icon {
+  background: var(--psa-accent-hover);
+}
+
+.hero-shots:has(.play:hover) .shot.window {
+  border-color: rgba(var(--psa-accent-rgb), 0.45);
+}
+
+/* The film, over the page. The ×  sits above its corner, clear of the controls. */
+.film {
+  width: min(1200px, calc(100vw - 32px), calc((100dvh - 136px) * 16 / 9));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid var(--psa-border-strong);
+  border-radius: 14px;
+  background: #000;
+  color: var(--psa-text);
+}
+
+.film::backdrop {
+  background: rgba(0, 0, 0, 0.84);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.film video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 13px;
+  background: #000;
+}
+
+.film-close {
+  position: absolute;
+  top: -56px;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--psa-border-strong);
+  border-radius: 50%;
+  background: var(--psa-bg-elevated);
+  color: var(--psa-text);
+  font: inherit;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.film-close:hover {
+  background: var(--psa-bg-surface);
+}
+
+.film-close:focus-visible {
+  outline: 2px solid var(--psa-focus-color);
+  outline-offset: 3px;
 }
 
 /* ── The verse ─────────────────────────────────────────────────────────── */
@@ -531,7 +677,7 @@ code {
 }
 
 .platform.visitor h3::after {
-  content: "Your system";
+  content: attr(data-mine);
   margin-left: 10px;
   color: var(--psa-secondary-text);
   font-size: 12px;
@@ -589,8 +735,9 @@ code {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  /* minmax(0, …): the code block scrolls in its own box instead of widening the page. */
   .server {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .server .phone {
@@ -606,6 +753,11 @@ code {
 
   .top-row {
     justify-content: space-between;
+    gap: 16px;
+  }
+
+  .lang {
+    margin-left: auto;
   }
 
   .shot.window {
@@ -618,5 +770,23 @@ code {
 
   .hero-shots .phone {
     display: none;
+  }
+
+  .play-badge {
+    left: 50%;
+    top: 50%;
+    gap: 10px;
+    padding: 6px 16px 6px 6px;
+    font-size: 15px;
+  }
+
+  .play-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .play-icon::before {
+    margin-left: 3px;
+    border-width: 7px 0 7px 11px;
   }
 }
