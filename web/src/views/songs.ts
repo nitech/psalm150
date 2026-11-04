@@ -74,6 +74,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     <p class="search-title" aria-hidden="true">${t("Songs")}</p>
     <div class="bar-actions search-actions">
       <div class="search-field">${icon("search")}<input type="search" id="song-search" value="${escapeHtml(lastSearch)}" placeholder="${t("Title, number or a line")}" aria-label="${t("Search songs")}" enterkeyhint="search" autocomplete="off" />${searchClear}</div>
+      <button type="button" class="icon-button search-close" id="search-close" aria-label="${t("Close search")}" title="${t("Close search")}">${icon("close")}</button>
       ${ctx.canEdit ? `<a class="icon-button" href="#/songs/new" aria-label="${t("New song")}" title="${t("New song")}">${icon("plus")}</a>` : ""}
     </div>
   </div>
@@ -311,6 +312,27 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   // Open while the field has focus or a search; an empty field closes on blur.
   input.addEventListener("focus", () => searchBar.classList.add("open"));
   input.addEventListener("blur", () => searchBar.classList.toggle("open", Boolean(input.value.trim())));
+  // The × beside the open search (phones), or Escape: empties the search and closes it.
+  // It acts on pointerdown, before the field's blur could hide it.
+  const closeSearch = () => {
+    if (input.value) {
+      input.value = "";
+      input.dispatchEvent(new Event("input"));
+    }
+    searchBar.classList.remove("open");
+    input.blur();
+  };
+  const closeButton = ctx.main.querySelector<HTMLButtonElement>("#search-close")!;
+  closeButton.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    closeSearch();
+  });
+  closeButton.addEventListener("click", closeSearch);
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    closeSearch();
+  });
   onlineOffer.addEventListener("click", () => {
     online = { query: lastSearch, songs: null, abort: null };
     showOnlineOffer();

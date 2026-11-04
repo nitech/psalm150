@@ -101,6 +101,7 @@ input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { box-sh
 .search-field input:placeholder-shown ~ .search-clear { display: none; }
 @media (hover: hover) { .search-clear:hover { color: var(--psa-text); background: var(--psa-bg-sunken); } }
 .search-clear:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+.search-close { display: none; }
 /* The song list's top: search (and New), stuck to the top while the list scrolls. */
 .search-bar {
   position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: var(--psa-space-2);
@@ -208,6 +209,9 @@ body.scrolled .app-bar { border-bottom-color: var(--psa-border); }
   opacity: 0; transform: translateY(4px); transition: opacity var(--psa-dur-fast), transform var(--psa-dur-fast);
 }
 body.title-away .bar-title { opacity: 1; transform: none; }
+/* Reading screens (a song, a set being played): the title stays with the
+   words and is never copied into the bar. */
+.app-bar.autohide .bar-title { visibility: hidden; }
 /* Reading screens: the bar slides away while reading down. */
 body.bar-away .app-bar.autohide { transform: translateY(-100%); }
 /* It comes back while a control in it has focus. */
@@ -243,22 +247,14 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
   .search-bar:not(.open) .search-field input { min-height: 0; height: 100%; padding: 0; border-color: transparent; border-radius: 50%; background: transparent; color: transparent; caret-color: transparent; cursor: pointer; }
   .search-bar:not(.open) .search-field input::placeholder { color: transparent; }
   .search-bar:not(.open) .search-field > .icon { left: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); color: var(--psa-text-tertiary); }
-  .search-bar.open > :not(.search-actions), .search-bar.open .search-actions > :not(.search-field) { display: none; }
+  .search-bar.open > :not(.search-actions), .search-bar.open .search-actions > :not(.search-field, .search-close) { display: none; }
+  /* Open, an × where the magnifier was closes the search (and empties it), so
+     the field's own clear button is not needed beside it. */
+  .search-bar.open .search-close { display: grid; flex: none; order: 2; }
+  .search-bar.open .search-field .search-clear { display: none; }
   .search-bar.open .search-actions { flex: 1; padding: 0; border: 0; background: none; }
   /* The list on the page's own dark, as a song reads. */
   #song-results, #song-results .swipe-content { background: var(--psa-bg-canvas); }
-  /* Reading screens: the button pill leaves no room for the title in the
-     row, so once the large title is scrolled away it comes in on a strip of
-     its own under the bar, over the words, and goes with the bar. */
-  .app-bar.autohide .bar-title {
-    position: absolute; top: 100%; left: 0; right: 0; margin: 0; padding: 0 var(--page-pad) 8px;
-    background: var(--psa-bg-subtle); border-bottom: 1px solid var(--psa-border);
-    font-size: 15px; font-weight: 600; line-height: 22px; text-align: center; pointer-events: none;
-    transform: translateY(-6px);
-  }
-  body.title-away .app-bar.autohide .bar-title { transform: none; }
-  body.title-away .app-bar.autohide { border-bottom-color: transparent; }
-  body.bar-away .app-bar.autohide { transform: translateY(calc(-100% - 32px)); }
 }
 .eyebrow { margin: 0 0 2px; color: var(--psa-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .page-meta { margin: calc(-1 * var(--psa-space-3)) 0 var(--psa-space-4); color: var(--psa-text-secondary); font-size: 14px; }

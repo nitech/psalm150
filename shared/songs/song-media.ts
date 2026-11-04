@@ -59,6 +59,15 @@ export interface Recordings {
 const MAX_RECORDING_MS = 30 * 60 * 1000;
 /** Types to record in, best first: Chrome and Firefox take WebM, Safari MP4. */
 const RECORDING_TYPES = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus", "audio/webm"];
+/** Music, not speech: no echo cancelling, noise removal or levelling. */
+const MUSIC_SOUND: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+/** The server's limit for a recording, also for a file chosen instead. */
+const MAX_UPLOAD_MB = 40;
+/** Types by file ending, for a file the phone hands over without one. */
+const AUDIO_ENDINGS: Record<string, string> = {
+  aac: "audio/aac", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", oga: "audio/ogg",
+  ogg: "audio/ogg", opus: "audio/ogg", wav: "audio/wav", webm: "audio/webm",
+};
 
 interface Song {
   id: string;
@@ -350,6 +359,10 @@ function showWave(stream: MediaStream, wave: HTMLElement): () => void {
  * showing in the waveform, then recording with the waveform and a clock
  * until Stop; then listen to it and Save, or Record again. The microphone is
  * let go as soon as the recording stops or the sheet closes.
+ *
+ * Or a sound file is chosen instead, listened to and saved the same way: a
+ * phone's own recorder app often sounds better than its browser can record
+ * (Safari on the iPhone records narrower and in mono whatever it is asked).
  */
 export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "id" | "title">, saved: (recording: SongRecording) => void): void {
   const sheet = openSheet(`<h2>${t("Record how it is played")}</h2>
@@ -361,6 +374,9 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
         <p class="recorder-time" id="rec-time" role="timer" aria-label="${t("Recorded time")}">0:00</p>
       </div>
       <button type="button" class="button primary wide" id="rec-toggle">${icon("mic")}${t("Start recording")}</button>
+      <button type="button" class="button secondary wide" id="rec-upload">${icon("upload")}${t("Upload a recording")}</button>
+      <input type="file" id="rec-file" accept="audio/*" hidden>
+      <p class="hint recorder-tip" id="rec-tip" hidden>${t("The phone's own recorder app often sounds better. Record there, then upload the file here.")}</p>
       <audio class="recorder-preview" id="rec-preview" controls hidden></audio>
       <form id="rec-form" class="stack" hidden>
         <p class="form-message" role="status"></p>
@@ -377,14 +393,21 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
   const time = sheet.querySelector<HTMLElement>("#rec-time")!;
   const preview = sheet.querySelector<HTMLAudioElement>("#rec-preview")!;
   const form = sheet.querySelector<HTMLFormElement>("#rec-form")!;
+  const upload = sheet.querySelector<HTMLButtonElement>("#rec-upload")!;
+  const fileInput = sheet.querySelector<HTMLInputElement>("#rec-file")!;
+  const tip = sheet.querySelector<HTMLElement>("#rec-tip")!;
+  /** The tip about the phone's recorder app, on phones and tablets. */
+  const touch = window.matchMedia("(pointer: coarse)").matches;
 
   let state: "idle" | "counting" | "recording" | "done" = "idle";
   let stream: MediaStream | null = null;
   let recorder: MediaRecorder | null = null;
   let recording: Blob | null = null;
+  /** Whether `recording` is a chosen file rather than recorded here. */
+  let uploaded = false;
   let previewUrl = "";
   let startedAt = 0;
-  let durationMs = 0;
+  let durationMs: number | null = 0;
   let ticker = 0;
   let limit = 0;
   let counting = 0;
@@ -450,6 +473,8 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     count.hidden = next !== "counting";
     time.hidden = next === "counting";
     time.classList.toggle("live", next === "recording");
+    upload.hidden = next !== "idle";
+    tip.hidden = next !== "idle" || !touch;
   };
 
   const letGo = () => {
@@ -471,6 +496,31 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     toggle.disabled = false;
   };
 
+  /** What was recorded or chosen, to listen to, then Save or Record again. */
+  const showResult = (audio: Blob) => {
+    setStage("done");
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = URL.createObjectURL(audio);
+    preview.src = previewUrl;
+    preview.hidden = false;
+    form.hidden = false;
+    toggle.hidden = true;
+    form.querySelector<HTMLButtonElement>("[type='submit']")?.focus();
+  };
+
+  /** Back to the start: record, or choose a file. */
+  const reset = () => {
+    preview.pause();
+    preview.hidden = true;
+    form.hidden = true;
+    recording = null;
+    uploaded = false;
+    toggle.hidden = false;
+    time.textContent = "0:00";
+    setStage("idle");
+    showStart();
+  };
+
   /** Records from the microphone already open. */
   const record = () => {
     if (!stream) return;
@@ -479,22 +529,18 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     const chunks: Blob[] = [];
     recorder.addEventListener("dataavailable", (event) => { if (event.data.size) chunks.push(event.data); });
     recorder.addEventListener("stop", () => {
-      durationMs = Date.now() - startedAt;
+      const length = Date.now() - startedAt;
+      durationMs = length;
       letGo();
-      recording = new Blob(chunks, { type: recorder?.mimeType || mimeType || "audio/webm" });
+      const audio = new Blob(chunks, { type: recorder?.mimeType || mimeType || "audio/webm" });
+      recording = audio;
+      uploaded = false;
       // Stopped from the card: the sheet comes back to listen and save.
       setStage("done");
       expand();
       if (!sheet.open) return;
-      setStage("done");
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      previewUrl = URL.createObjectURL(recording);
-      preview.src = previewUrl;
-      preview.hidden = false;
-      form.hidden = false;
-      toggle.hidden = true;
-      announce(t("Recorded {time}. Listen to it, then save it.", { time: clock(durationMs) }));
-      form.querySelector<HTMLButtonElement>("[type='submit']")?.focus();
+      showResult(audio);
+      announce(t("Recorded {time}. Listen to it, then save it.", { time: clock(length) }));
     });
     recorder.start(1000);
     startedAt = Date.now();
@@ -514,12 +560,17 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     // After a chord has played, iOS is set for playback only, which keeps the microphone off.
     setRecording(true);
     try {
-      // Music, not speech: no echo cancelling, noise removal or levelling.
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
+      // The microphone's full rate, not the narrow one meant for calls.
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { ...MUSIC_SOUND, sampleRate: { ideal: 48_000 } } });
+      // Some browsers give the speech processing back anyway: ask once more on the track.
+      const [track] = stream.getAudioTracks();
+      const settings = track?.getSettings();
+      if (settings && (settings.echoCancellation || settings.noiseSuppression || settings.autoGainControl)) {
+        await track.applyConstraints(MUSIC_SOUND).catch(() => undefined);
+      }
     } catch (error) {
       setRecording(false);
+      setStage("idle");
       showStart();
       const name = error instanceof DOMException ? error.name : "";
       showToast(
@@ -569,14 +620,43 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
     } else void start();
   });
 
+  // After a chosen file, back to the start to record or choose another.
   sheet.querySelector("#rec-again")?.addEventListener("click", () => {
-    preview.pause();
-    preview.hidden = true;
-    form.hidden = true;
-    recording = null;
-    toggle.hidden = false;
-    time.textContent = "0:00";
-    void start();
+    const wasUploaded = uploaded;
+    reset();
+    if (!wasUploaded) void start();
+  });
+
+  upload.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = "";
+    if (!file) return;
+    const type = file.type || AUDIO_ENDINGS[file.name.split(".").pop()?.toLowerCase() ?? ""] || "";
+    if (!type.startsWith("audio/")) {
+      showToast(t("Choose a sound file."), true);
+      return;
+    }
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      showToast(t("The file is larger than {size} MB.", { size: MAX_UPLOAD_MB }), true);
+      return;
+    }
+    const audio = file.type ? file : new Blob([file], { type });
+    recording = audio;
+    uploaded = true;
+    // Its length comes with the file's metadata, below.
+    durationMs = null;
+    showResult(audio);
+  });
+  preview.addEventListener("loadedmetadata", () => {
+    if (!uploaded || !Number.isFinite(preview.duration)) return;
+    durationMs = preview.duration * 1000;
+    time.textContent = clock(durationMs);
+  });
+  preview.addEventListener("error", () => {
+    if (!uploaded || !recording) return;
+    reset();
+    showToast(t("This file cannot be played. Choose another sound file."), true);
   });
 
   form.addEventListener("submit", async (event) => {

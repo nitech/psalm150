@@ -418,6 +418,8 @@ button.ch.shown { border-radius: 4px; background: var(--psa-accent-soft); box-sh
 .media-audio { display: block; width: 100%; }
 .recorder .recorder-preview { display: block; width: 100%; }
 .recorder [hidden] { display: none !important; }
+/* The tip about the phone's recorder app, close under the upload button it explains. */
+.recorder .recorder-tip { margin-top: calc(var(--psa-space-2) - var(--psa-space-4)); text-align: center; }
 .recorder-stage { display: grid; justify-items: center; gap: var(--psa-space-3); }
 .recorder-wave { display: flex; align-items: center; justify-content: center; gap: 3px; width: 100%; height: 64px; }
 .recorder-wave span { flex: 0 1 4px; height: 100%; border-radius: 2px; background: var(--psa-text-tertiary); transform: scaleY(0.12); transition: transform 70ms linear; }
