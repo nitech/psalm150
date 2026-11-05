@@ -1,9 +1,14 @@
 import "./site.css";
 
 /**
- * Download links from the latest GitHub release: each button gets its file
- * and size, and the hero's button the visitor's system. Without an answer
- * from GitHub every link still leads to the releases page.
+ * The page's behaviour: download links from the latest GitHub release, the
+ * tabs (the views from every seat, and a download for each system), the
+ * contents marking the part being read, the copy button, the film, and the
+ * language link.
+ *
+ * Each download button gets its file and size, and the hero's button the
+ * visitor's system. Without an answer from GitHub every link still leads to
+ * the releases page.
  *
  * The page comes in English and Norwegian (src/text.ts). The words this
  * script fills in come from the page itself, as `data-template` with
@@ -75,15 +80,99 @@ function showRelease(release: Release, os: Os) {
     const asset = files[note.dataset.size ?? ""];
     if (asset) note.textContent = `${asset.name.replace(/^Psalm150_?/, "")} · ${megabytes(asset.size)}`;
   }
-  const version = release.tag_name.replace(/^v/, "");
-  fill(document.getElementById("release-line"), { version });
+  fill(document.getElementById("release-line"), { version: release.tag_name.replace(/^v/, "") });
   const windows = files.windows;
   const windowsSize = document.getElementById("windows-size");
   if (windows && windowsSize) windowsSize.textContent = megabytes(windows.size, true);
   // On Windows the hero's button is the installer itself.
   const hero = document.getElementById("hero-download") as HTMLAnchorElement | null;
   if (hero && os === "windows" && windows) hero.href = windows.browser_download_url;
-  if (os === "windows" && windows) fill(document.getElementById("hero-fine"), { version, size: megabytes(windows.size) });
+}
+
+/**
+ * A tab list: pressing a tab shows its panel and hides the others; the arrow
+ * keys, Home and End move between tabs (one tab in the Tab order, as ARIA
+ * describes). Returns a way to choose a tab from the script.
+ */
+function tabs(list: HTMLElement): (tab: HTMLElement) => void {
+  const all = [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
+  const choose = (tab: HTMLElement, focus = false) => {
+    for (const other of all) {
+      const chosen = other === tab;
+      other.setAttribute("aria-selected", String(chosen));
+      other.tabIndex = chosen ? 0 : -1;
+      const panel = document.getElementById(other.getAttribute("aria-controls") ?? "");
+      if (panel) panel.hidden = !chosen;
+    }
+    if (focus) tab.focus();
+  };
+  for (const tab of all) tab.addEventListener("click", () => choose(tab));
+  list.addEventListener("keydown", (event) => {
+    const index = all.indexOf(document.activeElement as HTMLElement);
+    if (index < 0) return;
+    const next =
+      event.key === "ArrowRight" ? all[(index + 1) % all.length]
+      : event.key === "ArrowLeft" ? all[(index - 1 + all.length) % all.length]
+      : event.key === "Home" ? all[0]
+      : event.key === "End" ? all[all.length - 1]
+      : null;
+    if (!next) return;
+    event.preventDefault();
+    choose(next, true);
+  });
+  return (tab) => choose(tab);
+}
+
+/** The contents mark the part being read (the last one whose heading has passed the top third). */
+function contents() {
+  const links = [...document.querySelectorAll<HTMLAnchorElement>(".toc a")];
+  const parts = links
+    .map((link) => document.querySelector<HTMLElement>(link.hash))
+    .filter((part): part is HTMLElement => part !== null);
+  if (!parts.length) return;
+  const mark = () => {
+    const line = window.innerHeight / 3;
+    let current = -1;
+    parts.forEach((part, index) => {
+      if (part.getBoundingClientRect().top <= line) current = index;
+    });
+    links.forEach((link, index) => {
+      if (index === current) link.setAttribute("aria-current", "true");
+      else link.removeAttribute("aria-current");
+    });
+  };
+  let queued = false;
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        mark();
+      });
+    },
+    { passive: true },
+  );
+  mark();
+}
+
+/** The copy button beside the server's commands. */
+function copyButtons() {
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
+    const label = button.textContent ?? "";
+    button.addEventListener("click", () => {
+      navigator.clipboard
+        .writeText(button.dataset.copy ?? "")
+        .then(() => {
+          button.textContent = button.dataset.copied ?? label;
+          window.setTimeout(() => (button.textContent = label), 1600);
+        })
+        .catch(() => {
+          // No clipboard (an insecure page, a refusal): the commands can still be selected.
+        });
+    });
+  }
 }
 
 /** A language picked with the language link stays picked (the English page reads it before it shows). */
@@ -100,23 +189,24 @@ function rememberLanguage() {
 }
 
 /**
- * The film: pressing the splash opens it in a dialog and plays it with sound
- * (the press is what lets it). Closing, by its ×, Escape or outside the film,
- * pauses it; opening again goes on where it stopped, or from the start once
- * it has ended.
+ * The film: the wall of windows, the hero's link and the footer's open it in
+ * a dialog and play it with sound (the press is what lets it). Closing, by its
+ * ×, Escape or outside the film, pauses it; opening again goes on where it
+ * stopped, or from the start once it has ended.
  */
 function film() {
-  const play = document.getElementById("play-film");
   const dialog = document.getElementById("film") as HTMLDialogElement | null;
   const video = dialog?.querySelector("video");
-  if (!play || !dialog || !video) return;
-  play.addEventListener("click", () => {
-    dialog.showModal();
-    if (video.ended) video.currentTime = 0;
-    video.play().catch(() => {
-      // Refused or not loaded yet: its own controls still play it.
+  if (!dialog || !video) return;
+  for (const opener of document.querySelectorAll<HTMLElement>("[data-film]")) {
+    opener.addEventListener("click", () => {
+      dialog.showModal();
+      if (video.ended) video.currentTime = 0;
+      video.play().catch(() => {
+        // Refused or not loaded yet: its own controls still play it.
+      });
     });
-  });
+  }
   dialog.addEventListener("close", () => video.pause());
   // A press on the backdrop lands on the dialog itself, not on the film.
   dialog.addEventListener("click", (event) => {
@@ -128,10 +218,19 @@ function film() {
 function main() {
   rememberLanguage();
   film();
+  copyButtons();
+  contents();
+  const views = document.querySelector<HTMLElement>(".tabs");
+  if (views) tabs(views);
   const os = visitorOs();
+  const systems = document.querySelector<HTMLElement>(".os-tabs");
+  if (systems) {
+    const choose = tabs(systems);
+    const mine = systems.querySelector<HTMLElement>(`[data-os="${os}"]`);
+    if (mine) choose(mine);
+  }
   const hero = document.getElementById("hero-download");
   if (hero && os !== "other") fill(hero, { system: SYSTEM_NAMES[os] });
-  document.querySelector(`.platform[data-os="${os}"]`)?.classList.add("visitor");
   fetch("https://api.github.com/repos/nitech/psalm150/releases/latest", {
     headers: { Accept: "application/vnd.github+json" },
   })
