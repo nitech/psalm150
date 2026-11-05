@@ -181,11 +181,13 @@ strong {
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 120ms var(--ease);
+  transition: background 150ms ease, box-shadow 150ms ease, transform 150ms ease;
 }
 
-.pill:hover {
+.pill:is(:hover, :focus-visible) {
   background: #ffffff;
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
 .pill.small {
@@ -200,8 +202,19 @@ strong {
   color: var(--text);
 }
 
-.pill.quiet:hover {
+.pill.quiet:is(:hover, :focus-visible) {
   background: var(--raised);
+  box-shadow: none;
+}
+
+/* An arrow after a link moves a little towards where it goes. */
+.arrow {
+  display: inline-block;
+  transition: transform 150ms ease;
+}
+
+:is(a, button):is(:hover, :focus-visible) .arrow {
+  transform: translateX(3px);
 }
 
 .arrow-link {
@@ -240,8 +253,9 @@ strong {
 .hero {
   position: relative;
   overflow: hidden;
-  min-height: min(860px, calc(100vh - 72px));
-  padding: clamp(96px, 14vh, 160px) 0 96px;
+  min-height: min(932px, 100vh);
+  margin-top: -73px;
+  padding: calc(clamp(96px, 14vh, 160px) + 73px) 0 96px;
 }
 
 .hero-body {
@@ -288,6 +302,20 @@ h1 {
   list-style: none;
 }
 
+.stats a {
+  display: block;
+  text-decoration: none;
+  transition: transform 150ms ease;
+}
+
+.stats a:hover {
+  transform: translateY(-1px);
+}
+
+.stats a:hover span {
+  color: var(--muted);
+}
+
 .stats strong {
   display: block;
   font-size: 34px;
@@ -299,6 +327,7 @@ h1 {
 .stats span {
   color: var(--dim);
   font-size: 14px;
+  transition: color 150ms ease;
 }
 
 /* The wall: Psalm150's own windows on a tilted plane, fading out towards the
@@ -334,10 +363,35 @@ h1 {
 }
 
 .wall-col {
+  --half-gap: 11px;
   display: flex;
   flex-direction: column;
   gap: 22px;
   width: 340px;
+  animation: wall-up var(--d, 90s) linear infinite;
+}
+
+.wall-col.down {
+  animation-name: wall-down;
+}
+
+.wall-col:hover {
+  animation-play-state: paused;
+}
+
+@keyframes wall-up {
+  to {
+    transform: translateY(calc(-50% - var(--half-gap)));
+  }
+}
+
+@keyframes wall-down {
+  from {
+    transform: translateY(calc(-50% - var(--half-gap)));
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 .wall-col:nth-child(2) {
@@ -359,11 +413,14 @@ h1 {
   background: #000;
   box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.9);
   opacity: 0.62;
-  transition: opacity 200ms var(--ease);
+  transition: transform 250ms ease, box-shadow 250ms ease, opacity 250ms ease;
 }
 
-.wall:hover .wall-col img {
-  opacity: 0.86;
+/* The window under the pointer comes forward. */
+.wall-col img:hover {
+  box-shadow: 0 0 0 2px #ffffff, 0 30px 70px -10px rgba(0, 0, 0, 0.9);
+  opacity: 1;
+  transform: scale(1.05);
 }
 
 .wall-hint {
@@ -484,6 +541,17 @@ section.desktop {
   color: var(--gold);
 }
 
+.view.entering {
+  animation: view-in 350ms var(--ease);
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 .view > p {
   max-width: 640px;
   margin: 18px 0 0;
@@ -521,6 +589,31 @@ section.desktop {
 .frame.phones .phone {
   width: auto;
   height: 100%;
+}
+
+.live-frame {
+  position: relative;
+}
+
+.restart {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: rgba(19, 20, 23, 0.86);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.restart:hover {
+  color: var(--text);
 }
 
 /* A phone: a narrow dark frame round the screenshot. */
@@ -748,6 +841,41 @@ kbd {
 
 .code .g {
   color: var(--gold);
+}
+
+.code .line {
+  display: inline-block;
+}
+
+.code.waiting .line:not(.in) {
+  opacity: 0;
+}
+
+.code .line.in {
+  animation: line-in 400ms ease both;
+}
+
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+.caret {
+  display: inline-block;
+  width: 8px;
+  height: 1.15em;
+  margin-left: 4px;
+  vertical-align: -0.2em;
+  background: var(--text);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 .code-box {
@@ -1087,7 +1215,8 @@ kbd {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: 72px 0 0;
+    margin-top: -65px;
+    padding: 137px 0 0;
   }
 
   .wall {
@@ -1110,6 +1239,7 @@ kbd {
   }
 
   .wall-col {
+    --half-gap: 7px;
     width: 240px;
     gap: 14px;
   }
@@ -1137,5 +1267,24 @@ kbd {
 
   .dl-row {
     padding-left: 16px;
+  }
+}
+
+/* ── Less motion ───────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-col,
+  .wall-col.down,
+  .view.entering,
+  .code .line.in,
+  .caret {
+    animation: none;
+  }
+
+  .wall-col img,
+  .pill,
+  .arrow,
+  .stats a {
+    transition: none;
   }
 }

@@ -46,6 +46,37 @@ const SYSTEM_NAMES: Record<Exclude<Os, "other">, string> = {
 
 const LANG = document.documentElement.lang || "en";
 
+/** Those who ask for less motion get still windows: no playing, no typing. */
+const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** One step of a live window: a frame of `public/live/<name>/`, and how long it shows (ms). */
+type Step = [frame: number, ms: number];
+const run = (from: number, to: number, ms: number): Step[] =>
+  Array.from({ length: to - from + 1 }, (_, index): Step => [from + index, ms]);
+
+/**
+ * The live windows: the real apps, captured frame by frame, played at the pace
+ * they were used. A loop holds its last frame, then starts over; a window
+ * marked `data-once` stays on its last frame and offers Restart.
+ */
+const LIVE: Record<string, Step[]> = {
+  // Idle, the search field, "how sweet" a key at a time, then verses 1 to 3 on the screen.
+  console: [[0, 1200], [1, 500], ...run(2, 9, 110), [10, 900], [11, 2200], [12, 2200], [13, 2800]],
+  screen: [[0, 2600], [1, 2600], [2, 2600]],
+  band: [[0, 3000], [1, 3000]],
+  // Verse 1; then the phone moves on to verse 2, and to verse 3, as they are sung.
+  room: [[0, 2200], [1, 400], ...run(2, 6, 70), [7, 2200], [8, 400], ...run(9, 13, 70), [14, 2600]],
+  // G7: its shape on the guitar, the next shape, then closed.
+  chord: [[0, 1200], [1, 700], [2, 2200], [3, 700], [4, 2200], [5, 700], [6, 1600]],
+  // "be still my soul", looked up online, found, and saved with its chords.
+  web: [[0, 1000], [1, 500], ...run(2, 13, 90), [14, 700], [15, 800], [16, 1400], [17, 1600], [18, 700], [19, 1200], [20, 2600]],
+  // A hymn added to Sunday's set, the set opened, and its first song on the screen.
+  sets: [[0, 1200], [1, 700], [2, 900], [3, 900], [4, 700], [5, 1400], [6, 700], [7, 0]],
+  // A Visual Song Book imported, 37 hymns, and the report.
+  import: [[0, 1000], [1, 700], ...run(2, 10, 260), [11, 900], [12, 0]],
+  remote: [[0, 2400], [1, 2400], [2, 2400]],
+};
+
 function visitorOs(): Os {
   const agent = navigator.userAgent;
   if (/Android|iPhone|iPad|iPod/i.test(agent)) return "other";
@@ -102,7 +133,14 @@ function tabs(list: HTMLElement): (tab: HTMLElement) => void {
       other.setAttribute("aria-selected", String(chosen));
       other.tabIndex = chosen ? 0 : -1;
       const panel = document.getElementById(other.getAttribute("aria-controls") ?? "");
-      if (panel) panel.hidden = !chosen;
+      if (!panel) continue;
+      // A panel coming into view fades up.
+      if (chosen && panel.hidden && !REDUCED) {
+        panel.classList.remove("entering");
+        void panel.offsetWidth;
+        panel.classList.add("entering");
+      }
+      panel.hidden = !chosen;
     }
     if (focus) tab.focus();
   };
@@ -155,6 +193,105 @@ function contents() {
     { passive: true },
   );
   mark();
+}
+
+/**
+ * Plays every `img[data-live]` while at least a third of it is in view (a
+ * hidden tab's never is), and stops it when it goes. Its frames are fetched
+ * the first time it is seen, and it starts once they are all ready, so no
+ * frame is ever half loaded.
+ */
+function live() {
+  if (REDUCED) return;
+  const controls = new Map<Element, (showing: boolean) => void>();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) controls.get(entry.target)?.(entry.isIntersecting);
+    },
+    { threshold: 0.35 },
+  );
+  for (const img of document.querySelectorAll<HTMLImageElement>("img[data-live]")) {
+    const name = img.dataset.live ?? "";
+    const steps = LIVE[name];
+    if (!steps) continue;
+    const once = img.hasAttribute("data-once");
+    const restart = img.parentElement?.querySelector<HTMLButtonElement>(".restart") ?? null;
+    const src = (frame: number) => `/live/${name}/${String(frame).padStart(2, "0")}.webp`;
+    let ready: Promise<unknown> | null = null;
+    let at = 0;
+    let timer = 0;
+    let showing = false;
+    let done = false;
+    const load = () =>
+      (ready ??= Promise.all(
+        [...new Set(steps.map(([frame]) => frame))].map((frame) => {
+          const image = new Image();
+          image.src = src(frame);
+          return image.decode().catch(() => undefined);
+        }),
+      ));
+    const show = () => {
+      const [frame, ms] = steps[at];
+      img.src = src(frame);
+      if (at < steps.length - 1) {
+        timer = window.setTimeout(() => {
+          at += 1;
+          show();
+        }, ms);
+      } else if (once) {
+        timer = 0;
+        done = true;
+        if (restart) restart.hidden = false;
+      } else {
+        timer = window.setTimeout(() => {
+          at = 0;
+          show();
+        }, ms);
+      }
+    };
+    const play = () => {
+      if (!showing || done || timer) return;
+      void load().then(() => {
+        if (showing && !done && !timer) show();
+      });
+    };
+    controls.set(img, (now) => {
+      showing = now;
+      if (now) play();
+      else {
+        window.clearTimeout(timer);
+        timer = 0;
+      }
+    });
+    restart?.addEventListener("click", () => {
+      window.clearTimeout(timer);
+      timer = 0;
+      at = 0;
+      done = false;
+      restart.hidden = true;
+      play();
+    });
+    observer.observe(img);
+  }
+}
+
+/** Lines marked `data-lines` come in one at a time, as if typed, the first time they are seen. */
+function typedLines() {
+  if (REDUCED) return;
+  for (const block of document.querySelectorAll<HTMLElement>("[data-lines]")) {
+    const lines = [...block.querySelectorAll<HTMLElement>(".line")];
+    block.classList.add("waiting");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        lines.forEach((line, index) => window.setTimeout(() => line.classList.add("in"), 300 + index * 450));
+        window.setTimeout(() => block.classList.remove("waiting"), 300 + lines.length * 450 + 400);
+      },
+      { threshold: 0.6 },
+    );
+    observer.observe(block);
+  }
 }
 
 /** The copy button beside the server's commands. */
@@ -220,6 +357,8 @@ function main() {
   film();
   copyButtons();
   contents();
+  live();
+  typedLines();
   const views = document.querySelector<HTMLElement>(".tabs");
   if (views) tabs(views);
   const os = visitorOs();

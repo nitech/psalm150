@@ -49,25 +49,41 @@
       <section class="hero">
         <button class="wall" type="button" data-film aria-haspopup="dialog" aria-label="{{wall_label}}">
           <span class="wall-plane">
-            <span class="wall-col">
+            <span class="wall-col up" style="--d: 80s">
+              <img src="/shots/wall/import.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/sets.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/web.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/console.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/import.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/sets.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/web.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/console.webp" width="640" height="400" alt="" />
             </span>
-            <span class="wall-col">
+            <span class="wall-col down" style="--d: 91s">
+              <img src="/shots/wall/search.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/stage.webp" width="640" height="360" alt="" />
+              <img src="/shots/wall/chord.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/sets.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/search.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/stage.webp" width="640" height="360" alt="" />
               <img src="/shots/wall/chord.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/sets.webp" width="640" height="400" alt="" />
             </span>
-            <span class="wall-col">
+            <span class="wall-col up" style="--d: 86s">
+              <img src="/shots/wall/verse3.webp" width="640" height="360" alt="" />
+              <img src="/shots/wall/console.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/projector.webp" width="640" height="360" alt="" />
+              <img src="/shots/wall/web.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/verse3.webp" width="640" height="360" alt="" />
               <img src="/shots/wall/console.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/projector.webp" width="640" height="360" alt="" />
               <img src="/shots/wall/web.webp" width="640" height="400" alt="" />
             </span>
-            <span class="wall-col">
+            <span class="wall-col down" style="--d: 97s">
+              <img src="/shots/wall/chord.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/verse1.webp" width="640" height="360" alt="" />
+              <img src="/shots/wall/search.webp" width="640" height="400" alt="" />
+              <img src="/shots/wall/import.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/chord.webp" width="640" height="400" alt="" />
               <img src="/shots/wall/verse1.webp" width="640" height="360" alt="" />
               <img src="/shots/wall/search.webp" width="640" height="400" alt="" />
@@ -81,18 +97,18 @@
           <p class="lead">{{hero_lead}}</p>
           <div class="cta">
             <a class="pill" id="hero-download" href="#download" data-template="{{download_for}}">{{download}}</a>
-            <button class="arrow-link plain" type="button" data-film aria-haspopup="dialog">{{hero_film}} <span aria-hidden="true">→</span></button>
+            <button class="arrow-link plain" type="button" data-film aria-haspopup="dialog">{{hero_film}} <span class="arrow" aria-hidden="true">→</span></button>
           </div>
           <ul class="stats">
-            <li><strong id="windows-size">7 MB</strong><span>{{stat_size_label}}</span></li>
-            <li><strong>0</strong><span>{{stat_accounts_label}}</span></li>
-            <li><strong>14</strong><span>{{stat_languages_label}}</span></li>
+            <li><a href="#download"><strong id="windows-size">7 MB</strong><span>{{stat_size_label}}</span></a></li>
+            <li><a href="#questions"><strong>0</strong><span>{{stat_accounts_label}}</span></a></li>
+            <li><a href="#server"><strong>14</strong><span>{{stat_languages_label}}</span></a></li>
           </ul>
         </div>
       </section>
 
       <div class="wrap free-line">
-        <a href="#download">{{free_line}} <span aria-hidden="true">→</span></a>
+        <a href="#download">{{free_line}} <span class="arrow" aria-hidden="true">→</span></a>
       </div>
 
       <!-- Psalm150 from every seat: one tab per view. -->
@@ -110,30 +126,30 @@
           </div>
         </div>
         <div class="view" role="tabpanel" id="view-console" aria-labelledby="tab-console">
-          <div class="frame"><img src="/shots/search.webp" width="1600" height="1000" alt="{{search_alt}}" /></div>
+          <div class="frame"><img src="/live/console/12.webp" width="1280" height="800" alt="{{search_alt}}" data-live="console" /></div>
           <p>{{view_console_text}}</p>
         </div>
         <div class="view" role="tabpanel" id="view-screen" aria-labelledby="tab-screen" hidden>
-          <div class="frame screen"><img src="/shots/projector.webp" width="1600" height="900" alt="{{projector_alt}}" /></div>
+          <div class="frame screen"><img src="/live/screen/01.webp" width="1280" height="720" alt="{{projector_alt}}" data-live="screen" /></div>
           <p>{{view_screen_text}}</p>
         </div>
         <div class="view" role="tabpanel" id="view-band" aria-labelledby="tab-band" hidden>
-          <div class="frame screen"><img src="/shots/stage.webp" width="1600" height="900" alt="{{stage_alt}}" /></div>
+          <div class="frame screen"><img src="/live/band/00.webp" width="1280" height="720" alt="{{stage_alt}}" data-live="band" /></div>
           <p>{{view_band_text}}</p>
         </div>
         <div class="view" role="tabpanel" id="view-phones" aria-labelledby="tab-phones" hidden>
           <div class="frame phones">
-            <img class="phone" src="/shots/room.webp" width="506" height="1094" alt="{{room_alt}}" />
+            <img class="phone" src="/live/room/07.webp" width="506" height="1094" alt="{{room_alt}}" data-live="room" />
             <img class="phone" src="/shots/phone.webp" width="780" height="1688" alt="{{phone_alt}}" />
           </div>
           <p>{{view_phones_text}}</p>
         </div>
         <div class="view" role="tabpanel" id="view-chords" aria-labelledby="tab-chords" hidden>
-          <div class="frame"><img src="/shots/chord.webp" width="1600" height="1000" alt="{{chord_alt}}" /></div>
+          <div class="frame"><img src="/live/chord/02.webp" width="1280" height="800" alt="{{chord_alt}}" data-live="chord" /></div>
           <p>{{view_chords_text}}</p>
         </div>
         <div class="view" role="tabpanel" id="view-web" aria-labelledby="tab-web" hidden>
-          <div class="frame"><img src="/shots/web.webp" width="1600" height="1000" alt="{{web_alt}}" /></div>
+          <div class="frame"><img src="/live/web/20.webp" width="1280" height="800" alt="{{web_alt}}" data-live="web" /></div>
           <p>{{view_web_text}}</p>
         </div>
       </section>
@@ -144,7 +160,10 @@
           <h2 class="big" id="desktop-title">{{desktop_title}} <span class="dim">{{desktop_title_2}}</span></h2>
           <p>{{desktop_lead}}</p>
         </div>
-        <div class="frame"><img src="/shots/sets.webp" width="1600" height="1000" loading="lazy" alt="{{sets_alt}}" /></div>
+        <div class="frame live-frame">
+          <img src="/live/sets/07.webp" width="1280" height="800" loading="lazy" alt="{{sets_alt}}" data-live="sets" data-once />
+          <button class="restart" type="button" hidden><span aria-hidden="true">↻</span> {{restart}}</button>
+        </div>
         <div class="trio">
           <div>
             <h3>{{step_find_title}}</h3>
@@ -196,13 +215,16 @@
           <article id="remote" aria-labelledby="remote-title">
             <h2 id="remote-title"><span class="hash" aria-hidden="true">##</span>{{remote_title}}</h2>
             <p>{{remote_text}}</p>
-            <div class="card phone-card"><img class="phone" src="/shots/remote.webp" width="780" height="1688" loading="lazy" alt="{{remote_alt}}" /></div>
+            <div class="card phone-card"><img class="phone" src="/live/remote/01.webp" width="520" height="1125" loading="lazy" alt="{{remote_alt}}" data-live="remote" /></div>
           </article>
 
           <article id="old-song-book" aria-labelledby="vsb-title">
             <h2 id="vsb-title"><span class="hash" aria-hidden="true">##</span>{{vsb_title}}</h2>
             <p>{{vsb_text}}</p>
-            <div class="card"><img src="/shots/import.webp" width="1600" height="1000" loading="lazy" alt="{{import_alt}}" /></div>
+            <div class="card live-frame">
+              <img src="/live/import/12.webp" width="1280" height="800" loading="lazy" alt="{{import_alt}}" data-live="import" data-once />
+              <button class="restart" type="button" hidden><span aria-hidden="true">↻</span> {{restart}}</button>
+            </div>
           </article>
 
           <article id="server" aria-labelledby="server-title">
@@ -210,13 +232,13 @@
             <p>{{server_text}}</p>
             <p>{{server_steps}}</p>
             <div class="code-box">
-              <pre class="code"><code><span class="d">$</span> git clone https://github.com/nitech/psalm150.git
-<span class="d">$</span> cd psalm150 &amp;&amp; cp .env.example .env
-<span class="d">$</span> docker compose up --build -d</code></pre>
+              <pre class="code" data-lines><code><span class="line"><span class="d">$</span> git clone https://github.com/nitech/psalm150.git</span>
+<span class="line"><span class="d">$</span> cd psalm150 &amp;&amp; cp .env.example .env</span>
+<span class="line"><span class="d">$</span> docker compose up --build -d<span class="caret" aria-hidden="true"></span></span></code></pre>
               <button class="copy" type="button" aria-label="{{copy_label}}" data-copied="{{copied}}" data-copy="git clone https://github.com/nitech/psalm150.git&#10;cd psalm150 &amp;&amp; cp .env.example .env&#10;docker compose up --build -d">{{copy}}</button>
             </div>
             <div class="card phone-card"><img class="phone" src="/shots/phone-list.webp" width="780" height="1688" loading="lazy" alt="{{list_alt}}" /></div>
-            <p><a class="underline" href="https://github.com/nitech/psalm150/blob/main/docs/song-server.md">{{server_more}} <span aria-hidden="true">→</span></a></p>
+            <p><a class="underline" href="https://github.com/nitech/psalm150/blob/main/docs/song-server.md">{{server_more}} <span class="arrow" aria-hidden="true">→</span></a></p>
           </article>
 
           <article id="updates" aria-labelledby="updates-title">
@@ -227,7 +249,7 @@
           <article id="yours" aria-labelledby="yours-title">
             <h2 id="yours-title"><span class="hash" aria-hidden="true">##</span>{{yours_title}}</h2>
             <p>{{yours_text}}</p>
-            <p><a class="underline" href="https://github.com/nitech/psalm150">{{source_more}} <span aria-hidden="true">→</span></a></p>
+            <p><a class="underline" href="https://github.com/nitech/psalm150">{{source_more}} <span class="arrow" aria-hidden="true">→</span></a></p>
           </article>
 
           <article id="questions" aria-labelledby="questions-title">
@@ -288,7 +310,7 @@
             </div>
           </div>
           <p class="release" id="release-line" data-template="{{release_line_version}}">{{release_line}}</p>
-          <p><a class="underline" href="https://github.com/nitech/psalm150/releases">{{releases_more}} <span aria-hidden="true">→</span></a></p>
+          <p><a class="underline" href="https://github.com/nitech/psalm150/releases">{{releases_more}} <span class="arrow" aria-hidden="true">→</span></a></p>
         </div>
       </section>
     </main>

@@ -113,6 +113,7 @@ export const en = {
     "Put the church's songs on a small server and everyone shares them: every song with its history, sets for each service shared on a link, and an app for phones with chords you can tap to hear. Desktops keep their own copy, so a service never waits for the network.",
   server_steps:
     "A <strong>Raspberry Pi</strong> is enough; anything that runs Docker will do. Choose a long password in <code>.env</code> first, then open it on port 8080 and set up your church.",
+  restart: "Restart",
   copy: "Copy",
   copied: "Copied",
   copy_label: "Copy the commands",
@@ -279,6 +280,7 @@ export const no: Words = {
     "Legg menighetens sanger på en liten server, så deler alle dem: hver sang med sin historikk, sett til hver gudstjeneste delt med en lenke, og en app for mobil med akkorder du kan trykke på for å høre. Datamaskinene har sin egen kopi, så en gudstjeneste venter aldri på nettet.",
   server_steps:
     "En <strong>Raspberry Pi</strong> holder; alt som kjører Docker, går an. Velg et langt passord i <code>.env</code> først, åpne den på port 8080, og sett opp menigheten.",
+  restart: "Spill igjen",
   copy: "Kopier",
   copied: "Kopiert",
   copy_label: "Kopier kommandoene",

@@ -26,8 +26,14 @@ bun run build     # dist/
   seat, a download for each system), marks the part being read in the
   contents, copies the server's commands, and plays the film: the wall of
   windows, the hero's link and the footer open it in a dialog.
+- The motion follows herdr.dev too: the wall drifts (a column stops under the
+  pointer, and a window comes forward), pills lift, arrows nudge, a tab's view
+  fades up, the server's commands are typed in, and the live windows play the
+  real apps frame by frame (`LIVE` in `src/main.ts`, frames in
+  `public/live/`, from the captures in `video/`). With reduced motion
+  everything stays still.
 - `public/shots/`: screenshots of the real apps, and `wall/` the small ones
-  the hero's wall is made of.
+  the hero's wall is made of. `public/live/<name>/`: each live window's frames.
 - `public/films/`: the 31-second promo film in each language, with its poster
   and captions (`.vtt`), rendered from `video/psalm150-promo`.
 - `public/shots/`: screenshots of the real apps showing public-domain hymns
