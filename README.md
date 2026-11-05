@@ -14,6 +14,8 @@ and share songs. Its tools are there to support worshippers in glorifying the
 one Lord, Jesus Christ. Freely ye have received, freely give (Matthew 10:8):
 the whole thing is free, and open under the MIT license.
 
+![The Psalm150 console: the song book on the left, Amazing Grace with chords in the middle, verse 2 on the screen and the order of the verses on the right.](site/public/shots/console.webp)
+
 ## What's in it
 
 ### The desktop app — `desktop/`
@@ -33,6 +35,8 @@ Project, and the words are on the screen.
   view the system already has instead of shipping a browser.
 - Updates itself in the background and installs when the program is closed,
   never in the middle of a service.
+
+![The first verse of Amazing Grace on the projector: large white words on black, the song number and key in one corner, 1 of 4 in the other.](site/public/shots/projector.webp)
 
 **Download:** [the latest release](https://github.com/nitech/psalm150/releases/latest).
 
@@ -54,6 +58,11 @@ works without it.
 - Desktops connect to it and keep an offline copy, so a service never depends
   on the network.
 - Everything goes through one documented API (`/api/docs` on any server).
+
+<p>
+  <img src="site/public/shots/phone.webp" width="260" alt="Amazing Grace with chords on a phone, from the church's song server.">
+  <img src="site/public/shots/phone-list.webp" width="260" alt="The church's song list on a phone.">
+</p>
 
 More in [docs/song-server.md](docs/song-server.md).
 
