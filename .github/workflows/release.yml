@@ -60,19 +60,22 @@ jobs:
           echo "$list"
           echo "list=$list" >> "$GITHUB_OUTPUT"
 
-      # the dev server runs the song server from main. A path it lacks is a
+      # The dev server runs the song server from main; its address is the
+      # SONG_SERVER_URL secret (masked in the logs). A path it lacks is a
       # server change not deployed yet, or a mistake in the client: connected
       # apps will not take this release until their server has it.
       - name: Check the paths on the dev server
         env:
           ENDPOINTS: ${{ steps.endpoints.outputs.list }}
+          SONG_SERVER_URL: ${{ secrets.SONG_SERVER_URL }}
         run: |
           node -e '
             (async () => {
-              const doc = await (await fetch("https://dev-server.example/api/openapi.json")).json();
+              if (!process.env.SONG_SERVER_URL) return console.log("::notice::No SONG_SERVER_URL secret; the server paths were not checked");
+              const doc = await (await fetch(new URL("/api/openapi.json", process.env.SONG_SERVER_URL))).json();
               const offered = new Set(Object.keys(doc.paths).map((p) => p.replace(/\{[^}]*\}/g, "{}")));
               const missing = JSON.parse(process.env.ENDPOINTS).filter((p) => !offered.has(p));
-              for (const path of missing) console.log(`::warning::the dev server does not have ${path}; connected apps will wait for a server that does`);
+              for (const path of missing) console.log(`::warning::The dev server does not have ${path}; connected apps will wait for a server that does`);
             })().catch((error) => console.log(`::warning::Could not read the dev server OpenAPI: ${error}`));
           '
 

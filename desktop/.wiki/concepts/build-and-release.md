@@ -100,8 +100,8 @@ nothing) and on manual dispatch, one run at a time. Its steps run in
    It also lists the server paths the build calls
    (`scripts/server-endpoints.mjs`: `api/v1/…` string literals in
    `src-tauri/src` outside comments and `#[cfg(test)]` modules, parameters
-   as `{}`, queries dropped) and warns for any that
-   `https://dev-server.example/api/openapi.json` lacks.
+   as `{}`, queries dropped) and warns for any that the dev server's
+   `/api/openapi.json` lacks (its address is the `SONG_SERVER_URL` secret).
 2. `build` stamps that version into `tauri.conf.json` and builds on Windows,
    macOS (arm64 and x86_64) and Ubuntu 22.04 with `tauri-action`, signing
    with `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)` and uploading to the draft

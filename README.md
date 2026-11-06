@@ -46,8 +46,7 @@ For a church that wants one shared song book for everyone. The desktop app
 works without it.
 
 - One Rust program and PostgreSQL, started with Docker Compose. No Redis, no
-  message queue, no cloud account. It runs on a Raspberry Pi;
-  [the dev server](https://dev-server.example) does.
+  message queue, no cloud account. It runs on a Raspberry Pi.
 - The church's songs with their full history, and sets for each service that
   a leader can share on a link.
 - A web app for phones in 14 languages: the song book with chords, diagrams
@@ -84,7 +83,7 @@ online song lookup (`shared/lyrics`, a Rust crate).
 
 ## Run a song server
 
-On any machine with Docker (the dev server runs on a Raspberry Pi):
+On any machine with Docker (a Raspberry Pi is enough):
 
 ```sh
 git clone https://github.com/nitech/psalm150.git
