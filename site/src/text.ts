@@ -76,7 +76,7 @@ export const en = {
   room_alt: "A phone following Amazing Grace in a room: verse 2 marked as it is sung.",
   phone_alt: "Amazing Grace with chords on a phone.",
   chord_alt: "The G7 chord on the guitar, one of its six shapes, opened from Amazing Grace.",
-  web_alt: "Be Still, My Soul found online and saved to the song book, with its chords.",
+  web_alt: "Jesus Paid It All found online and saved to the song book, with its chords.",
 
   desktop_title: "Made for the computer",
   desktop_title_2: "by the projector.",
@@ -244,7 +244,7 @@ export const no: Words = {
   room_alt: "En mobil som følger Amazing Grace i et rom: vers 2 markert mens det synges.",
   phone_alt: "Amazing Grace med akkorder på en mobil.",
   chord_alt: "G7-akkorden på gitar, ett av seks grep, åpnet fra Amazing Grace.",
-  web_alt: "Be Still, My Soul funnet på nettet og lagret i sangboka, med akkorder.",
+  web_alt: "Jesus Paid It All funnet på nettet og lagret i sangboka, med akkorder.",
 
   desktop_title: "Laget for datamaskinen",
   desktop_title_2: "ved prosjektoren.",

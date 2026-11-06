@@ -68,8 +68,8 @@ const LIVE: Record<string, Step[]> = {
   room: [[0, 2200], [1, 400], ...run(2, 6, 70), [7, 2200], [8, 400], ...run(9, 13, 70), [14, 2600]],
   // G7: its shape on the guitar, the next shape, then closed.
   chord: [[0, 1200], [1, 700], [2, 2200], [3, 700], [4, 2200], [5, 700], [6, 1600]],
-  // "be still my soul", looked up online, found, and saved with its chords.
-  web: [[0, 1000], [1, 500], ...run(2, 13, 90), [14, 700], [15, 800], [16, 1400], [17, 1600], [18, 700], [19, 1200], [20, 2600]],
+  // "jesus paid it all", looked up online, found, and saved with its chords.
+  web: [[0, 1000], [1, 500], ...run(2, 17, 70), [18, 700], [19, 800], [20, 1400], [21, 1600], [22, 700], [23, 1200], [24, 2600]],
   // A hymn added to Sunday's set, the set opened, and its first song on the screen.
   sets: [[0, 1200], [1, 700], [2, 900], [3, 900], [4, 700], [5, 1400], [6, 700], [7, 0]],
   // A Visual Song Book imported, 37 hymns, and the report.
