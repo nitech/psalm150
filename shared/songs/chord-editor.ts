@@ -46,11 +46,11 @@ import {
 } from "./chord-doc.ts";
 import { chooseInstrument, instruments, preloadChosenSound, soundChord } from "./chord-viewer.ts";
 import { QUALITIES, bubbleRow, placeInSong, readChord, rootsFor, songChords } from "./chord-picker.ts";
-import { icon } from "./icon.ts";
+import { icon, type IconName } from "./icon.ts";
 import { prepareSong, renderSongBody } from "./song-preview.ts";
 import { escapeHtml, readPreference, writePreference } from "./format.ts";
 import { showToast } from "./host.ts";
-import { editable, mountWordsEditor } from "./words-editor.ts";
+import { editable, mountWordsEditor, type EditorMode } from "./words-editor.ts";
 import { t } from "./i18n.ts";
 
 /** What a new song starts as. */
@@ -125,7 +125,10 @@ export function mountChordEditor(
       </div>
     </div>`;
 
-  parts.modes.innerHTML = `<button type="button" data-mode="visual" class="on" aria-pressed="true">${t("Visual")}</button><button type="button" data-mode="chords" aria-pressed="false">${t("Chords")}</button><button type="button" data-mode="code" aria-pressed="false">ChordPro</button>`;
+  // Each mode has its word and an icon; an app may show only the icons where room is short.
+  const modeButton = (mode: EditorMode, name: IconName, label: string, on = false) =>
+    `<button type="button" data-mode="${mode}"${on ? ' class="on"' : ""} aria-pressed="${on}" title="${label}">${icon(name)}<span class="ce-mode-text">${label}</span></button>`;
+  parts.modes.innerHTML = modeButton("visual", "text", t("Visual"), true) + modeButton("chords", "chordNote", t("Chords")) + modeButton("code", "code", "ChordPro");
 
   const q = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = root) => scope.querySelector<T>(selector)!;
   const sectionsEl = q(".ce-sections");

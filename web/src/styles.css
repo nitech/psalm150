@@ -529,13 +529,15 @@ body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66p
   .app-bar-row:has(> .ce-bar.docked) > .bar-back { width: 28px; flex: none; }
   .app-bar-row:has(> .ce-bar.docked) > .page-actions { flex: none; margin-left: 0; }
   .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes { grid-auto-columns: auto; width: auto; }
+  /* The switch is three icons; each button keeps its word for screen readers and as its tooltip. */
   .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes { gap: 0; padding: 2px; }
-  .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes button { min-height: 30px; padding: 0 6px; font-size: 12px; letter-spacing: -0.01em; white-space: nowrap; }
+  .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes button { display: grid; width: 40px; min-height: 34px; padding: 0; place-items: center; }
+  .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes button .icon { display: block; }
+  .app-bar-row:has(> .ce-bar.docked) .ce-mode-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .app-bar-row > .ce-bar.docked { flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
-  .app-bar-row > .ce-bar.docked .ce-bar-section { flex: 0 1 auto; min-width: 44px; padding: 0 9px; font-size: 13px; }
+  .app-bar-row > .ce-bar.docked .ce-bar-section { flex: 0 1 auto; min-width: 44px; gap: 2px; padding: 0 8px 0 12px; font-size: 14px; }
   .app-bar-row > .ce-bar.docked .ce-bar-section span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* The button opens the sections like a menu; the arrow has no room here. */
-  .app-bar-row > .ce-bar.docked .ce-bar-section .icon { display: none; }
+  .app-bar-row > .ce-bar.docked .ce-bar-section .icon { flex: none; width: 14px; height: 14px; }
   .app-bar-row > .ce-bar.docked .ce-bar-cog { flex: none; width: 34px; }
   .app-bar-row > .ce-bar.docked button.ce-bar-save { flex: none; }
 }
