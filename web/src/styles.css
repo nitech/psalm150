@@ -514,20 +514,30 @@ body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66p
   .segmented.ce-modes { width: 100%; padding: 3px; }
   .segmented.ce-modes button { min-height: 32px; font-size: 14px; }
 }
-/* Narrower than the one-bar header below, the editor's bar is the header's
-   second row (never fixed at the bottom: iOS Safari lets that jump while
-   scrolling): the section on the left, details and Save on the right. */
+/* Narrower than the one-bar header below, the editor's bar still sits in
+   the header (never fixed at the bottom: iOS Safari lets that jump while
+   scrolling), on the same row as Back and the switch: Save is its icon. */
 @media (max-width: 1099px) {
-  .app-bar-row:has(> .ce-bar.docked) { --row-h: var(--bar-h); flex-wrap: wrap; height: auto; }
-  /* Holds the first row at the bar's height, with Back in its middle. */
-  .app-bar-row:has(> .ce-bar.docked)::before { content: ""; height: var(--row-h); margin-right: calc(-1 * var(--psa-space-1)); }
-  .app-bar-row > .ce-bar.docked { flex-basis: 100%; gap: 0; padding-bottom: var(--psa-space-2); }
-  .app-bar-row > .ce-bar.docked .ce-bar-save { margin-left: auto; }
+  .app-bar-row > .ce-bar.docked { flex: none; gap: 0; }
   .app-bar-row > .ce-bar.docked button { height: 36px; }
+  .app-bar-row > .ce-bar.docked button.ce-bar-save { width: 36px; margin-left: 6px; padding: 0; }
+  .ce-bar.docked .ce-bar-save-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-@media (min-width: 900px) and (max-width: 1099px) {
-  .app-bar-row:has(> .ce-bar.docked) { --row-h: 64px; }
-  .app-bar-row:has(> .ce-bar.docked) > .page-actions:has(> .ce-modes) { top: 0; }
+/* Phones: a smaller switch, whole; a long section name shortens instead. */
+@media (max-width: 899px) {
+  .app-bar-row:has(> .ce-bar.docked) { gap: 4px; }
+  .app-bar-row:has(> .ce-bar.docked) > .bar-back { width: 28px; flex: none; }
+  .app-bar-row:has(> .ce-bar.docked) > .page-actions { flex: none; margin-left: 0; }
+  .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes { grid-auto-columns: auto; width: auto; }
+  .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes { gap: 0; padding: 2px; }
+  .app-bar-row:has(> .ce-bar.docked) .segmented.ce-modes button { min-height: 30px; padding: 0 6px; font-size: 12px; letter-spacing: -0.01em; white-space: nowrap; }
+  .app-bar-row > .ce-bar.docked { flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+  .app-bar-row > .ce-bar.docked .ce-bar-section { flex: 0 1 auto; min-width: 44px; padding: 0 9px; font-size: 13px; }
+  .app-bar-row > .ce-bar.docked .ce-bar-section span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The button opens the sections like a menu; the arrow has no room here. */
+  .app-bar-row > .ce-bar.docked .ce-bar-section .icon { display: none; }
+  .app-bar-row > .ce-bar.docked .ce-bar-cog { flex: none; width: 34px; }
+  .app-bar-row > .ce-bar.docked button.ce-bar-save { flex: none; }
 }
 @media (min-width: 900px) {
   .page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
