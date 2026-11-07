@@ -82,7 +82,7 @@ const FIELD_KEYS = ["title", "author", "key", "capo", "number", "song_number", "
 export function mountChordEditor(
   root: HTMLElement,
   initial: string,
-  parts: { modes: HTMLElement; save: () => void; /** Wide screens: the bar goes here, in the page's header. */ dock?: HTMLElement },
+  parts: { modes: HTMLElement; save: () => void; /** Wide screens: the bar goes here, in the page's header. */ dock?: HTMLElement; /** When it does, if not `DOCKED`. */ dockWhen?: string },
 ): ChordEditor {
   let doc: SongDoc = parseDoc(initial).doc;
   trimSections(doc);
@@ -1534,6 +1534,7 @@ export function mountChordEditor(
     settings: [settingsEl, soundEl],
     save: parts.save,
     dock: parts.dock,
+    dockWhen: parts.dockWhen,
     codePlace: () => {
       const line = lineAt(cursorLine());
       return line ? { line: line.id, off: 0 } : null;

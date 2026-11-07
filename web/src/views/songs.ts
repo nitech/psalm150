@@ -957,7 +957,9 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
   const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? draft?.chordpro ?? NEW_SONG_TEMPLATE, {
     modes: ctx.main.querySelector<HTMLElement>(".ce-modes")!,
     save: () => form.requestSubmit(),
+    // Always in the header: on iOS a bar fixed at the bottom jumps while the page scrolls.
     dock: ctx.main.querySelector<HTMLElement>(".app-bar-row") ?? undefined,
+    dockWhen: "all",
   });
   const message = form.querySelector<HTMLElement>(".form-message")!;
   form.addEventListener("submit", async (event) => {

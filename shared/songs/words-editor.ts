@@ -51,6 +51,8 @@ export type EditorMode = "visual" | "chords" | "code";
 export interface WordsHost {
   /** Wide screens (`DOCKED`): the bar sits here, in the page's header, instead of floating at the bottom. */
   dock?: HTMLElement;
+  /** When the bar goes into `dock`; `DOCKED` unless the app says otherwise (the web client always docks it, as iOS Safari lets a bar fixed at the bottom jump while scrolling). */
+  dockWhen?: string;
   doc(): SongDoc;
   /** Saves typing not yet in the history, before a change of its own. */
   flush(): void;
@@ -131,7 +133,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   cleanups.push(() => { bar.remove(); wellEl.remove(); });
   // Wide screens: the bar is part of the header (with the mode switch), not
   // a floating pill; narrower ones keep it at the bottom.
-  const docked = matchMedia(DOCKED);
+  const docked = matchMedia(host.dockWhen ?? DOCKED);
   const dock = () => {
     const inHeader = Boolean(host.dock && docked.matches);
     if (inHeader) host.dock!.append(bar);
@@ -243,8 +245,10 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     last = point;
     const box = range.getClientRects()[0] ?? el.getBoundingClientRect();
     const viewport = window.visualViewport;
-    const bottom = (viewport ? viewport.offsetTop + viewport.height : innerHeight) - (bar.hidden ? 0 : bar.offsetHeight + 24);
-    if (box.bottom > bottom || box.top < (viewport?.offsetTop ?? 0) + 60) el.scrollIntoView({ block: "center" });
+    const floating = !bar.hidden && !bar.classList.contains("docked");
+    const bottom = (viewport ? viewport.offsetTop + viewport.height : innerHeight) - (floating ? bar.offsetHeight + 24 : 0);
+    const top = Math.max((viewport?.offsetTop ?? 0) + 60, host.dock && !floating ? host.dock.getBoundingClientRect().bottom + 8 : 0);
+    if (box.bottom > bottom || box.top < top) el.scrollIntoView({ block: "center" });
   }
   const same = (a: Point, b: Point) => a.line === b.line && a.off === b.off;
   /** The place a line before or after `point`'s line ends or starts; null at the song's ends. */

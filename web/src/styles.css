@@ -514,6 +514,21 @@ body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66p
   .segmented.ce-modes { width: 100%; padding: 3px; }
   .segmented.ce-modes button { min-height: 32px; font-size: 14px; }
 }
+/* Narrower than the one-bar header below, the editor's bar is the header's
+   second row (never fixed at the bottom: iOS Safari lets that jump while
+   scrolling): the section on the left, details and Save on the right. */
+@media (max-width: 1099px) {
+  .app-bar-row:has(> .ce-bar.docked) { --row-h: var(--bar-h); flex-wrap: wrap; height: auto; }
+  /* Holds the first row at the bar's height, with Back in its middle. */
+  .app-bar-row:has(> .ce-bar.docked)::before { content: ""; height: var(--row-h); margin-right: calc(-1 * var(--psa-space-1)); }
+  .app-bar-row > .ce-bar.docked { flex-basis: 100%; gap: 0; padding-bottom: var(--psa-space-2); }
+  .app-bar-row > .ce-bar.docked .ce-bar-save { margin-left: auto; }
+  .app-bar-row > .ce-bar.docked button { height: 36px; }
+}
+@media (min-width: 900px) and (max-width: 1099px) {
+  .app-bar-row:has(> .ce-bar.docked) { --row-h: 64px; }
+  .app-bar-row:has(> .ce-bar.docked) > .page-actions:has(> .ce-modes) { top: 0; }
+}
 @media (min-width: 900px) {
   .page-actions:has(> .ce-modes) { position: absolute; left: 50%; margin: 0; transform: translateX(-50%); }
 }
