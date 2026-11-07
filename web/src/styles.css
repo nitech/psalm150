@@ -382,6 +382,14 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 /* The set editor saves as you go: a quiet word in the bar says so. */
 .save-status { min-width: 4.5em; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; opacity: 0; transition: opacity 300ms; }
 .save-status.shown { opacity: 1; }
+/* The set screens' bar is one button group: the slots that fill it later
+   are not boxes of their own, and their buttons look like the group's. */
+.bar-actions :is(.set-edit-actions, .set-edit-menu, .current-toggle) { display: contents; }
+.bar-actions .current-toggle > .icon-button, .bar-actions > a.icon-button {
+  flex: none; width: var(--bar-button); height: var(--bar-button);
+  border-color: transparent; background: transparent; color: var(--psa-text-tertiary);
+}
+.bar-actions .current-toggle > .icon-button.on { background: var(--psa-accent-medium); color: var(--psa-accent-text); }
 .set-form .list { margin: 0; }
 /* Name and date side by side; the date takes what it needs. */
 .set-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 10.5rem); gap: var(--psa-space-3); }

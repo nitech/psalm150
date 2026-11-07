@@ -121,10 +121,11 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
     title: set.name,
     subtitle: serviceDate(set.service_date, true),
     back: "#/sets",
-    actions: `${current.html}${ctx.canEdit
+    // One button group, as on a song (the projector joins it, live.ts).
+    actions: `<div class="bar-actions">${current.html}${ctx.canEdit
       ? `<button type="button" class="icon-button ghost${set.shared ? " on" : ""}" data-share aria-label="${shareLabel()}" title="${shareLabel()}">${icon("share")}</button>
          <a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="${t("Edit set")}">${icon("edit")}</a>`
-      : ""}`,
+      : ""}</div>`,
   })}
   ${set.items.length
     ? `<ol class="list numbered flat-list" aria-label="${t("Songs: tap one to go through the set from there")}">${set.items.map((item, index) => `<li>
@@ -365,10 +366,14 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     back,
     // On phones the title sits in the bar beside Back.
     compact: true,
-    actions: `<span class="set-edit-actions"></span>
-      <button type="button" class="icon-button ghost" id="add-songs" aria-label="${t("Add songs")}" title="${t("Add songs")}">${icon("plus")}</button>
-      <span class="set-edit-menu"></span>
-      <span class="save-status" id="save-status" role="status"></span>`,
+    // One button group, as on a song: the current set, Add songs, the
+    // projector (live.ts) and ⋮, which ends the bar; "Saved" before it.
+    actions: `<span class="save-status" id="save-status" role="status"></span>
+      <div class="bar-actions" data-bar-screen="set-edit">
+        <span class="set-edit-actions"></span>
+        <button type="button" class="icon-button ghost" id="add-songs" aria-label="${t("Add songs")}" title="${t("Add songs")}">${icon("plus")}</button>
+        <span class="set-edit-menu"></span>
+      </div>`,
   })}
   <form class="set-form" id="set-form">
     <div class="set-form-row">
@@ -581,7 +586,10 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     const over = Boolean(set.service_date && set.service_date < today());
     const current = currentSetToggle(ctx, set, over);
     ctx.main.querySelector(".set-edit-actions")!.innerHTML = current.html;
-    ctx.main.querySelector(".set-edit-menu")!.innerHTML = barActions("set-edit", [{ id: "delete-set", label: t("Delete set"), icon: "trash" }], 0);
+    // ⋮ and its menu, in the bar's own group rather than a group of their own.
+    const menu = ctx.main.querySelector<HTMLElement>(".set-edit-menu")!;
+    menu.innerHTML = barActions("set-edit", [{ id: "delete-set", label: t("Delete set"), icon: "trash" }], 0);
+    menu.replaceChildren(...menu.querySelector(".bar-actions")!.childNodes);
     unbindCurrent?.();
     unbindCurrent = current.bind(ctx.main);
   };
