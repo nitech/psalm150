@@ -167,7 +167,6 @@ export class Psa150Audience extends Psa150Element {
 
     // Never cut words off, should a measurement be off.
     content.style.transform = "";
-    root.setProperty("--audience-scale", "1");
     const overflow = Math.min(
       width / Math.max(1, content.scrollWidth),
       height / Math.max(1, content.scrollHeight),
@@ -180,8 +179,6 @@ export class Psa150Audience extends Psa150Element {
   private transformContent(content: HTMLElement, lift: number, scale: number) {
     content.style.transformOrigin = "center center";
     content.style.transform = `translateY(${-lift}px) scale(${scale})`;
-    // The footer keeps the size the words have on screen.
-    document.documentElement.style.setProperty("--audience-scale", String(scale));
   }
 
   /**

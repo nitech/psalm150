@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Audience display
-description: The congregation window — white on black, one font size per song as large as every stanza fits, lines never broken, a footer (song number and key, stanza counter) over the bottom corners at the size of the words, keyboard.
+description: The congregation window — white on black, one font size per song as large as every stanza fits, lines never broken, a footer (song number and key, stanza counter) over the bottom corners at the song's size, the same for every stanza, keyboard.
 tags: [projection, audience, css, layout]
 status: stable
 sources:
@@ -87,15 +87,16 @@ only where long sections break into slides; see [gaps](gaps.md).
 ## Footer
 
 Plain white text in the two bottom corners, no frame, in the song's font,
-weight and size: `--psa150-fit-font` times `--audience-scale`, the scale of
-the stanza on screen, so the footer always matches the words.
+weight and size (`--psa150-fit-font`), the same through the whole song: a
+stanza shrunk to fit does not shrink the footer. Figures are tabular, so
+the counter keeps its width.
 
 - **Bottom left** (`.audience-overlay`): the song number, then the key (unless
   `show_key_overlay` is false). No title: the song is on screen. Copyright
   (unless `show_copyright_overlay` is false) and `CCLI n` (only if
   `show_ccli_overlay`) follow in small print.
-- **Bottom right** (`.audience-stanza-counter`): `n / total` with arrows
-  that dim at the ends (below).
+- **Bottom right** (`.audience-stanza-counter`): `n / total` with arrows,
+  none past the ends (below).
 
 The footer sits over the bottom of the screen, not on a strip of its own.
 After each layout `clearFooter()` looks at each visual line's own width
@@ -107,7 +108,8 @@ are.
 
 ## Stanza counter (bottom-right)
 
-`n / total` with arrows that dim at the ends: the step of the
+`n / total` with ↑ and ↓; on the first step there is no ↑ and on the
+last no ↓ (hidden, their room kept so the count does not move): the step of the
 [sung order](performance-sections.md#sung-order) on screen
 (`order_position + 1` of `order.length`, so a repeated chorus counts each
 time), or [stanza markers](performance-sections.md) when there is no order.

@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-11-07
+* **Projection footer keeps its size**: the song number, key and stanza counter stay one size through the song (`--psa150-fit-font`, no longer times the stanza's shrink `--audience-scale`, which is gone), with tabular figures; the counter shows no ↑ on the first step and no ↓ on the last (hidden, room kept) instead of dimming them. Pages touched: audience-display.
 * **VSB sync keeps church numbers**: editing a song on the server no longer renumbers it when a desktop's VSB database has its number on another song (a leader's title change made 526 into 1048 on the server). A song already paired with a VSB row keeps its number in Psalm150; the row is written without a number and keeps its own. A number VSB has twice stays with the rows that have it, and rows deleted in the same run free theirs. Only songs new to VSB are still renumbered. Pages touched: vsb-sync.
 
 ## 2026-11-03

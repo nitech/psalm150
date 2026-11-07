@@ -3280,8 +3280,11 @@ body.audience-projection {
   display: flex;
   align-items: baseline;
   font-family: var(--psa150-font-family);
-  /* The size the words have on screen, including a stanza shrunk to fit. */
-  font-size: calc(var(--psa150-fit-font, 3rem) * var(--audience-scale, 1));
+  /* The song's size, the same through the whole song: a stanza shrunk to
+     fit does not take the footer with it. */
+  font-size: var(--psa150-fit-font, 3rem);
+  /* Figures of one width, so "9 / 12" and "10 / 12" take the same room. */
+  font-variant-numeric: tabular-nums;
   font-weight: var(--psa150-font-weight, 500);
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -3321,9 +3324,10 @@ body.audience-projection {
   opacity: 0.85;
 }
 
-/* No stanza that way: dimmed, still 3:1 so the arrow stays legible. */
+/* No stanza that way (the first or the last): no arrow, its room kept so
+   the count stays where it is. */
 .audience-stanza-arrow.dim {
-  opacity: 0.45;
+  visibility: hidden;
 }
 
 
