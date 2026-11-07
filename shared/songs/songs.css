@@ -34,8 +34,14 @@ button.ch::after { content: ""; position: absolute; inset: -8px 0 -4px; }
 @media (hover: hover) { .segmented.ce-modes button:not(.on):hover { background: var(--psa-bg-sunken); color: var(--psa-text); } }
 /* Docked (DOCKED, or the app's `dockWhen`, in words-editor.ts): the bar sits in the header the app gives as `dock`. */
 .ce-bar.docked { position: static; margin-left: auto; padding: 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; transform: none; }
-.ce-bar.docked .ce-bar-section { border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full) 0 0 var(--psa-radius-full); }
-.ce-bar.docked .ce-bar-section:not([hidden]) + .ce-bar-cog { border: 1px solid var(--psa-border-strong); border-left: 0; }
+/* In a header the section and the cog are a button group like the app's
+   others (.bar-actions, the mode switch): one subtle pill, borderless
+   buttons in it, the open one raised. */
+.ce-bar.docked .ce-bar-group { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-full); background: var(--psa-bg-subtle); }
+.ce-bar.docked .ce-bar-group button { height: 34px; border-radius: var(--psa-radius-full); }
+.ce-bar.docked .ce-bar-section:not([hidden]) + .ce-bar-cog { border: 0; border-radius: var(--psa-radius-full); }
+.ce-bar.docked .ce-bar-group button[aria-expanded="true"] { background: var(--psa-bg-elevated); color: var(--psa-text); }
+@media (hover: hover) { .ce-bar.docked .ce-bar-group button:hover { background: var(--psa-bg-elevated); } }
 .ce-well.docked { left: auto; transform: translateY(-6px) scale(0.98); transform-origin: 100% 0; }
 .ce-well.docked.open { transform: none; }
 body:has(.ce-bar.docked) .ce { padding-bottom: var(--psa-space-6); }
@@ -77,6 +83,7 @@ body:has(.ce-bar.docked) .ce { padding-bottom: var(--psa-space-6); }
 .ce-bar { position: fixed; z-index: 60; left: 50%; bottom: calc(var(--tabbar-h) + var(--dock-h) + 12px); display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-full); background: color-mix(in srgb, var(--psa-bg-elevated) 90%, transparent); box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.35); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); transform: translateX(-50%); }
 .ce-bar[hidden], .ce-bar [hidden], .ce-well[hidden], .ce-well [hidden] { display: none; }
 .ce-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; border: 0; border-radius: var(--psa-radius-full); background: none; color: var(--psa-text); font-size: 15px; font-weight: 600; }
+.ce-bar-group { display: flex; align-items: center; gap: 2px; }
 .ce-bar-section { min-width: 96px; padding: 0 12px 0 16px; }
 .ce-bar-section .icon { width: 16px; height: 16px; color: var(--psa-text-secondary); transition: transform var(--psa-dur-fast); }
 .ce-bar-section[aria-expanded="true"] .icon { transform: rotate(180deg); }

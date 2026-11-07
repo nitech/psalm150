@@ -112,8 +112,10 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   const bar = document.createElement("div");
   bar.className = "ce-bar";
   bar.innerHTML = `
-    <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
-    <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="${t("Key, capo, details and chord sound")}" title="${t("Key, capo, details and chord sound")}">${icon("settings")}</button>
+    <div class="ce-bar-group">
+      <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
+      <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="${t("Key, capo, details and chord sound")}" title="${t("Key, capo, details and chord sound")}">${icon("settings")}</button>
+    </div>
     <button type="button" class="ce-bar-save" title="${t("Save")}">${icon("save")}<span class="ce-bar-save-text">${t("Save")}</span></button>`;
   const wellEl = document.createElement("div");
   wellEl.className = "ce-well";

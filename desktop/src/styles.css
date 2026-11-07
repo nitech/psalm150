@@ -2901,6 +2901,20 @@ psa150-song-editor {
   width: 34px;
 }
 
+/* The section and the cog: a group as tall as the mode switch, in its colours. */
+.song-editor-dock .ce-bar.docked .ce-bar-group {
+  border-color: var(--border-subtle);
+  background: var(--bg-subtle);
+}
+
+.song-editor-dock .ce-bar.docked .ce-bar-group button {
+  height: 32px;
+}
+
+.song-editor-dock .ce-bar.docked .ce-bar-group button[aria-expanded="true"] {
+  background: var(--bg-elevated);
+}
+
 .song-editor-dock .ce-bar.docked button.ce-bar-save {
   margin-left: 2px;
   padding: 0 14px 0 11px;
