@@ -402,16 +402,18 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* The tints are see-through: laid over the toast's solid background, so
+   the words underneath never show through. */
 .toast.success {
   color: var(--accent-gold);
   border-color: rgba(var(--psa-accent-rgb), 0.35);
-  background: var(--accent-gold-soft);
+  background: linear-gradient(var(--accent-gold-soft), var(--accent-gold-soft)), var(--bg-elevated);
 }
 
 .toast.error {
   color: var(--error);
   border-color: rgba(224, 69, 76, 0.35);
-  background: var(--accent-warm-soft);
+  background: linear-gradient(var(--accent-warm-soft), var(--accent-warm-soft)), var(--bg-elevated);
 }
 
 .status-pill {
@@ -3442,6 +3444,41 @@ body.stage-projection {
 
 .search-wrap:has(.search-key-chip) input {
   padding-right: 72px;
+}
+
+/* × at the right of the search field, while it has text: empties it. */
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-tertiary);
+  transform: translateY(-50%);
+}
+
+.search-clear:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.search-wrap:has(.search-clear) input {
+  padding-right: 40px;
+}
+
+/* With a key chip as well, the chip sits left of the ×. */
+.search-wrap:has(.search-clear) .search-key-chip {
+  right: 40px;
+}
+
+.search-wrap:has(.search-clear):has(.search-key-chip) input {
+  padding-right: 104px;
 }
 
 /* Slim app bar: compact buttons in the projection group match the icon row. */

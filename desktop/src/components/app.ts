@@ -2542,6 +2542,18 @@ export class Psa150App extends Psa150Element {
     await this.updateKeyToken(input);
   }
 
+  /** The × in the search field: empties it, shows every song, keeps the focus there. */
+  private clearSearch() {
+    const input = this.querySelector<HTMLInputElement>("#search-input");
+    this.query = "";
+    this.keyToken = null;
+    if (input) {
+      input.value = "";
+      input.focus();
+    }
+    void this.refreshSongs();
+  }
+
   private async updateKeyToken(input: HTMLInputElement) {
     const token = keyTokenAt(input.value, input.selectionStart ?? input.value.length);
     if (token) await this.loadKeyOptions();
@@ -3347,6 +3359,9 @@ export class Psa150App extends Psa150Element {
             @keydown=${(e: KeyboardEvent) => this.onSearchKeydown(e)}
           />
           ${key ? html`<span class="search-key-chip" title="Showing songs in ${key}"><span class="visually-hidden">Key filter:</span>${icon("key", 13)}${key}</span>` : nothing}
+          ${this.query
+            ? html`<button type="button" class="search-clear" aria-label="Clear search" title="Clear search" @click=${() => this.clearSearch()}>${icon("close", 14)}</button>`
+            : nothing}
           ${keyOptions.length > 0
             ? html`
                 <div class="combobox-list key-menu">
