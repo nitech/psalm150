@@ -819,7 +819,7 @@ export function openSongPicker(
 ): void {
   const sheet = openSheet(`<h2>${t("Add songs")}</h2>
     <div class="search-field">${icon("search")}<input type="search" id="picker-search" placeholder="${t("Title, number or a line")}" aria-label="${t("Search songs")}" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
-    <div class="list" id="picker-results"></div>
+    <div class="list flat-list" id="picker-results"></div>
     <button class="button primary wide" id="picker-done">${t("Done")}</button>`);
   const input = sheet.querySelector<HTMLInputElement>("#picker-search")!;
   const results = sheet.querySelector<HTMLElement>("#picker-results")!;

@@ -940,7 +940,7 @@ export async function openAddToSet(ctx: LibraryContext, song: SongRef, transpose
   const currentId = ctx.currentSet.value?.id;
   const sheet = openSheet(`<h2>${t("Add to a set")}</h2>
     <p class="muted">${escapeHtml(song.title)}${transpose ? ` · ${t("transposed {amount}", { amount: `${transpose > 0 ? "+" : ""}${transpose}` })}` : ""}</p>
-    <div class="list">
+    <div class="list flat-list">
       ${sets.map((set) => `<button class="list-row" data-set="${set.id}">
         <span class="row-main"><strong>${escapeHtml(set.name)}${set.id === currentId ? ` <span class="badge">${t("Current")}</span>` : ""}</strong><small>${serviceDate(set.service_date)} · ${tn(set.item_count, "{n} item", "{n} items")}</small></span>${icon("plus")}
       </button>`).join("")}
