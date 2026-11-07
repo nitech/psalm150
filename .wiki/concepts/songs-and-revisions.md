@@ -161,6 +161,29 @@ change one, and `GET /songs?favorites=true` keeps only them. A desktop token
 acts for the person who connected the desktop (`device_tokens.created_by`).
 A deleted song drops out of the list; purging it removes the row.
 
+## Drafts
+
+Changes are never lost in the web editor: what a leader or owner types is
+kept on the server as their draft (`song_drafts`, migration 0021;
+`api/src/drafts.rs`), one per song and person, plus one new song not in the
+library yet (`/drafts/new`, `song_id` null; `UNIQUE NULLS NOT DISTINCT`).
+`GET /drafts` lists them newest first (title, no text); `GET`, `PUT` and
+`DELETE /drafts/{song_id}` (or `/drafts/new`) read, keep (replacing) and
+discard one. `PUT` takes `{base_revision_id, chordpro}`: the revision being
+changed, required for a song in the library. Only people who edit songs
+(`require_editor`) have drafts; desktops do not. Saving the song
+(`PUT /songs/{id}`) removes the saver's draft of it in the same transaction;
+a deleted song's draft is hidden, and purging the song removes it.
+
+The editor (`songEditor` in `web/src/views/songs.ts`) keeps the text every
+2 seconds when it changed, and as you leave: the router calls `onLeave`
+handlers (`web/src/context.ts`) before loading the next screen, and
+`pagehide` / a hidden page send it with `keepalive`. Reading a draft waits for
+a keep in flight. Opened again, the editor starts from the draft with a note
+(and Discard), and saves against the draft's `base_revision_id`, so a song
+saved by someone else since answers 409 instead of being overwritten. The
+song page shows the same note with Continue editing and Discard.
+
 ## Recordings
 
 A song can carry recordings of how it is played (`api/src/song_media.rs`).

@@ -1,7 +1,7 @@
 import { announce, keepFocus, setTitle } from "../../../shared/songs/a11y.ts";
 import { t, tn } from "../../../shared/songs/i18n.ts";
 import { ApiError } from "../api.ts";
-import { emptyState, menuButton, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
+import { emptyState, menuButton, onLeave, pageHead, type AppContext, type Cleanup, type LibraryContext } from "../context.ts";
 import { groupSets } from "../current-set.ts";
 import { barActions, bindBarActions, setSwitch } from "../bar-menu.ts";
 import { songBarActions } from "../../../shared/songs/song-actions.ts";
@@ -28,7 +28,7 @@ import {
   stepTranspose,
 } from "../song-render.ts";
 import type { KeyMode, OnlineSong, SongDetail, SongKeyCount, SongSort, SongSummary, SortDirection } from "../types.ts";
-import { copyText, errorMessage, escapeHtml, readPreference, searchClear, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
+import { copyText, errorMessage, escapeHtml, readPreference, relativeDateInline, searchClear, serviceDate, setFormBusy, showFormError, showToast, today, writePreference } from "../ui.ts";
 
 /** Kept while the tab is open so Back returns to the same search. */
 let lastSearch = "";
@@ -741,6 +741,31 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   chordDock.className = "chord-dock";
   chordDock.hidden = true;
 
+  /**
+   * Your unsaved changes to this song, if you left the editor without
+   * saving: carry on with them, or discard them. Read once, after the song
+   * shows; kept across redraws like the media.
+   */
+  const draftHolder = document.createElement("div");
+  draftHolder.className = "notice draft-notice";
+  draftHolder.setAttribute("role", "status");
+  draftHolder.hidden = true;
+  if (ctx.canEdit) {
+    void ctx.api.getDraft(song.id).then((draft) => {
+      if (!draft) return;
+      draftHolder.innerHTML = `<p>${escapeHtml(t("You have unsaved changes to this song, last changed {when}.", { when: relativeDateInline(draft.updated_at) }))}</p>
+        <a class="button primary small" href="#/songs/${song.id}/edit">${t("Continue editing")}</a>
+        <button type="button" class="button secondary small">${t("Discard changes")}</button>`;
+      draftHolder.hidden = false;
+      draftHolder.querySelector("button")!.addEventListener("click", () => void ctx.run(async () => {
+        if (!confirm(t("Discard your changes to this song?"))) return;
+        await ctx.api.discardDraft(song.id);
+        draftHolder.hidden = true;
+        showToast(t("Discarded your changes."));
+      }));
+    }).catch(() => undefined);
+  }
+
   const render = () => {
     closeChordDock();
     const display = prepareSong(song.chordpro, transpose);
@@ -753,10 +778,12 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       actions: actions(display),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
+    <div id="song-draft-slot"></div>
     <div id="song-media-slot"></div>
     ${renderSongBody(display, options)}
     ${songNav()}
     ${revisionNote(song, ctx.canEdit)}</div>`;
+    ctx.main.querySelector("#song-draft-slot")?.replaceWith(draftHolder);
     ctx.main.querySelector("#song-media-slot")?.replaceWith(mediaHolder);
     ctx.main.append(chordDock);
   };
@@ -934,6 +961,9 @@ export async function openAddToSet(ctx: LibraryContext, song: SongRef, transpose
   sheet.querySelector("a")?.addEventListener("click", () => closeSheet(sheet));
 }
 
+/** How often the editor keeps what has changed as your draft on the server. */
+const DRAFT_EVERY_MS = 2000;
+
 export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<Cleanup | void> {
   const song = songId ? await ctx.api.getSong(songId) : null;
   if (!ctx.canEdit) {
@@ -942,42 +972,101 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
   }
   const back = song ? `#/songs/${song.id}` : "#/songs";
   // A song picked from an online search opens here once, to check and save.
-  const draft = song ? null : onlineDraft;
+  const found = song ? null : onlineDraft;
   onlineDraft = null;
-  setTitle(song ? t("Edit {title}", { title: song.title }) : draft ? t("Add {title}", { title: draft.title }) : t("New song"), t("Songs"));
-  ctx.main.innerHTML = `${pageHead({ title: song ? t("Edit song") : draft ? t("Add song") : t("New song"), quietTitle: true, back, actions: `<div class="segmented ce-modes" role="group" aria-label="${t("Edit as")}"></div>` })}
-  ${draft ? `<p class="online-source">${t('Found on <a href="{url}" target="_blank" rel="noopener noreferrer">{source}</a>. Check the words and chords, then save to add it to the library.', { url: escapeHtml(draft.source_url), source: escapeHtml(draft.source_name) })}</p>` : ""}
+  // Your unsaved changes from before (song.id null: the new song you started).
+  const draftKey = song?.id ?? null;
+  let draft = await ctx.api.getDraft(draftKey).catch(() => null);
+  if (found && draft && !confirm(t("You have a new song you did not add, “{title}”. Replace it with this one?", { title: draft.title || t("Untitled") }))) {
+    // Kept: the earlier song opens instead of the one found.
+  } else if (found) {
+    draft = null;
+  }
+  const online = draft ? null : found;
+  // Saving checks the revision the changes were made to, so a song saved
+  // by someone else since answers 409 instead of being overwritten.
+  const base = draft?.base_revision_id ?? song?.revision_id ?? null;
+  const stale = Boolean(song && draft && draft.base_revision_id !== song.revision_id);
+
+  setTitle(song ? t("Edit {title}", { title: song.title }) : online ? t("Add {title}", { title: online.title }) : t("New song"), t("Songs"));
+  ctx.main.innerHTML = `${pageHead({ title: song ? t("Edit song") : online ? t("Add song") : t("New song"), quietTitle: true, back, actions: `<div class="segmented ce-modes" role="group" aria-label="${t("Edit as")}"></div>` })}
+  ${online ? `<p class="online-source">${t('Found on <a href="{url}" target="_blank" rel="noopener noreferrer">{source}</a>. Check the words and chords, then save to add it to the library.', { url: escapeHtml(online.source_url), source: escapeHtml(online.source_name) })}</p>` : ""}
+  ${draft ? `<div class="notice draft-notice" role="status">
+    <p>${escapeHtml(song ? t("Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.", { when: relativeDateInline(draft.updated_at) }) : t("A new song you started, last changed {when}. Add it to the library, or discard it.", { when: relativeDateInline(draft.updated_at) }))}${stale ? ` <strong>${escapeHtml(t("Someone has saved this song since."))}</strong>` : ""}</p>
+    <button type="button" class="button secondary small" data-discard-draft>${t("Discard changes")}</button>
+  </div>` : ""}
   <form class="editor" id="editor-form">
     <div id="chord-editor"></div>
     <p class="form-message" role="status"></p>
   </form>`;
 
-  // Save is the ✓ in the editor's bar; Back leaves without saving.
+  // Save is the ✓ in the editor's bar; Back leaves, and what changed stays as your draft.
   const form = ctx.main.querySelector<HTMLFormElement>("#editor-form")!;
-  const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, song?.chordpro ?? draft?.chordpro ?? NEW_SONG_TEMPLATE, {
+  const editor = mountChordEditor(ctx.main.querySelector<HTMLElement>("#chord-editor")!, draft?.chordpro ?? song?.chordpro ?? online?.chordpro ?? NEW_SONG_TEMPLATE, {
     modes: ctx.main.querySelector<HTMLElement>(".ce-modes")!,
     save: () => form.requestSubmit(),
     // Always in the header: on iOS a bar fixed at the bottom jumps while the page scrolls.
     dock: ctx.main.querySelector<HTMLElement>(".app-bar-row") ?? undefined,
     dockWhen: "all",
   });
+
+  /**
+   * Your changes are never lost: what differs from the text the editor
+   * opened with is kept on the server as your draft, every few seconds and
+   * as you leave (Back, another screen, a closed tab, a phone putting the
+   * page away). Saving or discarding ends it.
+   */
+  let kept = editor.source();
+  // A song found online is a change from the start: kept at once.
+  if (online) kept = "";
+  let done = false;
+  const keep = (closing = false) => {
+    if (done) return;
+    const source = editor.source();
+    if (source === kept) return;
+    kept = source;
+    ctx.api.saveDraft(draftKey, base, source, closing).catch(() => {
+      // Tried again on the next tick.
+      if (kept === source) kept = "";
+    });
+  };
+  const timer = window.setInterval(keep, DRAFT_EVERY_MS);
+  const onHide = () => { if (document.visibilityState === "hidden") keep(true); };
+  const onPageHide = () => keep(true);
+  document.addEventListener("visibilitychange", onHide);
+  window.addEventListener("pagehide", onPageHide);
+  // Leaving for another screen: kept before that screen reads your drafts.
+  const stopLeave = onLeave(() => keep(true));
+
+  ctx.main.querySelector<HTMLButtonElement>("[data-discard-draft]")?.addEventListener("click", () => void ctx.run(async () => {
+    if (!confirm(song ? t("Discard your changes to this song?") : t("Discard this new song?"))) return;
+    done = true;
+    await ctx.api.discardDraft(draftKey);
+    showToast(t("Discarded your changes."));
+    ctx.navigate(back, true);
+  }));
+
   const message = form.querySelector<HTMLElement>(".form-message")!;
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (form.classList.contains("busy")) return;
     const source = editor.source();
     setFormBusy(form, true);
+    // No draft kept while saving: the server removes it with the save.
+    done = true;
     try {
       if (song) {
-        await ctx.api.updateSong(song.id, song.revision_id, source);
+        await ctx.api.updateSong(song.id, base ?? song.revision_id, source);
         showToast(t("Saved a new revision."));
         ctx.navigate(`#/songs/${song.id}`, true);
       } else {
         const created = await ctx.api.createSong(source);
+        await ctx.api.discardDraft(null).catch(() => undefined);
         showToast(t("Added the song."));
         ctx.navigate(`#/songs/${created.id}`, true);
       }
     } catch (error) {
+      done = false;
       setFormBusy(form, false);
       if (error instanceof ApiError && error.status === 401) return ctx.signOut();
       if (error instanceof ApiError && error.status === 409) {
@@ -988,7 +1077,15 @@ export async function songEditor(ctx: AppContext, [songId]: string[]): Promise<C
       showFormError(form, errorMessage(error));
     }
   });
-  return () => editor.destroy();
+  return () => {
+    keep(true);
+    done = true;
+    window.clearInterval(timer);
+    document.removeEventListener("visibilitychange", onHide);
+    window.removeEventListener("pagehide", onPageHide);
+    stopLeave();
+    editor.destroy();
+  };
 }
 
 /** The song's recordings through this session; none for a visitor without one. */

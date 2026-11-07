@@ -947,5 +947,16 @@
     "one": "Accordi inseriti da {n} riga di accordi.",
     "many": "Accordi inseriti da {n} righe di accordi.",
     "other": "Accordi inseriti da {n} righe di accordi."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Hai modifiche non salvate a questo canto, ultima modifica: {when}.",
+  "Continue editing": "Continua a modificare",
+  "Discard changes": "Scarta le modifiche",
+  "Discard your changes to this song?": "Scartare le tue modifiche a questo canto?",
+  "Discarded your changes.": "Le tue modifiche sono state scartate.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Hai un nuovo canto che non hai aggiunto, «{title}». Sostituirlo con questo?",
+  "Untitled": "Senza titolo",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Le tue modifiche non salvate, ultima modifica: {when}. Salvale, oppure scartale per ripartire dal canto così com’è.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Un nuovo canto che hai iniziato, ultima modifica: {when}. Aggiungilo alla raccolta, oppure scartalo.",
+  "Someone has saved this song since.": "Nel frattempo qualcuno ha salvato il canto.",
+  "Discard this new song?": "Scartare questo nuovo canto?"
 }

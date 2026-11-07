@@ -4,6 +4,7 @@ pub mod api;
 pub mod auth;
 pub mod chordpro;
 pub mod config;
+pub mod drafts;
 pub mod error;
 pub mod favorites;
 pub mod live_sets;

@@ -125,3 +125,20 @@ export function routeQuery(): URLSearchParams {
   const index = hash.indexOf("?");
   return new URLSearchParams(index >= 0 ? hash.slice(index + 1) : "");
 }
+
+/**
+ * What a screen does the moment the app leaves it, before the next screen
+ * loads (its cleanup comes only after that one is ready): the song editor
+ * keeps its changes here, so the song page that follows sees them.
+ */
+const leaveHandlers = new Set<() => void>();
+
+export function onLeave(handler: () => void): () => void {
+  leaveHandlers.add(handler);
+  return () => leaveHandlers.delete(handler);
+}
+
+/** The router: the screen shown is being left. */
+export function leavingScreen(): void {
+  for (const handler of [...leaveHandlers]) handler();
+}

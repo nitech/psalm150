@@ -924,5 +924,16 @@
   "Placed the chords from {n} chord lines.": {
     "one": "Akkorde aus {n} Akkordzeile gesetzt.",
     "other": "Akkorde aus {n} Akkordzeilen gesetzt."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Du hast nicht gespeicherte Änderungen an diesem Lied, zuletzt geändert: {when}.",
+  "Continue editing": "Weiter bearbeiten",
+  "Discard changes": "Änderungen verwerfen",
+  "Discard your changes to this song?": "Deine Änderungen an diesem Lied verwerfen?",
+  "Discarded your changes.": "Deine Änderungen wurden verworfen.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Du hast ein neues Lied, das du nicht hinzugefügt hast: „{title}“. Durch dieses ersetzen?",
+  "Untitled": "Ohne Titel",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Deine nicht gespeicherten Änderungen, zuletzt geändert: {when}. Speichere sie, oder verwirf sie, um mit dem Lied neu anzufangen, wie es ist.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Ein neues Lied, das du angefangen hast, zuletzt geändert: {when}. Füge es der Bibliothek hinzu, oder verwirf es.",
+  "Someone has saved this song since.": "Inzwischen hat jemand das Lied gespeichert.",
+  "Discard this new song?": "Dieses neue Lied verwerfen?"
 }

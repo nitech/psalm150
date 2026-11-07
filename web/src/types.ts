@@ -382,4 +382,18 @@ export interface FavoriteSongs {
   song_ids: string[];
 }
 
+/** One of your drafts (`GET /drafts`): unsaved changes to a song, or a new song (`song_id` null). */
+export interface SongDraftSummary {
+  song_id: string | null;
+  /** The revision the changes were made to; null for a new song. */
+  base_revision_id: string | null;
+  title: string;
+  updated_at: string;
+}
+
+/** Your unsaved changes to a song, with their text (`GET /drafts/{song_id}`, `/drafts/new`). */
+export interface SongDraft extends SongDraftSummary {
+  chordpro: string;
+}
+
 export type { RevisionSummary } from "../../shared/songs/song-history.ts";

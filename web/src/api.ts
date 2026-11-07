@@ -1,5 +1,7 @@
 import type {
   AccountLink,
+  SongDraft,
+  SongDraftSummary,
   AccountLinkResponse,
   PublicAccountLink,
   ApiToken,
@@ -309,6 +311,48 @@ export class SongServerApi {
 
   async removeFavorite(songId: string): Promise<void> {
     await this.requestEmpty(`/favorites/${songId}`, { method: "DELETE" });
+  }
+
+  /** The draft being kept, if any: reading drafts waits for it. */
+  private draftSaving: Promise<void> = Promise.resolve();
+
+  /** Your drafts: songs you changed and did not save, and a new song you started. */
+  listDrafts(): Promise<SongDraftSummary[]> {
+    return this.request("/drafts");
+  }
+
+  /** Your unsaved changes to a song (null: the new song you started); null when there are none. */
+  async getDraft(songId: string | null): Promise<SongDraft | null> {
+    // Leaving the editor keeps its last changes on the way out: read after them.
+    await this.draftSaving;
+    try {
+      return await this.request<SongDraft>(`/drafts/${songId ?? "new"}`);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * Keeps what you are typing. Often, so it leaves the remembered answers
+   * alone; `keepalive` lets it finish as the page closes.
+   */
+  saveDraft(songId: string | null, baseRevisionId: string | null, chordpro: string, keepalive = false): Promise<void> {
+    const saving = (async () => {
+      const response = await send(`${API_ROOT}/drafts/${songId ?? "new"}`, {
+        method: "PUT",
+        keepalive,
+        headers: this.headers(true),
+        body: JSON.stringify({ base_revision_id: baseRevisionId, chordpro }),
+      });
+      if (!response.ok) throw await this.error(response);
+    })();
+    this.draftSaving = saving.catch(() => undefined);
+    return saving;
+  }
+
+  async discardDraft(songId: string | null): Promise<void> {
+    await this.requestEmpty(`/drafts/${songId ?? "new"}`, { method: "DELETE" });
   }
 
   /** The keys the songs are in, with how many songs each. Signed out, of the public library. */

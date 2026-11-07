@@ -924,5 +924,16 @@
   "Placed the chords from {n} chord lines.": {
     "one": "Placerede akkorderne fra {n} akkordlinje.",
     "other": "Placerede akkorderne fra {n} akkordlinjer."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Du har ændringer i denne sang, som ikke er gemt, senest ændret {when}.",
+  "Continue editing": "Fortsæt med at redigere",
+  "Discard changes": "Kassér ændringerne",
+  "Discard your changes to this song?": "Vil du kassere dine ændringer i denne sang?",
+  "Discarded your changes.": "Dine ændringer er kasseret.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Du har en ny sang, du ikke tilføjede, »{title}«. Vil du erstatte den med denne?",
+  "Untitled": "Uden titel",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Dine ændringer, som ikke er gemt, senest ændret {when}. Gem dem, eller kassér dem for at starte fra sangen, som den er.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "En ny sang, du begyndte på, senest ændret {when}. Føj den til biblioteket, eller kassér den.",
+  "Someone has saved this song since.": "Nogen har gemt sangen siden.",
+  "Discard this new song?": "Vil du kassere denne nye sang?"
 }

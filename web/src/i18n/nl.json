@@ -924,5 +924,16 @@
   "Placed the chords from {n} chord lines.": {
     "one": "Akkoorden uit {n} akkoordregel geplaatst.",
     "other": "Akkoorden uit {n} akkoordregels geplaatst."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Je hebt niet-opgeslagen wijzigingen in dit lied, laatst gewijzigd {when}.",
+  "Continue editing": "Verder bewerken",
+  "Discard changes": "Wijzigingen weggooien",
+  "Discard your changes to this song?": "Je wijzigingen in dit lied weggooien?",
+  "Discarded your changes.": "Je wijzigingen zijn weggegooid.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Je hebt een nieuw lied dat je niet hebt toegevoegd: ‘{title}’. Vervangen door dit lied?",
+  "Untitled": "Zonder titel",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Je niet-opgeslagen wijzigingen, laatst gewijzigd {when}. Sla ze op, of gooi ze weg om te beginnen met het lied zoals het is.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Een nieuw lied waaraan je begon, laatst gewijzigd {when}. Voeg het toe aan de bibliotheek, of gooi het weg.",
+  "Someone has saved this song since.": "Iemand heeft het lied sindsdien opgeslagen.",
+  "Discard this new song?": "Dit nieuwe lied weggooien?"
 }

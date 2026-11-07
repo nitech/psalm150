@@ -924,5 +924,16 @@
   "Placed the chords from {n} chord lines.": {
     "one": "Hljómar settir úr {n} hljómalínu.",
     "other": "Hljómar settir úr {n} hljómalínum."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Þú átt óvistaðar breytingar á þessum söng, síðast breytt {when}.",
+  "Continue editing": "Halda áfram að breyta",
+  "Discard changes": "Henda breytingunum",
+  "Discard your changes to this song?": "Henda breytingunum þínum á þessum söng?",
+  "Discarded your changes.": "Breytingunum þínum var hent.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Þú átt nýjan söng sem þú bættir ekki við, „{title}“. Viltu setja þennan í staðinn?",
+  "Untitled": "Án titils",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Óvistaðar breytingar þínar, síðast breytt {when}. Vistaðu þær, eða hentu þeim til að byrja á söngnum eins og hann er.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Nýr söngur sem þú byrjaðir á, síðast breytt {when}. Bættu honum í safnið, eða hentu honum.",
+  "Someone has saved this song since.": "Einhver hefur vistað sönginn síðan.",
+  "Discard this new song?": "Henda þessum nýja söng?"
 }

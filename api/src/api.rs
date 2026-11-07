@@ -119,6 +119,13 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::favorites::replace_favorites,
         crate::favorites::add_favorite,
         crate::favorites::remove_favorite,
+        crate::drafts::list_drafts,
+        crate::drafts::get_draft,
+        crate::drafts::save_draft,
+        crate::drafts::discard_draft,
+        crate::drafts::get_new_draft,
+        crate::drafts::save_new_draft,
+        crate::drafts::discard_new_draft,
         crate::online::search_online,
         list_public_songs,
         list_public_song_keys,
@@ -162,6 +169,9 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::online::OnlineSong,
         crate::models::SongRecording,
         crate::models::FavoriteSongs,
+        crate::models::SongDraft,
+        crate::models::SongDraftSummary,
+        crate::models::SaveSongDraftRequest,
         crate::models::RecordingQuery,
         crate::models::RecordingLink,
         HealthResponse,
@@ -289,8 +299,8 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     ("Church", "The church's name and settings.", &["church"]),
     (
         "Songs",
-        "The church's song library: ChordPro songs with every revision kept, recordings of how they are played, and each person's favourites.",
-        &["songs", "public/recordings", "favorites"],
+        "The church's song library: ChordPro songs with every revision kept, recordings of how they are played, and each person's favourites and unsaved changes.",
+        &["songs", "public/recordings", "favorites", "drafts"],
     ),
     (
         "Sets",
@@ -412,6 +422,7 @@ pub fn router() -> Router<AppState> {
         .merge(crate::sets::router())
         .merge(crate::song_media::router())
         .merge(crate::favorites::router())
+        .merge(crate::drafts::router())
         .merge(crate::shared_sets::router())
         .merge(crate::live_sets::router())
         .merge(crate::remote::router())
@@ -1595,6 +1606,17 @@ async fn update_song(
         .bind(song_id)
         .execute(&mut *transaction)
         .await?;
+    // Saved: the person's unsaved changes to it are no longer needed.
+    if let Some(user_id) = actor.user_id {
+        sqlx::query(
+            "DELETE FROM song_drafts WHERE user_id = $1 AND church_id = $2 AND song_id = $3",
+        )
+        .bind(user_id)
+        .bind(auth.church_id)
+        .bind(song_id)
+        .execute(&mut *transaction)
+        .await?;
+    }
     transaction.commit().await?;
 
     Ok(Json(

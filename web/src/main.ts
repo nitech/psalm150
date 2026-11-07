@@ -5,7 +5,7 @@ import "./styles.css";
 import "../../shared/songs/songs.css";
 import { announce, refocus, selectorFor, setTitle } from "../../shared/songs/a11y.ts";
 import { ApiError, SongServerApi } from "./api.ts";
-import type { Cleanup, LibraryContext, LibraryView, View } from "./context.ts";
+import { leavingScreen, type Cleanup, type LibraryContext, type LibraryView, type View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { Favorites } from "./favorites.ts";
 import { installFollow } from "./follow.ts";
@@ -822,6 +822,8 @@ function bindSwipeBack(): void {
 }
 
 async function route(): Promise<void> {
+  // The screen shown finishes what it must before the next one reads.
+  leavingScreen();
   // Going somewhere from the drawer closes it.
   closeMenu(false);
   if (!session && !publicLibrary) return;

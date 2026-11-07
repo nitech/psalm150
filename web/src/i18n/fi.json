@@ -924,5 +924,16 @@
   "Placed the chords from {n} chord lines.": {
     "one": "Soinnut sijoitettu {n} sointurivistä.",
     "other": "Soinnut sijoitettu {n} sointurivistä."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Sinulla on tähän lauluun tallentamattomia muutoksia, viimeksi muutettu {when}.",
+  "Continue editing": "Jatka muokkaamista",
+  "Discard changes": "Hylkää muutokset",
+  "Discard your changes to this song?": "Hylätäänkö muutoksesi tähän lauluun?",
+  "Discarded your changes.": "Muutoksesi hylättiin.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Sinulla on uusi laulu, jota et lisännyt: ”{title}”. Korvataanko se tällä?",
+  "Untitled": "Nimetön",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Tallentamattomat muutoksesi, viimeksi muutettu {when}. Tallenna ne tai hylkää ne aloittaaksesi laulusta sellaisena kuin se on.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Aloittamasi uusi laulu, viimeksi muutettu {when}. Lisää se kirjastoon tai hylkää se.",
+  "Someone has saved this song since.": "Joku on tallentanut laulun sen jälkeen.",
+  "Discard this new song?": "Hylätäänkö tämä uusi laulu?"
 }

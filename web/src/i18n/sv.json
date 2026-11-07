@@ -924,5 +924,16 @@
   "Placed the chords from {n} chord lines.": {
     "one": "Placerade ackorden från {n} ackordrad.",
     "other": "Placerade ackorden från {n} ackordrader."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Du har ändringar i den här sången som inte är sparade, senast ändrade {when}.",
+  "Continue editing": "Fortsätt redigera",
+  "Discard changes": "Släng ändringarna",
+  "Discard your changes to this song?": "Vill du slänga dina ändringar i den här sången?",
+  "Discarded your changes.": "Dina ändringar har slängts.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Du har en ny sång som du inte lade till, ”{title}”. Vill du ersätta den med den här?",
+  "Untitled": "Utan titel",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Dina osparade ändringar, senast ändrade {when}. Spara dem, eller släng dem för att börja från sången som den är.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "En ny sång du började på, senast ändrad {when}. Lägg till den i biblioteket, eller släng den.",
+  "Someone has saved this song since.": "Någon har sparat sången sedan dess.",
+  "Discard this new song?": "Vill du slänga den här nya sången?"
 }

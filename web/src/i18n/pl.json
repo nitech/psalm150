@@ -970,5 +970,16 @@
     "few": "Wstawiono akordy z {n} wierszy akordów.",
     "many": "Wstawiono akordy z {n} wierszy akordów.",
     "other": "Wstawiono akordy z {n} wierszy akordów."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Masz niezapisane zmiany w tej pieśni, ostatnio zmienione: {when}.",
+  "Continue editing": "Edytuj dalej",
+  "Discard changes": "Odrzuć zmiany",
+  "Discard your changes to this song?": "Odrzucić twoje zmiany w tej pieśni?",
+  "Discarded your changes.": "Twoje zmiany zostały odrzucone.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Masz nową pieśń, której nie dodałeś: „{title}”. Zastąpić ją tą?",
+  "Untitled": "Bez tytułu",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Twoje niezapisane zmiany, ostatnio zmienione: {when}. Zapisz je albo odrzuć, aby zacząć od pieśni w obecnej postaci.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Nowa pieśń, którą zacząłeś, ostatnio zmieniona: {when}. Dodaj ją do biblioteki albo ją odrzuć.",
+  "Someone has saved this song since.": "Ktoś w międzyczasie zapisał tę pieśń.",
+  "Discard this new song?": "Odrzucić tę nową pieśń?"
 }

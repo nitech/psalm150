@@ -928,3 +928,33 @@ pub struct RecordingLink {
 pub struct FavoriteSongs {
     pub song_ids: Vec<Uuid>,
 }
+
+/// Your unsaved changes to a song (`/drafts`), kept while you edit.
+#[derive(Debug, Serialize, ToSchema, FromRow)]
+pub struct SongDraft {
+    /// Null: a new song, not in the library yet.
+    pub song_id: Option<Uuid>,
+    /// The revision the changes were made to; null for a new song. Saving
+    /// with it as `base_revision_id` answers 409 if the song changed since.
+    pub base_revision_id: Option<Uuid>,
+    /// The title as the changes have it.
+    pub title: String,
+    pub chordpro: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// One of your drafts, without its text (`GET /drafts`).
+#[derive(Debug, Serialize, ToSchema, FromRow)]
+pub struct SongDraftSummary {
+    pub song_id: Option<Uuid>,
+    pub base_revision_id: Option<Uuid>,
+    pub title: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SaveSongDraftRequest {
+    /// The revision the changes were made to; left out for a new song.
+    pub base_revision_id: Option<Uuid>,
+    pub chordpro: String,
+}

@@ -924,5 +924,16 @@
   "Placed the chords from {n} chord lines.": {
     "one": "Plasserte akkordane frå {n} akkordlinje.",
     "other": "Plasserte akkordane frå {n} akkordlinjer."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Du har endringar i denne songen som ikkje er lagra, sist endra {when}.",
+  "Continue editing": "Hald fram med å redigere",
+  "Discard changes": "Forkast endringane",
+  "Discard your changes to this song?": "Vil du forkaste endringane dine i denne songen?",
+  "Discarded your changes.": "Endringane dine er forkasta.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Du har ein ny song du ikkje la til, «{title}». Vil du byte han ut med denne?",
+  "Untitled": "Utan tittel",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Endringane dine som ikkje er lagra, sist endra {when}. Lagre dei, eller forkast dei for å starte frå songen slik han er.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Ein ny song du byrja på, sist endra {when}. Legg han til i biblioteket, eller forkast han.",
+  "Someone has saved this song since.": "Nokon har lagra songen etter det.",
+  "Discard this new song?": "Vil du forkaste denne nye songen?"
 }

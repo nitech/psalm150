@@ -58,6 +58,11 @@ code { font-family: var(--psa-font-mono); font-size: 0.9em; }
 /* A hint under a field, such as a password's length. */
 .stack > label + .field-hint { margin-top: calc(6px - var(--psa-space-4)); }
 .notice { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-radius: var(--psa-radius-sm); background: var(--psa-accent-soft); color: var(--psa-text); font-size: 14px; }
+/* Unsaved changes (the song and its editor): what they are, then what to do with them. */
+.draft-notice { display: flex; flex-wrap: wrap; align-items: center; gap: var(--psa-space-2) var(--psa-space-3); }
+.draft-notice[hidden] { display: none; }
+.app-bar + .draft-notice { margin-top: var(--psa-space-4); }
+.draft-notice p { flex: 1 1 260px; margin: 0; }
 
 /* ── Brand ──────────────────────────────────────────────────────────────── */
 

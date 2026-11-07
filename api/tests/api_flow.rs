@@ -4027,3 +4027,137 @@ async fn song_favorites(pool: PgPool) {
     let after = send(&app, "GET", "/api/v1/favorites", Some(&owner), None).await;
     assert_eq!(after.1, json!({ "song_ids": [first] }));
 }
+
+/// A person's unsaved changes are kept per song (and one new song), shown
+/// to no one else, replaced on each save, and gone once the song is saved
+/// or the draft discarded.
+#[sqlx::test(migrations = "./migrations")]
+async fn song_drafts(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+    let (song, revision) = create_song(&app, &owner, "Amazing Grace").await;
+    let draft_uri = format!("/api/v1/drafts/{song}");
+
+    let none = send(&app, "GET", &draft_uri, Some(&owner), None).await;
+    assert_eq!(none.0, StatusCode::NOT_FOUND);
+
+    for title in ["Amazing", "Amazing Grace (new words)"] {
+        let kept = send(
+            &app,
+            "PUT",
+            &draft_uri,
+            Some(&owner),
+            Some(json!({
+                "base_revision_id": revision,
+                "chordpro": format!("{{title: {title}}}\n\n[G]Changed words")
+            })),
+        )
+        .await;
+        assert_eq!(kept.0, StatusCode::NO_CONTENT);
+    }
+    let draft = send(&app, "GET", &draft_uri, Some(&owner), None).await;
+    assert_eq!(draft.0, StatusCode::OK);
+    assert_eq!(draft.1["title"], "Amazing Grace (new words)");
+    assert_eq!(draft.1["base_revision_id"], revision.as_str());
+    assert_eq!(draft.1["song_id"], song.as_str());
+
+    // A song in the library needs the revision it changes.
+    let no_base = send(
+        &app,
+        "PUT",
+        &draft_uri,
+        Some(&owner),
+        Some(json!({ "chordpro": "{title: X}" })),
+    )
+    .await;
+    assert_eq!(no_base.0, StatusCode::BAD_REQUEST);
+    let missing = send(
+        &app,
+        "PUT",
+        "/api/v1/drafts/00000000-0000-0000-0000-000000000000",
+        Some(&owner),
+        Some(json!({ "base_revision_id": revision, "chordpro": "{title: X}" })),
+    )
+    .await;
+    assert_eq!(missing.0, StatusCode::NOT_FOUND);
+
+    // A new song, not in the library yet: one per person.
+    let new_song = send(
+        &app,
+        "PUT",
+        "/api/v1/drafts/new",
+        Some(&owner),
+        Some(json!({ "chordpro": "{title: Cornerstone}\n\n[C]My hope" })),
+    )
+    .await;
+    assert_eq!(new_song.0, StatusCode::NO_CONTENT);
+    let started = send(&app, "GET", "/api/v1/drafts/new", Some(&owner), None).await;
+    assert_eq!(started.0, StatusCode::OK);
+    assert_eq!(started.1["song_id"], Value::Null);
+    assert_eq!(started.1["title"], "Cornerstone");
+
+    let list = send(&app, "GET", "/api/v1/drafts", Some(&owner), None).await;
+    assert_eq!(list.0, StatusCode::OK);
+    let titles: Vec<&str> = list
+        .1
+        .as_array()
+        .expect("drafts")
+        .iter()
+        .map(|d| d["title"].as_str().expect("title"))
+        .collect();
+    assert_eq!(titles, ["Cornerstone", "Amazing Grace (new words)"]);
+    assert!(list.1[0].get("chordpro").is_none());
+
+    // Drafts are the person's own: viewers and desktops have none.
+    for token in [&viewer, &desktop] {
+        let refused = send(&app, "GET", "/api/v1/drafts", Some(token), None).await;
+        assert_eq!(refused.0, StatusCode::FORBIDDEN);
+    }
+
+    let discarded = send(&app, "DELETE", "/api/v1/drafts/new", Some(&owner), None).await;
+    assert_eq!(discarded.0, StatusCode::NO_CONTENT);
+    let gone = send(&app, "GET", "/api/v1/drafts/new", Some(&owner), None).await;
+    assert_eq!(gone.0, StatusCode::NOT_FOUND);
+
+    // Saving the song removes the draft of it.
+    let saved = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/songs/{song}"),
+        Some(&owner),
+        Some(json!({ "base_revision_id": revision, "chordpro": "{title: Amazing Grace (new words)}\n\n[G]Changed words" })),
+    )
+    .await;
+    assert_eq!(saved.0, StatusCode::OK);
+    let after_save = send(&app, "GET", &draft_uri, Some(&owner), None).await;
+    assert_eq!(after_save.0, StatusCode::NOT_FOUND);
+
+    // A deleted song's draft is not shown.
+    let current = saved.1["revision_id"]
+        .as_str()
+        .expect("revision")
+        .to_string();
+    let kept = send(
+        &app,
+        "PUT",
+        &draft_uri,
+        Some(&owner),
+        Some(json!({ "base_revision_id": current, "chordpro": "{title: Again}" })),
+    )
+    .await;
+    assert_eq!(kept.0, StatusCode::NO_CONTENT);
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{song}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    let hidden = send(&app, "GET", &draft_uri, Some(&owner), None).await;
+    assert_eq!(hidden.0, StatusCode::NOT_FOUND);
+    let empty = send(&app, "GET", "/api/v1/drafts", Some(&owner), None).await;
+    assert_eq!(empty.1, json!([]));
+}

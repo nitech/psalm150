@@ -947,5 +947,16 @@
     "one": "Accords placés depuis {n} ligne d'accords.",
     "many": "Accords placés depuis {n} lignes d'accords.",
     "other": "Accords placés depuis {n} lignes d'accords."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Vous avez des modifications non enregistrées dans ce chant, dernière modification : {when}.",
+  "Continue editing": "Continuer la modification",
+  "Discard changes": "Abandonner les modifications",
+  "Discard your changes to this song?": "Abandonner vos modifications de ce chant ?",
+  "Discarded your changes.": "Vos modifications ont été abandonnées.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Vous avez un nouveau chant non ajouté, « {title} ». Le remplacer par celui-ci ?",
+  "Untitled": "Sans titre",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Vos modifications non enregistrées, dernière modification : {when}. Enregistrez-les, ou abandonnez-les pour repartir du chant tel qu’il est.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Un nouveau chant que vous avez commencé, dernière modification : {when}. Ajoutez-le à la bibliothèque, ou abandonnez-le.",
+  "Someone has saved this song since.": "Quelqu’un a enregistré ce chant depuis.",
+  "Discard this new song?": "Abandonner ce nouveau chant ?"
 }

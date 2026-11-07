@@ -947,5 +947,16 @@
     "one": "Acordes colocados a partir de {n} linha de acordes.",
     "many": "Acordes colocados a partir de {n} linhas de acordes.",
     "other": "Acordes colocados a partir de {n} linhas de acordes."
-  }
+  },
+  "You have unsaved changes to this song, last changed {when}.": "Tem alterações não guardadas nesta canção, alteradas pela última vez: {when}.",
+  "Continue editing": "Continuar a editar",
+  "Discard changes": "Descartar as alterações",
+  "Discard your changes to this song?": "Descartar as suas alterações a esta canção?",
+  "Discarded your changes.": "As suas alterações foram descartadas.",
+  "You have a new song you did not add, “{title}”. Replace it with this one?": "Tem uma canção nova que não adicionou, «{title}». Substituí-la por esta?",
+  "Untitled": "Sem título",
+  "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "As suas alterações não guardadas, alteradas pela última vez: {when}. Guarde-as, ou descarte-as para começar pela canção tal como está.",
+  "A new song you started, last changed {when}. Add it to the library, or discard it.": "Uma canção nova que começou, alterada pela última vez: {when}. Adicione-a à biblioteca, ou descarte-a.",
+  "Someone has saved this song since.": "Alguém guardou a canção entretanto.",
+  "Discard this new song?": "Descartar esta canção nova?"
 }
