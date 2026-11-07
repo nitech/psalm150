@@ -462,13 +462,20 @@ async fn add_song_text(
 }
 
 #[tauri::command]
-pub fn delete_song(
+pub async fn delete_song(
     app: AppHandle,
     state: State<'_, AppState>,
     filename: String,
 ) -> Result<RecoveryItem, String> {
-    let (folder, folder_hash) = with_state(&state, |runtime| {
-        if runtime.read_only {
+    // A server library is read-only on disk, but its songs are deleted on
+    // the song server, as they are saved there.
+    let (folder, folder_hash, server) = with_state(&state, |runtime| {
+        let server = runtime
+            .config
+            .server_library
+            .as_ref()
+            .map(|server| server.url.clone());
+        if runtime.read_only && server.is_none() {
             return Err("Library is in read-only mode".into());
         }
         if runtime.projection.filename.as_deref() == Some(filename.as_str()) {
@@ -490,9 +497,15 @@ pub fn delete_song(
                 .folder_hash
                 .clone()
                 .ok_or_else(|| "No library open".to_string())?,
+            server,
         ))
     })?;
-    let recovery = delete_song_recoverable(&app, &folder_hash, &folder, &filename)?;
+    let recovery = match server {
+        Some(url) => {
+            server_library::remove_song(&app, &url, &folder_hash, &folder, &filename).await?
+        }
+        None => delete_song_recoverable(&app, &folder_hash, &folder, &filename)?,
+    };
     with_state(&state, |runtime| {
         if let Some(db) = runtime.db.as_ref() {
             db.delete_song(&filename)?;

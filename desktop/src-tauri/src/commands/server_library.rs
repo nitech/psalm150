@@ -749,6 +749,41 @@ pub(crate) async fn add_song(
     Ok(filename)
 }
 
+/// Delete a song in a server library: on the song server (unless it changed
+/// there since this PC last synchronized; the server keeps it under deleted
+/// songs, where the web client restores it), then the offline copy, which
+/// keeps a recovery copy like any deleted song, and its manifest entry.
+pub(crate) async fn remove_song(
+    app: &AppHandle,
+    server_url: &str,
+    folder_hash: &str,
+    folder: &Path,
+    filename: &str,
+) -> Result<crate::library::files::RecoveryItem, String> {
+    let mut manifest = read_manifest(app, server_url);
+    let song = manifest.get(filename).cloned().ok_or_else(|| {
+        "This song is not on the song server yet. Synchronize the server library, then try again."
+            .to_string()
+    })?;
+    let token = read_token(app)?;
+    delete_song(server_url, &token, &song.id, &song.revision_id)
+        .await
+        .map_err(|error| {
+            if error.starts_with("changed on the song server") {
+                "Not deleted: this song was changed on the song server in the meantime. \
+                 Synchronize the library (Settings, Church server), then delete it again."
+                    .to_string()
+            } else {
+                format!("Not deleted: {error}")
+            }
+        })?;
+    let recovery =
+        crate::library::files::delete_song_recoverable(app, folder_hash, folder, filename)?;
+    manifest.remove(filename);
+    write_manifest(app, server_url, &manifest)?;
+    Ok(recovery)
+}
+
 /// Delete a server song unless it changed since `base_revision_id`.
 pub(crate) async fn delete_song(
     server_url: &str,

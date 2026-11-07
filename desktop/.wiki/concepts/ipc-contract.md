@@ -58,7 +58,7 @@ commands are real and tested but reachable only over IPC.
 | `pull_server_favorites` | async; server library: `GET /favorites` (the connecting person's), mapped through the manifest, replaces the local favourites → file names, or null outside a server library or on an older server | yes |
 | `push_server_favorite` | async; `filename, favorite` → `PUT`/`DELETE /favorites/{id}` for a server library song | yes |
 | `open_link` | `url` (http/https only) → opens it in the browser; the console sends `target=_blank` links here | yes |
-| `delete_song` | `filename` → `RecoveryItem`; blocks active and setlist-referenced files | yes |
+| `delete_song` | async; `filename` → `RecoveryItem`; blocks active and setlist-referenced files; in a server library it deletes on the song server first (device token, `base_revision_id` from the manifest; 409 leaves both sides as they are) | yes |
 | `renumber_songs` | `plans[{from,to}]` → messages | no |
 | `compact_library` | → summary string (VACUUM + orphan count) | no |
 | `import_mdb_path` | `mdbPath` → `ImportReport { written, skipped, failed, warnings, cancelled, aborted_reason, files }` | yes |

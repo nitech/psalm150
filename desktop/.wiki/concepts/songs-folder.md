@@ -94,6 +94,10 @@ Edits made through the app (`save_song`, `delete_song`) update SQLite directly.
 `delete_song`, `renumber_songs`, MDB writes and saving a web result. Library
 selection and a second import are blocked while import is running.
 
+A server library is read-only on disk, but saving and deleting a song still
+work: they go to the song server (`server_library::save_song`,
+`remove_song`), then the offline copy and the manifest follow.
+
 ## Safe file operations
 
 Rust accepts only one-component `.pro` / `.cho` names below the active folder.
