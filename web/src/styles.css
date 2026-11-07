@@ -391,6 +391,19 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .grip { display: grid; place-items: center; width: 36px; height: 44px; margin-left: -6px; padding: 0; flex: none; border: 0; border-radius: var(--psa-radius-xs); background: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
 .grip:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
 /* A song's title opens the song. */
+/* Lists that look like the song list (the sets, a set's songs, the set
+   editor): rows as tall as a comfortable tap, no taller, and on phones edge
+   to edge on the page's own dark. */
+.flat-list .list-row { min-height: var(--psa-touch-target); padding-top: 6px; padding-bottom: 6px; }
+.flat-list .edit-row > .swipe-content, .flat-list .edit-row:not([data-swipe-row]) { padding-block: 0; }
+.flat-list .edit-row-main { min-height: var(--psa-touch-target); }
+.flat-list .grip { height: var(--psa-touch-target); }
+.flat-list .date-badge { width: 38px; height: 38px; }
+.flat-list .date-badge strong { font-size: 16px; }
+@media (max-width: 899px) {
+  .list.flat-list { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); border-left: 0; border-right: 0; border-radius: 0; }
+  .flat-list, .flat-list .swipe-content { background: var(--psa-bg-canvas); }
+}
 .edit-row-title { color: inherit; text-decoration: none; }
 @media (hover: hover) { .edit-row-title:hover { text-decoration: underline; } }
 /* The title takes two lines before it is cut. */

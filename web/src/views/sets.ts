@@ -48,7 +48,7 @@ export async function setList(ctx: AppContext): Promise<void> {
   const draw = (sets: SetSummary[]) => {
     const { upcoming, undated, past } = groupSets(sets, today());
     const currentId = ctx.currentSet.value?.id;
-    const rows = (group: SetSummary[], label: string) => `<ul class="list" aria-labelledby="${label}">${group.map((set) => setRow(set, currentId)).join("")}</ul>`;
+    const rows = (group: SetSummary[], label: string) => `<ul class="list flat-list" aria-labelledby="${label}">${group.map((set) => setRow(set, currentId)).join("")}</ul>`;
     ctx.main.innerHTML = `${pageHead({
       title: t("Sets"),
       church: ctx.session.church_name,
@@ -127,7 +127,7 @@ export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cle
       : ""}`,
   })}
   ${set.items.length
-    ? `<ol class="list numbered" aria-label="${t("Songs: tap one to go through the set from there")}">${set.items.map((item, index) => `<li>
+    ? `<ol class="list numbered flat-list" aria-label="${t("Songs: tap one to go through the set from there")}">${set.items.map((item, index) => `<li>
         <a class="list-row" href="#/sets/${set.id}/play/${index}">
           <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>
             <small>${[item.song?.song_number ? t("No. {number}", { number: escapeHtml(item.song.song_number) }) : "", item.transpose ? t("Transpose {steps}", { steps: transposeLabel(item.transpose) }) : "", escapeHtml(item.note)].filter(Boolean).join(" · ") || "&nbsp;"}</small></span>
@@ -375,7 +375,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       <label>${t("Name")}<input name="name" maxlength="200" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(defaultSetName(draft.service_date))}" /></label>
       <label>${t("Service date")}<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
     </div>
-    <ol class="list editable" id="draft-items" aria-label="${t("Songs")}" data-song-list></ol>
+    <ol class="list editable flat-list" id="draft-items" aria-label="${t("Songs")}" data-song-list></ol>
     <p class="form-message" role="status"></p>
   </form>`;
 
