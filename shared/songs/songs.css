@@ -37,8 +37,10 @@ button.ch::after { content: ""; position: absolute; inset: -8px 0 -4px; }
 /* In a header the section and the cog are a button group like the app's
    others (.bar-actions, the mode switch): one subtle pill, borderless
    buttons in it, the open one raised. */
-.ce-bar.docked .ce-bar-group { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-full); background: var(--psa-bg-subtle); }
-.ce-bar.docked .ce-bar-group button { height: 34px; border-radius: var(--psa-radius-full); }
+.ce-bar.docked .ce-bar-group { --bar-button: 34px; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--psa-border-subtle); border-radius: var(--psa-radius-full); background: var(--psa-bg-subtle); }
+@media (pointer: coarse) { .ce-bar.docked .ce-bar-group { --bar-button: 40px; } }
+.ce-bar.docked .ce-bar-group button { height: var(--bar-button); border-radius: var(--psa-radius-full); }
+.ce-bar.docked .ce-bar-group .ce-bar-cog { width: var(--bar-button); }
 .ce-bar.docked .ce-bar-section:not([hidden]) + .ce-bar-cog { border: 0; border-radius: var(--psa-radius-full); }
 .ce-bar.docked .ce-bar-group button[aria-expanded="true"] { background: var(--psa-bg-elevated); color: var(--psa-text); }
 @media (hover: hover) { .ce-bar.docked .ce-bar-group button:hover { background: var(--psa-bg-elevated); } }

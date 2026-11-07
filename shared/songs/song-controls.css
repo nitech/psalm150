@@ -108,7 +108,8 @@
 @media (hover: hover) { .bar-actions .icon-button:hover:not(:disabled) { border-color: var(--psa-border-subtle); background: var(--psa-bg-elevated); color: var(--psa-text-secondary); } }
 .bar-actions .icon-button[aria-expanded="true"] { background: var(--psa-bg-elevated); color: var(--psa-text); }
 /* On: an accent tint and accent text, as the desktop marks Chords. */
-.bar-actions .icon-button.on, .bar-actions .icon-button.in-set { background: var(--psa-accent-medium); color: var(--psa-accent-text); }
+/* In a group the tint alone marks it, without the ring a lone button has. */
+.bar-actions .icon-button.on, .bar-actions .icon-button.in-set { border-color: transparent; background: var(--psa-accent-medium); color: var(--psa-accent-text); }
 .bar-more { flex: none; }
 .bar-more .icon { transform: rotate(90deg); }
 .bar-frequent { display: flex; gap: 2px; min-width: 0; overflow: hidden; }
