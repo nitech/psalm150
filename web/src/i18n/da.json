@@ -935,5 +935,8 @@
   "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Dine ændringer, som ikke er gemt, senest ændret {when}. Gem dem, eller kassér dem for at starte fra sangen, som den er.",
   "A new song you started, last changed {when}. Add it to the library, or discard it.": "En ny sang, du begyndte på, senest ændret {when}. Føj den til biblioteket, eller kassér den.",
   "Someone has saved this song since.": "Nogen har gemt sangen siden.",
-  "Discard this new song?": "Vil du kassere denne nye sang?"
+  "Discard this new song?": "Vil du kassere denne nye sang?",
+  "Key {key}: the chords moved with it.": "Toneart {key}: akkorderne blev flyttet med.",
+  "Key {key}.": "Toneart {key}.",
+  "The chords move with the key.": "Akkorderne flyttes med tonearten."
 }

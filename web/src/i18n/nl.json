@@ -935,5 +935,8 @@
   "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Je niet-opgeslagen wijzigingen, laatst gewijzigd {when}. Sla ze op, of gooi ze weg om te beginnen met het lied zoals het is.",
   "A new song you started, last changed {when}. Add it to the library, or discard it.": "Een nieuw lied waaraan je begon, laatst gewijzigd {when}. Voeg het toe aan de bibliotheek, of gooi het weg.",
   "Someone has saved this song since.": "Iemand heeft het lied sindsdien opgeslagen.",
-  "Discard this new song?": "Dit nieuwe lied weggooien?"
+  "Discard this new song?": "Dit nieuwe lied weggooien?",
+  "Key {key}: the chords moved with it.": "Toonsoort {key}: de akkoorden zijn meeverplaatst.",
+  "Key {key}.": "Toonsoort {key}.",
+  "The chords move with the key.": "De akkoorden gaan mee met de toonsoort."
 }

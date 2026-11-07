@@ -935,5 +935,8 @@
   "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Tallentamattomat muutoksesi, viimeksi muutettu {when}. Tallenna ne tai hylkää ne aloittaaksesi laulusta sellaisena kuin se on.",
   "A new song you started, last changed {when}. Add it to the library, or discard it.": "Aloittamasi uusi laulu, viimeksi muutettu {when}. Lisää se kirjastoon tai hylkää se.",
   "Someone has saved this song since.": "Joku on tallentanut laulun sen jälkeen.",
-  "Discard this new song?": "Hylätäänkö tämä uusi laulu?"
+  "Discard this new song?": "Hylätäänkö tämä uusi laulu?",
+  "Key {key}: the chords moved with it.": "Sävellaji {key}: soinnut siirtyivät mukana.",
+  "Key {key}.": "Sävellaji {key}.",
+  "The chords move with the key.": "Soinnut siirtyvät sävellajin mukana."
 }

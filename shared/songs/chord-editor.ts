@@ -489,6 +489,7 @@ export function mountChordEditor(
     keyShift = steps ?? 0;
     keyPrompt.hidden = !keyShift || !hasAnyChord();
     if (!keyPrompt.hidden) keyPrompt.querySelector("p")!.textContent = t("Move the chords from {from} to {to} too?", { from: before, to: after });
+    words.refresh();
   });
   keyPrompt.addEventListener("click", (event) => {
     const choice = (event.target as HTMLElement).closest<HTMLElement>("[data-key]")?.dataset.key;
@@ -1535,6 +1536,27 @@ export function mountChordEditor(
     rememberSoon: () => rememberSoon(),
     undo,
     settings: [settingsEl, soundEl],
+    key: {
+      value: () => metaValue(doc, "key"),
+      choose: (after) => {
+        const before = metaValue(doc, "key");
+        if (after === before) return;
+        setMeta(doc, "key", after);
+        const steps = before ? keyDistance(before, after) : null;
+        const moved = Boolean(steps && hasAnyChord());
+        if (moved) transposeDoc(doc, steps!, false);
+        keyPrompt.hidden = true;
+        const said = moved ? t("Key {key}: the chords moved with it.", { key: after }) : t("Key {key}.", { key: after });
+        if (mode === "code") {
+          // The source keeps its own undo (Ctrl+Z in it).
+          writeCode();
+          showToast(said);
+          return;
+        }
+        commit();
+        showToast(said, { action: { label: t("Undo"), run: undo } });
+      },
+    },
     save: parts.save,
     dock: parts.dock,
     dockWhen: parts.dockWhen,

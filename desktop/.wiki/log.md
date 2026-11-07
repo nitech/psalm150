@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-11-07
+* **Chords beside the song; the key in the editor bar**: the chord panel sits to the right of the words whenever the song pane is at least 620 px wide (was 900), `clamp(260px, 32%, 340px)` wide, so the words keep the height. The song editor's bar starts with the song's key: one tap opens every key, another sets it and moves the chords (shared `words-editor.ts`). Pages touched: none (behaviour only).
 * **Search × and solid toasts**: the library search field has a × at its right while it has text (`clearSearch()`: empties it, lists every song, keeps the focus; a `#key` chip moves left of it). Success and error toasts lay their see-through tint over the solid `--bg-elevated`, so the words under them no longer show through. Pages touched: none (behaviour only).
 * **Delete songs in a server library**: `delete_song` is async and, in a server library, deletes the song on the song server (device token, the manifest's revision; a newer server edit refuses it), then the offline copy (with a recovery copy) and its manifest entry, instead of "Library is in read-only mode". The server keeps it under deleted songs. Pages touched: ipc-contract, songs-folder.
 * **Projection footer keeps its size**: the song number, key and stanza counter stay one size through the song (`--psa150-fit-font`, no longer times the stanza's shrink `--audience-scale`, which is gone), with tabular figures; the counter shows no ↑ on the first step and no ↓ on the last (hidden, room kept) instead of dimming them. Pages touched: audience-display.

@@ -935,5 +935,8 @@
   "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Dina osparade ändringar, senast ändrade {when}. Spara dem, eller släng dem för att börja från sången som den är.",
   "A new song you started, last changed {when}. Add it to the library, or discard it.": "En ny sång du började på, senast ändrad {when}. Lägg till den i biblioteket, eller släng den.",
   "Someone has saved this song since.": "Någon har sparat sången sedan dess.",
-  "Discard this new song?": "Vill du slänga den här nya sången?"
+  "Discard this new song?": "Vill du slänga den här nya sången?",
+  "Key {key}: the chords moved with it.": "Tonart {key}: ackorden flyttades med.",
+  "Key {key}.": "Tonart {key}.",
+  "The chords move with the key.": "Ackorden flyttas med tonarten."
 }

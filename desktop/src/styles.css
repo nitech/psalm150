@@ -3950,15 +3950,16 @@ body.stage-projection {
   }
 }
 
-/* A wide pane: the chord beside the words, as tall as the pane. */
-@container song-pane (min-width: 900px) {
+/* The chord beside the words, as tall as the pane, wherever there is room
+   for both: a song is seldom wide, and the words need the height. */
+@container song-pane (min-width: 620px) {
   .song-main {
     flex-direction: row;
   }
 
   .song-main > .chord-dock {
     --chord-dock: side;
-    width: 340px;
+    width: clamp(260px, 32%, 340px);
     max-height: none;
     border-top: 0;
     border-left: 1px solid var(--border-subtle);

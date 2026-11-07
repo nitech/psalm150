@@ -92,6 +92,17 @@ body:has(.ce-bar.docked) .ce { padding-bottom: var(--psa-space-6); }
 .ce-bar-cog { width: 40px; color: var(--psa-text-secondary) !important; }
 .ce-bar-section:not([hidden]) + .ce-bar-cog { border-left: 1px solid var(--psa-border); border-radius: 0 var(--psa-radius-full) var(--psa-radius-full) 0; }
 .ce-bar-cog .icon { width: 19px; height: 19px; }
+/* The key, first in the bar: changed often, so one tap away. */
+.ce-bar-key { gap: 5px; min-width: 52px; padding: 0 12px 0 10px; }
+.ce-bar-key .icon { width: 16px; height: 16px; color: var(--psa-text-secondary); }
+.ce-bar-key + .ce-bar-section { border-left: 1px solid var(--psa-border); border-radius: 0; }
+.ce-bar.docked .ce-bar-key + .ce-bar-section { border-left: 0; border-radius: var(--psa-radius-full); }
+/* The key panel: every key, major then minor, the song's own marked. */
+.ce-key-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 0 12px 6px; }
+.ce-key-choice { min-height: 40px; padding: 0; border: 0; border-radius: 12px; background: none; color: var(--psa-text); font-size: 15px; font-weight: 600; }
+.ce-key-choice.on { background: var(--psa-accent-medium); color: var(--psa-accent-text); }
+@media (hover: hover) { .ce-key-choice:not(.on):hover { background: var(--psa-bg-sunken); } }
+.ce-well-hint { margin: 2px 22px 4px; color: var(--psa-text-tertiary); font-size: 13px; }
 /* Save: the one filled button. */
 .ce-bar button.ce-bar-save { margin-left: 4px; padding: 0 16px 0 13px; background: var(--psa-accent); color: var(--psa-on-accent); }
 .ce-bar button.ce-bar-save .icon { width: 18px; height: 18px; }

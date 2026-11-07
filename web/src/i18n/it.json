@@ -958,5 +958,8 @@
   "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Le tue modifiche non salvate, ultima modifica: {when}. Salvale, oppure scartale per ripartire dal canto così com’è.",
   "A new song you started, last changed {when}. Add it to the library, or discard it.": "Un nuovo canto che hai iniziato, ultima modifica: {when}. Aggiungilo alla raccolta, oppure scartalo.",
   "Someone has saved this song since.": "Nel frattempo qualcuno ha salvato il canto.",
-  "Discard this new song?": "Scartare questo nuovo canto?"
+  "Discard this new song?": "Scartare questo nuovo canto?",
+  "Key {key}: the chords moved with it.": "Tonalità {key}: gli accordi l’hanno seguita.",
+  "Key {key}.": "Tonalità {key}.",
+  "The chords move with the key.": "Gli accordi seguono la tonalità."
 }

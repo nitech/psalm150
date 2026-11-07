@@ -576,10 +576,14 @@ body[data-route^="/sets/id/play"]:has(.play-nav) .follow-view { bottom: calc(66p
   .app-bar-row:has(> .ce-bar.docked) .ce-mode-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .app-bar-row > .ce-bar.docked { flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
   .app-bar-row > .ce-bar.docked .ce-bar-group { flex: 0 1 auto; min-width: 0; }
-  .app-bar-row > .ce-bar.docked .ce-bar-section { flex: 0 1 auto; min-width: 44px; gap: 2px; padding: 0 8px 0 11px; font-size: 14px; }
+  .app-bar-row > .ce-bar.docked .ce-bar-section { flex: 0 1 auto; min-width: 44px; padding: 0 8px; font-size: 14px; }
   .app-bar-row > .ce-bar.docked .ce-bar-section span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .app-bar-row > .ce-bar.docked .ce-bar-section .icon { flex: none; width: 14px; height: 14px; }
+  /* With the key beside it, the section's name needs the arrow's room: it opens its panel all the same. */
+  .app-bar-row > .ce-bar.docked .ce-bar-section .icon { display: none; }
   .app-bar-row > .ce-bar.docked .ce-bar-cog { flex: none; }
+  /* The key as its name alone ("G"), so the section keeps room for its own. */
+  .app-bar-row > .ce-bar.docked .ce-bar-key { flex: none; min-width: 34px; padding: 0 8px; font-size: 14px; }
+  .app-bar-row > .ce-bar.docked .ce-bar-key .icon { display: none; }
   .app-bar-row > .ce-bar.docked button.ce-bar-save { flex: none; width: 44px; height: 44px; margin-left: 4px; }
 }
 @media (min-width: 900px) {

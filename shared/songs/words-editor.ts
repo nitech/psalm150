@@ -13,6 +13,8 @@
  * everything that crosses lines is done on the model and drawn again.
  */
 import {
+  MAJOR_KEYS,
+  MINOR_KEYS,
   applyEdit,
   autoLabel,
   convertPlain,
@@ -67,6 +69,11 @@ export interface WordsHost {
   codeChanged(): void;
   /** The song's key, capo and other details, and how chords sound, shown in the panel behind the cog. */
   settings: HTMLElement[];
+  /**
+   * The song's key, in the bar of its own: changed often, so one tap away.
+   * `choose` sets it and moves the chords with it.
+   */
+  key?: { value(): string; choose(key: string): void };
 }
 
 export interface WordsEditor {
@@ -98,7 +105,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   let clip: { text: string; pieces: Piece[] } | null = null;
   let fieldDone: ((value: string) => void) | null = null;
   let fieldStart = "";
-  let well: "section" | "settings" | "field" | null = null;
+  let well: "section" | "settings" | "key" | "field" | null = null;
   let mode: EditorMode = "visual";
   const cleanups: Array<() => void> = [];
 
@@ -113,6 +120,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   bar.className = "ce-bar";
   bar.innerHTML = `
     <div class="ce-bar-group">
+      ${host.key ? `<button type="button" class="ce-bar-key" aria-haspopup="dialog" aria-expanded="false" title="${t("Key")}">${icon("key")}<span></span></button>` : ""}
       <button type="button" class="ce-bar-section" aria-haspopup="dialog" aria-expanded="false"><span></span>${icon("down")}</button>
       <button type="button" class="ce-bar-cog" aria-haspopup="dialog" aria-expanded="false" aria-label="${t("Key, capo, details and chord sound")}" title="${t("Key, capo, details and chord sound")}">${icon("settings")}</button>
     </div>
@@ -123,6 +131,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   wellEl.hidden = true;
   wellEl.innerHTML = `
     <div class="ce-well-section" role="group" aria-label="${t("Section")}"></div>
+    <div class="ce-well-key" role="group" aria-label="${t("Key")}"></div>
     <div class="ce-well-settings"><p class="ce-well-title">${t("Song")}</p></div>
     <div class="ce-well-name">
       <p class="ce-well-title"></p>
@@ -149,6 +158,8 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   cleanups.push(() => docked.removeEventListener("change", dock));
   const sectionButton = bar.querySelector<HTMLButtonElement>(".ce-bar-section")!;
   const cogButton = bar.querySelector<HTMLButtonElement>(".ce-bar-cog")!;
+  const keyButton = bar.querySelector<HTMLButtonElement>(".ce-bar-key");
+  const keyWell = wellEl.querySelector<HTMLElement>(".ce-well-key")!;
   const sectionWell = wellEl.querySelector<HTMLElement>(".ce-well-section")!;
   const settingsWell = wellEl.querySelector<HTMLElement>(".ce-well-settings")!;
   const nameWell = wellEl.querySelector<HTMLElement>(".ce-well-name")!;
@@ -435,7 +446,9 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
   function showBar(): void {
     const section = currentSection();
     sectionButton.querySelector("span")!.textContent = section ? typeName(section.type === "none" ? "verse" : section.type) : "";
+    if (keyButton && host.key) keyButton.querySelector("span")!.textContent = host.key.value() || t("Key");
     if (well === "section") fillSection();
+    if (well === "key") fillKey();
     placeBar();
   }
   /**
@@ -505,15 +518,28 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
         ${row('data-act="delete"', t("Delete"), "trash", " action danger")}
       </div>`;
   }
-  function openWell(kind: "section" | "settings" | "field"): void {
+  /** Every key, major then minor, the song's own checked: one tap sets it. */
+  function fillKey(): void {
+    const current = host.key?.value() ?? "";
+    const choice = (key: string) => `<button type="button" class="ce-key-choice${key === current ? " on" : ""}" data-key="${escapeHtml(key)}" role="menuitemradio" aria-checked="${key === current}">${escapeHtml(key)}</button>`;
+    keyWell.innerHTML = `
+      <p class="ce-well-title">${t("Key")}</p>
+      <div class="ce-key-grid">${MAJOR_KEYS.map(choice).join("")}</div>
+      <div class="ce-key-grid">${MINOR_KEYS.map(choice).join("")}</div>
+      <p class="ce-well-hint">${t("The chords move with the key.")}</p>`;
+  }
+  function openWell(kind: "section" | "settings" | "key" | "field"): void {
     well = kind;
     if (kind === "section") fillSection();
+    if (kind === "key") fillKey();
     sectionWell.hidden = kind !== "section";
+    keyWell.hidden = kind !== "key";
     settingsWell.hidden = kind !== "settings";
     nameWell.hidden = kind !== "field";
     sectionButton.setAttribute("aria-expanded", String(kind === "section"));
     cogButton.setAttribute("aria-expanded", String(kind === "settings"));
-    wellEl.setAttribute("aria-label", kind === "settings" ? t("Key, capo, details and chord sound") : t("Section"));
+    keyButton?.setAttribute("aria-expanded", String(kind === "key"));
+    wellEl.setAttribute("aria-label", kind === "settings" ? t("Key, capo, details and chord sound") : kind === "key" ? t("Key") : t("Section"));
     wellEl.hidden = false;
     wellEl.classList.remove("open");
     placeBar();
@@ -527,6 +553,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     wellEl.classList.remove("open");
     sectionButton.setAttribute("aria-expanded", "false");
     cogButton.setAttribute("aria-expanded", "false");
+    keyButton?.setAttribute("aria-expanded", "false");
   }
 
   // Buttons in the bar and panel must not take focus from the words, or the caret (and a phone's keyboard) goes.
@@ -543,7 +570,7 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
       host.save();
       return;
     }
-    const kind = target.closest(".ce-bar-section") ? "section" : target.closest(".ce-bar-cog") ? "settings" : null;
+    const kind = target.closest(".ce-bar-section") ? "section" : target.closest(".ce-bar-cog") ? "settings" : target.closest(".ce-bar-key") ? "key" : null;
     if (!kind) return;
     if (well === kind) closeWell();
     else {
@@ -563,6 +590,14 @@ export function mountWordsEditor(flow: HTMLElement, host: WordsHost): WordsEdito
     host.remember();
     render(caret === undefined ? last : caret);
   };
+  keyWell.addEventListener("click", (event) => {
+    const key = (event.target as HTMLElement).closest<HTMLElement>("[data-key]")?.dataset.key;
+    if (!key || !host.key) return;
+    closeWell();
+    host.flush();
+    host.key.choose(key);
+    showBar();
+  });
   sectionWell.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
     const section = currentSection();

@@ -935,5 +935,8 @@
   "Your unsaved changes, last changed {when}. Save them, or discard them to start from the song as it is.": "Endringane dine som ikkje er lagra, sist endra {when}. Lagre dei, eller forkast dei for å starte frå songen slik han er.",
   "A new song you started, last changed {when}. Add it to the library, or discard it.": "Ein ny song du byrja på, sist endra {when}. Legg han til i biblioteket, eller forkast han.",
   "Someone has saved this song since.": "Nokon har lagra songen etter det.",
-  "Discard this new song?": "Vil du forkaste denne nye songen?"
+  "Discard this new song?": "Vil du forkaste denne nye songen?",
+  "Key {key}: the chords moved with it.": "Toneart {key}: akkordane vart flytte med.",
+  "Key {key}.": "Toneart {key}.",
+  "The chords move with the key.": "Akkordane blir flytte med tonearten."
 }
