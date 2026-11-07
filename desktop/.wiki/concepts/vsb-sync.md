@@ -49,14 +49,18 @@ fills it (upper-cased title plus the first line of each stanza). A new row
 takes `SongNum` from the song, or `MAX(SongNum) + 1`.
 
 **Number clashes**: a song is never written to VSB under a number another
-VSB song has. Before a row is written or added, `Executor::free_number`
-checks the number (`Numbers`: the VSB rows' numbers, and the next number
-above everything in VSB and Psalm150). On a clash Psalm150 gives the song
-the next free number first: the file's `{meta: song_num=N}` line is set or
-added (`with_song_num`, nothing else in the file changes), or for a server
-library the server song is updated. The VSB row then gets that number, and
-the report lists it in `renumbered` ("Way Maker: 12 → 1041"; the summary
-says "N given a new number"). When Psalm150 cannot be changed yet
+VSB song has. `Numbers` holds the VSB rows' numbers (a number VSB has twice
+keeps every holder; rows this run deletes give theirs up) and the next
+number above everything in VSB and Psalm150. A song already paired with a
+row (`WriteRow`) is never renumbered in Psalm150, since for a server library
+that number is the whole church's: on a clash the row is written without a
+number and keeps its own, and a row that has the number itself (shared or
+not) keeps it. Only a song new to VSB (`InsertRow`) whose number is taken
+gets the next free number in Psalm150 first (`Executor::free_number`): the
+file's `{meta: song_num=N}` line is set or added (`with_song_num`, nothing
+else in the file changes), or for a server library the server song is
+updated; the report lists it in `renumbered` ("Way Maker: 12 → 1041"; the
+summary says "N given a new number"). When Psalm150 cannot be changed yet
 (read-only, or the server does not list the file), VSB gets the song
 without a number and picks a free one itself. Tested against the sample
 database (`tests/vsb_sync.rs`).

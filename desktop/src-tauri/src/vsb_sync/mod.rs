@@ -302,8 +302,15 @@ pub fn run(sync: SyncRun<'_>, links: &[Link]) -> Result<SyncOutcome, String> {
         links.iter().map(|l| (l.filename.as_str(), l)).collect();
 
     // Song numbers in use: a song is never written to VSB under a number
-    // another VSB song has (that fails); it gets the next free one instead.
-    let mut numbers = Numbers::new(&rows, &songs);
+    // another VSB song has (that fails). Rows this run deletes give theirs up.
+    let deleted: HashSet<i64> = actions
+        .iter()
+        .filter_map(|action| match action {
+            Action::DeleteRow { song_id } => Some(*song_id),
+            _ => None,
+        })
+        .collect();
+    let mut numbers = Numbers::new(&rows, &songs, &deleted);
 
     let mut exec = Executor {
         sync: &sync,
@@ -398,8 +405,19 @@ pub fn run(sync: SyncRun<'_>, links: &[Link]) -> Result<SyncOutcome, String> {
                 filename,
                 conflict,
             } => {
-                let renumbered = exec.free_number(songs_by_name[filename.as_str()], Some(song_id), &mut numbers);
-                let song = renumbered.as_ref().unwrap_or(songs_by_name[filename.as_str()]);
+                // A song already paired with this row is never renumbered in
+                // Psalm150 (on a server that is the whole church's number):
+                // when its number is another VSB song's, the row keeps its own.
+                let source = songs_by_name[filename.as_str()];
+                let kept;
+                let song = if numbers.clashes(source.meta.song_num, Some(song_id)) {
+                    let mut without = source.clone();
+                    without.meta.song_num = None;
+                    kept = without;
+                    &kept
+                } else {
+                    source
+                };
                 let fallback_category = rows_by_id.get(&song_id).map_or(0, |r| r.category_id);
                 match exec.with_writer(|writer, categories| {
                     writer.update(
@@ -495,19 +513,23 @@ struct Executor<'r, 'a> {
     rehash_rows: HashMap<i64, (String, String)>,
 }
 
-/// Which VSB song has which number, and the next number nobody has.
+/// Which VSB songs have which number, and the next number nobody has.
 struct Numbers {
-    in_vsb: HashMap<i64, i64>,
+    /// VSB may hold a number twice; every holder counts.
+    in_vsb: HashMap<i64, Vec<i64>>,
     next: i64,
 }
 
 impl Numbers {
-    fn new(rows: &[VsbSongRow], songs: &[ParsedSong]) -> Self {
-        let in_vsb = rows
+    /// `deleted`: rows this run removes, whose numbers are free.
+    fn new(rows: &[VsbSongRow], songs: &[ParsedSong], deleted: &HashSet<i64>) -> Self {
+        let mut in_vsb: HashMap<i64, Vec<i64>> = HashMap::new();
+        for row in rows
             .iter()
-            .filter(|row| row.song_num > 0)
-            .map(|row| (row.song_num, row.song_id))
-            .collect::<HashMap<_, _>>();
+            .filter(|row| row.song_num > 0 && !deleted.contains(&row.song_id))
+        {
+            in_vsb.entry(row.song_num).or_default().push(row.song_id);
+        }
         let highest = rows
             .iter()
             .map(|row| row.song_num)
@@ -517,11 +539,12 @@ impl Numbers {
         Self { in_vsb, next: highest + 1 }
     }
 
-    /// `number` is held by a VSB song other than `song_id` (any, for a new row).
+    /// `number` is held by a VSB song other than `song_id` (any, for a new
+    /// row). A row that has the number itself keeps it, shared or not.
     fn clashes(&self, number: Option<i64>, song_id: Option<i64>) -> bool {
         number
             .and_then(|n| self.in_vsb.get(&n))
-            .is_some_and(|holder| Some(*holder) != song_id)
+            .is_some_and(|holders| !song_id.is_some_and(|id| holders.contains(&id)))
     }
 
     fn fresh(&mut self) -> i64 {
@@ -532,7 +555,7 @@ impl Numbers {
 
     fn take(&mut self, number: Option<i64>, song_id: i64) {
         if let Some(number) = number {
-            self.in_vsb.insert(number, song_id);
+            self.in_vsb.entry(number).or_default().push(song_id);
         }
     }
 }
@@ -564,10 +587,11 @@ pub(crate) fn with_song_num(raw: &str, number: i64) -> String {
 }
 
 impl<'r, 'a> Executor<'r, 'a> {
-    /// When the song's number belongs to another VSB song, give it the next
-    /// free number in Psalm150 first (the file, or the server song), and
-    /// return the renumbered song to write to VSB. `None`: the number is
-    /// free, or the song has none (VSB then picks or keeps one).
+    /// For a song new to VSB: when its number belongs to another VSB song,
+    /// give it the next free number in Psalm150 first (the file, or the
+    /// server song), and return the renumbered song to write to VSB. `None`:
+    /// the number is free, or the song has none (VSB then picks one). Songs
+    /// already paired with a row are never renumbered (see `WriteRow`).
     fn free_number(
         &mut self,
         song: &ParsedSong,
@@ -849,7 +873,7 @@ mod tests {
     #[test]
     fn a_number_another_vsb_song_has_is_a_clash() {
         let songs = vec![parse_chordpro("{title: Mine}\n{meta: song_num=40}\nWords", "0040-mine.pro")];
-        let mut numbers = Numbers::new(&[row(1, 12), row(2, 30)], &songs);
+        let mut numbers = Numbers::new(&[row(1, 12), row(2, 30)], &songs, &HashSet::new());
         assert!(numbers.clashes(Some(12), None), "a new row may not take 12");
         assert!(numbers.clashes(Some(12), Some(2)), "nor may another row");
         assert!(!numbers.clashes(Some(12), Some(1)), "its own row keeps it");
@@ -860,5 +884,24 @@ mod tests {
         assert_eq!(numbers.fresh(), 42);
         numbers.take(Some(41), 3);
         assert!(numbers.clashes(Some(41), None));
+    }
+
+    #[test]
+    fn a_shared_number_stays_with_its_rows_and_deleted_rows_free_theirs() {
+        let rows = [row(1, 12), row(2, 12), row(3, 30)];
+        let numbers = Numbers::new(&rows, &[], &HashSet::from([3]));
+        assert!(
+            !numbers.clashes(Some(12), Some(1)),
+            "a row keeps a number it shares"
+        );
+        assert!(!numbers.clashes(Some(12), Some(2)));
+        assert!(
+            numbers.clashes(Some(12), Some(4)),
+            "another row may not take it"
+        );
+        assert!(
+            !numbers.clashes(Some(30), None),
+            "row 3 is deleted this run"
+        );
     }
 }
