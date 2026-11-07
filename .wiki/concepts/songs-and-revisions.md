@@ -138,8 +138,8 @@ revision. Revisions do not say who saved them, though `created_by` and
 ## History
 
 `GET /songs/{id}/revisions` lists every revision newest first with
-`created_by_name` (the person, or the desktop, that saved it; none for an
-import). The shared `song-history.ts` (web: ⋮ → History on a song; desktop:
+`created_by_name` (the person that saved it; for a desktop, "person ·
+desktop", the person being the one who connected it; none for an import). The shared `song-history.ts` (web: ⋮ → History on a song; desktop:
 the history button for a server library song) lists them, shows for the one
 chosen the lines that differ (`line-diff.ts`) from the current version ("what
 restoring would change") or from the version before it ("what this save

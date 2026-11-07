@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-11-07
+* **Who changed a song**: a revision saved from a desktop is named "person · desktop" in `GET /songs/{id}/revisions` (the person who connected the desktop), so the history always says who made a change. Pages touched: songs-and-revisions.
 * **Drafts**: edits in the web song editor are kept on the server as the person's draft (migration `0021_song_drafts.sql`, `api/src/drafts.rs`: `GET /drafts`, `GET`/`PUT`/`DELETE /drafts/{song_id}` and `/drafts/new`; leaders and owners only), every 2 seconds and as you leave, so Back never loses them. Opening the song or its editor again offers them, with Discard; saving the song removes the draft (in `update_song`'s transaction) and checks the draft's base revision. The router calls `onLeave` handlers before loading the next screen. Pages touched: songs-and-revisions, index.
 * **Editor header**: on the web, the editor's bar is always in the header (iOS Safari let it jump at the bottom), on one row with Back and the mode switch, which is three icons on phones; Save is its icon below 1100 px. The section and details buttons are one group like `.bar-actions`, and a button that is on in a group has no ring. Pages touched: none (behaviour only).
 

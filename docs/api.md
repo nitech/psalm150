@@ -138,7 +138,7 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `GET` | `/api/v1/drafts/{song_id}` | Your unsaved changes to a song, with `chordpro` (404 when there are none); `/drafts/new` for the new song you started |
 | `PUT` | `/api/v1/drafts/{song_id}` | Keep your changes (`{base_revision_id, chordpro}`, 204; replaces them); `/drafts/new` without `base_revision_id`. Saving the song removes your draft of it |
 | `DELETE` | `/api/v1/drafts/{song_id}` | Discard your changes (204); `/drafts/new` for the new song |
-| `GET` | `/api/v1/songs/{id}/revisions` | List immutable revision metadata (newest first, with `created_by_name`) |
+| `GET` | `/api/v1/songs/{id}/revisions` | List immutable revision metadata (newest first, with `created_by_name`: who saved it; from a desktop, "person · desktop") |
 | `GET` | `/api/v1/songs/{id}/revisions/{revision_id}` | Read any revision, current or earlier, with its ChordPro source |
 | `POST` | `/api/v1/songs/import` | Import up to 500 ChordPro songs, skipping exact content matches |
 | `GET` | `/api/v1/songs/export` | Download current songs as a ZIP of `.pro` files plus `psa150-manifest.json` |

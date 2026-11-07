@@ -1704,10 +1704,12 @@ async fn list_revisions(
 
     let revisions = sqlx::query_as::<_, RevisionSummary>(
         "SELECT r.id, r.parent_revision_id, r.title, r.content_hash, r.created_at,
-                COALESCE(u.display_name, d.name) AS created_by_name
+                -- A desktop's change: the person who connected it, and the desktop.
+                COALESCE(u.display_name, dp.display_name || ' · ' || d.name, d.name) AS created_by_name
          FROM song_revisions r
          LEFT JOIN users u ON u.id = r.created_by
          LEFT JOIN device_tokens d ON d.id = r.created_by_device
+         LEFT JOIN users dp ON dp.id = d.created_by
          WHERE r.song_id = $1 ORDER BY r.created_at DESC, r.id",
     )
     .bind(song_id)

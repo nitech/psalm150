@@ -4161,3 +4161,31 @@ async fn song_drafts(pool: PgPool) {
     let empty = send(&app, "GET", "/api/v1/drafts", Some(&owner), None).await;
     assert_eq!(empty.1, json!([]));
 }
+
+/// A song saved from a desktop shows in its history as the person who
+/// connected the desktop, and the desktop.
+#[sqlx::test(migrations = "./migrations")]
+async fn desktop_revisions_name_their_person(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let (song, revision) = create_song(&app, &owner, "Amazing Grace").await;
+    let saved = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/songs/{song}"),
+        Some(&desktop),
+        Some(json!({ "base_revision_id": revision, "chordpro": "{title: Amazing Grace}\n\n[D]Words" })),
+    )
+    .await;
+    assert_eq!(saved.0, StatusCode::OK);
+    let history = send(
+        &app,
+        "GET",
+        &format!("/api/v1/songs/{song}/revisions"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(history.1[0]["created_by_name"], "Test Owner · Sanctuary PC");
+    assert_eq!(history.1[1]["created_by_name"], "Test Owner");
+}

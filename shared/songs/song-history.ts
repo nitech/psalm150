@@ -63,7 +63,8 @@ const shortWhen = (value: string) => {
 const fullDate = (value: string) => new Date(value).toLocaleString(locale(), { dateStyle: "long", timeStyle: "short" });
 
 /** Who saved it; a desktop's name without the app's name in front. */
-const who = (revision: RevisionSummary) => (revision.created_by_name ?? t("Imported")).replace(/^Psalm150 on /, "");
+/** Who saved a version: a person, or for a desktop "person · desktop" (without "Psalm150 on "). */
+const who = (revision: RevisionSummary) => (revision.created_by_name ?? t("Imported")).replace(/(^|· )Psalm150 on /, "$1");
 
 /** The graph's piece for one row: the lines through it and the version's dot. */
 function graphSvg(row: GraphRow, lanes: number, current: boolean): string {
@@ -129,7 +130,7 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
 
   const rowHtml = (revision: RevisionSummary, index: number, row: GraphRow, lanes: number) => {
     const note = notes.get(revision.id);
-    return `<button type="button" class="history-row${index === selected ? " on" : ""}" role="option" aria-selected="${index === selected}" data-index="${index}" title="${escapeHtml(`${fullDate(revision.created_at)} · ${revision.created_by_name ?? t("Imported")}`)}">
+    return `<button type="button" class="history-row${index === selected ? " on" : ""}" role="option" aria-selected="${index === selected}" data-index="${index}" title="${escapeHtml(`${fullDate(revision.created_at)} · ${who(revision)}`)}">
       ${graphSvg(row, lanes, index === 0)}
       <span class="row-main"><strong class="history-note${note ? "" : " pending"}">${escapeHtml(note ?? t("Reading…"))}</strong><small>${escapeHtml(who(revision))} · ${escapeHtml(shortWhen(revision.created_at))}${revision.title !== song.title ? ` · ${escapeHtml(revision.title)}` : ""}</small></span>
       ${index === 0 ? `<span class="history-badge">${t("Current")}</span>` : ""}
@@ -161,7 +162,7 @@ export function openSongHistory(history: SongHistory, song: { id: string; title:
     // The first version has none before it: its whole text shows.
     const other = mode === "current" ? revisions[0] : parent;
     view.innerHTML = `<header class="history-view-head">
-        <div class="history-view-title"><strong>${escapeHtml(notes.get(chosen.id) ?? "")}</strong><small>${escapeHtml(chosen.created_by_name ?? t("Imported"))} · ${escapeHtml(fullDate(chosen.created_at))}</small></div>
+        <div class="history-view-title"><strong>${escapeHtml(notes.get(chosen.id) ?? "")}</strong><small>${escapeHtml(who(chosen))} · ${escapeHtml(fullDate(chosen.created_at))}</small></div>
         ${isCurrent ? "" : `<div class="segmented history-compare" role="radiogroup" aria-label="${escapeHtml(t("Show"))}">
           <button type="button" role="radio" aria-checked="${mode === "change"}" class="${mode === "change" ? "on" : ""}" data-compare="change">${t("This change")}</button>
           <button type="button" role="radio" aria-checked="${mode === "current"}" class="${mode === "current" ? "on" : ""}" data-compare="current">${t("Against now")}</button>
