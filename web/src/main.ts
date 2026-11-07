@@ -5,7 +5,6 @@ import "./styles.css";
 import "../../shared/songs/songs.css";
 import { announce, refocus, selectorFor, setTitle } from "../../shared/songs/a11y.ts";
 import { ApiError, SongServerApi } from "./api.ts";
-import { installScrollDebug } from "./debug-scroll.ts";
 import { leavingScreen, type Cleanup, type LibraryContext, type LibraryView, type View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { Favorites } from "./favorites.ts";
@@ -75,8 +74,6 @@ setSongHost({ toast: (message, options) => showToast(message, options), holdScre
 installLyricsCopy();
 installChordViewer();
 installSearchClear();
-// TEMPORARY: the song list jumping on iOS (debug-scroll.ts).
-installScrollDebug();
 openPermalink();
 
 /**
