@@ -112,18 +112,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   let numbered = false;
 
   const renderSort = () => {
-    const sortBy: Record<SongSort, () => string> = {
-      number: () => t("Sort by number"),
-      title: () => t("Sort by title"),
-      key: () => t("Sort by key"),
-    };
-    const button = (column: SongSort, label: string) => {
-      const on = sort.column === column;
-      const arrow = on ? `<span aria-hidden="true">${sort.direction === "asc" ? "↑" : "↓"}</span>` : "";
-      const by = sortBy[column]();
-      const name = on ? (sort.direction === "asc" ? t("{sort}, ascending", { sort: by }) : t("{sort}, descending", { sort: by })) : by;
-      return `<button type="button" class="sort-${column}${on ? " on" : ""}" data-sort="${column}" aria-pressed="${on}" aria-label="${name}">${label}${arrow}</button>`;
-    };
+    const button = (column: SongSort, label: string) => sortHeader(sort, column, label);
     sortBar.classList.toggle("has-numbers", numbered);
     sortColumns.innerHTML = `${numbered ? button("number", t("No")) : ""}${button("title", t("Song"))}${button("key", t("Key"))}`;
     if (favButton) {
@@ -381,23 +370,25 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     keepFocus(sortBar, renderSort);
     void load(false, true);
   };
-  filterButton.addEventListener("click", () => void ctx.run(() => openKeyFilter(ctx, filter, setFilter), { exclusive: false }));
-  filterSummary.addEventListener("click", (event) => {
-    if (!(event.target as HTMLElement).closest("#clear-filter")) return;
-    setFilter({ roots: [], mode: "all" });
-    filterButton.focus();
-  });
-  // Like the desktop: the sorted column again flips the direction; another
-  // column starts ascending.
-  sortBar.addEventListener("click", (event) => {
-    const column = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-sort]")?.dataset.sort as SongSort | undefined;
-    if (!column) return;
+  const setSort = (column: SongSort) => {
+    // Like the desktop: the sorted column again flips the direction; another
+    // column starts ascending.
     sort = column === sort.column
       ? { column, direction: sort.direction === "asc" ? "desc" : "asc" }
       : { column, direction: "asc" };
     writePreference("song-sort", JSON.stringify(sort));
     keepFocus(sortBar, renderSort);
     void load(false);
+  };
+  filterButton.addEventListener("click", () => void ctx.run(() => openKeyFilter(ctx, filter, setFilter, { get: () => sort, set: setSort }), { exclusive: false }));
+  filterSummary.addEventListener("click", (event) => {
+    if (!(event.target as HTMLElement).closest("#clear-filter")) return;
+    setFilter({ roots: [], mode: "all" });
+    filterButton.focus();
+  });
+  sortBar.addEventListener("click", (event) => {
+    const column = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-sort]")?.dataset.sort as SongSort | undefined;
+    if (column) setSort(column);
   });
 
   // Load the next page before the reader reaches the end of the list.
@@ -438,6 +429,20 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     unsubscribe();
     unsubscribeFavorites();
   };
+}
+
+/** A column header that sorts the list, with ↑ or ↓ on the sorted one. */
+function sortHeader(sort: SongListSort, column: SongSort, label: string): string {
+  const sortBy: Record<SongSort, () => string> = {
+    number: () => t("Sort by number"),
+    title: () => t("Sort by title"),
+    key: () => t("Sort by key"),
+  };
+  const on = sort.column === column;
+  const arrow = on ? `<span aria-hidden="true">${sort.direction === "asc" ? "↑" : "↓"}</span>` : "";
+  const by = sortBy[column]();
+  const name = on ? (sort.direction === "asc" ? t("{sort}, ascending", { sort: by }) : t("{sort}, descending", { sort: by })) : by;
+  return `<button type="button" class="sort-${column}${on ? " on" : ""}" data-sort="${column}" aria-pressed="${on}" aria-label="${name}">${label}${arrow}</button>`;
 }
 
 interface SongListSort {
@@ -496,8 +501,14 @@ function readKeyFilter(): KeyFilter {
 /**
  * Sheet: pick keys (several at once) and major, minor or both. The list
  * behind it follows each tap. Keys no song is in are shown but disabled.
+ * Phones have no room for the Key column, so it sorts here (styles.css).
  */
-async function openKeyFilter(ctx: LibraryContext, start: KeyFilter, apply: (filter: KeyFilter) => void): Promise<void> {
+async function openKeyFilter(
+  ctx: LibraryContext,
+  start: KeyFilter,
+  apply: (filter: KeyFilter) => void,
+  sorting: { get: () => SongListSort; set: (column: SongSort) => void },
+): Promise<void> {
   let counts: SongKeyCount[] = [];
   try {
     counts = await ctx.api.listSongKeys();
@@ -512,6 +523,7 @@ async function openKeyFilter(ctx: LibraryContext, start: KeyFilter, apply: (filt
   const modes: [KeyFilter["mode"], string][] = [["all", t("All")], ["major", t("Major")], ["minor", t("Minor")]];
 
   const sheet = openSheet(`<h2>${t("Filter by key")}</h2>
+    <div class="list-sort sheet-sort" role="group" aria-labelledby="sheet-sort-label"><span id="sheet-sort-label">${t("Sort songs")}</span><span class="sheet-sort-columns"></span></div>
     <div class="segmented key-modes" role="group" aria-label="${t("Major or minor")}">
       ${modes.map(([mode, label]) => `<button type="button" data-mode="${mode}">${label}</button>`).join("")}
     </div>
@@ -525,6 +537,7 @@ async function openKeyFilter(ctx: LibraryContext, start: KeyFilter, apply: (filt
     </div>`);
 
   const sync = () => {
+    sheet.querySelector(".sheet-sort-columns")!.innerHTML = sortHeader(sorting.get(), "key", t("Key"));
     sheet.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => {
       const on = button.dataset.mode === filter.mode;
       button.classList.toggle("on", on);
@@ -552,6 +565,12 @@ async function openKeyFilter(ctx: LibraryContext, start: KeyFilter, apply: (filt
     const target = event.target as HTMLElement;
     const mode = target.closest<HTMLButtonElement>("[data-mode]")?.dataset.mode as KeyFilter["mode"] | undefined;
     if (mode && mode !== filter.mode) return change({ ...filter, mode });
+    const column = target.closest<HTMLButtonElement>("[data-sort]")?.dataset.sort as SongSort | undefined;
+    if (column) {
+      sorting.set(column);
+      sync();
+      return sheet.querySelector<HTMLButtonElement>(`[data-sort="${column}"]`)?.focus();
+    }
     const root = target.closest<HTMLButtonElement>("[data-root]")?.dataset.root;
     if (root !== undefined) {
       const value = Number(root);

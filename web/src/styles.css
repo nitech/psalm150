@@ -333,6 +333,12 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .key-choice:disabled { opacity: 0.4; cursor: default; }
 @media (hover: hover) { .key-choice:hover:not(:disabled):not(.on) { background: var(--psa-bg-elevated); } }
 .key-grid + .hint { margin-bottom: var(--psa-space-4); }
+/* The column headers phones have no room for (Key), in the filter sheet. */
+.list-sort.sheet-sort { margin: 0 0 var(--psa-space-3); padding: 0; }
+.sheet-sort #sheet-sort-label { color: var(--psa-text-tertiary); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.sheet-sort #sheet-sort-label::after { content: ":"; }
+.sheet-sort-columns { display: flex; gap: var(--psa-space-3); }
+@media (min-width: 900px) { .list-sort.sheet-sort { display: none; } }
 #song-results { --num-w: 36px; }
 /* Phones: the song list runs edge to edge, its header with it. */
 @media (max-width: 899px) {
@@ -340,7 +346,7 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
   .list-sort { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); padding-right: var(--psa-space-3); }
   /* No room to line Key up with the rows' keys: it goes, Filter moves
      left, and ★ sits right over the rows' stars (36px buttons). */
-  .list-sort .sort-key { display: none; }
+  #song-sort .sort-key { display: none; }
   .list-sort .filter-toggle { order: 1; }
   .list-sort #fav-filter { order: 2; justify-content: center; min-width: calc(36px + var(--psa-space-3)); }
   .list-sort #fav-filter .icon { width: 18px; height: 18px; }
