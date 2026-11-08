@@ -404,9 +404,11 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .set-name:focus, .set-name:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--psa-accent); }
 #set-search-results .list-heading { margin-top: var(--psa-space-2); }
 #set-search-results .list { margin: 0; }
-/* The song last shown from the set: how far the leader has come. */
-.set-songs > .last-shown, .set-songs > .last-shown .swipe-content, .flat-list.set-songs > .last-shown .swipe-content { background: var(--psa-accent-soft); }
-.set-songs > .last-shown { box-shadow: inset 3px 0 0 var(--psa-accent); }
+/* The song last shown from the set: how far the leader has come.
+   A gold line around the row, drawn over it, so the row itself (and the
+   red Delete under it) stays as it is. */
+.set-songs > .last-shown { position: relative; }
+.set-songs > .last-shown::after { content: ""; position: absolute; inset: 0; z-index: 2; border: 2px solid var(--psa-accent); border-radius: var(--psa-radius-sm); pointer-events: none; }
 .edit-row { padding: var(--psa-space-2) var(--psa-space-3); }
 .edit-row-main { display: flex; align-items: center; gap: var(--psa-space-2); min-height: 48px; }
 .row-tools { display: flex; gap: 4px; }
