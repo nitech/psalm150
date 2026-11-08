@@ -135,19 +135,19 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       : t("Shared with you on a link.")}</span></p>
     ${first
       ? `<a class="button primary wide" href="#/item/${first.id}">${icon("play")}${t("Go through the songs")}</a>
-         <ol class="list numbered" id="shared-items" aria-label="${t("Songs in the set")}">${set.items.map(itemRow).join("")}</ol>`
+         <ol class="list numbered set-songs${set.items.some((item) => item.song?.song_number) ? " has-numbers" : ""}" id="shared-items" aria-label="${t("Songs in the set")}">${set.items.map(itemRow).join("")}</ol>`
       : emptyState(t("This set is empty"), set.editable ? t("Add the first song.") : t("No songs have been added yet."))}
     ${set.editable ? `<button type="button" class="button secondary wide" id="add-songs">${icon("plus")}${t("Add songs")}</button>` : ""}
     <p class="fine-print">${t("Updated {when}", { when: new Date(set.updated_at).toLocaleString(locale()) })}</p>`;
   };
 
   const itemRow = (item: SetItem, index: number) => {
+    // As in the song list: the number, the title, the key.
     const details = [
-      item.song?.song_number ? t("No. {number}", { number: escapeHtml(item.song.song_number) }) : "",
       item.transpose ? t("Transpose {steps}", { steps: transposeLabel(item.transpose) }) : "",
       escapeHtml(item.note),
-    ].filter(Boolean).join(" · ") || "&nbsp;";
-    const main = `<span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong><small>${details}</small></span>${keyCell(item.song?.song_key, item.transpose)}`;
+    ].filter(Boolean).join(" · ");
+    const main = `<span class="row-lead">${escapeHtml(item.song?.song_number ?? "")}</span><span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>${details ? `<small>${details}</small>` : ""}</span>${keyCell(item.song?.song_key, item.transpose)}`;
     if (!set.editable || item.kind !== "song") {
       return `<li><a class="list-row" href="#/item/${item.id}">${main}${icon("next")}</a></li>`;
     }

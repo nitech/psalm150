@@ -110,40 +110,40 @@ export function itemTitle(item: SetItem): string {
   return item.song?.title ?? t("Deleted song");
 }
 
-export async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cleanup> {
+/**
+ * A set's page. Leaders only ever edit a set (every change is saved as it
+ * is made), so for them it is the editor; everyone else gets the list.
+ */
+export function setPage(ctx: AppContext, params: string[]): Promise<Cleanup | void> {
+  return ctx.canEdit ? setEditor(ctx, params) : setDetail(ctx, params);
+}
+
+/** A set's songs, read-only, in rows like the song list's. */
+async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cleanup> {
   const set = await ctx.api.getSet(setId);
   setTitle(set.name, t("Sets"));
   const over = Boolean(set.service_date && set.service_date < today());
   const current = currentSetToggle(ctx, set, over);
-  /** The share button looks switched on while the set is shared. */
-  const shareLabel = () => set.shared ? t("Shared on a link: manage the link") : t("Share on a link");
+  const numbered = set.items.some((item) => item.song?.song_number);
   ctx.main.innerHTML = `${pageHead({
     title: set.name,
     subtitle: serviceDate(set.service_date, true),
     back: "#/sets",
     // One button group, as on a song (the projector joins it, live.ts).
-    actions: `<div class="bar-actions">${current.html}${ctx.canEdit
-      ? `<button type="button" class="icon-button ghost${set.shared ? " on" : ""}" data-share aria-label="${shareLabel()}" title="${shareLabel()}">${icon("share")}</button>
-         <a class="icon-button ghost" href="#/sets/${set.id}/edit" aria-label="${t("Edit set")}">${icon("edit")}</a>`
-      : ""}</div>`,
+    actions: `<div class="bar-actions">${current.html}</div>`,
   })}
   ${set.items.length
-    ? `<ol class="list numbered flat-list" aria-label="${t("Songs: tap one to go through the set from there")}">${set.items.map((item, index) => `<li>
-        <a class="list-row" href="#/sets/${set.id}/play/${index}">
-          <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>
-            <small>${[item.song?.song_number ? t("No. {number}", { number: escapeHtml(item.song.song_number) }) : "", item.transpose ? t("Transpose {steps}", { steps: transposeLabel(item.transpose) }) : "", escapeHtml(item.note)].filter(Boolean).join(" · ") || "&nbsp;"}</small></span>
+    ? `<ol class="list numbered flat-list set-songs${numbered ? " has-numbers" : ""}" aria-label="${t("Songs: tap one to go through the set from there")}">${set.items.map((item, index) => {
+        const extra = [item.transpose ? t("Transpose {steps}", { steps: transposeLabel(item.transpose) }) : "", escapeHtml(item.note)].filter(Boolean).join(" · ");
+        return `<li><a class="list-row" href="#/sets/${set.id}/play/${index}">
+          <span class="row-lead">${escapeHtml(item.song?.song_number ?? "")}</span>
+          <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>${extra ? `<small>${extra}</small>` : ""}</span>
           ${keyCell(item.song?.song_key, item.transpose)}${icon("next")}
-        </a></li>`).join("")}</ol>`
-    : emptyState(t("This set is empty"), ctx.canEdit ? t("Edit the set to add songs.") : t("A leader has not added songs yet."))}
+        </a></li>`;
+      }).join("")}</ol>`
+    : emptyState(t("This set is empty"), t("A leader has not added songs yet."))}
   <p class="fine-print">${t("Updated {time} · version {version}", { time: new Date(set.updated_at).toLocaleString(locale()), version: set.version })}</p>`;
 
-  const shareButton = ctx.main.querySelector<HTMLButtonElement>("[data-share]");
-  shareButton?.addEventListener("click", () => void ctx.run(() => openShareSheet(ctx, set, (shared) => {
-    set.shared = shared;
-    shareButton.classList.toggle("on", shared);
-    shareButton.setAttribute("aria-label", shareLabel());
-    shareButton.title = shareLabel();
-  })));
   return current.bind(ctx.main);
 }
 
@@ -298,7 +298,7 @@ async function openShareSheet(ctx: AppContext, set: SetDetail, onChange: (shared
 interface Draft {
   name: string;
   service_date: string | null;
-  items: Array<SetItemInput & { id: string; title: string; subtitle: string; songKey?: string | null }>;
+  items: Array<SetItemInput & { id: string; title: string; subtitle: string; number?: string | null; songKey?: string | null }>;
 }
 
 /** A save still on its way when the editor closed; the next editor waits for it. */
@@ -313,7 +313,9 @@ function defaultSetName(date: string | null): string {
 
 export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cleanup | void> {
   if (!ctx.canEdit) {
-    ctx.navigate(setId ? `#/sets/${setId}` : "#/sets", true);
+    // A set's page is the read-only list for them (`setPage`).
+    if (setId) return setDetail(ctx, [setId]);
+    ctx.navigate("#/sets", true);
     return;
   }
   await savingInBackground.catch(() => undefined);
@@ -329,6 +331,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
           transpose: item.transpose,
           note: item.note,
           title: itemTitle(item),
+          number: item.song?.song_number ?? null,
           songKey: item.song?.song_key ?? null,
           // A transpose made elsewhere (the desktop, "Add to a set") is kept,
           // and so is a note; neither is edited here.
@@ -351,19 +354,19 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       transpose: Number(query.get("transpose") ?? 0) || 0,
       note: "",
       title: song.title,
+      number: song.song_number,
       songKey: song.song_key,
       subtitle: Number(query.get("transpose")) ? t("Transpose {steps}", { steps: transposeLabel(Number(query.get("transpose"))) }) : "",
     });
   }
 
-  const back = existing ? `#/sets/${existing.id}` : "#/sets";
-  setTitle(existing ? t("Edit {set}", { set: existing.name }) : t("New set"), t("Sets"));
+  setTitle(existing ? existing.name : t("New set"), t("Sets"));
   // Every change is saved as it is made, so there is no Save: Back is Done.
   // The bar: the current set switch, Add songs, ⋮ with Delete, and whether
   // the last change is saved.
   ctx.main.innerHTML = `${pageHead({
-    title: existing ? t("Edit set") : t("New set"),
-    back,
+    title: existing ? existing.name : t("New set"),
+    back: "#/sets",
     // On phones the title sits in the bar beside Back.
     compact: true,
     // One button group, as on a song: the current set, Add songs, the
@@ -380,7 +383,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       <label>${t("Name")}<input name="name" maxlength="200" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(defaultSetName(draft.service_date))}" /></label>
       <label>${t("Service date")}<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
     </div>
-    <ol class="list editable flat-list" id="draft-items" aria-label="${t("Songs")}" data-song-list></ol>
+    <ol class="list editable flat-list set-songs" id="draft-items" aria-label="${t("Songs")}" data-song-list></ol>
     <p class="form-message" role="status"></p>
   </form>`;
 
@@ -391,18 +394,25 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   const nameInput = form.querySelector<HTMLInputElement>("input[name='name']")!;
   const dateInput = form.querySelector<HTMLInputElement>("input[name='date']")!;
 
+  /** The set as saved: none yet for a new set until its first change. */
+  let saved: { id: string; version: number } | null = existing ? { id: existing.id, version: existing.version } : null;
+
   // Rows carry their item's id (`data-key`), so the control in use keeps
   // focus when a move or removal redraws the list.
   const renderItems = () => keepFocus(list, () => {
     list.innerHTML = draft.items.length
       ? draft.items.map((item, index) => {
         const name = escapeHtml(`${index + 1}, ${item.title}`);
+        // A title opens the set at that song, as the set's list did; before
+        // the set is first saved, the song itself.
+        const href = saved ? `#/sets/${saved.id}/play/${index}` : `#/songs/${item.song_id}`;
         const title = item.kind === "song" && item.song_id
-          ? `<a class="edit-row-title" href="#/songs/${item.song_id}" data-title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>`
+          ? `<a class="edit-row-title" href="${href}" data-title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>`
           : escapeHtml(item.title);
         // Phones swipe a row left to delete it; a mouse has the × button.
         return `<li class="edit-row" data-index="${index}" data-key="${item.id}" data-swipe-row>${swipeRow(`<div class="edit-row-main">
           <button type="button" class="grip" data-grip aria-label="${t("Move {item}: drag, or use the up and down arrow keys", { item: name })}" title="${t("Drag to reorder")}">${icon("grip")}</button>
+          <span class="row-lead">${escapeHtml(item.number ?? "")}</span>
           <span class="row-main"><strong>${title}</strong>${item.subtitle ? `<small>${escapeHtml(item.subtitle)}</small>` : ""}</span>
           ${keyCell(item.songKey, item.transpose ?? 0)}
           <div class="row-tools">
@@ -411,6 +421,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
         </div>`, t("Delete"))}</li>`;
       }).join("")
       : `<li class="muted pad">${t("No songs yet. Add them with + at the top.")}</li>`;
+    list.classList.toggle("has-numbers", draft.items.some((item) => item.number));
   }, () => {
     // The row went: the next row's Remove, else Add songs.
     const same = Array.from(list.querySelectorAll<HTMLElement>("[data-key]")).find((row) => row.dataset.key === focusKey);
@@ -473,6 +484,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       transpose: 0,
       note: "",
       title: song.title,
+      number: song.song_number,
       songKey: song.song_key,
       subtitle: "",
     });
@@ -481,8 +493,6 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   }));
 
   // ── Saving as you go ──
-  /** The set as saved: none yet for a new set until its first change. */
-  let saved: { id: string; version: number } | null = existing ? { id: existing.id, version: existing.version } : null;
   let timer = 0;
   let running: Promise<void> | null = null;
   let again = false;
@@ -527,8 +537,10 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
         showStatus(t("Saved"), true);
         if (created) {
           // The new set is the one being edited from now on.
-          history.replaceState(history.state, "", `#/sets/${result.id}/edit`);
+          history.replaceState(history.state, "", `#/sets/${result.id}`);
           setupBar(result);
+          // The titles can open the set now.
+          renderItems();
           // A set started from a song becomes the current set, like adding a song to one.
           if (startedFromSong) void ctx.currentSet.choose(result.id).catch(() => undefined);
         }
@@ -541,7 +553,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
         if (error instanceof ApiError && error.status === 409) {
           stale = true;
           showStatus(t("Not saved"));
-          message.innerHTML = t('Someone else changed this set while you were editing. <a href="{href}">Open their version</a> and make your change again.', { href: `#/sets/${saved?.id}/edit` });
+          message.innerHTML = t('Someone else changed this set while you were editing. <a href="{href}">Open their version</a> and make your change again.', { href: `#/sets/${saved?.id}` });
           return;
         }
         showStatus(t("Not saved"));
@@ -567,7 +579,13 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       void flush();
     }
   };
-  nameInput.addEventListener("input", () => save(800));
+  nameInput.addEventListener("input", () => {
+    // The page's title is the set's name.
+    const name = nameInput.value.trim() || defaultSetName(dateInput.value || null);
+    ctx.main.querySelectorAll(".bar-title, .page-titles h1").forEach((title) => { title.textContent = name; });
+    setTitle(name, t("Sets"));
+    save(800);
+  });
   nameInput.addEventListener("change", () => save());
   dateInput.addEventListener("change", () => {
     nameInput.placeholder = defaultSetName(dateInput.value || null);
@@ -580,12 +598,23 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     nameInput.blur();
   });
 
-  // The bar's current set switch and ⋮ (Delete), once the set exists.
+  // The bar's current set switch, Share and ⋮ (Delete), once the set exists.
   let unbindCurrent: Cleanup | undefined;
-  const setupBar = (set: { id: string; name: string; service_date: string | null }) => {
+  /** The share button looks switched on while the set is shared. */
+  let shared = false;
+  const shareLabel = () => shared ? t("Shared on a link: manage the link") : t("Share on a link");
+  const setupBar = (set: SetDetail) => {
     const over = Boolean(set.service_date && set.service_date < today());
     const current = currentSetToggle(ctx, set, over);
-    ctx.main.querySelector(".set-edit-actions")!.innerHTML = current.html;
+    shared = set.shared;
+    ctx.main.querySelector(".set-edit-actions")!.innerHTML = `${current.html}<button type="button" class="icon-button ghost${shared ? " on" : ""}" data-share aria-label="${shareLabel()}" title="${shareLabel()}">${icon("share")}</button>`;
+    const shareButton = ctx.main.querySelector<HTMLButtonElement>("[data-share]")!;
+    shareButton.addEventListener("click", () => void ctx.run(() => openShareSheet(ctx, { ...set, shared }, (on) => {
+      shared = on;
+      shareButton.classList.toggle("on", on);
+      shareButton.setAttribute("aria-label", shareLabel());
+      shareButton.title = shareLabel();
+    })));
     // ⋮ and its menu, in the bar's own group rather than a group of their own.
     const menu = ctx.main.querySelector<HTMLElement>(".set-edit-menu")!;
     menu.innerHTML = barActions("set-edit", [{ id: "delete-set", label: t("Delete set"), icon: "trash" }], 0);

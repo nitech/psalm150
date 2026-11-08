@@ -27,7 +27,7 @@ import { apiDocs } from "./views/api-docs.ts";
 import { remoteDesktop, remoteList } from "./views/remote.ts";
 import { accountLinkPath, renderAccountLink } from "./views/account-link.ts";
 import { joinPath, renderJoin, renderRoomFromPath } from "./views/room.ts";
-import { setDetail, setEditor, setList, setPlay } from "./views/sets.ts";
+import { setEditor, setList, setPage, setPlay } from "./views/sets.ts";
 import { renderSharedSet, sharedSetPath } from "./views/shared-set.ts";
 import { songDetail, songEditor, songList } from "./views/songs.ts";
 import { findChords } from "./views/find-chords.ts";
@@ -361,8 +361,9 @@ const ROUTES: Route[] = [
   { pattern: /^\/songs\/([0-9a-f-]{36})\/chords$/, view: findChords, tab: "songs" },
   { pattern: /^\/sets$/, view: setList, tab: "sets" },
   { pattern: /^\/sets\/new$/, view: (ctx) => setEditor(ctx, []), tab: "sets" },
-  { pattern: /^\/sets\/([0-9a-f-]{36})$/, view: setDetail, tab: "sets" },
-  { pattern: /^\/sets\/([0-9a-f-]{36})\/edit$/, view: setEditor, tab: "sets" },
+  { pattern: /^\/sets\/([0-9a-f-]{36})$/, view: setPage, tab: "sets" },
+  // Older links to a set's editor: a set's page is the editor now.
+  { pattern: /^\/sets\/([0-9a-f-]{36})\/edit$/, view: setPage, tab: "sets" },
   { pattern: /^\/sets\/([0-9a-f-]{36})\/play\/(\d+)$/, view: setPlay, tab: "sets" },
   { pattern: /^\/remote$/, view: remoteList, tab: "remote" },
   { pattern: /^\/remote\/([0-9a-f-]{36})$/, view: remoteDesktop, tab: "remote" },
@@ -1067,8 +1068,7 @@ function renderCurrentBar(set: SetDetail | null): void {
   }
   const songs = set.items.filter((item) => item.kind === "song").length;
   const previous = bar.dataset.count;
-  // Leaders go straight to editing the set; the set's own page is one Back away.
-  link.href = canEditSets() ? `#/sets/${set.id}/edit` : `#/sets/${set.id}`;
+  link.href = `#/sets/${set.id}`;
   bar.dataset.count = String(songs);
   link.setAttribute("aria-label", tn(songs, "Current set: {name}, {n} song", "Current set: {name}, {n} songs", { name: set.name }));
   // When a song is added or removed (the + / ✓ on a song), the card says so

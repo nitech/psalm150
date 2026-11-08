@@ -416,8 +416,11 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .sheet-body .list.flat-list { margin-inline: calc(-1 * var(--psa-space-4)); border-left: 0; border-right: 0; border-radius: 0; }
 .edit-row-title { color: inherit; text-decoration: none; }
 @media (hover: hover) { .edit-row-title:hover { text-decoration: underline; } }
-/* The title takes two lines before it is cut. */
-.edit-row .row-main strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+/* A set's songs, read or edited, in rows like the song list's: the number
+   in its own column, the title on one line, then the key. */
+.set-songs { --num-w: 36px; }
+.set-songs .edit-row-main { gap: var(--psa-space-3); }
+.set-songs .edit-row-main .grip { margin-right: calc(-1 * var(--psa-space-2)); }
 /* Reordering (sets.ts): the row picked up floats as a ghost under the finger
    and its place shrinks to a green line with room around it; the others
    slide aside so the line is where it will land. On letting go the place
