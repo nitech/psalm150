@@ -3272,8 +3272,9 @@ body.audience-projection {
 }
 
 /* The footer: song number and key bottom left, the stanza counter bottom
-   right. Plain white text as large as the song's words, no frame, over the
-   bottom of the screen rather than on a strip of its own. */
+   right. Plain white text of one size the operator sets (Settings,
+   Projection), no frame, over the bottom of the screen rather than on a
+   strip of its own. */
 .audience-overlay,
 .audience-stanza-counter {
   position: fixed;
@@ -3282,9 +3283,9 @@ body.audience-projection {
   display: flex;
   align-items: baseline;
   font-family: var(--psa150-font-family);
-  /* The song's size, the same through the whole song: a stanza shrunk to
-     fit does not take the footer with it. */
-  font-size: var(--psa150-fit-font, 3rem);
+  /* A fixed share of the screen's height, whatever size the words are
+     fitted to: a long stanza does not leave a large footer under small words. */
+  font-size: calc(var(--psa150-footer-size, 4) * 1vh);
   /* Figures of one width, so "9 / 12" and "10 / 12" take the same room. */
   font-variant-numeric: tabular-nums;
   font-weight: var(--psa150-font-weight, 500);

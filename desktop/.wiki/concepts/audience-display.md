@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Audience display
-description: The congregation window — white on black, one font size per song as large as every stanza fits, lines never broken, a footer (song number and key, stanza counter) over the bottom corners at the song's size, the same for every stanza, keyboard.
+description: The congregation window — white on black, one font size per song as large as every stanza fits, lines never broken, a footer (song number and key, stanza counter) over the bottom corners at a fixed size the operator sets, keyboard.
 tags: [projection, audience, css, layout]
 status: stable
 sources:
@@ -86,9 +86,11 @@ only where long sections break into slides; see [gaps](gaps.md).
 
 ## Footer
 
-Plain white text in the two bottom corners, no frame, in the song's font,
-weight and size (`--psa150-fit-font`), the same through the whole song: a
-stanza shrunk to fit does not shrink the footer. Figures are tabular, so
+Plain white text in the two bottom corners, no frame, in the song's font
+and weight, at a fixed share of the screen's height: `footer_size` from the
+theme (`--psa150-footer-size`, default 4 → `4vh`), set in Settings →
+Projection → Footer text. It does not follow the words' fitted size, so a
+long stanza fitted small no longer sits over a large footer. Figures are tabular, so
 the counter keeps its width.
 
 - **Bottom left** (`.audience-overlay`): the song number, then the key (unless

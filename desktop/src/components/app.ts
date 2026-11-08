@@ -144,11 +144,19 @@ const SETTINGS_SECTIONS: ReadonlyArray<{
   { id: "library", label: "Library", icon: "♫", keywords: "songs folder chordpro import mdb rescan duplicates numbers" },
   { id: "server", label: "Church server", icon: "↗", keywords: "server url token sync download offline cache church room name flower join share remote control phone" },
   { id: "vsb", label: "Visual Song Book", icon: "⇄", keywords: "vsb visual song book mdb access database sync synchronize two-way backup" },
-  { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display projector auto select new connected chords read only editing" },
+  { id: "projection", label: "Projection", icon: "▣", keywords: "congregation audience stage monitor display projector auto select new connected chords read only editing footer text size song number key stanza counter" },
   { id: "search", label: "Search", icon: "⌕", keywords: "web internet online local songs match" },
   { id: "remote", label: "Phone remote", icon: "◌", keywords: "phone remote wifi network tailscale pin slides" },
   { id: "reports", label: "Reports", icon: "▤", keywords: "print songbook ccli csv export" },
   { id: "shortcuts", label: "Keyboard shortcuts", icon: "⌘", keywords: "keys keyboard hotkeys shortcuts alt ctrl enter arrows stanzas blank projection setlist favourite search" },
+];
+
+/** The projected footer's sizes, in percent of the screen's height. */
+const FOOTER_SIZES = [
+  { value: 2.5, label: "Small" },
+  { value: 4, label: "Medium" },
+  { value: 5.5, label: "Large" },
+  { value: 7, label: "Extra large" },
 ];
 
 const BROWSE_TITLES: Record<Exclude<BrowseMode, "search">, string> = {
@@ -186,6 +194,7 @@ export class Psa150App extends Psa150Element {
     browseMode: { state: true },
     currentSetlist: { state: true },
     projectToStage: { state: true },
+    footerSize: { state: true },
     readOnly: { state: true },
     serverLibrary: { state: true },
     lastLocalSongsFolder: { state: true },
@@ -284,6 +293,8 @@ export class Psa150App extends Psa150Element {
   declare browseMode: BrowseMode;
   declare currentSetlist: Setlist | null;
   declare projectToStage: boolean;
+  /** The projected footer's text, in percent of the screen's height (the library's theme). */
+  declare footerSize: number;
   declare readOnly: boolean;
   declare serverLibrary: ServerLibraryConfig | null;
   declare lastLocalSongsFolder: string | null;
@@ -445,6 +456,7 @@ export class Psa150App extends Psa150Element {
     this.browseMode = "search";
     this.currentSetlist = null;
     this.projectToStage = false;
+    this.footerSize = 4;
     this.readOnly = false;
     this.serverLibrary = null;
     this.lastLocalSongsFolder = null;
@@ -1591,6 +1603,7 @@ export class Psa150App extends Psa150Element {
     this.activeSettingsSection = section;
     this.settingsOpen = true;
     void this.refreshServerRoom();
+    void api.getTheme().then((theme) => { this.footerSize = theme.footer_size; }).catch(() => undefined);
     try {
       const [config, displays, remote] = await Promise.all([
         api.getConfig(),
@@ -1642,6 +1655,18 @@ export class Psa150App extends Psa150Element {
   private async onProjectToStageChange(checked: boolean) {
     this.projectToStage = checked;
     await api.setProjectToStage(checked);
+  }
+
+  private async onFooterSizeChange(value: string) {
+    const size = Number(value);
+    if (!Number.isFinite(size)) return;
+    this.footerSize = size;
+    try {
+      const theme = await api.getTheme();
+      await api.saveTheme({ ...theme, footer_size: size });
+    } catch (error) {
+      this.showToast(String(error), "error");
+    }
   }
 
   private async onReadOnlyChange(checked: boolean) {
@@ -4416,6 +4441,8 @@ export class Psa150App extends Psa150Element {
             <label class="settings-switch" title="When a display is connected, show the words on it"><input type="checkbox" role="switch" .checked=${this.autoSelectDisplay} @change=${(e: Event) => this.onAutoSelectDisplayChange((e.target as HTMLInputElement).checked)} /><span class="settings-switch-track" aria-hidden="true"></span><span>Auto-select new display</span></label>
             <span class="settings-row-label" id="stage-display-label">Stage</span>
             <psa150-select labelledby="stage-display-label" .options=${this.stageDisplayOptions()} .value=${this.stageMonitor} @psa150-change=${(e: CustomEvent<string>) => this.onStageMonitorChange(e.detail)}></psa150-select>
+            <span class="settings-row-label" id="footer-size-label" title="Song number, key and stanza count at the foot of the screen">Footer text</span>
+            <psa150-select labelledby="footer-size-label" .options=${FOOTER_SIZES.map((size) => ({ value: String(size.value), label: size.label }))} .value=${String(this.footerSize)} @psa150-change=${(e: CustomEvent<string>) => this.onFooterSizeChange(e.detail)}></psa150-select>
           </div>
           <label class="settings-check"><input type="checkbox" .checked=${this.projectToStage} @change=${(e: Event) => this.onProjectToStageChange((e.target as HTMLInputElement).checked)} /><span>Also show stage window when projecting (musician chords)</span></label>
           <label class="settings-check"><input type="checkbox" .checked=${this.readOnly} ?disabled=${Boolean(this.serverLibrary)} @change=${(e: Event) => this.onReadOnlyChange((e.target as HTMLInputElement).checked)} /><span>Read-only library (prevent edits and deletes)</span></label>`;

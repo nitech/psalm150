@@ -26,6 +26,14 @@ pub struct SlideTheme {
     pub show_key_overlay: bool,
     pub show_copyright_overlay: bool,
     pub show_ccli_overlay: bool,
+    /// The footer's text (song number and key, stanza counter) in percent of
+    /// the screen's height: one size whatever the song's words are fitted to.
+    #[serde(default = "default_footer_size")]
+    pub footer_size: f32,
+}
+
+pub fn default_footer_size() -> f32 {
+    4.0
 }
 
 fn default_projection_width() -> u32 {
@@ -55,6 +63,7 @@ impl Default for SlideTheme {
             show_key_overlay: true,
             show_copyright_overlay: true,
             show_ccli_overlay: false,
+            footer_size: default_footer_size(),
         }
     }
 }

@@ -55,8 +55,11 @@ updated together with it.
 true, `font_italic` false, `foreground` `#ffffff`, `background` `#000000`,
 margins 40 / 48 / 48 / 48, `projection_width` 1920, `projection_height` 1080,
 `show_title_overlay` / `show_key_overlay` / `show_copyright_overlay` true,
-`show_ccli_overlay` false. Written by [MDB import](mdb-import.md) (from
-`PageSetup`) or `save_theme` (no UI). Read by the
+`show_ccli_overlay` false, `footer_size` 4 (the footer's text in percent of
+the screen's height; Settings → Projection → Footer text: 2.5 / 4 / 5.5 / 7).
+Written by [MDB import](mdb-import.md) (from `PageSetup`) or `save_theme`
+(the footer size from Settings; it also sets `active_theme.footer_size` and
+re-sends the snapshot, so the projector changes at once). Read by the
 [slide pipeline](slide-pipeline.md) budgets and the
 [audience display](audience-display.md) CSS variables. With no library open
 `get_theme` errors and the audience uses CSS defaults (Geist 48 px).

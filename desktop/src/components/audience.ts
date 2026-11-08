@@ -114,6 +114,7 @@ export class Psa150Audience extends Psa150Element {
     const style = document.documentElement.style;
     style.setProperty("--psa150-font-family", theme.font_name);
     style.setProperty("--psa150-font-size", `${theme.font_size}px`);
+    style.setProperty("--psa150-footer-size", String(theme.footer_size ?? 4));
     style.setProperty("--psa150-font-weight", theme.font_bold ? "700" : "500");
     style.setProperty("--psa150-font-style", theme.font_italic ? "italic" : "normal");
     // Pure white on pure black whatever the theme says: the most contrast a

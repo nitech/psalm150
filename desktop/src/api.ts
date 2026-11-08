@@ -73,6 +73,8 @@ export interface SlideTheme {
   show_key_overlay: boolean;
   show_copyright_overlay: boolean;
   show_ccli_overlay: boolean;
+  /** The footer's text in percent of the screen's height. */
+  footer_size: number;
 }
 
 export interface ProjectionState {
@@ -529,6 +531,8 @@ export const api = {
   setShowSongNumbers: (enabled: boolean) =>
     invoke<void>("set_show_song_numbers", { enabled }),
   getConfig: () => invoke<AppConfig>("get_config"),
+  getTheme: () => invoke<SlideTheme>("get_theme"),
+  saveTheme: (theme: SlideTheme) => invoke<void>("save_theme", { theme }),
   getShortcuts: () => invoke<Partial<Record<string, string>>>("get_shortcuts"),
   saveShortcuts: (shortcuts: Record<string, string>) => invoke<void>("save_shortcuts", { shortcuts }),
   listDisplays: () => invoke<DisplayInfo[]>("list_displays"),

@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-08
+* **Footer size set by the operator**: the audience footer (song number, key, stanza counter) is `footer_size` percent of the screen's height (theme, default 4), no longer the song's fitted size; Settings → Projection → Footer text (Small / Medium / Large / Extra large) saves it with `save_theme`, which now also updates the live projection. Pages touched: audience-display, config.
+
 ## 2026-11-07
 * **Chords beside the song; the key in the editor bar**: the chord panel sits to the right of the words whenever the song pane is at least 620 px wide (was 900), `clamp(260px, 32%, 340px)` wide, so the words keep the height. The song editor's bar starts with the song's key: one tap opens every key, another sets it and moves the chords (shared `words-editor.ts`). Pages touched: none (behaviour only).
 * **Search × and solid toasts**: the library search field has a × at its right while it has text (`clearSearch()`: empties it, lists every song, keeps the focus; a `#key` chip moves left of it). Success and error toasts lay their see-through tint over the solid `--bg-elevated`, so the words under them no longer show through. Pages touched: none (behaviour only).

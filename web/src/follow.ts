@@ -140,6 +140,7 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
       if (current) element.setAttribute("aria-current", "true");
       else element.removeAttribute("aria-current");
     });
+    fitLines();
     const slide = `${song}:${state.slide_index}`;
     if (slide !== shownSlide) {
       const first = shownSlide === null;
@@ -149,6 +150,25 @@ export function installFollow(api: SongServerApi, changed: () => void): Follow {
       current?.scrollIntoView({ block: "center", behavior: first || reduce ? "auto" : "smooth" });
     }
   };
+
+  /**
+   * Lines stay whole, as on the projector: the text shrinks below the chosen
+   * size until the song's longest line fits the screen.
+   */
+  const fitLines = () => {
+    const root = view();
+    const body = root?.querySelector<HTMLElement>("#follow-body");
+    if (!root || !body || root.hidden) return;
+    root.style.setProperty("--room-fit", "1");
+    const slide = body.querySelector<HTMLElement>(".room-slide");
+    if (!slide) return;
+    const style = getComputedStyle(slide);
+    const room = slide.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    let widest = 0;
+    body.querySelectorAll<HTMLElement>(".room-line").forEach((line) => { widest = Math.max(widest, line.scrollWidth); });
+    if (room > 0 && widest > room) root.style.setProperty("--room-fit", String(Math.max(0.4, (room / widest) * 0.98)));
+  };
+  window.addEventListener("resize", fitLines);
 
   let size = Math.min(SIZES.length - 1, Math.max(0, Number(readPreference("room-size") ?? 2)));
   const applySize = () => {

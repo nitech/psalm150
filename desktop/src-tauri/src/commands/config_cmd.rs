@@ -65,13 +65,20 @@ pub fn save_theme(
     state: State<'_, AppState>,
     theme: SlideTheme,
 ) -> Result<(), String> {
-    with_state(&state, |runtime| {
+    let snapshot = with_state(&state, |runtime| {
         let hash = runtime
             .folder_hash
             .as_ref()
             .ok_or_else(|| "No library open".to_string())?;
-        config::save_theme(&app, hash, &theme)
-    })
+        config::save_theme(&app, hash, &theme)?;
+        // The footer's size shows at once on the projector; the slides keep
+        // their split until the next song is projected.
+        runtime.active_theme.footer_size = theme.footer_size;
+        runtime.projection_revision += 1;
+        Ok(crate::commands::projection_cmd::build_snapshot(runtime))
+    })?;
+    crate::commands::projection_cmd::emit_snapshot(&app, &snapshot);
+    Ok(())
 }
 
 #[tauri::command]

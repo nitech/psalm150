@@ -108,6 +108,7 @@ pub fn read_page_setup(path: &Path) -> Result<SlideTheme, String> {
             show_key_overlay: true,
             show_copyright_overlay: true,
             show_ccli_overlay: true,
+            footer_size: crate::projection::default_footer_size(),
         });
     }
 

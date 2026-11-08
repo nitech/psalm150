@@ -753,6 +753,10 @@ body:is([data-route$="/edit"], [data-route$="/new"]) .toast { bottom: calc(90px 
 .room[data-status="blank"] .room-slide.current::before { background: var(--psa-border-strong); }
 .room-label { margin: 0 0 4px; font-family: var(--psa-font-ui); font-size: max(12px, 0.5em); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--psa-text-tertiary); }
 .room-line { margin: 0; overflow-wrap: anywhere; }
+/* Following the projector in the app: a line is never broken; the text
+   shrinks until the longest line fits (follow.ts). */
+#follow-view .room-body { font-size: calc(18px * var(--room-scale) * var(--room-fit, 1)); }
+#follow-view .room-line { white-space: nowrap; overflow-wrap: normal; }
 .room-waiting { padding: var(--psa-space-8) 0; text-align: center; }
 .room-waiting h2 { margin: 0 0 var(--psa-space-2); font-size: 1em; line-height: 1.25; }
 .room-waiting p { margin: 0; font-size: max(16px, 0.65em); color: var(--psa-text-secondary); }
