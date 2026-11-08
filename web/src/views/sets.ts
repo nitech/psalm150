@@ -307,6 +307,21 @@ interface Draft {
 /** A save still on its way when the editor closed; the next editor waits for it. */
 let savingInBackground: Promise<unknown> = Promise.resolve();
 
+/** `2026-11-08` → "08.11.26". */
+function shortDate(date: string | null): string {
+  if (!date) return "";
+  const [year, month, day] = date.split("-");
+  return `${day}.${month}.${year.slice(2)}`;
+}
+
+/** The name is only the date's day and month ("8.11", "08.11."), so the date need not show as well. */
+function nameIsDate(name: string, date: string | null): boolean {
+  if (!date) return true;
+  const match = /^(\d{1,2})\.(\d{1,2})\.?$/.exec(name);
+  const [, month, day] = date.split("-").map(Number);
+  return Boolean(match) && Number(match![1]) === day && Number(match![2]) === month;
+}
+
 /** A set with no name is called by its date, as "25.10", like the sets people make by hand. */
 function defaultSetName(date: string | null): string {
   if (!date) return t("New set");
@@ -375,10 +390,14 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     compact: true,
     quietTitle: true,
     noBarTitle: true,
-    // One button group, as on a song: the current set, Add songs, the
-    // projector (live.ts) and ⋮, which ends the bar; "Saved" before it.
+    // One button group, as on a song: search, the current set, Add songs,
+    // the projector (live.ts) and ⋮, which ends the bar; "Saved" before it.
+    // Search is a magnifier until tapped; then its field takes the whole bar,
+    // as the song list's does.
     actions: `<span class="save-status" id="save-status" role="status"></span>
       <div class="bar-actions" data-bar-screen="set-edit">
+        <div class="search-field bar-search">${icon("search")}<input type="search" id="set-search" placeholder="${t("Search the set and all songs")}" aria-label="${t("Search the set and all songs")}" autocomplete="off" enterkeyhint="search" /></div>
+        <button type="button" class="icon-button ghost search-close" id="set-search-close" aria-label="${t("Close search")}" title="${t("Close search")}">${icon("close")}</button>
         <span class="set-edit-actions"></span>
         <button type="button" class="icon-button ghost" id="add-songs" aria-label="${t("Add songs")}" title="${t("Add songs")}">${icon("plus")}</button>
         <span class="set-edit-menu"></span>
@@ -386,13 +405,13 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   })}
   <form class="set-form" id="set-form">
     <div class="set-heading">
+      <input class="set-name" name="name" maxlength="200" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(defaultSetName(draft.service_date))}" aria-label="${t("Name")}" autocomplete="off" enterkeyhint="done" />
       <label class="set-date">
-        <span class="eyebrow" id="set-date-text" aria-hidden="true">${escapeHtml(serviceDate(draft.service_date, true))}</span>
+        <span id="set-date-text" aria-hidden="true">${escapeHtml(shortDate(draft.service_date))}</span>
+        <span class="set-date-icon" aria-hidden="true">${icon("calendar")}</span>
         <input name="date" type="date" value="${draft.service_date ?? ""}" aria-label="${t("Service date")}" />
       </label>
-      <input class="set-name" name="name" maxlength="200" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(defaultSetName(draft.service_date))}" aria-label="${t("Name")}" autocomplete="off" enterkeyhint="done" />
     </div>
-    <div class="search-field">${icon("search")}<input type="search" id="set-search" placeholder="${t("Search the set and all songs")}" aria-label="${t("Search the set and all songs")}" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
     <div id="set-search-results" hidden></div>
     <ol class="list editable flat-list set-songs" id="draft-items" aria-label="${t("Songs")}" data-song-list></ol>
     <p class="form-message" role="status"></p>
@@ -404,6 +423,13 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   const status = ctx.main.querySelector<HTMLElement>("#save-status")!;
   const nameInput = form.querySelector<HTMLInputElement>("input[name='name']")!;
   const dateInput = form.querySelector<HTMLInputElement>("input[name='date']")!;
+  /** The date at the right of the name, unless the name is that date (then a calendar, to change it). */
+  const showDate = () => {
+    const date = dateInput.value || null;
+    form.querySelector("#set-date-text")!.textContent = shortDate(date);
+    form.querySelector(".set-date")!.classList.toggle("same", nameIsDate(nameInput.value.trim() || defaultSetName(date), date));
+  };
+  showDate();
 
   /** The set as saved: none yet for a new set until its first change. */
   let saved: { id: string; version: number } | null = existing ? { id: existing.id, version: existing.version } : null;
@@ -600,12 +626,13 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     const name = nameInput.value.trim() || defaultSetName(dateInput.value || null);
     ctx.main.querySelector(".page-titles h1")!.textContent = name;
     setTitle(name, t("Sets"));
+    showDate();
     save(800);
   });
   nameInput.addEventListener("change", () => save());
   dateInput.addEventListener("change", () => {
     nameInput.placeholder = defaultSetName(dateInput.value || null);
-    ctx.main.querySelector("#set-date-text")!.textContent = serviceDate(dateInput.value || null, true);
+    showDate();
     save();
   });
   // The date reads as text; a click on it opens the date picker (a touch
@@ -617,28 +644,35 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       // Not allowed here: the field takes the click as it is.
     }
   });
-  // Enter in the name saves (no form to send); in the search it closes the keyboard.
+  // Enter in the name saves (no form to send).
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (document.activeElement === searchInput) {
-      searchInput.blur();
-      return;
-    }
     save();
     nameInput.blur();
   });
 
   // ── Searching: the set's own songs, then every song in the song book ──
-  const searchInput = form.querySelector<HTMLInputElement>("#set-search")!;
+  const searchInput = ctx.main.querySelector<HTMLInputElement>("#set-search")!;
   const searchResults = form.querySelector<HTMLElement>("#set-search-results")!;
+  const appBar = ctx.main.querySelector<HTMLElement>(".app-bar")!;
   let searchTimer = 0;
   let searchRequest = 0;
-  /** A song as a row of the song list links it. */
-  const songRow = (song: { title: string; song_number: string | null; song_key: string | null }, href: string) => `<a class="row-link" href="${href}">
-    <span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
-    <span class="row-main"><strong>${escapeHtml(song.title)}</strong></span>
-    ${song.song_key ? `<span class="row-key" aria-label="${t("Key {key}", { key: escapeHtml(song.song_key) })}">${escapeHtml(song.song_key)}</span>` : ""}
-  </a>`;
+  /**
+   * A found song in the set's own columns: in the grip's place `lead` (+ for
+   * the song book, nothing for the set's own), then the number, the title,
+   * the key, and room for the × a mouse gets.
+   */
+  const songRow = (song: { title: string; song_number: string | null; song_key: string | null }, href: string, lead = "") => `<li class="edit-row">
+    <div class="edit-row-main">
+      ${lead || `<span class="lead-slot" aria-hidden="true"></span>`}
+      <span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
+      <span class="row-main"><strong><a class="edit-row-title" href="${href}">${escapeHtml(song.title)}</a></strong></span>
+      ${keyCell(song.song_key, 0)}
+      <div class="row-tools"><span class="icon-button small swipe-alt tool-space" aria-hidden="true"></span></div>
+    </div>
+  </li>`;
+  const songList = (rows: string, numbered: boolean, labelledBy: string) =>
+    `<ol class="list editable flat-list set-songs${numbered ? " has-numbers" : ""}" ${labelledBy ? `aria-labelledby="${labelledBy}"` : `aria-label="${t("Songs")}"`}>${rows}</ol>`;
   const search = async () => {
     const query = searchInput.value.trim();
     if (saved) setSearches.set(saved.id, query);
@@ -653,24 +687,30 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     const inSet = draft.items
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => item.kind === "song" && (item.title.toLocaleLowerCase().includes(folded) || (item.number ?? "").startsWith(query)));
-    const setRows = inSet.map(({ item, index }) => `<li class="list-row song-row">${songRow(
+    const setRows = inSet.map(({ item, index }) => songRow(
       { title: item.title, song_number: item.number ?? null, song_key: itemKey(item.songKey, item.transpose ?? 0) || null },
       saved ? `#/sets/${saved.id}/play/${index}` : `#/songs/${item.song_id}`,
-    )}</li>`).join("");
-    const draw = (all: string) => {
-      searchResults.innerHTML = `<h2 class="list-heading" id="search-in-set">${t("In this set")}</h2>
-        ${setRows ? `<ul class="list flat-list set-songs${inSet.some(({ item }) => item.number) ? " has-numbers" : ""}" aria-labelledby="search-in-set">${setRows}</ul>` : `<p class="muted">${t("No songs found.")}</p>`}
-        <h2 class="list-heading" id="search-all">${t("All songs")}</h2>${all}`;
+    )).join("");
+    const setNumbered = inSet.some(({ item }) => item.number);
+    // Only what was found: the set's own songs under their heading when any
+    // match, then the song book's.
+    const draw = (all: string, numbered = setNumbered) => {
+      searchResults.innerHTML = setRows
+        ? `<h2 class="list-heading" id="search-in-set">${t("In this set")}</h2>${songList(setRows, numbered, "search-in-set")}
+          ${all ? `<h2 class="list-heading" id="search-all">${t("All songs")}</h2>${all}` : ""}`
+        : all || `<p class="muted pad">${t("No songs found.")}</p>`;
     };
-    draw(`<p class="muted" aria-busy="true">…</p>`);
+    draw(`<p class="muted pad" aria-busy="true">…</p>`);
     try {
       const songs = (await ctx.api.listSongs(query)).slice(0, 50);
       if (mine !== searchRequest) return;
-      // Tap a song to open it; + adds it to this set.
+      // Tap a song to open it; + adds it to this set. Both lists number
+      // alike, so their columns line up.
+      const numbered = setNumbered || songs.some((song) => song.song_number);
+      const add = (song: SongSummary) => `<button type="button" class="lead-slot" data-add-song="${song.id}" aria-label="${t("Add {title}", { title: escapeHtml(song.title) })}" title="${t("Add {title}", { title: escapeHtml(song.title) })}">${icon("plus")}</button>`;
       draw(songs.length
-        ? `<ul class="list flat-list set-songs${songs.some((song) => song.song_number) ? " has-numbers" : ""}" aria-labelledby="search-all">${songs.map((song) => `<li class="list-row song-row">${songRow(song, `#/songs/${song.id}`)}
-            <button type="button" class="icon-button small ghost" data-add-song="${song.id}" aria-label="${t("Add {title}", { title: escapeHtml(song.title) })}" title="${t("Add {title}", { title: escapeHtml(song.title) })}">${icon("plus")}</button></li>`).join("")}</ul>`
-        : `<p class="muted">${t("No songs found.")}</p>`);
+        ? songList(songs.map((song) => songRow(song, `#/songs/${song.id}`, add(song))).join(""), numbered, setRows ? "search-all" : "")
+        : "", numbered);
       searchSongs = songs;
     } catch (error) {
       if (mine === searchRequest) draw(`<p class="form-message">${escapeHtml(errorMessage(error))}</p>`);
@@ -680,6 +720,32 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   searchInput.addEventListener("input", () => {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => void search(), 250);
+  });
+  // Open while the field has focus or a search; an empty field closes on blur.
+  searchInput.addEventListener("focus", () => appBar.classList.add("searching"));
+  searchInput.addEventListener("blur", () => appBar.classList.toggle("searching", Boolean(searchInput.value.trim())));
+  // × or Escape empties the search and closes it; × acts on pointerdown,
+  // before the field's blur could move it. Enter closes the keyboard.
+  const closeSearch = () => {
+    window.clearTimeout(searchTimer);
+    searchInput.value = "";
+    void search();
+    appBar.classList.remove("searching");
+    searchInput.blur();
+  };
+  const closeButton = ctx.main.querySelector<HTMLButtonElement>("#set-search-close")!;
+  closeButton.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    closeSearch();
+  });
+  closeButton.addEventListener("click", closeSearch);
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSearch();
+    } else if (event.key === "Enter") {
+      searchInput.blur();
+    }
   });
   searchResults.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-add-song]");
@@ -693,6 +759,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   const lastSearch = saved ? setSearches.get(saved.id) : "";
   if (lastSearch) {
     searchInput.value = lastSearch;
+    appBar.classList.add("searching");
     void search();
   }
 

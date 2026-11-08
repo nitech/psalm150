@@ -397,7 +397,10 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .set-note { margin: 0 0 var(--psa-space-4); padding: var(--psa-space-3) var(--psa-space-4); border-left: 3px solid var(--psa-accent); border-radius: var(--psa-radius-xs); background: var(--psa-bg-surface); }
 .set-form { display: grid; gap: var(--psa-space-4); }
 /* The set editor saves as you go: a quiet word in the bar says so. */
-.save-status { min-width: 4.5em; color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; opacity: 0; transition: opacity 300ms; }
+/* It floats left of the button group, over the bar's empty middle, so the
+   group keeps the bar's width for its buttons. */
+.page-actions:has(> .save-status) { position: relative; }
+.save-status { position: absolute; right: 100%; top: 50%; margin-right: var(--psa-space-2); color: var(--psa-text-secondary); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; opacity: 0; transform: translateY(-50%); transition: opacity 300ms; pointer-events: none; }
 .save-status.shown { opacity: 1; }
 /* The set screens' bar is one button group: the slots that fill it later
    are not boxes of their own, and their buttons look like the group's. */
@@ -408,19 +411,37 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 }
 .bar-actions .current-toggle > .icon-button.on { background: var(--psa-accent-medium); color: var(--psa-accent-text); }
 .set-form .list { margin: 0; }
-/* A set's date and name read as its heading and are written in place: no
-   boxes. The date's own field lies unseen over its text, so a tap opens
-   the date picker. */
-.set-heading { display: grid; gap: 2px; }
-.set-date { position: relative; justify-self: start; cursor: pointer; }
-.set-date .eyebrow { display: block; margin: 0; }
+/* A set's name and date read as its heading and are written in place: no
+   boxes. The name at the left, the date (08.11.26) at the right, or only a
+   calendar when the name is that date. The date's own field lies unseen
+   over it, so a tap opens the date picker. */
+.set-heading { display: flex; align-items: center; gap: var(--psa-space-3); }
+.set-heading .set-name { flex: 1; min-width: 0; }
+.set-date { position: relative; display: grid; place-items: center; flex: none; min-width: var(--psa-touch-target); min-height: var(--psa-touch-target); color: var(--psa-text-secondary); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.set-date-icon { display: none; }
+.set-date-icon .icon { width: 20px; height: 20px; }
+.set-date.same #set-date-text { display: none; }
+.set-date.same .set-date-icon { display: block; color: var(--psa-text-tertiary); }
 .set-date input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
-.set-date:focus-within .eyebrow { color: var(--psa-accent-text); }
+.set-date:focus-within, .set-date:focus-within .set-date-icon { color: var(--psa-accent-text); }
+/* The set's search, in the bar: a magnifier in the button group; tapped,
+   the field takes the whole bar until it is closed or left empty. The
+   closed field is still the input, so a tap opens the keyboard at once. */
+.bar-actions .bar-search { flex: none; width: var(--bar-button); height: var(--bar-button); margin: 0; }
+.app-bar:not(.searching) .bar-search input { min-height: 0; height: 100%; padding: 0; border-color: transparent; border-radius: 50%; background: transparent; color: transparent; caret-color: transparent; cursor: pointer; }
+.app-bar:not(.searching) .bar-search input::placeholder { color: transparent; }
+.app-bar:not(.searching) .bar-search > .icon { left: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); }
+.app-bar.searching .app-bar-row > :not(.page-actions), .app-bar.searching .page-actions > :not(.bar-actions),
+.app-bar.searching .bar-actions > :not(.bar-search, .search-close) { display: none; }
+.app-bar.searching .page-actions { flex: 1; margin-left: 0; }
+.app-bar.searching .bar-actions { flex: 1; padding: 0; border: 0; background: none; }
+.app-bar.searching .bar-search { flex: 1; height: auto; }
+.app-bar.searching .search-close { display: grid; }
 .set-name { width: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--psa-text); font-family: var(--psa-font-display); font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
 .set-name::placeholder { color: var(--psa-text-tertiary); }
 .set-name:focus, .set-name:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--psa-accent); }
 #set-search-results .list-heading { margin-top: var(--psa-space-2); }
-#set-search-results .list { margin: 0; }
+#set-search-results .list { margin-top: 0; margin-bottom: 0; }
 /* The song last shown from the set: how far the leader has come.
    A gold line around the row, drawn over it, so the row itself (and the
    red Delete under it) stays as it is. */
@@ -454,6 +475,14 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .set-songs { --num-w: 36px; }
 .set-songs .edit-row-main { gap: var(--psa-space-3); }
 .set-songs .edit-row-main .grip { margin-right: calc(-1 * var(--psa-space-2)); }
+/* Search results take the grip's column: + for a song from the song book,
+   empty for one already in the set; and the ×'s room a mouse sees. */
+.lead-slot { display: grid; place-items: center; flex: none; width: 36px; height: var(--psa-touch-target); margin: 0 calc(-1 * var(--psa-space-2)) 0 -6px; padding: 0; border: 0; border-radius: var(--psa-radius-xs); background: none; color: var(--psa-text-secondary); }
+button.lead-slot { cursor: pointer; }
+@media (hover: hover) { button.lead-slot:hover { background: var(--psa-bg-elevated); color: var(--psa-text); } }
+button.lead-slot:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
+.lead-slot .icon { width: 20px; height: 20px; }
+.tool-space { visibility: hidden; }
 /* Reordering (sets.ts): the row picked up floats as a ghost under the finger
    and its place shrinks to a green line with room around it; the others
    slide aside so the line is where it will land. On letting go the place
