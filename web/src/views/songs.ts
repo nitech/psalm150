@@ -78,10 +78,11 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
       ${ctx.canEdit ? `<a class="icon-button" href="#/songs/new" aria-label="${t("New song")}" title="${t("New song")}">${icon("plus")}</a>` : ""}
     </div>
   </div>
-  <div class="list-sort" id="song-sort" hidden>
+  <div class="list-sort${ctx.session ? "" : " no-stars"}" id="song-sort" hidden>
     <div class="sort-columns" id="sort-columns" role="group" aria-label="${t("Sort songs")}"></div>
-    ${ctx.session ? `<button type="button" class="filter-toggle" id="fav-filter"></button>` : ""}
     <button type="button" class="filter-toggle" id="key-filter" aria-haspopup="dialog"></button>
+    <div class="sort-key-column" id="sort-key-column"></div>
+    ${ctx.session ? `<button type="button" class="filter-toggle" id="fav-filter"></button>` : ""}
   </div>
   <div class="filter-summary" id="filter-summary" hidden></div>
   <ul class="list" id="song-results" aria-label="${t("Songs")}" data-song-list><li><p class="muted pad">${t("Loading…")}</p></li></ul>
@@ -93,6 +94,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   const more = ctx.main.querySelector<HTMLElement>("#load-more")!;
   const sortBar = ctx.main.querySelector<HTMLElement>("#song-sort")!;
   const sortColumns = ctx.main.querySelector<HTMLElement>("#sort-columns")!;
+  const sortKeyColumn = ctx.main.querySelector<HTMLElement>("#sort-key-column")!;
   const filterButton = ctx.main.querySelector<HTMLButtonElement>("#key-filter")!;
   const filterSummary = ctx.main.querySelector<HTMLElement>("#filter-summary")!;
   const favButton = ctx.main.querySelector<HTMLButtonElement>("#fav-filter");
@@ -111,10 +113,21 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
   /** Some song in the list has a number, so the number column is shown. */
   let numbered = false;
 
+  /** Key shows only when every column fits; otherwise it sorts from the filter sheet. */
+  const fitColumns = () => {
+    if (sortBar.hidden) return;
+    sortBar.classList.remove("tight");
+    sortBar.classList.toggle("tight", sortColumns.scrollWidth > sortColumns.clientWidth);
+  };
+  const resized = new ResizeObserver(fitColumns);
+  resized.observe(sortBar);
+
   const renderSort = () => {
     const button = (column: SongSort, label: string) => sortHeader(sort, column, label);
     sortBar.classList.toggle("has-numbers", numbered);
-    sortColumns.innerHTML = `${numbered ? button("number", t("No")) : ""}${button("title", t("Song"))}${button("key", t("Key"))}`;
+    sortColumns.innerHTML = `${numbered ? button("number", t("No")) : ""}${button("title", t("Song"))}`;
+    sortKeyColumn.innerHTML = button("key", t("Key"));
+    fitColumns();
     if (favButton) {
       favButton.classList.toggle("on", onlyFavorites);
       favButton.setAttribute("aria-pressed", String(onlyFavorites));
@@ -380,7 +393,11 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     keepFocus(sortBar, renderSort);
     void load(false);
   };
-  filterButton.addEventListener("click", () => void ctx.run(() => openKeyFilter(ctx, filter, setFilter, { get: () => sort, set: setSort }), { exclusive: false }));
+  filterButton.addEventListener("click", () => void ctx.run(() => openKeyFilter(ctx, filter, setFilter, {
+    get: () => sort,
+    set: setSort,
+    hidden: () => sortBar.classList.contains("tight"),
+  }), { exclusive: false }));
   filterSummary.addEventListener("click", (event) => {
     if (!(event.target as HTMLElement).closest("#clear-filter")) return;
     setFilter({ roots: [], mode: "all" });
@@ -426,6 +443,7 @@ export async function songList(ctx: LibraryContext): Promise<Cleanup> {
     window.clearTimeout(timer);
     online?.abort?.abort();
     observer.disconnect();
+    resized.disconnect();
     unsubscribe();
     unsubscribeFavorites();
   };
@@ -501,13 +519,13 @@ function readKeyFilter(): KeyFilter {
 /**
  * Sheet: pick keys (several at once) and major, minor or both. The list
  * behind it follows each tap. Keys no song is in are shown but disabled.
- * Phones have no room for the Key column, so it sorts here (styles.css).
+ * When the list has no room for the Key column, it sorts here instead.
  */
 async function openKeyFilter(
   ctx: LibraryContext,
   start: KeyFilter,
   apply: (filter: KeyFilter) => void,
-  sorting: { get: () => SongListSort; set: (column: SongSort) => void },
+  sorting: { get: () => SongListSort; set: (column: SongSort) => void; hidden: () => boolean },
 ): Promise<void> {
   let counts: SongKeyCount[] = [];
   try {
@@ -523,7 +541,7 @@ async function openKeyFilter(
   const modes: [KeyFilter["mode"], string][] = [["all", t("All")], ["major", t("Major")], ["minor", t("Minor")]];
 
   const sheet = openSheet(`<h2>${t("Filter by key")}</h2>
-    <div class="list-sort sheet-sort" role="group" aria-labelledby="sheet-sort-label"><span id="sheet-sort-label">${t("Sort songs")}</span><span class="sheet-sort-columns"></span></div>
+    <div class="list-sort sheet-sort"${sorting.hidden() ? "" : " hidden"} role="group" aria-labelledby="sheet-sort-label"><span id="sheet-sort-label">${t("Sort songs")}</span><span class="sheet-sort-columns"></span></div>
     <div class="segmented key-modes" role="group" aria-label="${t("Major or minor")}">
       ${modes.map(([mode, label]) => `<button type="button" data-mode="${mode}">${label}</button>`).join("")}
     </div>

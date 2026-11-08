@@ -308,9 +308,13 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 }
 .list-sort button.on { color: var(--psa-accent-text); }
 .list-sort .sort-number { min-width: var(--num-w); justify-content: flex-end; }
-/* Key sorts at the right edge, over the rows' keys; Filter after it. */
-.sort-columns { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; }
-.list-sort .sort-key { margin-left: auto; }
+/* No and Song at the left; Key over the rows' keys, then ★ and Filter.
+   Key goes when the columns do not all fit (.tight, songs.ts). */
+.sort-columns { display: flex; flex: 1; align-items: center; gap: var(--psa-space-3); min-width: 0; overflow: hidden; }
+.sort-key-column { display: flex; order: 1; }
+.list-sort #fav-filter { order: 2; }
+.list-sort #key-filter { order: 3; }
+.list-sort.tight .sort-key-column { display: none; }
 .list-sort .filter-toggle { gap: 6px; padding-left: var(--psa-space-3); border-left: 1px solid var(--psa-border); border-radius: 0; }
 .list-sort .filter-toggle .icon { width: 14px; height: 14px; }
 .list-sort .filter-toggle.on { color: var(--psa-accent-text); }
@@ -338,18 +342,19 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .sheet-sort #sheet-sort-label { color: var(--psa-text-tertiary); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .sheet-sort #sheet-sort-label::after { content: ":"; }
 .sheet-sort-columns { display: flex; gap: var(--psa-space-3); }
-@media (min-width: 900px) { .list-sort.sheet-sort { display: none; } }
+.list-sort.sheet-sort[hidden] { display: none; }
 #song-results { --num-w: 36px; }
 /* Phones: the song list runs edge to edge, its header with it. */
 @media (max-width: 899px) {
   #song-results { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); border-left: 0; border-right: 0; border-radius: 0; }
   .list-sort { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); padding-right: var(--psa-space-3); }
-  /* No room to line Key up with the rows' keys: it goes, Filter moves
-     left, and ★ sits right over the rows' stars (36px buttons). */
-  #song-sort .sort-key { display: none; }
-  .list-sort .filter-toggle { order: 1; }
-  .list-sort #fav-filter { order: 2; justify-content: center; min-width: calc(36px + var(--psa-space-3)); }
+  /* Filter moves left of Key, so Key and ★ sit right over the rows' keys
+     and stars (36px buttons). */
+  .list-sort #key-filter { order: 0; }
+  .list-sort #fav-filter { justify-content: center; width: 36px; padding: 0; border-left: 0; }
   .list-sort #fav-filter .icon { width: 18px; height: 18px; }
+  /* Rows without a ★ end in a › instead, as wide as the star button. */
+  #song-sort.no-stars { padding-right: calc(var(--psa-space-3) + 36px); }
 }
 /* One line per song: as tall as a comfortable tap, no taller. */
 #song-results .list-row, #song-results .row-link { min-height: var(--psa-touch-target); padding-top: 6px; padding-bottom: 6px; }
