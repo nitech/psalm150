@@ -337,7 +337,13 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 /* Phones: the song list runs edge to edge, its header with it. */
 @media (max-width: 899px) {
   #song-results { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); border-left: 0; border-right: 0; border-radius: 0; }
-  .list-sort { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); }
+  .list-sort { margin-left: calc(-1 * var(--page-pad)); margin-right: calc(-1 * var(--page-pad)); padding-right: var(--psa-space-3); }
+  /* No room to line Key up with the rows' keys: it goes, Filter moves
+     left, and ★ sits right over the rows' stars (36px buttons). */
+  .list-sort .sort-key { display: none; }
+  .list-sort .filter-toggle { order: 1; }
+  .list-sort #fav-filter { order: 2; justify-content: center; min-width: calc(36px + var(--psa-space-3)); }
+  .list-sort #fav-filter .icon { width: 18px; height: 18px; }
 }
 /* One line per song: as tall as a comfortable tap, no taller. */
 #song-results .list-row, #song-results .row-link { min-height: var(--psa-touch-target); padding-top: 6px; padding-bottom: 6px; }
