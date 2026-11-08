@@ -935,5 +935,8 @@
   "Discard this new song?": "Vill du slänga den här nya sången?",
   "Key {key}: the chords moved with it.": "Tonart {key}: ackorden flyttades med.",
   "Key {key}.": "Tonart {key}.",
-  "The chords move with the key.": "Ackorden flyttas med tonarten."
+  "The chords move with the key.": "Ackorden flyttas med tonarten.",
+  "Search the set and all songs": "Sök i setlistan och alla sånger",
+  "In this set": "I setlistan",
+  "All songs": "Alla sånger"
 }

@@ -935,5 +935,8 @@
   "Discard this new song?": "Hylätäänkö tämä uusi laulu?",
   "Key {key}: the chords moved with it.": "Sävellaji {key}: soinnut siirtyivät mukana.",
   "Key {key}.": "Sävellaji {key}.",
-  "The chords move with the key.": "Soinnut siirtyvät sävellajin mukana."
+  "The chords move with the key.": "Soinnut siirtyvät sävellajin mukana.",
+  "Search the set and all songs": "Hae setistä ja kaikista lauluista",
+  "In this set": "Tässä setissä",
+  "All songs": "Kaikki laulut"
 }

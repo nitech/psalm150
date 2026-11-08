@@ -958,5 +958,8 @@
   "Discard this new song?": "Descartar esta canção nova?",
   "Key {key}: the chords moved with it.": "Tom {key}: os acordes acompanharam-no.",
   "Key {key}.": "Tom {key}.",
-  "The chords move with the key.": "Os acordes acompanham o tom."
+  "The chords move with the key.": "Os acordes acompanham o tom.",
+  "Search the set and all songs": "Pesquisar na lista e em todas as canções",
+  "In this set": "Nesta lista",
+  "All songs": "Todas as canções"
 }

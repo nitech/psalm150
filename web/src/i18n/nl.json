@@ -935,5 +935,8 @@
   "Discard this new song?": "Dit nieuwe lied weggooien?",
   "Key {key}: the chords moved with it.": "Toonsoort {key}: de akkoorden zijn meeverplaatst.",
   "Key {key}.": "Toonsoort {key}.",
-  "The chords move with the key.": "De akkoorden gaan mee met de toonsoort."
+  "The chords move with the key.": "De akkoorden gaan mee met de toonsoort.",
+  "Search the set and all songs": "Zoek in de setlist en alle liederen",
+  "In this set": "In deze setlist",
+  "All songs": "Alle liederen"
 }

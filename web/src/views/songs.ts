@@ -682,13 +682,75 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   const stepped = steppingTo === songId;
   steppingTo = null;
   const song = await readSong(ctx, songId, !stepped);
-  const options = readReaderOptions();
-  let transpose = 0;
   // Opened from a list: its other songs are a swipe (or a step) away.
   const around = songNeighbours(song.id);
   for (const neighbour of [around?.next, around?.previous]) {
     if (neighbour) void readSong(ctx, neighbour.id).catch(() => undefined);
   }
+  setTitle(song.title, t("Songs"));
+  return songPage(ctx, song, {
+    back: around?.back ?? "#/songs",
+    previous: around?.previous,
+    next: around?.next,
+    backAtStart: Boolean(around),
+    // To the list's next (1) or previous (-1) song; back from the first one tapped, to the list.
+    go: (way) => {
+      if (!around) return;
+      const target = way === 1 ? around.next : around.previous;
+      if (target) {
+        stepSequence(way);
+        steppingTo = target.id;
+        ctx.navigate(`#/songs/${target.id}`, true);
+      } else if (way === -1) {
+        endSequence();
+        // The list is the screen before this one: Back, so it keeps its place.
+        appGoesBack();
+      }
+    },
+    peek: (way, options) => {
+      const target = way === 1 ? around?.next : around?.previous;
+      // Back to the list: the song slides off and the list comes back (Back's own slide).
+      if (!target) return null;
+      return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options, ctx.canEdit);
+    },
+  }).cleanup;
+}
+
+/**
+ * Where a song page sits: the song book's list (`songDetail`) or a set
+ * (`setPlay` in sets.ts). Both show the same page; only this differs.
+ */
+export interface SongPlace {
+  back: string;
+  /** Above the title, as "8.11 · 4 of 19". */
+  eyebrow?: string;
+  /** A set item's note, under the song's number, authors and key. */
+  note?: string;
+  /** Semitones to start from (a set item's). */
+  transpose?: number;
+  previous?: { title: string } | null;
+  next?: { title: string } | null;
+  /** At the first song, Previous is Back to the list. */
+  backAtStart?: boolean;
+  /** Previous and Next as a bar along the bottom (a set), else under the song. */
+  bottomNav?: boolean;
+  /** The class of the page around the song. */
+  className?: string;
+  /** To the next (1) or previous (-1) song. */
+  go(way: 1 | -1): void;
+  /** The neighbour peeking in during a swipe; null slides back to the list. */
+  peek(way: 1 | -1, options: ReturnType<typeof readReaderOptions>): string | null;
+  /** Buttons before the song's own in the bar (a set's Project this). */
+  barStart?(): string;
+}
+
+/**
+ * A song's page, as in the song book, wherever it is opened. `redrawBarStart`
+ * draws `place.barStart` again without touching the song.
+ */
+export function songPage(ctx: LibraryContext, song: SongDetail, place: SongPlace): { cleanup: Cleanup; redrawBarStart: () => void } {
+  const options = readReaderOptions();
+  let transpose = place.transpose ?? 0;
 
   /**
    * The song's toolbar, as on the desktop (song-actions.ts): chords, the
@@ -714,7 +776,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     // often used ones come in beside them.
     return barActions("song", bar, matchMedia("(max-width: 899px)").matches ? 0 : 2);
   };
-  const actions = (display: DisplaySong) => `<span class="bar-song-actions" id="song-bar">${songBar(display)}</span>`;
+  const actions = (display: DisplaySong) => `${place.barStart ? `<span class="bar-song-start" id="song-bar-start">${place.barStart()}</span>` : ""}<span class="bar-song-actions" id="song-bar">${songBar(display)}</span>`;
 
   /**
    * Recordings and the YouTube video, as pills under the title, read once;
@@ -771,13 +833,15 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     const display = prepareSong(song.chordpro, transpose);
     const meta = [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(display, transpose)]
       .filter(Boolean).map(escapeHtml).join(" · ");
-    ctx.main.innerHTML = `<div class="swipe-view">${pageHead({
+    ctx.main.innerHTML = `<div class="swipe-view${place.className ? ` ${place.className}` : ""}">${pageHead({
       title: song.title,
-      back: around?.back ?? "#/songs",
+      subtitle: place.eyebrow,
+      back: place.back,
       autohide: true,
       actions: actions(display),
     })}
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
+    ${place.note ? `<p class="set-note">${escapeHtml(place.note)}</p>` : ""}
     <div id="song-draft-slot"></div>
     <div id="song-media-slot"></div>
     ${renderSongBody(display, options)}
@@ -789,42 +853,27 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   };
 
   /** Previous and Next under the song, for a mouse; phones swipe instead. */
+  const hasPrevious = Boolean(place.previous || place.backAtStart);
   const songNav = () => {
-    if (!around) return "";
+    if (!hasPrevious && !place.next) return "";
     const step = (way: "prev" | "next", label: string, title: string) => `<button type="button" class="play-step${way === "next" ? " next" : ""}" data-song-step="${way}" aria-label="${escapeHtml(`${label}: ${title}`)}">
       ${way === "prev" ? icon("back") : ""}<span><small>${label}</small><strong>${escapeHtml(title)}</strong></span>${way === "next" ? icon("next") : ""}
     </button>`;
-    return `<nav class="song-nav" aria-label="${t("Songs in the list")}">
-      ${around.previous ? step("prev", t("Previous"), around.previous.title) : step("prev", t("Back"), t("To the list"))}
-      ${around.next ? step("next", t("Next"), around.next.title) : "<span></span>"}
+    return `<nav class="${place.bottomNav ? "play-nav" : "song-nav"}" aria-label="${place.bottomNav ? t("Set navigation") : t("Songs in the list")}">
+      ${place.previous ? step("prev", t("Previous"), place.previous.title) : place.backAtStart ? step("prev", t("Back"), t("To the list")) : "<span></span>"}
+      ${place.next ? step("next", t("Next"), place.next.title) : "<span></span>"}
     </nav>`;
   };
 
-  /** To the list's next (1) or previous (-1) song; back from the first one tapped, to the list. */
   const goTo = (way: 1 | -1) => {
-    if (!around) return;
-    const target = way === 1 ? around.next : around.previous;
-    if (target) {
-      stepSequence(way);
-      steppingTo = target.id;
-      ctx.navigate(`#/songs/${target.id}`, true);
-    } else if (way === -1) {
-      endSequence();
-      // The list is the screen before this one: Back, so it keeps its place.
-      appGoesBack();
-    }
+    if (way === 1 ? place.next : hasPrevious) place.go(way);
   };
-  const unbindSwipe = around
-    ? bindItemSwipe(ctx.main, { previous: true, next: Boolean(around.next) }, goTo, (way) => {
-      const target = way === 1 ? around.next : around.previous;
-      // Back to the list: the song slides off and the list comes back (Back's own slide).
-      if (!target) return null;
-      return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options, ctx.canEdit);
-    })
+  const unbindSwipe = hasPrevious || place.next
+    ? bindItemSwipe(ctx.main, { previous: hasPrevious, next: Boolean(place.next) }, goTo, (way) => place.peek(way, options))
     : () => undefined;
   const onKeys = (event: KeyboardEvent) => {
-    if (!around || (event.target as HTMLElement).closest("input, textarea, [contenteditable]") || event.altKey || event.metaKey || event.ctrlKey) return;
-    if (event.key === "ArrowRight" && around.next) goTo(1);
+    if ((event.target as HTMLElement).closest("input, textarea, [contenteditable]") || event.altKey || event.metaKey || event.ctrlKey) return;
+    if (event.key === "ArrowRight") goTo(1);
     if (event.key === "ArrowLeft") goTo(-1);
   };
   document.addEventListener("keydown", onKeys);
@@ -884,10 +933,13 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
   };
   const unsubscribe = ctx.currentSet.subscribe(redrawSetToggle);
   const unsubscribeFavorites = ctx.favorites.subscribe(redrawSetToggle);
-  setTitle(song.title, t("Songs"));
   render();
   const releaseScreen = holdScreen();
-  return () => {
+  const redrawBarStart = () => {
+    const holder = ctx.main.querySelector<HTMLElement>("#song-bar-start");
+    if (holder && place.barStart) keepFocus(holder, () => { holder.innerHTML = place.barStart!(); });
+  };
+  const cleanup = () => {
     closeChordDock();
     releaseScreen();
     media.cleanup();
@@ -898,6 +950,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     unsubscribe();
     unsubscribeFavorites();
   };
+  return { cleanup, redrawBarStart };
 }
 
 async function copyLyrics(title: string, text: string): Promise<void> {

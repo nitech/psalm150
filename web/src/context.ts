@@ -82,6 +82,8 @@ export function pageHead(options: {
   menu?: boolean;
   /** The screen shows its own title (the song editor): the heading stays for screen readers only. */
   quietTitle?: boolean;
+  /** No title in the bar (a set: its name is on the page, and the bar has no room). */
+  noBarTitle?: boolean;
 }): string {
   const eyebrow = options.subtitle
     ? `<p class="eyebrow">${escapeHtml(options.subtitle)}</p>`
@@ -102,7 +104,7 @@ export function pageHead(options: {
   return `<header class="app-bar${options.autohide ? " autohide" : ""}${options.compact ? " compact" : ""}${options.compact && options.back ? " sub" : ""}${menuOnly ? " menu-only" : ""}">
       <div class="app-bar-row">
         ${back}
-        <p class="bar-title" aria-hidden="true">${escapeHtml(options.title)}</p>
+        <p class="bar-title" aria-hidden="true">${options.noBarTitle ? "" : escapeHtml(options.title)}</p>
         <div class="page-actions">${options.actions ?? ""}</div>
       </div>
       ${options.panel ?? ""}

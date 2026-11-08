@@ -30,6 +30,7 @@ import { holdScreen } from "../wake-lock.ts";
 import { bindSwipeDelete, swipeRow } from "../swipe-delete.ts";
 import { transposeChord } from "../../../shared/songs/chordpro.ts";
 import { barActions, bindBarActions } from "../bar-menu.ts";
+import { songPage } from "./songs.ts";
 import { locale, t, tn } from "../../../shared/songs/i18n.ts";
 
 function setRow(set: SetSummary, currentId?: string): string {
@@ -87,9 +88,10 @@ export async function setList(ctx: AppContext): Promise<void> {
 export function itemPeek(setName: string, items: SetItem[], index: number, song: SongDetail | null | undefined, options: ReaderOptions): string {
   const item = items[index];
   const display = song ? prepareSong(song.chordpro, item.transpose) : null;
-  const key = display ? keyLabel(display, item.transpose) : "";
+  // As the song page shows it (songPage): number, authors and key.
+  const meta = display && song ? [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(display, item.transpose)].filter(Boolean).map(escapeHtml).join(" · ") : "";
   return `<div class="page-titles"><p class="eyebrow">${escapeHtml(`${setName} · ${t("{position} of {total}", { position: index + 1, total: items.length })}`)}</p><h1>${escapeHtml(itemTitle(item))}</h1></div>
-    ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
+    ${meta ? `<p class="page-meta">${meta}</p>` : ""}
     ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
     ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">${t("Blank screen")}</div>` : ""}`;
 }
@@ -135,7 +137,8 @@ async function setDetail(ctx: AppContext, [setId]: string[]): Promise<Cleanup> {
   ${set.items.length
     ? `<ol class="list numbered flat-list set-songs${numbered ? " has-numbers" : ""}" aria-label="${t("Songs: tap one to go through the set from there")}">${set.items.map((item, index) => {
         const extra = [item.transpose ? t("Transpose {steps}", { steps: transposeLabel(item.transpose) }) : "", escapeHtml(item.note)].filter(Boolean).join(" · ");
-        return `<li><a class="list-row" href="#/sets/${set.id}/play/${index}">
+        const shown = lastShown.get(set.id) === item.id;
+        return `<li${shown ? ' class="last-shown" aria-current="true"' : ""}><a class="list-row" href="#/sets/${set.id}/play/${index}">
           <span class="row-lead">${escapeHtml(item.song?.song_number ?? "")}</span>
           <span class="row-main"><strong class="${item.kind === "song" && !item.song ? "missing" : ""}">${escapeHtml(itemTitle(item))}</strong>${extra ? `<small>${extra}</small>` : ""}</span>
           ${keyCell(item.song?.song_key, item.transpose)}${icon("next")}
@@ -367,8 +370,11 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   ctx.main.innerHTML = `${pageHead({
     title: existing ? existing.name : t("New set"),
     back: "#/sets",
-    // On phones the title sits in the bar beside Back.
+    // The name and date are on the page, written in place; the bar has no
+    // room for the name, and the heading is for screen readers only.
     compact: true,
+    quietTitle: true,
+    noBarTitle: true,
     // One button group, as on a song: the current set, Add songs, the
     // projector (live.ts) and ⋮, which ends the bar; "Saved" before it.
     actions: `<span class="save-status" id="save-status" role="status"></span>
@@ -379,10 +385,15 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
       </div>`,
   })}
   <form class="set-form" id="set-form">
-    <div class="set-form-row">
-      <label>${t("Name")}<input name="name" maxlength="200" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(defaultSetName(draft.service_date))}" /></label>
-      <label>${t("Service date")}<input name="date" type="date" value="${draft.service_date ?? ""}" /></label>
+    <div class="set-heading">
+      <label class="set-date">
+        <span class="eyebrow" id="set-date-text" aria-hidden="true">${escapeHtml(serviceDate(draft.service_date, true))}</span>
+        <input name="date" type="date" value="${draft.service_date ?? ""}" aria-label="${t("Service date")}" />
+      </label>
+      <input class="set-name" name="name" maxlength="200" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(defaultSetName(draft.service_date))}" aria-label="${t("Name")}" autocomplete="off" enterkeyhint="done" />
     </div>
+    <div class="search-field">${icon("search")}<input type="search" id="set-search" placeholder="${t("Search the set and all songs")}" aria-label="${t("Search the set and all songs")}" autocomplete="off" enterkeyhint="search" />${searchClear}</div>
+    <div id="set-search-results" hidden></div>
     <ol class="list editable flat-list set-songs" id="draft-items" aria-label="${t("Songs")}" data-song-list></ol>
     <p class="form-message" role="status"></p>
   </form>`;
@@ -410,7 +421,9 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
           ? `<a class="edit-row-title" href="${href}" data-title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>`
           : escapeHtml(item.title);
         // Phones swipe a row left to delete it; a mouse has the × button.
-        return `<li class="edit-row" data-index="${index}" data-key="${item.id}" data-swipe-row>${swipeRow(`<div class="edit-row-main">
+        // The song last shown from the set is marked: how far the leader has come.
+        const shown = Boolean(saved && lastShown.get(saved.id) === item.id);
+        return `<li class="edit-row${shown ? " last-shown" : ""}" data-index="${index}" data-key="${item.id}"${shown ? ' aria-current="true"' : ""} data-swipe-row>${swipeRow(`<div class="edit-row-main">
           <button type="button" class="grip" data-grip aria-label="${t("Move {item}: drag, or use the up and down arrow keys", { item: name })}" title="${t("Drag to reorder")}">${icon("grip")}</button>
           <span class="row-lead">${escapeHtml(item.number ?? "")}</span>
           <span class="row-main"><strong>${title}</strong>${item.subtitle ? `<small>${escapeHtml(item.subtitle)}</small>` : ""}</span>
@@ -433,6 +446,8 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   let focusIndex = 0;
   let focusKey = "";
   renderItems();
+  // Back from a song: the marked row in view.
+  list.querySelector(".last-shown")?.scrollIntoView({ block: "center" });
 
   const moveItem = (from: number, to: number) => {
     const [item] = draft.items.splice(from, 1);
@@ -476,7 +491,7 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   // Drag a row by its grip to reorder, with a mouse or a finger (`bindReorder`).
   bindReorder(list, moveItem);
   const inDraft = (songId: string) => draft.items.filter((item) => item.song_id === songId).length;
-  ctx.main.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker((search) => ctx.api.listSongs(search), inDraft, (song) => {
+  const addSong = (song: { id: string; title: string; song_number: string | null; song_key: string | null }) => {
     draft.items.push({
       id: crypto.randomUUID(),
       kind: "song",
@@ -490,7 +505,8 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
     });
     renderItems();
     save();
-  }));
+  };
+  ctx.main.querySelector("#add-songs")?.addEventListener("click", () => openSongPicker((search) => ctx.api.listSongs(search), inDraft, addSong));
 
   // ── Saving as you go ──
   let timer = 0;
@@ -582,21 +598,103 @@ export async function setEditor(ctx: AppContext, [setId]: string[]): Promise<Cle
   nameInput.addEventListener("input", () => {
     // The page's title is the set's name.
     const name = nameInput.value.trim() || defaultSetName(dateInput.value || null);
-    ctx.main.querySelectorAll(".bar-title, .page-titles h1").forEach((title) => { title.textContent = name; });
+    ctx.main.querySelector(".page-titles h1")!.textContent = name;
     setTitle(name, t("Sets"));
     save(800);
   });
   nameInput.addEventListener("change", () => save());
   dateInput.addEventListener("change", () => {
     nameInput.placeholder = defaultSetName(dateInput.value || null);
+    ctx.main.querySelector("#set-date-text")!.textContent = serviceDate(dateInput.value || null, true);
     save();
   });
-  // Enter in the name saves (no form to send).
+  // The date reads as text; a click on it opens the date picker (a touch
+  // lands on the input itself).
+  dateInput.addEventListener("click", () => {
+    try {
+      dateInput.showPicker?.();
+    } catch {
+      // Not allowed here: the field takes the click as it is.
+    }
+  });
+  // Enter in the name saves (no form to send); in the search it closes the keyboard.
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (document.activeElement === searchInput) {
+      searchInput.blur();
+      return;
+    }
     save();
     nameInput.blur();
   });
+
+  // ── Searching: the set's own songs, then every song in the song book ──
+  const searchInput = form.querySelector<HTMLInputElement>("#set-search")!;
+  const searchResults = form.querySelector<HTMLElement>("#set-search-results")!;
+  let searchTimer = 0;
+  let searchRequest = 0;
+  /** A song as a row of the song list links it. */
+  const songRow = (song: { title: string; song_number: string | null; song_key: string | null }, href: string) => `<a class="row-link" href="${href}">
+    <span class="row-lead">${escapeHtml(song.song_number ?? "")}</span>
+    <span class="row-main"><strong>${escapeHtml(song.title)}</strong></span>
+    ${song.song_key ? `<span class="row-key" aria-label="${t("Key {key}", { key: escapeHtml(song.song_key) })}">${escapeHtml(song.song_key)}</span>` : ""}
+  </a>`;
+  const search = async () => {
+    const query = searchInput.value.trim();
+    if (saved) setSearches.set(saved.id, query);
+    const mine = ++searchRequest;
+    list.hidden = Boolean(query);
+    searchResults.hidden = !query;
+    if (!query) {
+      searchResults.innerHTML = "";
+      return;
+    }
+    const folded = query.toLocaleLowerCase();
+    const inSet = draft.items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.kind === "song" && (item.title.toLocaleLowerCase().includes(folded) || (item.number ?? "").startsWith(query)));
+    const setRows = inSet.map(({ item, index }) => `<li class="list-row song-row">${songRow(
+      { title: item.title, song_number: item.number ?? null, song_key: itemKey(item.songKey, item.transpose ?? 0) || null },
+      saved ? `#/sets/${saved.id}/play/${index}` : `#/songs/${item.song_id}`,
+    )}</li>`).join("");
+    const draw = (all: string) => {
+      searchResults.innerHTML = `<h2 class="list-heading" id="search-in-set">${t("In this set")}</h2>
+        ${setRows ? `<ul class="list flat-list set-songs${inSet.some(({ item }) => item.number) ? " has-numbers" : ""}" aria-labelledby="search-in-set">${setRows}</ul>` : `<p class="muted">${t("No songs found.")}</p>`}
+        <h2 class="list-heading" id="search-all">${t("All songs")}</h2>${all}`;
+    };
+    draw(`<p class="muted" aria-busy="true">…</p>`);
+    try {
+      const songs = (await ctx.api.listSongs(query)).slice(0, 50);
+      if (mine !== searchRequest) return;
+      // Tap a song to open it; + adds it to this set.
+      draw(songs.length
+        ? `<ul class="list flat-list set-songs${songs.some((song) => song.song_number) ? " has-numbers" : ""}" aria-labelledby="search-all">${songs.map((song) => `<li class="list-row song-row">${songRow(song, `#/songs/${song.id}`)}
+            <button type="button" class="icon-button small ghost" data-add-song="${song.id}" aria-label="${t("Add {title}", { title: escapeHtml(song.title) })}" title="${t("Add {title}", { title: escapeHtml(song.title) })}">${icon("plus")}</button></li>`).join("")}</ul>`
+        : `<p class="muted">${t("No songs found.")}</p>`);
+      searchSongs = songs;
+    } catch (error) {
+      if (mine === searchRequest) draw(`<p class="form-message">${escapeHtml(errorMessage(error))}</p>`);
+    }
+  };
+  let searchSongs: SongSummary[] = [];
+  searchInput.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => void search(), 250);
+  });
+  searchResults.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-add-song]");
+    const song = searchSongs.find((candidate) => candidate.id === button?.dataset.addSong);
+    if (!song) return;
+    addSong(song);
+    showToast(t("Added {title}.", { title: song.title }));
+    void search();
+  });
+  // Back from a song opened from the search: the same search again.
+  const lastSearch = saved ? setSearches.get(saved.id) : "";
+  if (lastSearch) {
+    searchInput.value = lastSearch;
+    void search();
+  }
 
   // The bar's current set switch, Share and ⋮ (Delete), once the set exists.
   let unbindCurrent: Cleanup | undefined;
@@ -726,7 +824,8 @@ function bindReorder(list: HTMLElement, onMove: (from: number, to: number) => vo
       ghost = row.cloneNode(true) as HTMLElement;
       ghost.removeAttribute("data-index");
       ghost.removeAttribute("data-key");
-      ghost.classList.add("drag-ghost");
+      // Out of the list, it keeps the list's columns (the numbers).
+      ghost.classList.add("drag-ghost", ...Array.from(list.classList).filter((name) => name === "set-songs" || name === "has-numbers"));
       ghost.setAttribute("aria-hidden", "true");
       ghost.querySelectorAll("button").forEach((button) => { button.tabIndex = -1; });
       Object.assign(ghost.style, { left: `${start.left}px`, top: `${start.top}px`, width: `${start.width}px`, height: `${start.height}px` });
@@ -906,7 +1005,6 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   const set: SetDetail = await ctx.api.getSet(setId);
   const index = Math.max(0, Math.min(set.items.length - 1, Number(indexParam) || 0));
   const item = set.items[index];
-  // Chords as last set on a song page; no panel here.
   const options = readReaderOptions();
   const go = (next: number) => ctx.navigate(`#/sets/${set.id}/play/${next}`, true);
 
@@ -914,6 +1012,8 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     ctx.main.innerHTML = `${pageHead({ title: set.name, back: `#/sets/${set.id}` })}${emptyState(t("This set is empty"), t("Add songs to the set first."))}`;
     return () => undefined;
   }
+  // Back in the set's list, this row is marked: how far the leader has come.
+  lastShown.set(set.id, item.id);
 
   const song = item.kind === "song" && item.song_id ? await loadSong(ctx, songCache, item.song_id) : null;
   setTitle(t("{title} ({position} of {total})", { title: itemTitle(item), position: index + 1, total: set.items.length }), set.name, t("Sets"));
@@ -921,44 +1021,82 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
   announce(t("{title}, {position} of {total}", { title: itemTitle(item), position: index + 1, total: set.items.length }));
   let desktops: RemoteDesktop[] = [];
   let renderedTarget = "";
+  const prev = set.items[index - 1];
+  const next = set.items[index + 1];
+  const eyebrow = `${set.name} · ${t("{position} of {total}", { position: index + 1, total: set.items.length })}`;
 
-  const render = () => {
-    const prev = set.items[index - 1];
-    const next = set.items[index + 1];
-    const transpose = item.transpose;
-    const display = song ? prepareSong(song.chordpro, transpose) : null;
+  /** Projecting sits in the bar beside Live (live.ts), not as a button under the title. */
+  const projectButton = () => {
     const target = pickDesktop(desktops);
     renderedTarget = target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "";
-    const key = display ? keyLabel(display, transpose) : "";
-    const active = document.activeElement;
+    if (!target || !ctx.canEdit || ctx.live.controlled) return "";
+    const label = t("Project this on {desktop}", { desktop: escapeHtml(target.room_name) });
+    return `<button class="icon-button ghost" id="project-here" aria-label="${label}" title="${label}">${icon("project")}</button>`;
+  };
+  const peek = (step: 1 | -1) => {
+    const neighbour = set.items[index + step];
+    return itemPeek(set.name, set.items, index + step, neighbour?.song_id ? songCache.get(neighbour.song_id) : null, options);
+  };
+
+  // A song shows as in the song book, with the set around it; a blank or a
+  // deleted song has a page of its own.
+  const page = song
+    ? songPage(ctx, song, {
+      back: `#/sets/${set.id}`,
+      eyebrow,
+      note: item.note,
+      transpose: item.transpose,
+      previous: prev && { title: itemTitle(prev) },
+      next: next && { title: itemTitle(next) },
+      bottomNav: true,
+      className: "play",
+      go: (step) => go(index + step),
+      peek: (step) => peek(step),
+      barStart: projectButton,
+    })
+    : itemPage();
+
+  function itemPage(): { cleanup: Cleanup; redrawBarStart: () => void } {
     ctx.main.innerHTML = `<div class="play swipe-view">
-      ${pageHead({
-        title: itemTitle(item),
-        subtitle: `${set.name} · ${t("{position} of {total}", { position: index + 1, total: set.items.length })}`,
-        back: `#/sets/${set.id}`,
-        autohide: true,
-        // Projecting sits in the bar beside Live (live.ts), not as a button under the title.
-        actions: ctx.canEdit
-          ? `${target && !ctx.live.controlled ? `<button class="icon-button ghost" id="project-here" aria-label="${t("Project this on {desktop}", { desktop: escapeHtml(target.room_name) })}" title="${t("Project this on {desktop}", { desktop: escapeHtml(target.room_name) })}">${icon("project")}</button>` : ""}`
-          : "",
-      })}
-      ${key ? `<p class="page-meta">${escapeHtml(key)}</p>` : ""}
+      ${pageHead({ title: itemTitle(item), subtitle: eyebrow, back: `#/sets/${set.id}`, autohide: true, actions: `<span id="song-bar-start">${projectButton()}</span>` })}
       ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}
-      ${display ? renderSongBody(display, options) : item.kind === "blank" ? `<div class="blank-slide">${t("Blank screen")}</div>` : emptyState(t("This song was deleted"), t("It is no longer in the library."))}
+      ${item.kind === "blank" ? `<div class="blank-slide">${t("Blank screen")}</div>` : emptyState(t("This song was deleted"), t("It is no longer in the library."))}
       ${playNav(prev && itemTitle(prev), next && itemTitle(next))}
     </div>`;
-
-    // A redraw (a desktop appearing, a reader setting) keeps focus where it was.
-    if (active instanceof HTMLElement && active.id && !active.isConnected) ctx.main.querySelector<HTMLElement>(`#${active.id}`)?.focus({ preventScroll: true });
     ctx.main.querySelector("#play-prev")?.addEventListener("click", () => prev && go(index - 1));
     ctx.main.querySelector("#play-next")?.addEventListener("click", () => next && go(index + 1));
-    ctx.main.querySelector("#project-here")?.addEventListener("click", () => void ctx.run(async () => {
+    const unbindSwipe = bindItemSwipe(ctx.main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step), peek);
+    const keys = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement).closest("input,textarea")) return;
+      if (event.key === "ArrowRight" && next) go(index + 1);
+      if (event.key === "ArrowLeft" && prev) go(index - 1);
+    };
+    document.addEventListener("keydown", keys);
+    // Keep the phone awake while reading from it.
+    const releaseScreen = holdScreen();
+    return {
+      cleanup: () => {
+        unbindSwipe();
+        document.removeEventListener("keydown", keys);
+        releaseScreen();
+      },
+      redrawBarStart: () => {
+        const holder = ctx.main.querySelector<HTMLElement>("#song-bar-start");
+        if (holder) keepFocus(holder, () => { holder.innerHTML = projectButton(); });
+      },
+    };
+  }
+
+  const onProject = (event: Event) => {
+    if (!(event.target as HTMLElement).closest("#project-here")) return;
+    void ctx.run(async () => {
       const desktop = pickDesktop(desktops);
       if (!desktop) throw new Error(t("No desktop accepts remote control right now."));
       await ctx.api.sendRemoteCommand(desktop.device_id, { action: "project_set_item", set_id: set.id, item_index: index });
       showToast(t("Sent to {desktop}.", { desktop: desktop.room_name }));
-    }));
+    });
   };
+  ctx.main.addEventListener("click", onProject);
 
   const poll = async () => {
     try {
@@ -966,49 +1104,35 @@ export async function setPlay(ctx: AppContext, [setId, indexParam]: string[]): P
     } catch {
       desktops = [];
     }
-    // Re-render only when the "Project this" button changes, so a poll never
-    // interrupts a tap or resets the page.
+    // Redraw only when the "Project this" button changes, so a poll never
+    // interrupts a tap.
     const target = pickDesktop(desktops);
-    if ((target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "") !== renderedTarget) render();
+    if ((target && ctx.canEdit ? `${target.device_id}:${target.room_name}` : "") !== renderedTarget) page.redrawBarStart();
   };
 
-  // Swipe sideways through the set; the item follows the finger.
-  const unbindSwipe = bindItemSwipe(ctx.main, { previous: index > 0, next: index + 1 < set.items.length }, (step) => go(index + step), (step) => {
-    const neighbour = set.items[index + step];
-    return itemPeek(set.name, set.items, index + step, neighbour?.song_id ? songCache.get(neighbour.song_id) : null, options);
-  });
   // The neighbours' songs, read now so a swipe to them opens at once.
-  for (const neighbour of [set.items[index + 1], set.items[index - 1]]) {
+  for (const neighbour of [next, prev]) {
     if (neighbour?.song_id) void loadSong(ctx, songCache, neighbour.song_id).catch(() => undefined);
   }
-  const keys = (event: KeyboardEvent) => {
-    if ((event.target as HTMLElement).closest("input,textarea")) return;
-    if (event.key === "ArrowRight" && index + 1 < set.items.length) go(index + 1);
-    if (event.key === "ArrowLeft" && index > 0) go(index - 1);
-  };
-  document.addEventListener("keydown", keys);
 
-  // Keep the phone awake while reading from it.
-  const releaseScreen = holdScreen();
-
-  render();
   ctx.live.showItem(set, index);
   // Controlling turned on or off in the Live sheet: "Project this" goes or comes back.
-  const unsubscribeLive = ctx.live.subscribe(() => {
-    const projectShown = Boolean(ctx.main.querySelector("#project-here"));
-    if (projectShown === Boolean(ctx.live.controlled) && pickDesktop(desktops)) render();
-  });
+  const unsubscribeLive = ctx.live.subscribe(() => page.redrawBarStart());
   const poller = startPolling(poll, () => 15000);
 
   return () => {
     poller.stop();
     unsubscribeLive();
     ctx.live.leaveSet(set);
-    unbindSwipe();
-    document.removeEventListener("keydown", keys);
-    releaseScreen();
+    ctx.main.removeEventListener("click", onProject);
+    page.cleanup();
   };
 }
+
+/** The item last shown from each set (by set id), marked in the set's list. */
+const lastShown = new Map<string, string>();
+/** The search last made in each set's page (by set id), kept for coming back to it. */
+const setSearches = new Map<string, string>();
 
 
 /**

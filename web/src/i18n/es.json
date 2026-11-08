@@ -958,5 +958,8 @@
   "Discard this new song?": "¿Descartar esta canción nueva?",
   "Key {key}: the chords moved with it.": "Tonalidad {key}: los acordes se movieron con ella.",
   "Key {key}.": "Tonalidad {key}.",
-  "The chords move with the key.": "Los acordes se mueven con la tonalidad."
+  "The chords move with the key.": "Los acordes se mueven con la tonalidad.",
+  "Search the set and all songs": "Buscar en la lista y en todas las canciones",
+  "In this set": "En esta lista",
+  "All songs": "Todas las canciones"
 }

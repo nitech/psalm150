@@ -935,5 +935,8 @@
   "Discard this new song?": "Dieses neue Lied verwerfen?",
   "Key {key}: the chords moved with it.": "Tonart {key}: Die Akkorde wurden mitverschoben.",
   "Key {key}.": "Tonart {key}.",
-  "The chords move with the key.": "Die Akkorde wandern mit der Tonart."
+  "The chords move with the key.": "Die Akkorde wandern mit der Tonart.",
+  "Search the set and all songs": "Setlist und alle Lieder durchsuchen",
+  "In this set": "In dieser Setlist",
+  "All songs": "Alle Lieder"
 }

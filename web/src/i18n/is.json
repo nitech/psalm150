@@ -935,5 +935,8 @@
   "Discard this new song?": "Henda þessum nýja söng?",
   "Key {key}: the chords moved with it.": "Tóntegund {key}: hljómarnir fluttust með.",
   "Key {key}.": "Tóntegund {key}.",
-  "The chords move with the key.": "Hljómarnir flytjast með tóntegundinni."
+  "The chords move with the key.": "Hljómarnir flytjast með tóntegundinni.",
+  "Search the set and all songs": "Leita á listanum og í öllum lögum",
+  "In this set": "Á listanum",
+  "All songs": "Öll lög"
 }

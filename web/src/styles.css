@@ -391,8 +391,22 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 }
 .bar-actions .current-toggle > .icon-button.on { background: var(--psa-accent-medium); color: var(--psa-accent-text); }
 .set-form .list { margin: 0; }
-/* Name and date side by side; the date takes what it needs. */
-.set-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 10.5rem); gap: var(--psa-space-3); }
+/* A set's date and name read as its heading and are written in place: no
+   boxes. The date's own field lies unseen over its text, so a tap opens
+   the date picker. */
+.set-heading { display: grid; gap: 2px; }
+.set-date { position: relative; justify-self: start; cursor: pointer; }
+.set-date .eyebrow { display: block; margin: 0; }
+.set-date input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.set-date:focus-within .eyebrow { color: var(--psa-accent-text); }
+.set-name { width: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--psa-text); font-family: var(--psa-font-display); font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+.set-name::placeholder { color: var(--psa-text-tertiary); }
+.set-name:focus, .set-name:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--psa-accent); }
+#set-search-results .list-heading { margin-top: var(--psa-space-2); }
+#set-search-results .list { margin: 0; }
+/* The song last shown from the set: how far the leader has come. */
+.set-songs > .last-shown, .set-songs > .last-shown .swipe-content, .flat-list.set-songs > .last-shown .swipe-content { background: var(--psa-accent-soft); }
+.set-songs > .last-shown { box-shadow: inset 3px 0 0 var(--psa-accent); }
 .edit-row { padding: var(--psa-space-2) var(--psa-space-3); }
 .edit-row-main { display: flex; align-items: center; gap: var(--psa-space-2); min-height: 48px; }
 .row-tools { display: flex; gap: 4px; }
@@ -432,6 +446,10 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .list.landing > .edit-row.drag-origin::after { opacity: 0; }
 .drag-ghost { position: fixed; z-index: 80; margin: 0; list-style: none; pointer-events: none; border: 1px solid var(--psa-border-strong); border-radius: var(--psa-radius-md); background: var(--psa-bg-elevated); box-shadow: 0 12px 28px rgb(0 0 0 / 0.22), 0 4px 10px rgb(0 0 0 / 0.12); opacity: 0.96; will-change: transform; }
 .drag-ghost .grip { cursor: grabbing; color: var(--psa-accent-text); }
+/* The row's content in the middle of the card, whatever the row's padding was in the list. */
+.drag-ghost { display: flex; flex-direction: column; justify-content: center; padding: 0; overflow: hidden; }
+.drag-ghost > .swipe-content { padding-block: 0; background: none; }
+.drag-ghost .swipe-delete { display: none; }
 .drag-ghost.settling { transition: transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1.1), box-shadow 220ms; box-shadow: var(--psa-shadow-sm); }
 body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
 @media (prefers-reduced-motion: reduce) {
@@ -945,7 +963,7 @@ a, button, .list-row { -webkit-tap-highlight-color: transparent; touch-action: m
   .search-bar { background: var(--pane-bg); }
   body.scrolled .app-bar { border-bottom-color: var(--psa-border); }
   .app-bar-row { height: 64px; }
-  .page-titles h1 { font-weight: 400; letter-spacing: -0.01em; }
+  .page-titles h1, .set-name { font-weight: 400; letter-spacing: -0.01em; }
   /* The song editor sets its own widths. */
   .page:has(> .app-bar .ce-modes) { --gutter: var(--page-pad); }
   .app-bar:has(.ce-modes) { background: var(--pane-bg); }
