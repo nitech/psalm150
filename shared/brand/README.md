@@ -20,3 +20,9 @@ client's `favicon.svg` (a copy of `icon.svg`), `favicon.ico` (the desktop's
 `icon.ico`), `icon-192.png` and `icon-512.png` (from `icon.svg`),
 `apple-touch-icon.png` (180 px) and `icon-maskable-512.png` (from
 `icon-square.svg`) in `web/public/`. Render again after changing the mark.
+
+`web/scripts/share-image.html` is the picture links show (Open Graph `og:image`: Safari's
+suggestions and history, messages, shared songs and sets): the icon, the
+name and a phone with a song from the site's screenshots. It is rendered to
+`web/public/og-image.png` at 1200 × 630 by opening it in a browser at that
+size (Geist loads from Google Fonts) and taking a screenshot of the page.
