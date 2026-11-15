@@ -131,7 +131,7 @@ pub async fn restore_set(
 ) -> Result<Json<SetDetail>, AppError> {
     let auth = authenticate(&headers, &state).await?;
     let actor = auth.require_song_editor()?;
-    sqlx::query(
+    let restored = sqlx::query(
         "UPDATE song_sets
          SET deleted_at = NULL, updated_at = now(), version = version + 1,
              updated_by = $3, updated_by_device = $4
@@ -143,6 +143,9 @@ pub async fn restore_set(
     .bind(actor.device_id)
     .execute(&state.pool)
     .await?;
+    if restored.rows_affected() > 0 {
+        state.changes.set(auth.church_id, set_id, actor.device_id);
+    }
     fetch_set(&state.pool, auth.church_id, set_id)
         .await?
         .map(Json)
@@ -232,6 +235,7 @@ pub async fn create_set(
     }
     write_items(&mut transaction, set_id, &request.items).await?;
     transaction.commit().await?;
+    state.changes.set(auth.church_id, set_id, actor.device_id);
 
     let set = fetch_set(&state.pool, auth.church_id, set_id)
         .await?
@@ -299,6 +303,7 @@ pub async fn update_set(
         .await?;
     write_items(&mut transaction, set_id, &request.items).await?;
     transaction.commit().await?;
+    state.changes.set(auth.church_id, set_id, actor.device_id);
 
     fetch_set(&state.pool, auth.church_id, set_id)
         .await?
@@ -347,6 +352,7 @@ pub async fn delete_set(
     .execute(&mut *transaction)
     .await?;
     transaction.commit().await?;
+    state.changes.set(auth.church_id, set_id, actor.device_id);
     Ok(StatusCode::NO_CONTENT)
 }
 

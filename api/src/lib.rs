@@ -2,6 +2,7 @@ pub mod access;
 pub mod account_links;
 pub mod api;
 pub mod auth;
+pub mod changes;
 pub mod chordpro;
 pub mod config;
 pub mod drafts;
@@ -38,6 +39,8 @@ pub struct AppState {
     pub session_hours: i64,
     /// In-memory relay for remote control through the server.
     pub remote: Arc<remote::RemoteHub>,
+    /// In-memory record of song and set changes, which desktops wait on.
+    pub changes: Arc<changes::ChangeHub>,
     /// In-memory record of who leads which set and how many follow it.
     pub live_sets: Arc<live_sets::LiveSets>,
     /// In-memory counts of wrong passwords.
@@ -57,6 +60,7 @@ impl AppState {
             pool,
             session_hours,
             remote: Arc::default(),
+            changes: Arc::default(),
             live_sets: Arc::default(),
             throttle: Arc::default(),
             online: Arc::default(),

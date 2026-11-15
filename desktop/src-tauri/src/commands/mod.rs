@@ -6,6 +6,7 @@ pub mod library;
 pub mod print_cmd;
 pub mod projection_cmd;
 pub mod remote_cmd;
+pub mod server_changes;
 pub mod server_library;
 pub mod server_recordings;
 pub mod server_remote;

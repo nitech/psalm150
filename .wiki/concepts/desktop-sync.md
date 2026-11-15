@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Desktop sync
-description: The Phase 1 merge-then-pull protocol between the Psalm150 desktop and the server, set sync through the sets snapshot with offline-created ids and conflict copies, what the desktop token can change, and the offline guarantees.
+description: The Phase 1 merge-then-pull protocol between the Psalm150 desktop and the server, set sync through the sets snapshot with offline-created ids and conflict copies, changes reaching desktops as they happen (the library change feed), what the desktop token can change, and the offline guarantees.
 tags: [sync, desktop, replica, offline, phase-1]
 status: stable
 sources:
@@ -17,6 +17,12 @@ sources:
   - id: sets
     resource: /api/src/sets.rs
     title: sets_snapshot, create_set (client id), update_set (base_version)
+  - id: changes
+    resource: /api/src/changes.rs
+    title: ChangeHub, GET /library/changes (long poll), unit tests
+  - id: changes-flow
+    resource: /api/tests/api_flow.rs
+    title: library_changes_flow
 generated: { by: agent, at: 2026-11-03T08:30:00Z }
 ---
 
@@ -100,6 +106,43 @@ connected:
 
 A server without sets answers 404 (or 405 through a proxy) on the snapshot;
 the desktop then reports sets as unsupported and keeps its local setlists.
+
+## Changes as they happen
+
+A song or set changed on a phone, in the web client or on another PC
+reaches every connected desktop within moments, even while it is on the
+projector. `changes.rs` keeps an in-memory log per church (`ChangeHub` in
+`AppState.changes`): every song created, edited, deleted, restored or
+imported, and every set created, edited, deleted, restored or changed
+through an editable shared link, is noted with a growing number after its
+transaction commits, with the desktop that made it (if one did). At most
+2000 entries are kept per church.
+
+`GET /library/changes?after=<cursor>&wait=25` answers
+`LibraryChanges {cursor, complete, songs[], sets[]}`:
+
+- no `after`, a cursor from before a restart (its `epoch` part differs) or
+  one older than the entries kept: `complete: false` at once, with a
+  current cursor. The client compares everything once: `GET /songs/versions`
+  (`{id, revision_id}` of every live song) against its manifest, and the
+  set sync.
+- otherwise the ids changed since, each once, leaving out what the asking
+  desktop changed itself; with nothing new it waits up to `wait` seconds
+  (0–30) on a watch channel, so a change answers the poll at once.
+
+The desktop (`desktop/src-tauri/src/commands/server_changes.rs`) keeps one
+such poll open while a server library is connected, whatever the remote
+settings. For each song listed it fetches `GET /songs/{id}`: a newer revision
+replaces the offline file under the name it already has, updates the
+manifest and the index, and rebuilds an active projection of it where it
+was; a 404 removes the file, the manifest entry and the index row (the
+screen keeps what it shows). Any listed set, and every comparison, runs the
+set sync at once. A failed fetch keeps the old cursor, so the same changes
+come again five seconds later. A server without the endpoint (404) is asked
+again five minutes later; sets then keep their 60 s poll.
+
+Like the [remote relay](remote-control.md), the log needs one server
+process; a restart costs each desktop one comparison, not a full download.
 
 ## Guarantees
 

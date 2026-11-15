@@ -218,6 +218,12 @@ export interface SetlistItem {
 }
 
 /** Result of synchronizing sets with the song server. */
+/** Songs changed on the song server, replaced in this PC's offline copy. */
+export interface ServerSongsChanged {
+  filenames: string[];
+  titles: string[];
+}
+
 export interface SetSyncReport {
   uploaded: number;
   downloaded: number;

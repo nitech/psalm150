@@ -293,6 +293,7 @@ pub async fn add_shared_set_item(
     );
     replace_items(&mut transaction, link.id, &items).await?;
     transaction.commit().await?;
+    state.changes.set(link.church_id, link.id, None);
     Ok(Json(fetch_shared(&state.pool, &link).await?))
 }
 
@@ -328,6 +329,7 @@ pub async fn remove_shared_set_item(
     items.remove(index);
     replace_items(&mut transaction, link.id, &items).await?;
     transaction.commit().await?;
+    state.changes.set(link.church_id, link.id, None);
     Ok(Json(fetch_shared(&state.pool, &link).await?))
 }
 

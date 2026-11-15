@@ -218,6 +218,55 @@ fn preserve_position(old: &ProjectionState, new: &mut ProjectionState) {
     new.keep_order_position(old);
 }
 
+/// A song's file changed (saved here, or changed on the song server): the
+/// index takes it, and when it is on the screen the projection is rebuilt
+/// where it was, so the new words show at once. Returns the index's error.
+fn song_file_changed(
+    app: &AppHandle,
+    state: &AppState,
+    parsed: &ParsedSong,
+    theme: &SlideTheme,
+) -> Result<Option<String>, String> {
+    let (snapshot, index_error) = with_state(state, |runtime| {
+        let index_error = runtime
+            .db
+            .as_ref()
+            .and_then(|db| db.upsert_song(parsed).err());
+        let snapshot =
+            if runtime.projection.filename.as_deref() == Some(parsed.meta.filename.as_str()) {
+                let old = runtime.projection.clone();
+                let mut new = projection_for(parsed, theme, old.transpose_semitones);
+                new.nashville = old.nashville;
+                preserve_position(&old, &mut new);
+                runtime.active_song = Some(parsed.clone());
+                runtime.active_theme = theme.clone();
+                runtime.projection = new;
+                runtime.projection_revision += 1;
+                Some(build_snapshot(runtime))
+            } else {
+                None
+            };
+        Ok((snapshot, index_error))
+    })?;
+    // Emitted after the state is let go.
+    if let Some(snapshot) = snapshot {
+        emit_snapshot(app, &snapshot);
+    }
+    Ok(index_error)
+}
+
+/// A song changed on the song server and its offline file was replaced
+/// (server_changes.rs): index it and refresh a projection of it.
+pub(crate) fn server_song_changed(
+    app: &AppHandle,
+    state: &AppState,
+    parsed: &ParsedSong,
+) -> Result<Option<String>, String> {
+    let folder_hash = with_state(state, |runtime| Ok(runtime.folder_hash.clone()))?;
+    let theme = theme_for(app, folder_hash.as_ref());
+    song_file_changed(app, state, parsed, &theme)
+}
+
 /// Where a save goes: the songs folder, or the song server behind a server
 /// library's offline copy.
 enum SaveTarget {
@@ -276,29 +325,8 @@ async fn save_content(
     }
     let parsed = parse_chordpro(&content, &filename);
     let theme = theme_for(app, Some(&folder_hash));
-    let (saved, snapshot, index_error) = with_state(state, |runtime| {
-        let index_error = runtime
-            .db
-            .as_ref()
-            .and_then(|db| db.upsert_song(&parsed).err());
-        let snapshot = if runtime.projection.filename.as_deref() == Some(filename.as_str()) {
-            let old = runtime.projection.clone();
-            let mut new = projection_for(&parsed, &theme, old.transpose_semitones);
-            new.nashville = old.nashville;
-            preserve_position(&old, &mut new);
-            runtime.active_song = Some(parsed.clone());
-            runtime.active_theme = theme.clone();
-            runtime.projection = new;
-            runtime.projection_revision += 1;
-            Some(build_snapshot(runtime))
-        } else {
-            None
-        };
-        Ok((detail(parsed.clone(), &theme), snapshot, index_error))
-    })?;
-    if let Some(snapshot) = snapshot {
-        emit_snapshot(app, &snapshot);
-    }
+    let index_error = song_file_changed(app, state, &parsed, &theme)?;
+    let saved = detail(parsed, &theme);
     let _ = app.emit("library-changed", ());
     if let Some(error) = index_error {
         return Err(format!(

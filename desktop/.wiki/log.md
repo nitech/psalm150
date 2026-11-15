@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-15
+* **Changes made elsewhere arrive at once**: `server_changes.rs` keeps a long poll open on the song server's `GET /api/v1/library/changes` while a server library is connected. A song changed on a phone or in the web client is fetched into the offline copy under its file name, indexed, and rebuilt on the projector where it was (`server_song_changed`, the path saves take, now shared as `song_file_changed` in `song_v2.rs`); a deleted one leaves the copy; a changed set runs the set sync at once. The first poll, and any after a server restart, compares the copy with `GET /songs/versions` and fetches only what differs. New event `server-songs-changed`: the console reloads the song it shows, or toasts when it has unsaved corrections. Pages touched: server-library, ipc-contract, index.
+
 ## 2026-11-08
 * **Footer size set by the operator**: the audience footer (song number, key, stanza counter) is `footer_size` percent of the screen's height (theme, default 4), no longer the song's fitted size; Settings → Projection → Footer text (Small / Medium / Large / Extra large) saves it with `save_theme`, which now also updates the live projection. Pages touched: audience-display, config.
 

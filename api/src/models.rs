@@ -848,6 +848,35 @@ pub struct CommandsQuery {
     pub wait: Option<u64>,
 }
 
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct ChangesQuery {
+    /// The `cursor` of the last answer; left out the first time.
+    pub after: Option<String>,
+    /// Seconds to wait for a change when there is none, 0 to 30. Default 0.
+    pub wait: Option<u64>,
+}
+
+/// What changed in the church's library since a cursor (`GET /library/changes`).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct LibraryChanges {
+    /// Pass this as `after` next time.
+    pub cursor: String,
+    /// False when changes may have been missed (the first call, a restarted
+    /// server, a cursor too old): compare the whole library once.
+    pub complete: bool,
+    /// Songs created, changed, deleted or restored since, each once.
+    pub songs: Vec<Uuid>,
+    /// Sets created, changed, deleted or restored since, each once.
+    pub sets: Vec<Uuid>,
+}
+
+/// A song and its current revision (`GET /songs/versions`).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, FromRow)]
+pub struct SongVersion {
+    pub id: Uuid,
+    pub revision_id: Uuid,
+}
+
 /// A desktop's room: anyone who knows the name may follow the words the
 /// desktop projects, unless its church or its operator stopped sharing.
 #[derive(Debug, Clone, Serialize, ToSchema)]

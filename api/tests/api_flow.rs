@@ -950,6 +950,132 @@ async fn create_song(app: &Router, token: &str, title: &str) -> (String, String)
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn library_changes_flow(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (session, desktop) = owner_and_desktop(&app).await;
+    let (song, revision) = create_song(&app, &session, "Amazing Grace").await;
+
+    // The first answer has no history to give: compare everything once.
+    let first = send(&app, "GET", "/api/v1/library/changes", Some(&desktop), None).await;
+    assert_eq!(first.0, StatusCode::OK);
+    assert_eq!(first.1["complete"], false);
+    let cursor = first.1["cursor"].as_str().expect("cursor").to_string();
+    let versions = send(&app, "GET", "/api/v1/songs/versions", Some(&desktop), None).await;
+    assert_eq!(versions.0, StatusCode::OK);
+    assert_eq!(versions.1, json!([{ "id": song, "revision_id": revision }]));
+
+    // Nothing since: an answer with nothing in it, at once without `wait`.
+    let quiet = send(
+        &app,
+        "GET",
+        &format!("/api/v1/library/changes?after={cursor}"),
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(quiet.1["complete"], true);
+    assert_eq!(quiet.1["songs"], json!([]));
+
+    // A long poll is answered as soon as a leader saves the song.
+    let long_poll = format!("/api/v1/library/changes?after={cursor}&wait=10");
+    let waiting = send(&app, "GET", &long_poll, Some(&desktop), None);
+    let edit = async {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        send(
+            &app,
+            "PUT",
+            &format!("/api/v1/songs/{song}"),
+            Some(&session),
+            Some(
+                json!({ "base_revision_id": revision, "chordpro": "{title: Amazing Grace}
+
+[A]Words" }),
+            ),
+        )
+        .await
+    };
+    let started = std::time::Instant::now();
+    let (changed, saved) = tokio::join!(waiting, edit);
+    assert_eq!(saved.0, StatusCode::OK);
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    assert_eq!(changed.1["complete"], true);
+    assert_eq!(changed.1["songs"], json!([song]));
+    let cursor = changed.1["cursor"].as_str().expect("cursor").to_string();
+
+    // A set made on a phone is listed; the desktop's own edit is not.
+    let set = send(
+        &app,
+        "POST",
+        "/api/v1/sets",
+        Some(&session),
+        Some(json!({ "name": "Sunday", "items": [{ "kind": "song", "song_id": song }] })),
+    )
+    .await;
+    assert_eq!(set.0, StatusCode::CREATED);
+    let set_id = set.1["id"].as_str().expect("set id").to_string();
+    let own = send(
+        &app,
+        "PUT",
+        &format!("/api/v1/songs/{song}"),
+        Some(&desktop),
+        Some(
+            json!({ "base_revision_id": saved.1["revision_id"], "chordpro": "{title: Amazing Grace}
+
+[B]Words" }),
+        ),
+    )
+    .await;
+    assert_eq!(own.0, StatusCode::OK);
+    let listed = send(
+        &app,
+        "GET",
+        &format!("/api/v1/library/changes?after={cursor}"),
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(listed.1["sets"], json!([set_id]));
+    assert_eq!(listed.1["songs"], json!([]));
+    // A phone asking sees both.
+    let phone = send(
+        &app,
+        "GET",
+        &format!("/api/v1/library/changes?after={cursor}"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(phone.1["songs"], json!([song]));
+
+    // Deleting is a change too; the song leaves the versions.
+    let cursor = listed.1["cursor"].as_str().expect("cursor").to_string();
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{song}"),
+        Some(&session),
+        None,
+    )
+    .await;
+    assert_eq!(deleted.0, StatusCode::NO_CONTENT);
+    let gone = send(
+        &app,
+        "GET",
+        &format!("/api/v1/library/changes?after={cursor}"),
+        Some(&desktop),
+        None,
+    )
+    .await;
+    assert_eq!(gone.1["songs"], json!([song]));
+    let versions = send(&app, "GET", "/api/v1/songs/versions", Some(&desktop), None).await;
+    assert_eq!(versions.1, json!([]));
+
+    // Another church's token never sees these.
+    let unauthenticated = send(&app, "GET", "/api/v1/library/changes", None, None).await;
+    assert_eq!(unauthenticated.0, StatusCode::UNAUTHORIZED);
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn sets_flow(pool: PgPool) {
     let app = test_app(pool.clone());
     let (session, desktop) = owner_and_desktop(&app).await;

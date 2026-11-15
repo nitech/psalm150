@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Server library
-description: Using a Psalm150 song server as the library — the address check, browser sign-in over a loopback redirect (or a pasted token), the offline copy and manifest, saving edits back to the server, setlists shared as the server's sets, and revoking the desktop's token when it lets go of it.
+description: Using a Psalm150 song server as the library — the address check, browser sign-in over a loopback redirect (or a pasted token), the offline copy and manifest, saving edits back to the server, setlists shared as the server's sets, changes made elsewhere arriving at once (also on the projector), and revoking the desktop's token when it lets go of it.
 tags: [server, sync, sign-in, pkce, offline, library, sets]
 status: stable
 sources:
@@ -14,6 +14,9 @@ sources:
   - id: song-v2
     resource: /src-tauri/src/commands/song_v2.rs
     title: save_content routes saves to the folder or the song server
+  - id: server-changes
+    resource: /src-tauri/src/commands/server_changes.rs
+    title: Long poll on the library change feed, catch-up by song versions, applying changes (unit tests)
   - id: server-sets
     resource: /src-tauri/src/commands/server_sets.rs
     title: Sets sync (push dirty setlists, snapshot, fetch missing songs, mirror; unit tests)
@@ -141,10 +144,12 @@ same reason.
 In a server library the [setlists](setlists.md) are the church's sets on the
 song server, stored locally with the same ids and a `server: { version, dirty }`
 marker. The Church server settings say so: "Setlists are the church's shared
-sets: changes here are sent to the server, and sets made on a phone arrive
-within a minute."
+sets: changes here are sent to the server, and songs and sets changed on a
+phone arrive at once, also on the projector."
 
-**When it runs** (`server_sets::sync_sets`): every 60 s in the background
+**When it runs** (`server_sets::sync_sets`): at once when the song server
+says a set changed ([changes made elsewhere](#changes-made-elsewhere)), every
+60 s in the background
 (`POLL_INTERVAL`, spawned in `setup()`), shortly after each local setlist
 edit (`request_sync`), at the end of a full library `synchronize`, and on the
 `sync_server_sets` command (no button calls it yet). Runs never overlap,
@@ -207,6 +212,38 @@ conflicts and skipped items.
 The same fetch-one-song path (`ensure_song`) is used when a leader projects a
 song this PC does not have yet through the
 [song server remote](remote-control.md#through-the-song-server).
+
+## Changes made elsewhere
+
+A song or set changed on a phone, in the web client or on another PC
+arrives within moments, also while it is on the projector
+(`server_changes.rs`, spawned in `setup()`). While a server library is
+connected (whatever the remote and room settings), a long poll waits at
+`GET /api/v1/library/changes?wait=25&after=<cursor>`; the server answers as
+soon as something changes, leaving out this PC's own changes (the song
+server's wiki: desktop sync, changes as they happen).
+
+- **A changed song** is fetched (`GET /songs/{id}`). A revision this PC
+  already has is left alone. Otherwise the offline file is replaced under the
+  name it already has (a new song gets the export's name), the manifest takes
+  the new revision, and `server_song_changed` (`song_v2.rs`, the same path a
+  save takes) indexes it and, when it is on the screen, rebuilds the
+  projection at the slide it was on. `library-changed` and
+  `server-songs-changed` follow; the console reads the song it shows again,
+  or only says "“title” was changed on the song server" when it has
+  corrections not saved yet (their save then meets the changed-file check).
+- **A deleted song** (404) leaves the offline copy, the manifest and the
+  index; the screen keeps what it shows.
+- **A changed set** runs the [set sync](#sets) at once.
+- **When the server cannot say what changed** (the first poll after start,
+  the server restarted, or this PC fell far behind) the whole copy is
+  compared once with `GET /songs/versions` and only the songs that differ
+  are fetched or removed; then the sets sync.
+
+Changes are applied under the set sync's lock, so the two never write the
+manifest at once. A failed fetch keeps the cursor and tries again after 5 s;
+a server without the endpoint is asked again after 5 minutes (sets keep
+their 60 s poll, songs the Synchronize button).
 
 ## Related
 

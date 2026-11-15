@@ -28,9 +28,10 @@ Setlists are JSON files under the library's app data:
 - In a **folder library** they are **local to the PC**. Songs sync through
   the folder; setlists do not.
 - In a **server library** they **mirror the church's sets** on the song
-  server, with the same ids. Changes made here are uploaded, and sets made on
-  a phone or another desktop arrive within a minute
-  ([server library, sets](server-library.md#sets)).
+  server, with the same ids. Changes made here are uploaded, and sets changed
+  on a phone or another desktop arrive at once
+  ([server library, changes made elsewhere](server-library.md#changes-made-elsewhere));
+  a minute at most from a server without the change feed.
 
 Each library has its own setlist folder (keyed by the library's hash), so the
 setlists of a local folder are not visible, and not uploaded, after switching

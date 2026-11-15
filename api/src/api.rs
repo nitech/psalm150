@@ -109,6 +109,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         list_revisions,
         get_revision,
         list_song_keys,
+        list_song_versions,
+        crate::changes::library_changes,
         crate::song_media::list_recordings,
         crate::song_media::add_recording,
         crate::song_media::get_recording_audio,
@@ -219,6 +221,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         SortDirection,
         KeyMode,
         SongKeyCount,
+        crate::models::SongVersion,
+        crate::models::LibraryChanges,
         ExportManifestEntry,
         SetItemKind,
         SetItemInput,
@@ -300,7 +304,13 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     (
         "Songs",
         "The church's song library: ChordPro songs with every revision kept, recordings of how they are played, and each person's favourites and unsaved changes.",
-        &["songs", "public/recordings", "favorites", "drafts"],
+        &[
+            "songs",
+            "public/recordings",
+            "favorites",
+            "drafts",
+            "library",
+        ],
     ),
     (
         "Sets",
@@ -403,6 +413,7 @@ pub fn router() -> Router<AppState> {
         .route("/songs/export", get(export_songs))
         .route("/songs/deleted", get(list_deleted_songs))
         .route("/songs/keys", get(list_song_keys))
+        .route("/songs/versions", get(list_song_versions))
         .route(
             "/songs/{song_id}",
             get(get_song).put(update_song).delete(delete_song),
@@ -420,6 +431,7 @@ pub fn router() -> Router<AppState> {
         .merge(crate::account_links::router())
         .merge(crate::online::router())
         .merge(crate::sets::router())
+        .merge(crate::changes::router())
         .merge(crate::song_media::router())
         .merge(crate::favorites::router())
         .merge(crate::drafts::router())
@@ -1108,6 +1120,35 @@ async fn get_public_song(
     Ok(Json(song))
 }
 
+/// Every song of the church with its current revision.
+///
+/// What a desktop compares its offline copy with, to fetch only the songs
+/// that changed (`GET /songs/{id}`) and drop the ones that are gone. Deleted
+/// songs are left out.
+#[utoipa::path(
+    get,
+    path = "/api/v1/songs/versions",
+    security(("bearer" = [])),
+    responses((status = 200, body = [crate::models::SongVersion]), (status = 401, body = ErrorBody))
+)]
+async fn list_song_versions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<crate::models::SongVersion>>, AppError> {
+    let auth = authenticate(&headers, &state).await?;
+    Ok(Json(
+        sqlx::query_as::<_, crate::models::SongVersion>(
+            "SELECT id, current_revision_id AS revision_id
+             FROM songs
+             WHERE church_id = $1 AND deleted_at IS NULL AND current_revision_id IS NOT NULL
+             ORDER BY id",
+        )
+        .bind(auth.church_id)
+        .fetch_all(&state.pool)
+        .await?,
+    ))
+}
+
 /// The keys the church's songs are in, with how many songs each.
 ///
 /// For offering only the keys a key filter would find songs in. Songs
@@ -1526,6 +1567,7 @@ async fn create_song(
     let auth = authenticate(&headers, &state).await?;
     let actor = auth.require_song_editor()?;
     let song = insert_song(&state.pool, auth.church_id, actor, request.chordpro).await?;
+    state.changes.song(auth.church_id, song.id, actor.device_id);
     Ok((StatusCode::CREATED, Json(song)))
 }
 
@@ -1618,6 +1660,7 @@ async fn update_song(
         .await?;
     }
     transaction.commit().await?;
+    state.changes.song(auth.church_id, song_id, actor.device_id);
 
     Ok(Json(
         fetch_song(&state.pool, Library::Church(auth.church_id), song_id)
@@ -1672,6 +1715,7 @@ async fn delete_song(
     .execute(&mut *transaction)
     .await?;
     transaction.commit().await?;
+    state.changes.song(auth.church_id, song_id, actor.device_id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1805,8 +1849,8 @@ async fn restore_song(
     Path(song_id): Path<Uuid>,
 ) -> Result<Json<SongDetail>, AppError> {
     let auth = authenticate(&headers, &state).await?;
-    auth.require_song_editor()?;
-    sqlx::query(
+    let actor = auth.require_song_editor()?;
+    let restored = sqlx::query(
         "UPDATE songs SET deleted_at = NULL, deleted_by = NULL, deleted_by_device = NULL
          WHERE id = $1 AND church_id = $2 AND deleted_at IS NOT NULL",
     )
@@ -1814,6 +1858,9 @@ async fn restore_song(
     .bind(auth.church_id)
     .execute(&state.pool)
     .await?;
+    if restored.rows_affected() > 0 {
+        state.changes.song(auth.church_id, song_id, actor.device_id);
+    }
     fetch_song(&state.pool, Library::Church(auth.church_id), song_id)
         .await?
         .map(Json)
@@ -1880,6 +1927,11 @@ async fn import_songs(
         );
     }
     transaction.commit().await?;
+    state.changes.songs(
+        auth.church_id,
+        imported.iter().map(|song| song.id),
+        actor.device_id,
+    );
 
     Ok((
         StatusCode::CREATED,

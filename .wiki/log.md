@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-11-15
+* **Changes reach desktops at once**: `changes.rs` keeps an in-memory log of song and set changes per church, noted after each commit (create, edit, delete, restore, import; set edits through shared links too). `GET /library/changes?after=&wait=` (long poll) lists the song and set ids changed since a cursor, leaving out a desktop's own; `complete: false` asks for a full comparison, which `GET /songs/versions` (`{id, revision_id}` of every song) makes cheap. The desktop fetches each changed song into its offline copy and rebuilds the projection if it is on screen, and syncs sets at once. Tested (`library_changes_flow`, unit tests). Pages touched: desktop-sync, api-contract, gaps, index.
 * **Following the projector shows the song**: the follow view shows the projected song as on its page (chords, key, its bar), with the lines on the projector marked and kept in the middle (`follow-song.ts`, `projected-lines.ts`, tested). Owners and leaders edit it in place, key included; Save or Back returns to the song on the screen, and the view holds still while editing. The eye in the view's bar switches to the words only, as people following the room see them (`follow-mode` preference). The view's text size − / + and its Live badge are gone (the status stays for screen readers). `songPage` gains a `drawn` callback. Pages touched: web-client.
 
 ## 2026-11-07

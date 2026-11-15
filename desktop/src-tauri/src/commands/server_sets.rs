@@ -143,8 +143,10 @@ struct Context {
 /// Push dirty setlists, then mirror the server's sets. `None` when no server
 /// library is connected (nothing to do).
 /// One sync at a time, whoever starts it (timer, edit, library sync,
-/// button): two at once could upload a new set twice.
-static SYNC_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// button): two at once could upload a new set twice. Songs changed on the
+/// server are applied under it too (server_changes.rs), so the two never
+/// write the manifest at the same time.
+pub(crate) static SYNC_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 pub(crate) async fn sync_sets(
     app: &AppHandle,
@@ -582,7 +584,7 @@ pub(crate) async fn ensure_song(
     Ok(filename)
 }
 
-fn write_song(folder: &Path, filename: &str, content: &str) -> Result<(), String> {
+pub(crate) fn write_song(folder: &Path, filename: &str, content: &str) -> Result<(), String> {
     let path = crate::library::files::song_path(folder, filename)?;
     let temporary = folder.join(format!(".{filename}.{}.tmp", uuid::Uuid::new_v4()));
     fs::write(&temporary, content).map_err(|error| error.to_string())?;

@@ -188,6 +188,7 @@ pub fn run() {
             display::spawn_watcher(app.handle());
             commands::server_sets::spawn_background(app.handle());
             commands::server_remote::spawn_background(app.handle());
+            commands::server_changes::spawn_background(app.handle());
             updater::spawn_background(app.handle());
 
             if let Some(ref folder) = config.last_songs_folder {

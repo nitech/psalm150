@@ -25,6 +25,7 @@ import {
   type ServerLibraryConfig,
   type ServerRoom,
   type ServerSong,
+  type ServerSongsChanged,
   type SetSyncReport,
   type ServerSyncProgress,
   type Setlist,
@@ -416,6 +417,7 @@ export class Psa150App extends Psa150Element {
   private unlistenVsbProgress: UnlistenFn | null = null;
   private unlistenVsbFinished: UnlistenFn | null = null;
   private unlistenSetlistsChanged: UnlistenFn | null = null;
+  private unlistenServerSongs: UnlistenFn | null = null;
   private unlistenRemoteProject: UnlistenFn | null = null;
   private unlistenServerRoom: UnlistenFn | null = null;
   private unlistenUpdateReady: UnlistenFn | null = null;
@@ -642,6 +644,9 @@ export class Psa150App extends Psa150Element {
       this.unlistenSetlistsChanged = await listen<SetSyncReport>("setlists-changed", (event) => {
         void this.onSetlistsChanged(event.payload);
       });
+      this.unlistenServerSongs = await listen<ServerSongsChanged>("server-songs-changed", (event) => {
+        void this.onServerSongsChanged(event.payload);
+      });
       this.unlistenRemoteProject = await listen<RemoteProject>("remote-project", (event) => {
         void this.onRemoteProject(event.payload);
       });
@@ -682,6 +687,7 @@ export class Psa150App extends Psa150Element {
     this.unlistenVsbProgress?.();
     this.unlistenVsbFinished?.();
     this.unlistenSetlistsChanged?.();
+    this.unlistenServerSongs?.();
     this.unlistenRemoteProject?.();
     this.unlistenServerRoom?.();
     this.unlistenUpdateReady?.();
@@ -2142,6 +2148,31 @@ export class Psa150App extends Psa150Element {
     }
     if (report.skipped_items) {
       this.showToast(`${report.skipped_items} setlist song(s) are not on the song server and were removed from the set`, "info");
+    }
+  }
+
+  /**
+   * Songs changed on the song server arrived in the offline copy (the
+   * projection of one is already rebuilt). The song shown here is read
+   * again, unless it has corrections not saved yet: then it only says so.
+   */
+  private async onServerSongsChanged(change: ServerSongsChanged) {
+    const file = this.currentFilename;
+    const index = file ? change.filenames.indexOf(file) : -1;
+    if (!file || index < 0) return;
+    const title = change.titles[index] ?? file;
+    if (this.editOpen || this.editorChanged() || hasPendingEdits(this.adhocPendingEdits)) {
+      this.showToast(`“${title}” was changed on the song server`, "info");
+      return;
+    }
+    const generation = this.selectionGeneration;
+    try {
+      const loaded = await api.loadSong(file);
+      if (generation !== this.selectionGeneration || this.currentFilename !== file) return;
+      this.currentSong = loaded;
+      this.showToast(`“${title}” was updated from the song server`, "info");
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -4408,7 +4439,7 @@ export class Psa150App extends Psa150Element {
               </div>
               ${this.renderServerSyncProgress()}
               <p class="settings-hint settings-note">Synchronization adds exact local-only songs from the remembered local folder, then downloads the complete server library. Projection and browsing continue from the cache when the server is offline.</p>
-              <p class="settings-hint settings-note">Setlists are the church's shared sets: changes here are sent to the server, and sets made on a phone arrive within a minute. If a set was changed elsewhere at the same time, your version is kept as a copy.</p>
+              <p class="settings-hint settings-note">Setlists are the church's shared sets: changes here are sent to the server, and songs and sets changed on a phone arrive at once, also on the projector. If a set was changed elsewhere at the same time, your version is kept as a copy.</p>
               <label class="settings-check"><input type="checkbox" .checked=${this.serverRemoteEnabled} @change=${(e: Event) => this.onServerRemoteChange((e.target as HTMLInputElement).checked)} /><span>Allow remote control through the song server</span></label>
               <p class="settings-hint">Leaders signed in to the song server can change slides, blank the screen and project songs from their phones, from anywhere. This PC stays in charge: everything also works without the server.</p>
               ${this.renderRoomSettings()}`

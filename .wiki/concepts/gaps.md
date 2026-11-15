@@ -76,6 +76,10 @@ generated: { by: agent, at: 2026-11-03T08:30:00Z }
   page scripts can read it, so it lasts across app launches. An httpOnly cookie
   would keep it out of reach of scripts, but needs server support
   ([web client](web-client.md)).
+- **The library change feed is in memory and single-instance**: like the
+  relay, `GET /library/changes` only knows changes made through the process
+  that answers it; after a restart every desktop compares its copy once
+  ([desktop sync](desktop-sync.md#changes-as-they-happen)).
 - **Offline is read-only**: the installed web client shows saved songs and
   sets offline, but edits need a connection; there is no outbox.
 - **Remote relay is in memory and single-instance**: a restart forgets every

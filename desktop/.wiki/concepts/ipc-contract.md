@@ -150,6 +150,7 @@ while the browser is open.
 | `import-complete` | `ImportReport` | nobody (the command's return is used) |
 | `vsb-sync-progress` | `{ label, current, total }` | console progress hairline and sync icon |
 | `vsb-sync-finished` | `{ report: VsbSyncReport?, error? }` | console refreshes config, toasts changes or errors |
+| `server-songs-changed` | `ServerSongsChanged { filenames[], titles[] }`: songs changed on the song server whose offline files were just replaced ([server library](server-library.md#changes-made-elsewhere)); a projection of one is already rebuilt | console reads the song it shows again, or toasts that it changed when it has unsaved corrections |
 | `setlists-changed` | `SetSyncReport { uploaded, downloaded, conflicts[], skipped_items, fetched_songs, unsupported }`; background runs emit it only when something changed | console reloads setlists (and the Setlist view), toasts conflicts and skipped items |
 | `remote-project` | `RemoteProject { filename, transpose, set_id?, item_index?, issued_by }` from the [song server remote](remote-control.md#through-the-song-server) | console selects the setlist and song, projects, applies the transpose |
 | `server-room` | `ServerRoom { room_name, public_rooms, join_url }` or null; emitted only when the PC's [room](remote-control.md#room) as known changes (checked on connecting, every 60 s while reporting, by `get_server_room` and on rename) and null when the server library is disconnected | console room chip and Settings, Church server ([operator console](operator-console.md#room)) |
