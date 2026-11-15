@@ -48,7 +48,7 @@ const api = new SongServerApi(() => session?.token ?? null);
 const currentSet = new CurrentSet(api);
 const favorites = new Favorites(api);
 /** Following the projector from the dock's card (signed in only). */
-const follow = installFollow(api, () => live?.draw());
+const follow = installFollow(api, (main) => libraryContext(main), () => live?.draw());
 /** Following, leading and controlling the projector, behind the dock's Live card. */
 let live: Live | null = null;
 live = installLive({

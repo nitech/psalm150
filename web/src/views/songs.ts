@@ -779,6 +779,8 @@ export interface SongPlace {
   peek(way: 1 | -1, options: ReturnType<typeof readReaderOptions>): string | null;
   /** Buttons before the song's own in the bar (a set's Project this). */
   barStart?(): string;
+  /** After each drawing of the song (transposing redraws it). */
+  drawn?(): void;
 }
 
 /**
@@ -887,6 +889,7 @@ export function songPage(ctx: LibraryContext, song: SongDetail, place: SongPlace
     ctx.main.querySelector("#song-draft-slot")?.replaceWith(draftHolder);
     ctx.main.querySelector("#song-media-slot")?.replaceWith(mediaHolder);
     ctx.main.append(chordDock);
+    place.drawn?.();
   };
 
   /** Previous and Next under the song, for a mouse; phones swipe instead. */

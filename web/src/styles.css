@@ -573,12 +573,30 @@ body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-s
 .live-row[data-live="lead"][aria-checked="true"] .switch-track { background: #e5484d; }
 .live-desktops { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
 .live-remote { justify-self: start; }
-/* The projector's words lie over the page, which stays where it was. */
-.follow-view { position: fixed; inset: 0 0 calc(var(--tabbar-h) + var(--dock-h)) 0; z-index: 22; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* The projected song lies over the page, which stays where it was: the
+   view's bar on top, the song (or its words) scrolling under it. */
+.follow-view { position: fixed; inset: 0 0 calc(var(--tabbar-h) + var(--dock-h)) 0; z-index: 22; }
+.follow-view.room { min-height: 0; overflow: hidden; }
 .follow-view[hidden] { display: none; }
+.follow-view > .follow-bar { position: relative; flex: none; flex-wrap: nowrap; }
+.follow-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .follow-bar .room-title h2 { margin: 0; font-family: var(--psa-font-display); font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
 .follow-bar .follow-live { width: 10px; height: 10px; }
 .follow-view:not([data-status="live"]) .follow-bar .follow-live { background: var(--psa-text-tertiary); box-shadow: none; }
+.follow-bar .bar-actions { flex: none; }
+.follow-bar [hidden], .follow-scroll > [hidden] { display: none; }
+/* The song as on its own page. Its bar sticks under the view's, never
+   slides away, and needs no room for the phone's notch; the last lines can
+   come up to the middle like the words. */
+.follow-song.page { padding-bottom: 45vh; }
+.follow-view .follow-song .app-bar { padding-top: 0; transform: none; }
+/* The song changes under you: its name stays in its bar. */
+.follow-view .follow-song .app-bar.autohide .bar-title { visibility: visible; opacity: 1; transform: none; margin-left: 6px; }
+/* The lines on the projector, marked like the slide in the words. */
+.follow-song .reader-line.on-screen { position: relative; }
+.follow-song .reader-line.on-screen::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--psa-space-3)); width: 3px; background: var(--psa-accent-text); }
+.follow-song .with-chords .reader-line.on-screen::before { bottom: -0.15em; }
+.follow-view[data-status="blank"] .follow-song .reader-line.on-screen::before { background: var(--psa-border-strong); }
 body.following { overflow: hidden; }
 .current-bar.bump { animation: bump 420ms var(--psa-ease-standard); }
 @keyframes bump { 40% { transform: scale(1.03); border-color: var(--psa-accent); } }

@@ -762,13 +762,33 @@ Leading and controlling last while the app is open; signing out ends all.
 
 `follow.ts`: signed in, the shell reads the church's desktops from the live
 stream Remote uses (`GET /remote/desktops/events`), while the app is in
-view. Turned on from the Live sheet (above), the words that desktop projects fill the screen
-above the dock in large text, as in the [room reader](#following-a-room): the
-song's title, every slide with the one on screen marked and scrolled to the
-middle, text size − and + (the same `room-size` preference as `/join`), a
-status (Live, Screen is blank, Waiting, Not connected) and ✕. The view lies
-over the page, which is inert meanwhile and stays where it was, so switching
-off (the Live sheet, ✕ or Escape) shows the set or song as you left it.
+view. Turned on from the Live sheet (above), the projected song fills the
+screen above the dock under a bar with the desktop's room name (a red dot
+while it shows words; the status is for screen readers only), and a pill
+with the eye and ✕. Two ways to see it, switched by the eye and remembered
+(`follow-mode` preference):
+
+- **The song** (default; `follow-song.ts`): the song as on its own page
+  (`songPage` with no Back), read from the library by the `song_id` the
+  desktop reports: chords, key, its bar with the title and the song's
+  actions. The lines on the projector have a gold bar beside them and
+  scroll to the middle as the slide changes (`projected-lines.ts` finds the
+  slide's words among the song's lines, walking the slides in order so a
+  repeated chorus finds its place). Owners and leaders edit it in the view:
+  Edit (or a draft's Continue editing) opens the song editor there, key
+  included; Save or Back comes back to the song on the screen, read afresh.
+  While the editor is open the view holds still whatever the projector does,
+  and leaving it any way keeps a draft. A projection with no song in the
+  library (no `song_id`, or it cannot be read) shows the words instead.
+- **Words only, as in the room** (the eye pressed): the words as the
+  [room reader](#following-a-room) shows them: the song's title, every slide
+  with the one on screen marked and scrolled to the middle, at the room's
+  text size (`room-size`, set in `/join`).
+
+The view lies over the page, which is inert meanwhile and stays where it
+was, so switching off (the Live sheet, ✕ or Escape) shows the set or song as
+you left it. Links in the view to the song shown or its editor open in the
+view; any other link leaves it.
 Following stays on between songs; it ends when every desktop goes away, on
 going somewhere with a link or tab, and on sign-out. The desktop followed is
 the one followed last if it projects (`follow-desktop` preference), else the

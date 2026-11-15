@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-15
+* **Following the projector shows the song**: the follow view shows the projected song as on its page (chords, key, its bar), with the lines on the projector marked and kept in the middle (`follow-song.ts`, `projected-lines.ts`, tested). Owners and leaders edit it in place, key included; Save or Back returns to the song on the screen, and the view holds still while editing. The eye in the view's bar switches to the words only, as people following the room see them (`follow-mode` preference). The view's text size − / + and its Live badge are gone (the status stays for screen readers). `songPage` gains a `drawn` callback. Pages touched: web-client.
+
 ## 2026-11-07
 * **The key in the editor bar**: the shared song editor (`words-editor.ts`, host `key`) has the song's key first in its bar; it opens a panel of every key, and one tap sets it and moves the chords with it (`chord-editor.ts`, toast with Undo). The cog's key field stays, with its prompt. On phones the key shows as its name alone and the section button loses its arrow. Pages touched: none (behaviour only).
 * **Who changed a song**: a revision saved from a desktop is named "person · desktop" in `GET /songs/{id}/revisions` (the person who connected the desktop), so the history always says who made a change. Pages touched: songs-and-revisions.
