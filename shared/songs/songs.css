@@ -466,10 +466,14 @@ button.ch.shown { border-radius: 4px; background: var(--psa-accent-soft); box-sh
 .media-scrub:focus-visible::-webkit-slider-thumb { box-shadow: var(--psa-focus-ring); }
 .media-scrub:focus-visible::-moz-range-thumb { box-shadow: var(--psa-focus-ring); }
 
-/* The well behind the cog: the editor's panel, dropping from the player's
-   right end over the words, every recording in it, then the actions. */
-.ce-well.media-well { position: absolute; top: calc(100% + 8px); right: 0; left: auto; z-index: 30; width: min(380px, 100%); max-height: min(60vh, 440px); transform: translateY(-6px) scale(0.98); transform-origin: 100% 0; }
-.ce-well.media-well.open { transform: none; }
+/* The well behind the cog: the editor's panel. On a phone it comes up from
+   the bottom of the screen, as the editor's does; wider, it drops from the
+   player's right end. Every recording in it, then the actions. */
+.ce-well.media-well { bottom: calc(12px + env(safe-area-inset-bottom)); width: min(380px, calc(100vw - 24px)); max-height: calc(100dvh - 140px); }
+@media (min-width: 900px) {
+  .ce-well.media-well { position: absolute; top: calc(100% + 8px); right: 0; bottom: auto; left: auto; z-index: 30; width: min(380px, 100%); max-height: min(60vh, 440px); transform: translateY(-6px) scale(0.98); transform-origin: 100% 0; }
+  .ce-well.media-well.open { transform: none; }
+}
 .media-well-list { display: grid; padding: 0 8px; }
 .media-well-item { display: flex; align-items: center; gap: 2px; }
 .media-well .ce-well-row { flex: 1; min-width: 0; }

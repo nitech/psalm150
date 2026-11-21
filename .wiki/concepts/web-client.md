@@ -249,8 +249,9 @@ are not affected.
   player (the whole width on a phone, at most 560 px wider): the initials,
   Play / Pause, a scrubber (a range field: drag or arrow keys to seek, its
   value read as "0:18 of 4:08") with the time, and a cog. The cog opens a
-  well like the editor's (`.ce-well`, dropping from the player's right end;
-  a tap elsewhere or Escape closes it): every recording with its maker, day
+  well like the editor's (`.ce-well`: on phones it comes up from the bottom
+  of the screen, wider it drops from the player's right end; a tap elsewhere
+  or Escape closes it): every recording with its maker, day
   and length (tap one to play it instead; the one playing is checked), for
   leaders and owners a **Delete** beside each, asking first, then **Record
   another**, **YouTube** and **Close the player**, which goes back to the

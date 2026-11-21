@@ -147,14 +147,14 @@ export function mountSongMedia(
    * who made it, Play / Pause, the scrubber with the time, and the cog that
    * opens the well.
    */
-  const player = (recording: SongRecording) => `<div class="media-player" role="group" aria-label="${escapeHtml(`${recording.title} · ${who(recording)}`)}">
+  const player = (recording: SongRecording) => `<div class="media-player" data-no-swipe role="group" aria-label="${escapeHtml(`${recording.title} · ${who(recording)}`)}">
       ${avatar(recording)}
       <button type="button" class="media-play" data-media-act="toggle"></button>
       <input type="range" class="media-scrub" min="0" max="0" step="any" value="0" aria-label="${t("Position in the recording")}">
       <span class="media-time" aria-hidden="true"></span>
       <button type="button" class="media-cog" data-media-act="well" aria-haspopup="dialog" aria-expanded="false" aria-label="${t("Recordings")}" title="${t("Recordings")}">${icon("settings")}</button>
     </div>
-    <div class="ce-well media-well" role="dialog" aria-label="${t("Recordings")}" hidden></div>`;
+    <div class="ce-well media-well" data-no-swipe role="dialog" aria-label="${t("Recordings")}" hidden></div>`;
 
   /** The well: every recording (tap to play it; leaders delete), then Record another, YouTube and Close. */
   const wellContent = () => {

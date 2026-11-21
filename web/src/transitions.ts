@@ -174,6 +174,8 @@ export function bindItemSwipe(
     if (mode === "leaving") return;
     mode = "off";
     if (event.touches.length !== 1 || root.closest("body")?.querySelector("dialog[open]")) return;
+    // What drags sideways by itself (a recording's scrubber, its well) keeps the finger.
+    if ((event.target as Element | null)?.closest?.("[data-no-swipe]")) return;
     startX = event.touches[0].clientX;
     startY = event.touches[0].clientY;
     // The left edge belongs to Back: the browser's, or the installed app's own.

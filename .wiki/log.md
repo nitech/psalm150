@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-11-21
+* **The recordings well comes up on phones**: below 900 px the cog's well rises from the bottom of the screen like the editor's, instead of hanging under the player. The song page's swipe to the next or previous song no longer starts on the player or its well (`data-no-swipe`, `transitions.ts`), so dragging the scrubber does not change song. Pages touched: web-client.
 * **A set editor row opens its song anywhere**: in the set editor (and its search) a tap anywhere on a song row opens the song, not only its title; the title link's `::after` covers the row, and the grip, + and × sit above it. A swipe still deletes, and a tap on an open row still closes it. Pages touched: none (behaviour only).
 * **A shorter key line**: a transposed song reads "Am (orig. Dm, +7)" under its title (without a key: "Transposed +7"), not "Key Am (original Dm) · Transposed up 7 semitones". Pages touched: web-client.
 * **The recording player grows from its pill**: tapping a recording pill grows it into the player, the whole width on a phone (at most 560 px wider): Play / Pause, a scrubber with the time (`0:18 / 4:08`), and a cog that opens a well like the editor's (`.ce-well`) listing every recording (tap to play; leaders and owners delete after confirming), with Record another, YouTube and Close the player. The browser's own audio controls and the box under the pills are gone. Shared with the desktop (`shared/songs/song-media.ts`, `songs.css`). Pages touched: web-client.
