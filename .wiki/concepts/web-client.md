@@ -329,7 +329,7 @@ are not affected.
   each song's last step saved 0.6 s after it), a visitor's in
   `localStorage["psa150-transpositions"]`. A set item opens in the set's
   key and transposing there is not remembered. Under the title the key reads
-  "Key A (original G) · Transposed up 2 semitones" (`keyLabel`, given the
+  "A (orig. G, +2)", or "Transposed +2" without a key (`keyLabel`, given the
   song as written); lists show each song's own key. Transposing changes
   only what you see (and what you add to a set), not the song.
   A ⋮ action used often lately also comes into the bar as an icon, after a

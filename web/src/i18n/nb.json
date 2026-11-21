@@ -905,15 +905,7 @@
   "Recording saved.": "Opptaket er lagret.",
   "This song has no lyrics yet.": "Denne sangen har ingen tekst ennå.",
   "{chord}, how to play it": "{chord}, slik spiller du den",
-  "Key {key} (original {original})": "Toneart {key} (original {original})",
-  "Transposed up {n} semitones": {
-    "one": "Transponert opp {n} halvtone",
-    "other": "Transponert opp {n} halvtoner"
-  },
-  "Transposed down {n} semitones": {
-    "one": "Transponert ned {n} halvtone",
-    "other": "Transponert ned {n} halvtoner"
-  },
+  "{key} (orig. {original}, {steps})": "{key} (orig. {original}, {steps})",
   "Song words": "Sangtekst",
   "Key, capo, details and chord sound": "Toneart, capo, detaljer og akkordlyd",
   "Section": "Sangdel",

@@ -9,15 +9,15 @@ describe("keyLabel", () => {
     expect(keyLabel(prepareSong("Just words", 0), 0)).toBe("");
   });
 
-  it("is the key now, the original and which way it moved", () => {
-    expect(keyLabel(written, 2)).toBe("Key A (original G) · Transposed up 2 semitones");
-    expect(keyLabel(written, -1)).toBe("Key F# (original G) · Transposed down 1 semitone");
+  it("is the key now, the original and the steps", () => {
+    expect(keyLabel(written, 2)).toBe("A (orig. G, +2)");
+    expect(keyLabel(written, -1)).toBe("F# (orig. G, -1)");
     // Guessed from the chords without a {key}.
-    expect(keyLabel(prepareSong("[D]Be [G]thou my [A]vi[D]sion", 0), 3)).toBe("Key F (original D) · Transposed up 3 semitones");
+    expect(keyLabel(prepareSong("[D]Be [G]thou my [A]vi[D]sion", 0), 3)).toBe("F (orig. D, +3)");
   });
 
-  it("says only how far without a key", () => {
-    expect(keyLabel(prepareSong("Just words", 0), -4)).toBe("Transposed down 4 semitones");
+  it("says only the steps without a key", () => {
+    expect(keyLabel(prepareSong("Just words", 0), -4)).toBe("Transposed -4");
   });
 });
 

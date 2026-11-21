@@ -905,15 +905,7 @@
   "Recording saved.": "Upptaka vistuð.",
   "This song has no lyrics yet.": "Þetta lag hefur engan texta enn.",
   "{chord}, how to play it": "{chord}: hvernig hann er spilaður",
-  "Key {key} (original {original})": "Tóntegund {key} (upprunalega {original})",
-  "Transposed up {n} semitones": {
-    "one": "Tónflutt upp um {n} hálftón",
-    "other": "Tónflutt upp um {n} hálftóna"
-  },
-  "Transposed down {n} semitones": {
-    "one": "Tónflutt niður um {n} hálftón",
-    "other": "Tónflutt niður um {n} hálftóna"
-  },
+  "{key} (orig. {original}, {steps})": "{key} (uppr. {original}, {steps})",
   "Song words": "Lagatexti",
   "Key, capo, details and chord sound": "Tóntegund, capo, nánar og hljómahljóð",
   "Section": "Hluti",

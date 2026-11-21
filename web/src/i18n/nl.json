@@ -905,15 +905,7 @@
   "Recording saved.": "Opname opgeslagen.",
   "This song has no lyrics yet.": "Dit lied heeft nog geen tekst.",
   "{chord}, how to play it": "{chord}, zo speel je het",
-  "Key {key} (original {original})": "Toonsoort {key} (origineel {original})",
-  "Transposed up {n} semitones": {
-    "one": "{n} halve toon omhoog getransponeerd",
-    "other": "{n} halve tonen omhoog getransponeerd"
-  },
-  "Transposed down {n} semitones": {
-    "one": "{n} halve toon omlaag getransponeerd",
-    "other": "{n} halve tonen omlaag getransponeerd"
-  },
+  "{key} (orig. {original}, {steps})": "{key} (orig. {original}, {steps})",
   "Song words": "Liedtekst",
   "Key, capo, details and chord sound": "Toonsoort, capo, details en akkoordgeluid",
   "Section": "Onderdeel",

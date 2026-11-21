@@ -905,15 +905,7 @@
   "Recording saved.": "Äänite tallennettu.",
   "This song has no lyrics yet.": "Tässä laulussa ei ole vielä sanoja.",
   "{chord}, how to play it": "{chord}: näin se soitetaan",
-  "Key {key} (original {original})": "Sävellaji {key} (alkuperäinen {original})",
-  "Transposed up {n} semitones": {
-    "one": "Transponoitu ylös {n} puolisävelaskel",
-    "other": "Transponoitu ylös {n} puolisävelaskelta"
-  },
-  "Transposed down {n} semitones": {
-    "one": "Transponoitu alas {n} puolisävelaskel",
-    "other": "Transponoitu alas {n} puolisävelaskelta"
-  },
+  "{key} (orig. {original}, {steps})": "{key} (alk. {original}, {steps})",
   "Song words": "Laulun sanat",
   "Key, capo, details and chord sound": "Sävellaji, capo, tiedot ja sointuääni",
   "Section": "Osa",

@@ -905,15 +905,7 @@
   "Recording saved.": "Inspelningen sparades.",
   "This song has no lyrics yet.": "Sången har ingen text än.",
   "{chord}, how to play it": "{chord}, så spelar du det",
-  "Key {key} (original {original})": "Tonart {key} (original {original})",
-  "Transposed up {n} semitones": {
-    "one": "Transponerad upp {n} halvton",
-    "other": "Transponerad upp {n} halvtoner"
-  },
-  "Transposed down {n} semitones": {
-    "one": "Transponerad ned {n} halvton",
-    "other": "Transponerad ned {n} halvtoner"
-  },
+  "{key} (orig. {original}, {steps})": "{key} (orig. {original}, {steps})",
   "Song words": "Sångtext",
   "Key, capo, details and chord sound": "Tonart, capo, detaljer och ackordljud",
   "Section": "Avsnitt",

@@ -926,15 +926,7 @@
   "Recording saved.": "Registrazione salvata.",
   "This song has no lyrics yet.": "Questo canto non ha ancora un testo.",
   "{chord}, how to play it": "{chord}, come suonarlo",
-  "Key {key} (original {original})": "Tonalità {key} (originale {original})",
-  "Transposed up {n} semitones": {
-    "one": "Trasposto su di {n} semitono",
-    "other": "Trasposto su di {n} semitoni"
-  },
-  "Transposed down {n} semitones": {
-    "one": "Trasposto giù di {n} semitono",
-    "other": "Trasposto giù di {n} semitoni"
-  },
+  "{key} (orig. {original}, {steps})": "{key} (orig. {original}, {steps})",
   "Song words": "Parole del canto",
   "Key, capo, details and chord sound": "Tonalità, capo, dettagli e suono degli accordi",
   "Section": "Sezione",
