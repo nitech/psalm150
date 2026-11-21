@@ -68,6 +68,11 @@ const AUDIO_ENDINGS: Record<string, string> = {
   aac: "audio/aac", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", oga: "audio/ogg",
   ogg: "audio/ogg", opus: "audio/ogg", wav: "audio/wav", webm: "audio/webm",
 };
+/**
+ * The file picker's filter, by ending: iOS Safari reads `audio/*` as video
+ * and greys out m4a and mp3 files in Files and iCloud Drive.
+ */
+const AUDIO_ACCEPT = Object.keys(AUDIO_ENDINGS).map((ending) => `.${ending}`).join(",");
 
 interface Song {
   id: string;
@@ -375,7 +380,7 @@ export function openRecorder(store: Pick<Recordings, "add">, song: Pick<Song, "i
       </div>
       <button type="button" class="button primary wide" id="rec-toggle">${icon("mic")}${t("Start recording")}</button>
       <button type="button" class="button secondary wide" id="rec-upload">${icon("upload")}${t("Upload a recording")}</button>
-      <input type="file" id="rec-file" accept="audio/*" hidden>
+      <input type="file" id="rec-file" accept="${AUDIO_ACCEPT}" hidden>
       <p class="hint recorder-tip" id="rec-tip" hidden>${t("The phone's own recorder app often sounds better. Record there, then upload the file here.")}</p>
       <audio class="recorder-preview" id="rec-preview" controls hidden></audio>
       <form id="rec-form" class="stack" hidden>
