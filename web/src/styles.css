@@ -452,7 +452,12 @@ body.bar-away .app-bar.autohide:focus-within { transform: none; }
 .row-tools { display: flex; gap: 4px; }
 .grip { display: grid; place-items: center; width: 36px; height: 44px; margin-left: -6px; padding: 0; flex: none; border: 0; border-radius: var(--psa-radius-xs); background: none; color: var(--psa-text-tertiary); cursor: grab; touch-action: none; }
 .grip:focus-visible { outline: 2px solid var(--psa-focus-color); outline-offset: -2px; }
-/* A song's title opens the song. */
+/* A song's title opens the song, and so does a tap anywhere else in its row:
+   the link's ::after covers the row, and the grip, + and × sit above it. */
+.edit-row-main { position: relative; }
+.edit-row-title::after { content: ""; position: absolute; inset: 0; }
+.edit-row-main > button, .edit-row-main .row-tools { position: relative; z-index: 1; }
+.edit-row:has(.edit-row-title:active), .edit-row:has(.edit-row-title:active) .swipe-content { background: var(--psa-bg-elevated); }
 /* Lists that look like the song list (the sets, a set's songs, the set
    editor): rows as tall as a comfortable tap, no taller, and on phones edge
    to edge on the page's own dark. */
