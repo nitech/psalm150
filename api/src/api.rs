@@ -121,6 +121,8 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::favorites::replace_favorites,
         crate::favorites::add_favorite,
         crate::favorites::remove_favorite,
+        crate::transpositions::list_transpositions,
+        crate::transpositions::set_transposition,
         crate::drafts::list_drafts,
         crate::drafts::get_draft,
         crate::drafts::save_draft,
@@ -171,6 +173,9 @@ pub const EXPORT_MANIFEST: &str = "psa150-manifest.json";
         crate::online::OnlineSong,
         crate::models::SongRecording,
         crate::models::FavoriteSongs,
+        crate::models::SongTransposition,
+        crate::models::SongTranspositions,
+        crate::models::TranspositionRequest,
         crate::models::SongDraft,
         crate::models::SongDraftSummary,
         crate::models::SaveSongDraftRequest,
@@ -303,11 +308,12 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
     ("Church", "The church's name and settings.", &["church"]),
     (
         "Songs",
-        "The church's song library: ChordPro songs with every revision kept, recordings of how they are played, and each person's favourites and unsaved changes.",
+        "The church's song library: ChordPro songs with every revision kept, recordings of how they are played, and each person's favourites, keys and unsaved changes.",
         &[
             "songs",
             "public/recordings",
             "favorites",
+            "transpositions",
             "drafts",
             "library",
         ],
@@ -434,6 +440,7 @@ pub fn router() -> Router<AppState> {
         .merge(crate::changes::router())
         .merge(crate::song_media::router())
         .merge(crate::favorites::router())
+        .merge(crate::transpositions::router())
         .merge(crate::drafts::router())
         .merge(crate::shared_sets::router())
         .merge(crate::live_sets::router())

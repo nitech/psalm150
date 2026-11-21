@@ -18,6 +18,7 @@ pub mod sets;
 pub mod shared_sets;
 pub mod song_media;
 pub mod throttle;
+pub mod transpositions;
 
 use std::{path::PathBuf, sync::Arc};
 

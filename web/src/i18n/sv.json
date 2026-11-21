@@ -649,8 +649,7 @@
   "Make it a favourite": "Gör till favorit",
   "{title} is a favourite": "{title} är en favorit",
   "{title} is no longer a favourite": "{title} är inte längre en favorit",
-  "Revision {revision} · Transposing here only changes what you see and what you add to a set.": "Revision {revision} · Att transponera här ändrar bara det du ser och det du lägger till i en setlista.",
-  "Revision {revision} · Transposing here only changes what you see.": "Revision {revision} · Att transponera här ändrar bara det du ser.",
+  "Revision {revision}": "Revision {revision}",
   "Songs in the list": "Sånger i listan",
   "To the list": "Till listan",
   "The screen stays on": "Skärmen förblir på",
@@ -901,7 +900,15 @@
   "Recording saved.": "Inspelningen sparades.",
   "This song has no lyrics yet.": "Sången har ingen text än.",
   "{chord}, how to play it": "{chord}, så spelar du det",
-  "Key {key} {steps}": "Tonart {key} {steps}",
+  "Key {key} (original {original})": "Tonart {key} (original {original})",
+  "Transposed up {n} semitones": {
+    "one": "Transponerad upp {n} halvton",
+    "other": "Transponerad upp {n} halvtoner"
+  },
+  "Transposed down {n} semitones": {
+    "one": "Transponerad ned {n} halvton",
+    "other": "Transponerad ned {n} halvtoner"
+  },
   "Song words": "Sångtext",
   "Key, capo, details and chord sound": "Tonart, capo, detaljer och ackordljud",
   "Section": "Avsnitt",

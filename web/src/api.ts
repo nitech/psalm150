@@ -34,6 +34,7 @@ import type {
   SongKeyCount,
   SongRecording,
   FavoriteSongs,
+  SongTranspositions,
   RevisionSummary,
   RecordingLink,
   SongSort,
@@ -311,6 +312,16 @@ export class SongServerApi {
 
   async removeFavorite(songId: string): Promise<void> {
     await this.requestEmpty(`/favorites/${songId}`, { method: "DELETE" });
+  }
+
+  /** The songs you read transposed, and how far. */
+  listTranspositions(): Promise<SongTranspositions> {
+    return this.request("/transpositions");
+  }
+
+  /** Reads the song this many semitones up or down from now on; 0 as written. */
+  async setTransposition(songId: string, semitones: number): Promise<void> {
+    await this.requestEmpty(`/transpositions/${songId}`, { method: "PUT", body: JSON.stringify({ semitones }) });
   }
 
   /** The draft being kept, if any: reading drafts waits for it. */

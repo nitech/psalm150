@@ -1,6 +1,7 @@
 import type { SongServerApi } from "./api.ts";
 import type { CurrentSet } from "./current-set.ts";
 import type { Favorites } from "./favorites.ts";
+import type { Transpositions } from "./transpositions.ts";
 import type { Live } from "./live.ts";
 import { icon } from "./icons.ts";
 import type { Session } from "./types.ts";
@@ -26,6 +27,8 @@ export interface LibraryContext {
   currentSet: CurrentSet;
   /** The signed-in person's favourite songs (none for a visitor). */
   favorites: Favorites;
+  /** How far the reader moves each song: the person's, or a visitor's in this browser. */
+  transpositions: Transpositions;
   /** Following, leading and controlling the projector (live.ts). */
   live: Live;
   /** The screen's container; a view owns its contents. */

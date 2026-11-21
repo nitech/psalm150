@@ -161,6 +161,18 @@ change one, and `GET /songs?favorites=true` keeps only them. A desktop token
 acts for the person who connected the desktop (`device_tokens.created_by`).
 A deleted song drops out of the list; purging it removes the row.
 
+## Each person's key
+
+Each person keeps how far they move a song when they read it
+(`song_transpositions`, migration 0022; `api/src/transpositions.rs`):
+`GET /transpositions` lists `{song_id, semitones}` for their transposed
+songs, and `PUT /transpositions/{song_id}` with `{semitones}` (−11 to 11)
+sets one, 0 forgetting it (400 outside the range, 404 for a song not in the
+church). A desktop token acts for the person who connected the desktop, as
+with favourites. A deleted song drops out of the list; purging it removes
+the row. The web client opens a song in its reader's key (below and
+web-client); a visitor's are kept in the browser instead.
+
 ## Drafts
 
 Changes are never lost in the web editor: what a leader or owner types is

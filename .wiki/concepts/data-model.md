@@ -68,6 +68,7 @@ exist yet ([gaps](gaps.md)).
 | `song_recordings` | `id` | Recordings of how a song is played: `church_id`, `song_id` (with `church_id`, a foreign key to `songs(id, church_id)`, cascading), `title`, `content_type` as recorded, `duration_ms`, `byte_size`, `created_by`, `created_at`; the audio itself is a file (`{PSA150_MEDIA_DIR}/recordings/{church_id}/{id}`). `audio BYTEA` is left from before and is empty once the server has started |
 | `song_sets` | `id` (may be client-chosen) | `church_id`, `name` (not blank), `service_date DATE`, `version INTEGER` (starts at 1), `created_by` / `created_by_device`, `updated_by` / `updated_by_device`, `created_at`, `updated_at`, `deleted_at`, `share_key` (null unless shared; unique server-wide), `share_editable BOOLEAN` (default false), `shared_at` |
 | `song_set_items` | `id` | `set_id`, `position` (≥ 0, `UNIQUE (set_id, position)`), `kind` in `song` / `blank`, `song_id`, `transpose SMALLINT` (−11 to 11), `note` (at most 500 characters) |
+| `song_transpositions` | `(user_id, song_id)` | How far a person moves a song when reading it: `church_id`, `semitones SMALLINT` (−11 to 11, never 0; no row means as written), `updated_at`; `(song_id, church_id)` references `songs` and `user_id` `users`, both cascading (migration 0022) |
 
 Migration `0002_device_song_edits.sql` added the three audit columns; the
 device ones reference `device_tokens(id)` with `ON DELETE SET NULL`.

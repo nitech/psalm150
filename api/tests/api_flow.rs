@@ -4154,6 +4154,87 @@ async fn song_favorites(pool: PgPool) {
     assert_eq!(after.1, json!({ "song_ids": [first] }));
 }
 
+/// Each person keeps how far they move each song; a desktop shares those of
+/// the person who connected it, 0 forgets one, and deleted songs drop out.
+#[sqlx::test(migrations = "./migrations")]
+async fn song_transpositions(pool: PgPool) {
+    let app = test_app(pool.clone());
+    let (owner, desktop) = owner_and_desktop(&app).await;
+    let viewer = viewer_session(&app, &pool).await;
+    let (first, _) = create_song(&app, &owner, "Amazing Grace").await;
+    let (second, _) = create_song(&app, &owner, "Be Thou My Vision").await;
+    let put = |song: &str, semitones: i64| {
+        (
+            format!("/api/v1/transpositions/{song}"),
+            json!({ "semitones": semitones }),
+        )
+    };
+
+    let empty = send(&app, "GET", "/api/v1/transpositions", Some(&owner), None).await;
+    assert_eq!(empty.0, StatusCode::OK);
+    assert_eq!(empty.1, json!({ "transpositions": [] }));
+
+    // The last one given counts.
+    for (song, semitones) in [(&first, 2), (&first, -3), (&second, 5)] {
+        let (uri, body) = put(song, semitones);
+        let saved = send(&app, "PUT", &uri, Some(&owner), Some(body)).await;
+        assert_eq!(saved.0, StatusCode::NO_CONTENT);
+    }
+    let (uri, body) = put(&first, 12);
+    let too_far = send(&app, "PUT", &uri, Some(&owner), Some(body)).await;
+    assert_eq!(too_far.0, StatusCode::BAD_REQUEST);
+    let (uri, body) = put("00000000-0000-0000-0000-000000000000", 1);
+    let missing = send(&app, "PUT", &uri, Some(&owner), Some(body)).await;
+    assert_eq!(missing.0, StatusCode::NOT_FOUND);
+
+    let semitones = |listed: &Value| -> Vec<(String, i64)> {
+        let mut found: Vec<(String, i64)> = listed["transpositions"]
+            .as_array()
+            .expect("transpositions")
+            .iter()
+            .map(|t| {
+                (
+                    t["song_id"].as_str().unwrap().to_owned(),
+                    t["semitones"].as_i64().unwrap(),
+                )
+            })
+            .collect();
+        found.sort();
+        found
+    };
+    let mut expected = vec![(first.clone(), -3), (second.clone(), 5)];
+    expected.sort();
+
+    // The desktop sees and changes its person's (the owner's).
+    let seen = send(&app, "GET", "/api/v1/transpositions", Some(&desktop), None).await;
+    assert_eq!(semitones(&seen.1), expected);
+    let (uri, body) = put(&second, 0);
+    let forgotten = send(&app, "PUT", &uri, Some(&desktop), Some(body)).await;
+    assert_eq!(forgotten.0, StatusCode::NO_CONTENT);
+
+    // Others keep their own.
+    let (uri, body) = put(&second, -1);
+    let theirs = send(&app, "PUT", &uri, Some(&viewer), Some(body)).await;
+    assert_eq!(theirs.0, StatusCode::NO_CONTENT);
+    let listed = send(&app, "GET", "/api/v1/transpositions", Some(&viewer), None).await;
+    assert_eq!(semitones(&listed.1), vec![(second.clone(), -1)]);
+    let after = send(&app, "GET", "/api/v1/transpositions", Some(&owner), None).await;
+    assert_eq!(semitones(&after.1), vec![(first.clone(), -3)]);
+
+    // A deleted song leaves the list.
+    let deleted = send(
+        &app,
+        "DELETE",
+        &format!("/api/v1/songs/{first}"),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert!(deleted.0.is_success());
+    let gone = send(&app, "GET", "/api/v1/transpositions", Some(&owner), None).await;
+    assert_eq!(gone.1, json!({ "transpositions": [] }));
+}
+
 /// A person's unsaved changes are kept per song (and one new song), shown
 /// to no one else, replaced on each save, and gone once the song is saved
 /// or the draft discarded.

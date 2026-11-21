@@ -89,7 +89,7 @@ export function itemPeek(setName: string, items: SetItem[], index: number, song:
   const item = items[index];
   const display = song ? prepareSong(song.chordpro, item.transpose) : null;
   // As the song page shows it (songPage): number, authors and key.
-  const meta = display && song ? [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(display, item.transpose)].filter(Boolean).map(escapeHtml).join(" · ") : "";
+  const meta = display && song ? [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(prepareSong(song.chordpro, 0), item.transpose)].filter(Boolean).map(escapeHtml).join(" · ") : "";
   return `<div class="page-titles"><p class="eyebrow">${escapeHtml(`${setName} · ${t("{position} of {total}", { position: index + 1, total: items.length })}`)}</p><h1>${escapeHtml(itemTitle(item))}</h1></div>
     ${meta ? `<p class="page-meta">${meta}</p>` : ""}
     ${item.note ? `<p class="set-note">${escapeHtml(item.note)}</p>` : ""}

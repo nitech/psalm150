@@ -134,6 +134,8 @@ unavailable after successful initialization. Passwords are hashed with Argon2.
 | `PUT` | `/api/v1/favorites` | Set all your favourites at once (`{song_ids}`, at most 5000, in order); unknown or deleted songs are left out |
 | `PUT` | `/api/v1/favorites/{song_id}` | Make a song a favourite (204; 404 when the song is not in the church) |
 | `DELETE` | `/api/v1/favorites/{song_id}` | No longer a favourite (204) |
+| `GET` | `/api/v1/transpositions` | The songs you read transposed, `{transpositions: [{song_id, semitones}]}`; a desktop gets those of the person who connected it |
+| `PUT` | `/api/v1/transpositions/{song_id}` | Read a song `{semitones}` up (positive) or down from now on, −11 to 11; 0 reads it as written again (204; 400 outside the range; 404 when the song is not in the church) |
 | `GET` | `/api/v1/drafts` | Leaders and owners: your unsaved changes, newest first (`song_id`, `base_revision_id`, `title`, `updated_at`; `song_id` null for a new song) |
 | `GET` | `/api/v1/drafts/{song_id}` | Your unsaved changes to a song, with `chordpro` (404 when there are none); `/drafts/new` for the new song you started |
 | `PUT` | `/api/v1/drafts/{song_id}` | Keep your changes (`{base_revision_id, chordpro}`, 204; replaces them); `/drafts/new` without `base_revision_id`. Saving the song removes your draft of it |

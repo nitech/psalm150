@@ -6,8 +6,8 @@
  */
 import { hasChords, parseChordPro, transposeSong, type DisplaySong } from "./chordpro.ts";
 import { guessKey } from "../chord-match.ts";
-import { escapeHtml, readPreference, transposeLabel, writePreference } from "./format.ts";
-import { t } from "./i18n.ts";
+import { escapeHtml, readPreference, writePreference } from "./format.ts";
+import { t, tn } from "./i18n.ts";
 
 export { guessKey };
 
@@ -98,13 +98,27 @@ export function lyricsIn(fragment: DocumentFragment): string {
     .join("\n\n");
 }
 
-/** "Key G +2", or "" when no key is known or guessed and it is not transposed. */
+/**
+ * The key under a song's title. `song` is the song as written: "Key G", or
+ * moved, the key it is in now, the one it is written in and which way it
+ * went: "Key A (original G) · Transposed up 2 semitones". "" when no key is
+ * known or guessed and it is not transposed.
+ */
 export function keyLabel(song: DisplaySong, transpose: number): string {
-  const key = songKey(song);
-  if (!key && !transpose) return "";
-  const steps = transposeLabel(transpose);
-  if (key) return transpose ? t("Key {key} {steps}", { key, steps }) : t("Key {key}", { key });
-  return t("Transposed {steps}", { steps });
+  const original = songKey(song);
+  if (!transpose) return original ? t("Key {key}", { key: original }) : "";
+  const moved = transposedBy(transpose);
+  if (!original) return moved;
+  const key = songKey(transposeSong(song, transpose)) ?? original;
+  return `${t("Key {key} (original {original})", { key, original })} · ${moved}`;
+}
+
+/** "Transposed up 2 semitones", "Transposed down 1 semitone". */
+export function transposedBy(transpose: number): string {
+  const n = Math.abs(transpose);
+  return transpose > 0
+    ? tn(n, "Transposed up {n} semitone", "Transposed up {n} semitones")
+    : tn(n, "Transposed down {n} semitone", "Transposed down {n} semitones");
 }
 
 /** Keeps a transpose value in -11..11 after a step. */

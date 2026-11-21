@@ -649,8 +649,7 @@
   "Make it a favourite": "Favoriet maken",
   "{title} is a favourite": "{title} is een favoriet",
   "{title} is no longer a favourite": "{title} is geen favoriet meer",
-  "Revision {revision} · Transposing here only changes what you see and what you add to a set.": "Revisie {revision} · Transponeren verandert hier alleen wat jij ziet en wat je aan een setlist toevoegt.",
-  "Revision {revision} · Transposing here only changes what you see.": "Revisie {revision} · Transponeren verandert hier alleen wat jij ziet.",
+  "Revision {revision}": "Revisie {revision}",
   "Songs in the list": "Liederen in de lijst",
   "To the list": "Naar de lijst",
   "The screen stays on": "Het scherm blijft aan",
@@ -901,7 +900,15 @@
   "Recording saved.": "Opname opgeslagen.",
   "This song has no lyrics yet.": "Dit lied heeft nog geen tekst.",
   "{chord}, how to play it": "{chord}, zo speel je het",
-  "Key {key} {steps}": "Toonsoort {key} {steps}",
+  "Key {key} (original {original})": "Toonsoort {key} (origineel {original})",
+  "Transposed up {n} semitones": {
+    "one": "{n} halve toon omhoog getransponeerd",
+    "other": "{n} halve tonen omhoog getransponeerd"
+  },
+  "Transposed down {n} semitones": {
+    "one": "{n} halve toon omlaag getransponeerd",
+    "other": "{n} halve tonen omlaag getransponeerd"
+  },
   "Song words": "Liedtekst",
   "Key, capo, details and chord sound": "Toonsoort, capo, details en akkoordgeluid",
   "Section": "Onderdeel",

@@ -649,8 +649,7 @@
   "Make it a favourite": "Lisää suosikiksi",
   "{title} is a favourite": "{title} on suosikki",
   "{title} is no longer a favourite": "{title} ei ole enää suosikki",
-  "Revision {revision} · Transposing here only changes what you see and what you add to a set.": "Versio {revision} · Transponointi täällä muuttaa vain sitä, mitä näet ja mitä lisäät settiin.",
-  "Revision {revision} · Transposing here only changes what you see.": "Versio {revision} · Transponointi täällä muuttaa vain sitä, mitä näet.",
+  "Revision {revision}": "Versio {revision}",
   "Songs in the list": "Listan laulut",
   "To the list": "Listaan",
   "The screen stays on": "Näyttö pysyy päällä",
@@ -901,7 +900,15 @@
   "Recording saved.": "Äänite tallennettu.",
   "This song has no lyrics yet.": "Tässä laulussa ei ole vielä sanoja.",
   "{chord}, how to play it": "{chord}: näin se soitetaan",
-  "Key {key} {steps}": "Sävellaji {key} {steps}",
+  "Key {key} (original {original})": "Sävellaji {key} (alkuperäinen {original})",
+  "Transposed up {n} semitones": {
+    "one": "Transponoitu ylös {n} puolisävelaskel",
+    "other": "Transponoitu ylös {n} puolisävelaskelta"
+  },
+  "Transposed down {n} semitones": {
+    "one": "Transponoitu alas {n} puolisävelaskel",
+    "other": "Transponoitu alas {n} puolisävelaskelta"
+  },
   "Song words": "Laulun sanat",
   "Key, capo, details and chord sound": "Sävellaji, capo, tiedot ja sointuääni",
   "Section": "Osa",

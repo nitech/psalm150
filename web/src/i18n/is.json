@@ -649,8 +649,7 @@
   "Make it a favourite": "Gera að uppáhaldi",
   "{title} is a favourite": "{title} er uppáhald",
   "{title} is no longer a favourite": "{title} er ekki lengur uppáhald",
-  "Revision {revision} · Transposing here only changes what you see and what you add to a set.": "Útgáfa {revision} · Tónflutningur hér breytir aðeins því sem þú sérð og bætir á lista.",
-  "Revision {revision} · Transposing here only changes what you see.": "Útgáfa {revision} · Tónflutningur hér breytir aðeins því sem þú sérð.",
+  "Revision {revision}": "Útgáfa {revision}",
   "Songs in the list": "Lög í skránni",
   "To the list": "Í lagaskrána",
   "The screen stays on": "Skjárinn helst kveiktur",
@@ -901,7 +900,15 @@
   "Recording saved.": "Upptaka vistuð.",
   "This song has no lyrics yet.": "Þetta lag hefur engan texta enn.",
   "{chord}, how to play it": "{chord}: hvernig hann er spilaður",
-  "Key {key} {steps}": "Tóntegund {key} {steps}",
+  "Key {key} (original {original})": "Tóntegund {key} (upprunalega {original})",
+  "Transposed up {n} semitones": {
+    "one": "Tónflutt upp um {n} hálftón",
+    "other": "Tónflutt upp um {n} hálftóna"
+  },
+  "Transposed down {n} semitones": {
+    "one": "Tónflutt niður um {n} hálftón",
+    "other": "Tónflutt niður um {n} hálftóna"
+  },
   "Song words": "Lagatexti",
   "Key, capo, details and chord sound": "Tóntegund, capo, nánar og hljómahljóð",
   "Section": "Hluti",

@@ -649,8 +649,7 @@
   "Make it a favourite": "Gjer til favoritt",
   "{title} is a favourite": "{title} er ein favoritt",
   "{title} is no longer a favourite": "{title} er ikkje lenger ein favoritt",
-  "Revision {revision} · Transposing here only changes what you see and what you add to a set.": "Revisjon {revision} · Transponering her endrar berre det du ser og det du legg til i eit sett.",
-  "Revision {revision} · Transposing here only changes what you see.": "Revisjon {revision} · Transponering her endrar berre det du ser.",
+  "Revision {revision}": "Revisjon {revision}",
   "Songs in the list": "Songar i lista",
   "To the list": "Til lista",
   "The screen stays on": "Skjermen held seg på",
@@ -901,7 +900,15 @@
   "Recording saved.": "Opptaket er lagra.",
   "This song has no lyrics yet.": "Denne songen har ingen tekst enno.",
   "{chord}, how to play it": "{chord}, slik spelar du han",
-  "Key {key} {steps}": "Toneart {key} {steps}",
+  "Key {key} (original {original})": "Toneart {key} (original {original})",
+  "Transposed up {n} semitones": {
+    "one": "Transponert opp {n} halvtone",
+    "other": "Transponert opp {n} halvtonar"
+  },
+  "Transposed down {n} semitones": {
+    "one": "Transponert ned {n} halvtone",
+    "other": "Transponert ned {n} halvtonar"
+  },
   "Song words": "Songtekst",
   "Key, capo, details and chord sound": "Toneart, capo, detaljar og akkordlyd",
   "Section": "Songdel",

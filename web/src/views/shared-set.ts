@@ -235,7 +235,7 @@ export async function renderSharedSet(app: HTMLElement, api: SongServerApi, key:
       const next = set.items[index + 1];
       const transpose = stepTranspose(item.transpose, extraTranspose);
       const display = song ? prepareSong(song.chordpro, transpose) : null;
-      const key = display ? keyLabel(display, transpose) : "";
+      const key = song ? keyLabel(prepareSong(song.chordpro, 0), transpose) : "";
       main.innerHTML = `<div class="play swipe-view">
         ${pageHead({
           title: itemTitle(item),

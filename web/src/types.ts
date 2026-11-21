@@ -382,6 +382,18 @@ export interface FavoriteSongs {
   song_ids: string[];
 }
 
+/** How far a person moves a song when they read it: up (positive) or down. */
+export interface SongTransposition {
+  song_id: string;
+  /** -11 to 11, never 0. */
+  semitones: number;
+}
+
+/** A person's transposed songs in the church (`GET /transpositions`). */
+export interface SongTranspositions {
+  transpositions: SongTransposition[];
+}
+
 /** One of your drafts (`GET /drafts`): unsaved changes to a song, or a new song (`song_id` null). */
 export interface SongDraftSummary {
   song_id: string | null;

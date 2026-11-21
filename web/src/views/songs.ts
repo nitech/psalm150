@@ -693,32 +693,29 @@ async function readSong(ctx: LibraryContext, id: string, fresh = false): Promise
   return song;
 }
 
-/** The note under a song: its revision, and what transposing here does. */
-function revisionNote(song: SongDetail, canEdit: boolean): string {
-  const revision = song.revision_id.slice(0, 8);
-  return `<p class="fine-print">${canEdit
-    ? t("Revision {revision} · Transposing here only changes what you see and what you add to a set.", { revision })
-    : t("Revision {revision} · Transposing here only changes what you see.", { revision })}</p>`;
+/** The note under a song: its revision. */
+function revisionNote(song: SongDetail): string {
+  return `<p class="fine-print">${t("Revision {revision}", { revision: song.revision_id.slice(0, 8) })}</p>`;
 }
 
 /**
  * A song as it shows on its page, for the neighbour peeking in during a
- * swipe: everything down to the revision note, so nothing pops in when the
- * page takes its place.
+ * swipe: everything down to the revision note, in the reader's own key, so
+ * nothing pops in when the page takes its place.
  */
-function songPeek(song: SongDetail | null, title: string, options: ReturnType<typeof readReaderOptions>, canEdit: boolean): string {
+function songPeek(song: SongDetail | null, title: string, options: ReturnType<typeof readReaderOptions>, transpose: number): string {
   const heading = `<div class="page-titles"><h1>${escapeHtml(song?.title ?? title)}</h1></div>`;
   if (!song) return heading;
-  const display = prepareSong(song.chordpro, 0);
-  const meta = [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(display, 0)].filter(Boolean).map(escapeHtml).join(" · ");
-  return `${heading}${meta ? `<p class="page-meta">${meta}</p>` : ""}${renderSongBody(display, options)}${revisionNote(song, canEdit)}`;
+  const meta = [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(prepareSong(song.chordpro, 0), transpose)].filter(Boolean).map(escapeHtml).join(" · ");
+  return `${heading}${meta ? `<p class="page-meta">${meta}</p>` : ""}${renderSongBody(prepareSong(song.chordpro, transpose), options)}${revisionNote(song)}`;
 }
 
 export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promise<Cleanup> {
   // Read afresh, except when stepping through a list (just read, and fast).
   const stepped = steppingTo === songId;
   steppingTo = null;
-  const song = await readSong(ctx, songId, !stepped);
+  // The song opens in the key this reader chose for it last time.
+  const [song] = await Promise.all([readSong(ctx, songId, !stepped), ctx.transpositions.ready()]);
   // Opened from a list: its other songs are a swipe (or a step) away.
   const around = songNeighbours(song.id);
   for (const neighbour of [around?.next, around?.previous]) {
@@ -730,6 +727,8 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
     previous: around?.previous,
     next: around?.next,
     backAtStart: Boolean(around),
+    transpose: ctx.transpositions.get(song.id),
+    transposed: (semitones) => ctx.transpositions.set(song.id, semitones),
     // To the list's next (1) or previous (-1) song; back from the first one tapped, to the list.
     go: (way) => {
       if (!around) return;
@@ -748,7 +747,7 @@ export async function songDetail(ctx: LibraryContext, [songId]: string[]): Promi
       const target = way === 1 ? around?.next : around?.previous;
       // Back to the list: the song slides off and the list comes back (Back's own slide).
       if (!target) return null;
-      return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options, ctx.canEdit);
+      return songPeek(recentSongs.get(target.id)?.song ?? null, target.title, options, ctx.transpositions.get(target.id));
     },
   }).cleanup;
 }
@@ -763,8 +762,10 @@ export interface SongPlace {
   eyebrow?: string;
   /** A set item's note, under the song's number, authors and key. */
   note?: string;
-  /** Semitones to start from (a set item's). */
+  /** Semitones to start from (a set item's, or the reader's own). */
   transpose?: number;
+  /** After each step of the transpose (the song book remembers it). */
+  transposed?(semitones: number): void;
   previous?: { title: string } | null;
   next?: { title: string } | null;
   /** At the first song, Previous is Back to the list. */
@@ -870,7 +871,7 @@ export function songPage(ctx: LibraryContext, song: SongDetail, place: SongPlace
   const render = () => {
     closeChordDock();
     const display = prepareSong(song.chordpro, transpose);
-    const meta = [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(display, transpose)]
+    const meta = [song.song_number ? t("No. {number}", { number: song.song_number }) : "", song.authors, keyLabel(prepareSong(song.chordpro, 0), transpose)]
       .filter(Boolean).map(escapeHtml).join(" · ");
     ctx.main.innerHTML = `<div class="swipe-view${place.className ? ` ${place.className}` : ""}">${pageHead({
       title: song.title,
@@ -885,7 +886,7 @@ export function songPage(ctx: LibraryContext, song: SongDetail, place: SongPlace
     <div id="song-media-slot"></div>
     ${renderSongBody(display, options)}
     ${songNav()}
-    ${revisionNote(song, ctx.canEdit)}</div>`;
+    ${revisionNote(song)}</div>`;
     ctx.main.querySelector("#song-draft-slot")?.replaceWith(draftHolder);
     ctx.main.querySelector("#song-media-slot")?.replaceWith(mediaHolder);
     ctx.main.append(chordDock);
@@ -928,7 +929,10 @@ export function songPage(ctx: LibraryContext, song: SongDetail, place: SongPlace
       return;
     }
     const reader = onReaderAction(ctx.main, target, options, {
-      step: (by) => { transpose = stepTranspose(transpose, by); },
+      step: (by) => {
+        transpose = stepTranspose(transpose, by);
+        place.transposed?.(transpose);
+      },
       redraw: render,
       key: () => songKey(prepareSong(song.chordpro, transpose)),
       transpose: () => transpose,

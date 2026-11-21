@@ -317,8 +317,15 @@ are not affected.
   is the song's `{key}`, else a guess from its chords (`guessKey`: the key
   whose scale fits most chords, the last chord being home counting most,
   major over its relative minor on a tie), moved with the transpose; with no
-  chords at all it shows the steps ("+2"). Transposing only changes what you
-  see (and what you add to a set).
+  chords at all it shows the steps ("+2"). In the song book a song opens in
+  the key its reader chose last time (`transpositions.ts`): signed in, the
+  person's own on the server (`/transpositions`, read with the favourites,
+  each song's last step saved 0.6 s after it), a visitor's in
+  `localStorage["psa150-transpositions"]`. A set item opens in the set's
+  key and transposing there is not remembered. Under the title the key reads
+  "Key A (original G) · Transposed up 2 semitones" (`keyLabel`, given the
+  song as written); lists show each song's own key. Transposing changes
+  only what you see (and what you add to a set), not the song.
   A ⋮ action used often lately also comes into the bar as an icon, after a
   thin divider and with a small dot under it (title "… (often used)"), at
   most 2: it comes at 3 uses and goes when its uses fade (half every 14

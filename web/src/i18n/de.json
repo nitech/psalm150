@@ -649,8 +649,7 @@
   "Make it a favourite": "Zum Favoriten machen",
   "{title} is a favourite": "{title} ist ein Favorit",
   "{title} is no longer a favourite": "{title} ist kein Favorit mehr",
-  "Revision {revision} · Transposing here only changes what you see and what you add to a set.": "Revision {revision} · Transponieren ändert hier nur, was du siehst und was du einer Setlist hinzufügst.",
-  "Revision {revision} · Transposing here only changes what you see.": "Revision {revision} · Transponieren ändert hier nur, was du siehst.",
+  "Revision {revision}": "Revision {revision}",
   "Songs in the list": "Lieder in der Liste",
   "To the list": "Zur Liste",
   "The screen stays on": "Bildschirm bleibt an",
@@ -901,7 +900,15 @@
   "Recording saved.": "Aufnahme gespeichert.",
   "This song has no lyrics yet.": "Dieses Lied hat noch keinen Text.",
   "{chord}, how to play it": "{chord}, so spielst du ihn",
-  "Key {key} {steps}": "Tonart {key} {steps}",
+  "Key {key} (original {original})": "Tonart {key} (Original {original})",
+  "Transposed up {n} semitones": {
+    "one": "{n} Halbton nach oben transponiert",
+    "other": "{n} Halbtöne nach oben transponiert"
+  },
+  "Transposed down {n} semitones": {
+    "one": "{n} Halbton nach unten transponiert",
+    "other": "{n} Halbtöne nach unten transponiert"
+  },
   "Song words": "Liedtext",
   "Key, capo, details and chord sound": "Tonart, Capo, Details und Akkordklang",
   "Section": "Abschnitt",

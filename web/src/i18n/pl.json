@@ -677,8 +677,7 @@
   "Make it a favourite": "Dodaj do ulubionych",
   "{title} is a favourite": "Dodano do ulubionych: {title}",
   "{title} is no longer a favourite": "Usunięto z ulubionych: {title}",
-  "Revision {revision} · Transposing here only changes what you see and what you add to a set.": "Wersja {revision} · Transpozycja tutaj zmienia tylko to, co widzisz i co dodajesz do setlisty.",
-  "Revision {revision} · Transposing here only changes what you see.": "Wersja {revision} · Transpozycja tutaj zmienia tylko to, co widzisz.",
+  "Revision {revision}": "Wersja {revision}",
   "Songs in the list": "Pieśni na liście",
   "To the list": "Do listy",
   "The screen stays on": "Ekran pozostaje włączony",
@@ -943,7 +942,19 @@
   "Recording saved.": "Zapisano nagranie.",
   "This song has no lyrics yet.": "Ta pieśń nie ma jeszcze tekstu.",
   "{chord}, how to play it": "{chord} – jak zagrać",
-  "Key {key} {steps}": "Tonacja {key} {steps}",
+  "Key {key} (original {original})": "Tonacja {key} (oryginalna {original})",
+  "Transposed up {n} semitones": {
+    "one": "Transpozycja w górę o {n} półton",
+    "few": "Transpozycja w górę o {n} półtony",
+    "many": "Transpozycja w górę o {n} półtonów",
+    "other": "Transpozycja w górę o {n} półtonu"
+  },
+  "Transposed down {n} semitones": {
+    "one": "Transpozycja w dół o {n} półton",
+    "few": "Transpozycja w dół o {n} półtony",
+    "many": "Transpozycja w dół o {n} półtonów",
+    "other": "Transpozycja w dół o {n} półtonu"
+  },
   "Song words": "Tekst pieśni",
   "Key, capo, details and chord sound": "Tonacja, kapodaster, szczegóły i dźwięk akordów",
   "Section": "Sekcja",

@@ -8,6 +8,7 @@ import { ApiError, SongServerApi } from "./api.ts";
 import { leavingScreen, type Cleanup, type LibraryContext, type LibraryView, type View } from "./context.ts";
 import { CurrentSet } from "./current-set.ts";
 import { Favorites } from "./favorites.ts";
+import { Transpositions } from "./transpositions.ts";
 import { installFollow } from "./follow.ts";
 import { installLive, type Live } from "./live.ts";
 import { icon, type IconName } from "./icons.ts";
@@ -47,6 +48,7 @@ let lastSessionCheck = 0;
 const api = new SongServerApi(() => session?.token ?? null);
 const currentSet = new CurrentSet(api);
 const favorites = new Favorites(api);
+const transpositions = new Transpositions(api);
 /** Following the projector from the dock's card (signed in only). */
 const follow = installFollow(api, (main) => libraryContext(main), () => live?.draw());
 /** Following, leading and controlling the projector, behind the dock's Live card. */
@@ -484,6 +486,7 @@ function renderShell(): void {
   }).observe(document.querySelector("#dock")!);
   currentReady = session ? currentSet.refresh().catch(() => undefined) : Promise.resolve();
   if (session) void favorites.refresh().catch(() => undefined);
+  if (session) void transpositions.refresh().catch(() => undefined);
   if (session) follow.start();
   else follow.stop();
   if (!location.hash || location.hash === "#" || location.hash === "#/") {
@@ -967,6 +970,7 @@ function libraryContext(main: HTMLElement): LibraryContext {
     },
     currentSet,
     favorites,
+    transpositions,
     live: live!,
     run,
     signOut,
@@ -1206,6 +1210,7 @@ function startShellListeners(): void {
     if (session) {
       void currentSet.refresh().catch(() => undefined);
       void favorites.refresh().catch(() => undefined);
+      void transpositions.refresh().catch(() => undefined);
     }
     void refreshSession();
   };
@@ -1331,6 +1336,7 @@ function clearSession(): void {
   // nothing of this person's library on the phone.
   currentSet.clear();
   favorites.clear();
+  transpositions.clear();
   live?.stop();
   follow.stop();
   void clearCachedData();

@@ -958,6 +958,28 @@ pub struct FavoriteSongs {
     pub song_ids: Vec<Uuid>,
 }
 
+/// How far a person moves a song when they read it: up (positive) or down,
+/// in semitones.
+#[derive(Debug, Serialize, ToSchema, FromRow)]
+pub struct SongTransposition {
+    pub song_id: Uuid,
+    /// -11 to 11, never 0.
+    pub semitones: i16,
+}
+
+/// The songs a person reads transposed in the church (`/transpositions`).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SongTranspositions {
+    pub transpositions: Vec<SongTransposition>,
+}
+
+/// How far to move a song from now on (`PUT /transpositions/{song_id}`).
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct TranspositionRequest {
+    /// -11 to 11; 0 reads the song as written again.
+    pub semitones: i16,
+}
+
 /// Your unsaved changes to a song (`/drafts`), kept while you edit.
 #[derive(Debug, Serialize, ToSchema, FromRow)]
 pub struct SongDraft {
