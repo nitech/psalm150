@@ -245,10 +245,16 @@ are not affected.
   song's title. A **YouTube** pill when the song's `{meta: youtube}` is a
   YouTube link (any usual form, opened as `watch?v=` in a new tab; public
   visitors see it too). For anyone signed in, a pill per recording with its
-  maker's initials, Play/Pause and its length (the time played while it
-  plays, the pill filling up as it goes). Tapping a pill plays it and opens
-  a player under the pills: title, maker and day, the browser's controls to
-  seek, Close, and for leaders and owners **Delete**. Recordings play from a
+  maker's initials, Play and its length. Tapping a pill grows it into the
+  player (the whole width on a phone, at most 560 px wider): the initials,
+  Play / Pause, a scrubber (a range field: drag or arrow keys to seek, its
+  value read as "0:18 of 4:08") with the time, and a cog. The cog opens a
+  well like the editor's (`.ce-well`, dropping from the player's right end;
+  a tap elsewhere or Escape closes it): every recording with its maker, day
+  and length (tap one to play it instead; the one playing is checked), for
+  leaders and owners a **Delete** beside each, asking first, then **Record
+  another**, **YouTube** and **Close the player**, which goes back to the
+  pills. Recordings play from a
   play link, streamed, one at a time; a WebM recording without its length is
   sought to the end once so the player shows its length; a run-out link is
   renewed once; playing goes on when the song is transposed. Leaders and

@@ -1,8 +1,13 @@
 /**
  * How a song is played, at the top of its page: a pill per recording (who
- * made it, Play/Pause, its length) and a pill to its YouTube video. Everyone
+ * made it, Play, its length) and a pill to its YouTube video. Everyone
  * signed in plays the recordings; leaders and owners record more (⋮ until
  * there is one, then the + pill) and remove them.
+ *
+ * A pill tapped grows into the player, the width of a phone: Play / Pause,
+ * a scrubber with the time, and a cog that opens a well listing every
+ * recording (tap one to play it, leaders delete one after saying yes), with
+ * Record another, the video and Close the player.
  *
  * The video is song metadata, `{meta: youtube <link>}`, set in the editor's
  * details, so public library visitors see it too.
@@ -16,7 +21,7 @@ import { setRecording } from "./chord-audio.ts";
 import { clock, errorMessage, escapeHtml, initials, relativeDate, setFormBusy } from "./format.ts";
 import { confirmAction, holdScreen, showToast } from "./host.ts";
 import { t } from "./i18n.ts";
-import { icon } from "./icon.ts";
+import { icon, type IconName } from "./icon.ts";
 import { closeSheet, openSheet } from "./sheet.ts";
 import { songVideo } from "./youtube.ts";
 
@@ -105,82 +110,137 @@ export function mountSongMedia(
 ): SongMedia {
   const video = songVideo(song.chordpro);
   let recordings: SongRecording[] = [];
-  /** The recording in the player under the pills, if any. */
+  /** The recording playing (or paused): its pill has grown into the player. */
   let selected: string | null = null;
   /** Play links asked for this visit, by recording id. */
   const urls = new Map<string, string>();
   let gone = false;
+  /** Whether the well behind the player's cog is open. */
+  let wellOpen = false;
+  /** While a finger or the mouse holds the scrubber, playing does not move it. */
+  let scrubbing = false;
 
   const audio = document.createElement("audio");
   audio.preload = "metadata";
-  audio.controls = true;
-  audio.className = "media-audio";
   showLength(audio);
 
   const who = (recording: SongRecording) => recording.created_by_name ?? t("Someone");
+  const avatar = (recording: SongRecording) => `<span class="pill-avatar" aria-hidden="true">${escapeHtml(initials(who(recording)) || "?")}</span>`;
+  const selectedRecording = () => recordings.find((recording) => recording.id === selected);
 
-  const pillTime = (recording: SongRecording) => {
-    if (recording.id === selected && audio.currentTime > 0) return clock(audio.currentTime * 1000);
-    return recording.duration_ms !== null ? clock(recording.duration_ms) : "";
-  };
-
-  const pillLabel = (recording: SongRecording, playing: boolean) => playing
+  const playLabel = (recording: SongRecording, playing: boolean) => playing
     ? t("Pause {title}, by {who}", { title: recording.title, who: who(recording) })
     : t("Play {title}, by {who}", { title: recording.title, who: who(recording) });
 
-  const recordingPill = (recording: SongRecording) => {
-    const playing = recording.id === selected && !audio.paused;
-    return `<button type="button" class="media-pill${recording.id === selected ? " selected" : ""}" data-pill="${recording.id}" aria-pressed="${playing}" aria-label="${escapeHtml(pillLabel(recording, playing))}" title="${escapeHtml(`${recording.title} · ${who(recording)}`)}">
-      <span class="pill-avatar" aria-hidden="true">${escapeHtml(initials(who(recording)) || "?")}</span>
-      ${icon(playing ? "pause" : "play")}
-      <span class="pill-time">${escapeHtml(pillTime(recording))}</span>
+  /** A recording not playing: who made it, Play and its length. */
+  const recordingPill = (recording: SongRecording) => `<button type="button" class="media-pill" data-pill="${recording.id}" aria-label="${escapeHtml(playLabel(recording, false))}" title="${escapeHtml(`${recording.title} · ${who(recording)}`)}">
+      ${avatar(recording)}${icon("play")}
+      <span class="pill-time">${recording.duration_ms !== null ? escapeHtml(clock(recording.duration_ms)) : ""}</span>
     </button>`;
-  };
 
-  /** The player under the pills, for the selected recording. */
-  const playerHead = (recording: SongRecording) => {
-    const details = [recording.created_by_name ?? "", relativeDate(recording.created_at)].filter(Boolean).map(escapeHtml).join(" · ");
-    return `<span class="row-main"><strong>${escapeHtml(recording.title)}</strong><small>${details}</small></span>
-      ${store.canEdit ? `<button type="button" class="icon-button small ghost" data-media-act="remove" aria-label="${escapeHtml(t("Delete {title}", { title: recording.title }))}" title="${t("Delete")}">${icon("trash")}</button>` : ""}
-      <button type="button" class="icon-button small ghost" data-media-act="close" aria-label="${t("Close the player")}" title="${t("Close")}">${icon("close")}</button>`;
+  /** The recording's length in seconds: the audio's once it knows, else as saved. */
+  const length = (recording: SongRecording) =>
+    Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (recording.duration_ms ?? 0) / 1000;
+
+  /**
+   * The playing recording's pill grown into a player, the width of a phone:
+   * who made it, Play / Pause, the scrubber with the time, and the cog that
+   * opens the well.
+   */
+  const player = (recording: SongRecording) => `<div class="media-player" role="group" aria-label="${escapeHtml(`${recording.title} · ${who(recording)}`)}">
+      ${avatar(recording)}
+      <button type="button" class="media-play" data-media-act="toggle"></button>
+      <input type="range" class="media-scrub" min="0" max="0" step="any" value="0" aria-label="${t("Position in the recording")}">
+      <span class="media-time" aria-hidden="true"></span>
+      <button type="button" class="media-cog" data-media-act="well" aria-haspopup="dialog" aria-expanded="false" aria-label="${t("Recordings")}" title="${t("Recordings")}">${icon("settings")}</button>
+    </div>
+    <div class="ce-well media-well" role="dialog" aria-label="${t("Recordings")}" hidden></div>`;
+
+  /** The well: every recording (tap to play it; leaders delete), then Record another, YouTube and Close. */
+  const wellContent = () => {
+    const rows = recordings.map((recording) => {
+      const on = recording.id === selected;
+      const details = [who(recording), relativeDate(recording.created_at), recording.duration_ms !== null ? clock(recording.duration_ms) : ""]
+        .filter(Boolean).map(escapeHtml).join(" · ");
+      return `<div class="media-well-item">
+        <button type="button" class="ce-well-row" data-play="${recording.id}"${on ? ' aria-current="true"' : ""} aria-label="${escapeHtml(playLabel(recording, false))}">
+          ${avatar(recording)}
+          <span class="media-well-text"><strong>${escapeHtml(recording.title)}</strong><small>${details}</small></span>
+          ${on ? `<span class="ce-well-check" aria-hidden="true">${icon("check")}</span>` : ""}
+        </button>
+        ${store.canEdit ? `<button type="button" class="icon-button small ghost" data-remove="${recording.id}" aria-label="${escapeHtml(t("Delete {title}", { title: recording.title }))}" title="${t("Delete")}">${icon("trash")}</button>` : ""}
+      </div>`;
+    }).join("");
+    const action = (attrs: string, mark: IconName, label: string) =>
+      `<button type="button" class="ce-well-row action" ${attrs}><span class="ce-well-check" aria-hidden="true">${icon(mark)}</span>${escapeHtml(label)}</button>`;
+    const actions = [
+      store.canEdit && canRecord() ? action('data-media-act="record"', "mic", t("Record another")) : "",
+      video
+        ? `<a class="ce-well-row action" href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" aria-label="${t("Watch on YouTube (opens YouTube)")}"><span class="ce-well-check" aria-hidden="true">${icon("video")}</span>YouTube</a>`
+        : "",
+      action('data-media-act="close"', "close", t("Close the player")),
+    ].join("");
+    return `<p class="ce-well-title">${t("Recordings")}</p>
+      <div class="media-well-list">${rows}</div>
+      <div class="ce-well-rule"></div>
+      <div class="media-well-list">${actions}</div>`;
   };
 
   const draw = () => {
-    const current = recordings.find((recording) => recording.id === selected);
+    const current = selectedRecording();
+    if (!current) {
+      selected = null;
+      wellOpen = false;
+    }
+    holder.hidden = !recordings.length && !video;
+    holder.classList.toggle("playing", Boolean(current));
+    if (current) {
+      holder.innerHTML = player(current);
+      if (wellOpen) openWell();
+      drawPlayer();
+      return;
+    }
     const addPill = store.canEdit && canRecord() && recordings.length
       ? `<button type="button" class="media-pill add" data-media-act="record" aria-label="${t("Record another")}" title="${t("Record another")}">${icon("plus")}${icon("mic")}</button>`
       : "";
     const videoPill = video
       ? `<a class="media-pill video" href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" aria-label="${t("Watch on YouTube (opens YouTube)")}">${icon("video")}<span>YouTube</span></a>`
       : "";
-    holder.hidden = !recordings.length && !video;
-    const html = `${videoPill}${recordings.map(recordingPill).join("")}${addPill}`;
-    const pills = holder.querySelector(".media-pills");
-    if (pills) pills.innerHTML = html;
-    else holder.innerHTML = `<div class="media-pills" role="group" aria-label="${t("How it is played")}">${html}</div><div class="media-player" hidden><div class="media-player-head"></div></div>`;
-    const player = holder.querySelector<HTMLElement>(".media-player")!;
-    player.hidden = !current;
-    if (current) {
-      player.querySelector(".media-player-head")!.innerHTML = playerHead(current);
-      if (audio.parentElement !== player) player.append(audio);
-    }
-    drawPill();
+    holder.innerHTML = `<div class="media-pills" role="group" aria-label="${t("How it is played")}">${videoPill}${recordings.map(recordingPill).join("")}${addPill}</div>`;
   };
 
-  /** Only the selected pill's icon, time and progress change while it plays. */
-  function drawPill(): void {
-    const recording = recordings.find((candidate) => candidate.id === selected);
-    const pill = recording && holder.querySelector<HTMLElement>(`[data-pill="${recording.id}"]`);
-    if (!recording || !pill) return;
+  /** Only Play / Pause, the scrubber and the time change while it plays. */
+  function drawPlayer(): void {
+    const recording = selectedRecording();
+    const button = holder.querySelector<HTMLElement>(".media-play");
+    const range = holder.querySelector<HTMLInputElement>(".media-scrub");
+    if (!recording || !button || !range) return;
     const playing = !audio.paused;
-    pill.setAttribute("aria-pressed", String(playing));
-    pill.setAttribute("aria-label", pillLabel(recording, playing));
-    pill.querySelector(".icon")!.outerHTML = icon(playing ? "pause" : "play");
-    pill.querySelector(".pill-time")!.textContent = pillTime(recording);
-    const length = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (recording.duration_ms ?? 0) / 1000;
-    pill.style.setProperty("--progress", length ? `${Math.min(100, (audio.currentTime / length) * 100)}%` : "0%");
+    if (button.dataset.playing !== String(playing)) {
+      button.dataset.playing = String(playing);
+      button.innerHTML = icon(playing ? "pause" : "play");
+      button.setAttribute("aria-label", playLabel(recording, playing));
+      button.title = playing ? t("Pause") : t("Play");
+    }
+    const total = length(recording);
+    range.max = String(total);
+    range.disabled = !total;
+    if (!scrubbing) range.value = String(Math.min(audio.currentTime, total));
+    showPosition(Number(range.value), total);
   }
-  for (const event of ["play", "pause", "timeupdate", "ended", "durationchange"]) audio.addEventListener(event, drawPill);
+
+  /** The time beside the scrubber and how far its track is filled. */
+  function showPosition(at: number, total: number): void {
+    const range = holder.querySelector<HTMLInputElement>(".media-scrub");
+    const time = holder.querySelector<HTMLElement>(".media-time");
+    if (!range || !time) return;
+    const now = clock(at * 1000);
+    const all = total ? clock(total * 1000) : "";
+    time.textContent = all ? `${now} / ${all}` : now;
+    range.setAttribute("aria-valuetext", all ? t("{time} of {length}", { time: now, length: all }) : now);
+    range.style.setProperty("--progress", total ? `${Math.min(100, (at / total) * 100)}%` : "0%");
+  }
+  for (const event of ["play", "pause", "timeupdate", "ended", "durationchange", "loadedmetadata"]) audio.addEventListener(event, drawPlayer);
 
   const report = () => changed(recordings.length > 0);
 
@@ -196,15 +256,27 @@ export function mountSongMedia(
     report();
   };
 
-  const play = async (recordingId: string) => {
+  /**
+   * Plays a recording in the player. From a pill, the pill grows into it
+   * (`from` is the pill's width); from the well, the player stays and plays
+   * the other one.
+   */
+  const play = async (recordingId: string, from?: number) => {
     if (selected === recordingId) {
       if (audio.paused) void audio.play().catch(() => undefined);
-      else audio.pause();
       return;
     }
     audio.pause();
+    audio.removeAttribute("src");
     selected = recordingId;
+    wellOpen = false;
     draw();
+    const grown = holder.querySelector<HTMLElement>(".media-player");
+    if (grown && from) {
+      grown.style.setProperty("--from", `${from}px`);
+      grown.classList.add("grow");
+    }
+    holder.querySelector<HTMLElement>(".media-play")?.focus({ preventScroll: true });
     try {
       let url = urls.get(recordingId);
       if (!url) {
@@ -233,6 +305,29 @@ export function mountSongMedia(
     }).catch(() => showToast(t("The recording could not be played."), true));
   });
 
+  function openWell(): void {
+    const well = holder.querySelector<HTMLElement>(".media-well");
+    if (!well) return;
+    wellOpen = true;
+    well.innerHTML = wellContent();
+    well.hidden = false;
+    holder.querySelector(".media-cog")?.setAttribute("aria-expanded", "true");
+    requestAnimationFrame(() => well.classList.add("open"));
+  }
+
+  function closeWell(focusCog = false): void {
+    const well = holder.querySelector<HTMLElement>(".media-well");
+    wellOpen = false;
+    if (well) {
+      well.hidden = true;
+      well.classList.remove("open");
+    }
+    const cog = holder.querySelector<HTMLElement>(".media-cog");
+    cog?.setAttribute("aria-expanded", "false");
+    if (focusCog) cog?.focus();
+  }
+
+  /** Back to the pills; focus goes to the pill that was playing. */
   const close = () => {
     audio.pause();
     const was = selected;
@@ -241,45 +336,106 @@ export function mountSongMedia(
     if (was) holder.querySelector<HTMLElement>(`[data-pill="${was}"]`)?.focus();
   };
 
-  const remove = async () => {
-    const recording = recordings.find((candidate) => candidate.id === selected);
+  /** Deletes a recording once the person says yes. */
+  const remove = async (recordingId: string) => {
+    const recording = recordings.find((candidate) => candidate.id === recordingId);
     if (!recording || !(await confirmAction(t("Delete the recording “{title}”? It cannot be brought back.", { title: recording.title })))) return;
     try {
       await store.remove(song.id, recording.id);
-      audio.pause();
-      audio.removeAttribute("src");
-      selected = null;
+      if (selected === recording.id) {
+        audio.pause();
+        audio.removeAttribute("src");
+        selected = null;
+      }
       recordings = recordings.filter((candidate) => candidate.id !== recording.id);
       draw();
       report();
-      holder.querySelector<HTMLElement>(".media-pill")?.focus();
+      (holder.querySelector<HTMLElement>(".media-well:not([hidden]) .ce-well-row") ?? holder.querySelector<HTMLElement>(".media-pill"))?.focus();
       showToast(t("Recording deleted."));
     } catch (error) {
       showToast(errorMessage(error), true);
     }
   };
 
-  const record = () => openRecorder(store, song, (recording) => {
-    recordings.push(recording);
-    draw();
-    report();
-    holder.querySelector<HTMLElement>(`[data-pill="${recording.id}"]`)?.focus();
-  });
+  const record = () => {
+    closeWell();
+    openRecorder(store, song, (recording) => {
+      recordings.push(recording);
+      draw();
+      report();
+      holder.querySelector<HTMLElement>(`[data-pill="${recording.id}"]`)?.focus();
+    });
+  };
 
   const onClick = (event: Event) => {
     const target = event.target as HTMLElement;
     const pill = target.closest<HTMLElement>("[data-pill]");
     if (pill) {
-      void play(String(pill.dataset.pill));
+      void play(String(pill.dataset.pill), pill.getBoundingClientRect().width);
+      return;
+    }
+    const chosen = target.closest<HTMLElement>("[data-play]")?.dataset.play;
+    if (chosen) {
+      closeWell();
+      void play(chosen);
+      return;
+    }
+    const removing = target.closest<HTMLElement>("[data-remove]")?.dataset.remove;
+    if (removing) {
+      void remove(removing);
+      return;
+    }
+    if (target.closest(".media-well a")) {
+      closeWell();
       return;
     }
     switch (target.closest<HTMLElement>("[data-media-act]")?.dataset.mediaAct) {
+      case "toggle":
+        if (audio.paused) void audio.play().catch(() => undefined);
+        else audio.pause();
+        break;
+      case "well":
+        if (wellOpen) closeWell();
+        else openWell();
+        break;
       case "record": record(); break;
-      case "remove": void remove(); break;
       case "close": close(); break;
     }
   };
+
+  // Moving the scrubber moves the recording, and the time with it.
+  const onScrub = (event: Event) => {
+    const range = event.target as HTMLInputElement;
+    if (!range.classList.contains("media-scrub")) return;
+    const at = Number(range.value);
+    if (Number.isFinite(at) && audio.getAttribute("src")) audio.currentTime = at;
+    const recording = selectedRecording();
+    if (recording) showPosition(at, length(recording));
+  };
+  const holdScrub = (event: Event) => {
+    if ((event.target as HTMLElement).classList?.contains("media-scrub")) scrubbing = true;
+  };
+  const letGoScrub = () => {
+    if (!scrubbing) return;
+    scrubbing = false;
+    drawPlayer();
+  };
+
+  // A tap anywhere else, or Escape, closes the well.
+  const onOutside = (event: Event) => {
+    if (wellOpen && !(event.target as HTMLElement).closest?.(".media-well, .media-cog")) closeWell();
+  };
+  const onKey = (event: KeyboardEvent) => {
+    if (wellOpen && event.key === "Escape") closeWell(true);
+  };
+
   holder.addEventListener("click", onClick);
+  holder.addEventListener("input", onScrub);
+  holder.addEventListener("pointerdown", holdScrub);
+  document.addEventListener("pointerup", letGoScrub);
+  document.addEventListener("pointercancel", letGoScrub);
+  document.addEventListener("pointerdown", onOutside, true);
+  document.addEventListener("keydown", onKey);
   draw();
   void load();
 
@@ -288,6 +444,12 @@ export function mountSongMedia(
     cleanup() {
       gone = true;
       holder.removeEventListener("click", onClick);
+      holder.removeEventListener("input", onScrub);
+      holder.removeEventListener("pointerdown", holdScrub);
+      document.removeEventListener("pointerup", letGoScrub);
+      document.removeEventListener("pointercancel", letGoScrub);
+      document.removeEventListener("pointerdown", onOutside, true);
+      document.removeEventListener("keydown", onKey);
       audio.pause();
       audio.removeAttribute("src");
     },

@@ -415,16 +415,13 @@ dialog.no-close .sheet-body h2 { margin-right: 0; }
 button.ch.shown { border-radius: 4px; background: var(--psa-accent-soft); box-shadow: 0 0 0 2px var(--psa-accent-soft); }
 
 
-.song-media { margin: 0 0 var(--psa-space-4); }
+.song-media { position: relative; margin: 0 0 var(--psa-space-4); }
 .media-pills { display: flex; flex-wrap: wrap; gap: var(--psa-space-2); }
 .media-pill {
-  --progress: 0%;
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 3px 12px 3px 3px;
-  border: 1px solid var(--psa-border); border-radius: 999px; color: var(--psa-text); font: inherit; font-size: 14px; text-decoration: none;
-  background: linear-gradient(to right, var(--psa-accent-soft) var(--progress), var(--psa-bg-surface) var(--progress));
+  border: 1px solid var(--psa-border); border-radius: 999px; background: var(--psa-bg-surface); color: var(--psa-text); font: inherit; font-size: 14px; text-decoration: none;
 }
 .media-pill .icon { width: 16px; height: 16px; flex: none; }
-.media-pill.selected { border-color: var(--psa-accent-text); }
 .media-pill.add, .media-pill.video { padding: 3px 12px; }
 .media-pill.add { gap: 0; color: var(--psa-text-secondary); }
 .media-pill.add .icon:first-child { width: 12px; height: 12px; }
@@ -432,10 +429,56 @@ button.ch.shown { border-radius: 4px; background: var(--psa-accent-soft); box-sh
 .pill-avatar { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--psa-accent-soft); color: var(--psa-accent-text); font-size: 12px; font-weight: 700; }
 .pill-time { color: var(--psa-text-secondary); font-variant-numeric: tabular-nums; }
 .pill-time:empty { display: none; }
-.media-player { margin-top: var(--psa-space-2); padding: var(--psa-space-2) var(--psa-space-3) var(--psa-space-3); border: 1px solid var(--psa-border); border-radius: var(--psa-radius-md); background: var(--psa-bg-surface); }
-.media-player[hidden] { display: none; }
-.media-player-head { display: flex; align-items: center; gap: var(--psa-space-2); min-height: 44px; }
-.media-audio { display: block; width: 100%; }
+
+/* A recording playing: its pill grown into the player, the whole width on a
+   phone. Who made it, Play / Pause, the scrubber, the time and the cog. */
+.media-player {
+  --progress: 0%;
+  display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 3px; overflow: hidden;
+  border: 1px solid var(--psa-accent-text); border-radius: 999px; background: var(--psa-bg-surface);
+}
+.media-player .pill-avatar { width: 36px; height: 36px; }
+/* Wider screens keep it a sensible length, the well under its cog. */
+.song-media.playing { max-width: 560px; }
+.media-player.grow { animation: media-grow 340ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes media-grow { from { width: var(--from, 100%); } }
+@media (prefers-reduced-motion: reduce) { .media-player.grow { animation: none; } }
+.media-play, .media-cog { display: grid; place-items: center; width: 36px; height: 36px; flex: none; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--psa-text); }
+.media-play .icon, .media-cog .icon { width: 18px; height: 18px; }
+.media-play { background: var(--psa-accent-soft); color: var(--psa-accent-text); }
+.media-cog { color: var(--psa-text-secondary); }
+.media-cog[aria-expanded="true"] { background: var(--psa-bg-sunken); color: var(--psa-text); }
+@media (hover: hover) { .media-cog:hover { background: var(--psa-bg-sunken); color: var(--psa-text); } }
+.media-time { flex: none; color: var(--psa-text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The scrubber: a thin track filled to where it plays, and a round thumb;
+   the field around it is tall enough for a finger. */
+.media-player .media-scrub {
+  flex: 1; width: auto; min-width: 48px; height: 36px; min-height: 0; margin: 0 4px; padding: 0;
+  border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-appearance: none; appearance: none; cursor: pointer; touch-action: none;
+}
+.media-player .media-scrub:hover { background: none; }
+.media-player .media-scrub:disabled { opacity: 0.5; cursor: default; }
+.media-scrub::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--psa-accent) var(--progress), var(--psa-border-strong) var(--progress)); }
+.media-scrub::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; border: 0; border-radius: 50%; background: var(--psa-text); box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); -webkit-appearance: none; appearance: none; }
+.media-scrub::-moz-range-track { height: 4px; border-radius: 2px; background: var(--psa-border-strong); }
+.media-scrub::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--psa-accent); }
+.media-scrub::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--psa-text); box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+.media-scrub:focus-visible::-webkit-slider-thumb { box-shadow: var(--psa-focus-ring); }
+.media-scrub:focus-visible::-moz-range-thumb { box-shadow: var(--psa-focus-ring); }
+
+/* The well behind the cog: the editor's panel, dropping from the player's
+   right end over the words, every recording in it, then the actions. */
+.ce-well.media-well { position: absolute; top: calc(100% + 8px); right: 0; left: auto; z-index: 30; width: min(380px, 100%); max-height: min(60vh, 440px); transform: translateY(-6px) scale(0.98); transform-origin: 100% 0; }
+.ce-well.media-well.open { transform: none; }
+.media-well-list { display: grid; padding: 0 8px; }
+.media-well-item { display: flex; align-items: center; gap: 2px; }
+.media-well .ce-well-row { flex: 1; min-width: 0; }
+.media-well-item .ce-well-row { min-height: 56px; }
+.media-well a.ce-well-row { color: var(--psa-text); text-decoration: none; }
+.media-well-text { display: grid; flex: 1; min-width: 0; }
+.media-well-text strong { overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.media-well-text small { overflow: hidden; color: var(--psa-text-secondary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.media-well .ce-well-row[aria-current="true"] strong { color: var(--psa-accent-text); }
 .recorder .recorder-preview { display: block; width: 100%; }
 .recorder [hidden] { display: none !important; }
 /* The tip about the phone's recorder app, close under the upload button it explains. */
